@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>동네 운동회 게임방</title>
+<meta property="og:type" content="website">
+<meta property="og:title" content="동네 운동회 게임방">
+<meta property="og:description" content="닉네임 넣고 바로 한 판! 실시간 오목·알까기 대국·랭킹·채팅">
+<meta property="og:image" content="https://phenomenal-madeleine-e99811.netlify.app/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://phenomenal-madeleine-e99811.netlify.app/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- 입장 화면 -->
+<section id="entry" class="screen entry-screen">
+  <div class="entry-box">
+    <img src="assets/logo.png" alt="동네 운동회" class="entry-logo">
+    <div class="entry-title">게임방</div>
+    <input id="nick" class="nick-input" type="text" maxlength="12" placeholder="동네운동회 닉네임" autocomplete="off">
+    <input id="pw" class="nick-input" type="password" maxlength="20" placeholder="비밀번호" autocomplete="off">
+    <label class="remember-row"><input id="remember-me" type="checkbox" checked><span>로그인 유지</span></label>
+    <button id="enter-btn" class="btn-primary">입장하기</button>
+    <div id="login-msg" class="login-msg"></div>
+    <p class="entry-hint">
+      <b class="hl">동네운동회 모임 닉네임과 똑같이 쓰세요.</b>
+      처음이면 닉네임+비번으로 <b>가입</b>, 다음부턴 같은 걸로 로그인.
+    </p>
+  </div>
+  <img class="entry-people" src="assets/people.png" alt="">
+</section>
+
+<!-- 로비 -->
+<section id="lobby" class="screen lobby-screen hidden">
+  <header class="game-header">
+    <div class="online-info">
+      <span id="lobby-conn-dot" class="conn-dot" title="연결 상태"></span>
+      <span id="lobby-online-count">온라인 0명</span>
+    </div>
+    <div class="hdr-right">
+      <button id="lobby-rank-btn" class="hdr-btn">🏅 전체랭킹</button>
+      <button id="lobby-menu-btn" class="hdr-btn">메뉴</button>
+    </div>
+  </header>
+
+  <div class="lobby-rooms">
+    <button id="create-room-btn" class="btn-primary lobby-create">+ 방 만들기</button>
+    <div id="room-list" class="room-list"></div>
+  </div>
+
+  <div class="bottom-row lobby-bottom">
+    <div class="chat-panel">
+      <div class="online-head">전체 채팅</div>
+      <div class="chat-log" id="lobby-chat-log"></div>
+      <div class="chat-input-row">
+        <input id="lobby-chat-input" class="chat-input" type="text" maxlength="80" placeholder="전체 채팅…" autocomplete="off">
+        <button id="lobby-chat-send" class="btn-send">전송</button>
+      </div>
+    </div>
+    <div class="online-panel">
+      <div class="online-head">접속 <span id="lobby-online-num">0</span></div>
+      <div class="online-list" id="lobby-online-list"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 게임 화면 -->
+<section id="game" class="screen game-screen hidden">
+  <header class="game-header">
+    <div class="online-info">
+      <span id="conn-dot" class="conn-dot" title="연결 상태"></span>
+      <span id="online-count" class="online-tap" title="참가자 보기">온라인 0명</span>
+    </div>
+    <div class="hdr-right">
+      <button id="leave-room-btn" class="hdr-btn">← 나가기</button>
+      <button id="menu-btn" class="hdr-btn">메뉴</button>
+    </div>
+  </header>
+
+  <div class="players-bar">
+    <div class="player-chip" id="chip-black">
+      <span class="stone-dot black"></span>
+      <span class="player-name" id="name-black">비어있음</span>
+    </div>
+    <div class="timer-box" id="timer-box">∞</div>
+    <div class="player-chip right" id="chip-white">
+      <span class="player-name" id="name-white">비어있음</span>
+      <span class="stone-dot white"></span>
+    </div>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="board" width="450" height="450"></canvas>
+    <div id="chat-overlay" class="chat-overlay"></div>
+    <button id="center-btn" class="center-btn hidden">대국 시작</button>
+  </div>
+
+  <div id="confirm-bar" class="confirm-bar hidden">
+    <button id="confirm-cancel" class="cbtn cancel">취소</button>
+    <button id="confirm-place" class="cbtn place">여기 착수</button>
+  </div>
+
+  <div class="action-row slim">
+    <button id="rules-btn" class="btn-flat">규칙</button>
+    <button id="rank-btn" class="btn-flat">🏅 랭킹</button>
+    <button id="undo-btn" class="btn-flat player-only">무르기</button>
+    <button id="resign-btn" class="btn-flat resign" style="display:none">기권</button>
+  </div>
+
+  <div class="bottom-row">
+    <div class="chat-panel">
+      <div class="chat-log" id="chat-log"></div>
+      <div class="chat-input-row">
+        <input id="chat-input" class="chat-input" type="text" maxlength="80" placeholder="메시지 입력…" autocomplete="off">
+        <button id="chat-send" class="btn-send">전송</button>
+      </div>
+    </div>
+    <div class="online-panel">
+      <div class="online-head">접속 <span id="online-num">0</span></div>
+      <div class="online-list" id="online-list"></div>
+    </div>
+  </div>
+
+  <div class="room-strip" id="room-strip-omok"></div>
+</section>
+
+<!-- 알까기 게임 화면 -->
+<section id="alkgame" class="screen game-screen hidden">
+  <header class="game-header">
+    <div class="online-info">
+      <span class="conn-dot online"></span>
+      <span id="alk-online-count" class="online-tap" title="참가자 보기">온라인 0명</span>
+    </div>
+    <div class="hdr-right">
+      <button id="alk-leave-room-btn" class="hdr-btn">← 나가기</button>
+      <button id="alk-menu-btn" class="hdr-btn">메뉴</button>
+    </div>
+  </header>
+
+  <div class="players-bar">
+    <div class="player-chip" id="alk-chipB"><span class="stone-dot black"></span><span class="player-name"><span id="alk-name-black">탭해서 앉기</span></span><span class="chip-cnt" id="alk-cntB">5</span></div>
+    <div class="player-chip right" id="alk-chipW"><span class="chip-cnt" id="alk-cntW">5</span><span class="player-name"><span id="alk-name-white">탭해서 앉기</span></span><span class="stone-dot white"></span></div>
+  </div>
+
+  <div class="alk-board-wrap">
+    <canvas id="alk-board" width="440" height="440"></canvas>
+    <button id="alk-center-btn" class="center-btn hidden">대국 시작</button>
+    <div class="win-flag hidden" id="alk-win">
+      <div class="wt" id="alk-wintext">흑 승리!</div>
+      <button id="alk-again">다시 하기</button>
+    </div>
+  </div>
+  <div class="alk-hint" id="alk-hint"><b>흑</b> 차례 — 내 알을 당겼다 놓아 튕기세요</div>
+
+  <div class="action-row slim">
+    <button class="btn-flat" id="alk-rules-btn">규칙</button>
+    <button class="btn-flat" id="alk-rank-btn">🏅 랭킹</button>
+    <button class="btn-flat" id="alk-solo-btn">혼자 연습</button>
+    <button class="btn-flat" id="alk-terr-solo-btn">점령전 연습</button>
+  </div>
+
+  <div class="bottom-row">
+    <div class="chat-panel">
+      <div class="chat-log" id="alk-chat-log"></div>
+      <div class="chat-input-row">
+        <input id="alk-chat-input" class="chat-input" type="text" maxlength="80" placeholder="알까기방 메시지…" autocomplete="off">
+        <button id="alk-chat-send" class="btn-send">전송</button>
+      </div>
+    </div>
+    <div class="online-panel">
+      <div class="online-head">접속 <span id="alk-online-num">0</span></div>
+      <div class="online-list" id="alk-online-list"></div>
+    </div>
+  </div>
+
+  <div class="room-strip" id="room-strip-alk"></div>
+</section>
+
+<!-- 방 만들기 모달 -->
+<div id="create-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><h2>방 만들기</h2><button class="modal-close" data-close>✕</button></div>
+    <div class="modal-body">
+      <div class="setting-group">
+        <div class="setting-title">게임</div>
+        <div class="radio-row" id="create-game">
+          <button class="radio-chip active" data-game="omok">오목</button>
+          <button class="radio-chip" data-game="alk">알까기-일반</button>
+          <button class="radio-chip" data-game="alk_terr">알까기-점령전</button>
+        </div>
+      </div>
+      <div class="setting-group">
+        <div class="setting-title">방 이름</div>
+        <input id="create-name" class="nick-input" type="text" maxlength="16" placeholder="예: 구나의 방" autocomplete="off">
+      </div>
+    </div>
+    <button id="create-confirm" class="btn-primary modal-ok">방 만들기</button>
+  </div>
+</div>
+
+<!-- 메뉴 모달 -->
+<div id="menu-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><h2>메뉴</h2><button class="modal-close" data-close>✕</button></div>
+    <div class="modal-body menu-body">
+      <button id="menu-sound-btn" class="menu-item">🔊 소리 켜짐</button>
+      <button id="admin-btn" class="menu-item admin-only">관리자</button>
+      <button id="logout-btn" class="menu-item logout">로그아웃</button>
+    </div>
+    <button class="btn-primary modal-ok" data-close>닫기</button>
+  </div>
+</div>
+
+<!-- 규칙 모달 -->
+<div id="rules-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><h2 id="rules-title">렌주 오목 규칙</h2><button class="modal-close" data-close>✕</button></div>
+    <div class="modal-body" id="rules-body"></div>
+    <button class="btn-primary modal-ok" data-close>확인</button>
+  </div>
+</div>
+
+<!-- 참가자 모달 -->
+<div id="players-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><h2>참가자</h2><button class="modal-close" data-close>✕</button></div>
+    <div class="modal-body">
+      <p class="players-hint host-only">이름 옆 버튼으로 흑·백·관전을 지정합니다.</p>
+      <div id="players-list"></div>
+    </div>
+    <button class="btn-primary modal-ok" data-close>닫기</button>
+  </div>
+</div>
+
+<!-- 설정 모달 -->
+<div id="settings-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><h2>방 설정 <span class="host-badge">방장</span></h2><button class="modal-close" data-close>✕</button></div>
+    <div class="modal-body">
+      <div class="setting-group">
+        <div class="setting-title">한 수 제한시간</div>
+        <div class="radio-row" id="timer-options">
+          <button class="radio-chip active" data-sec="30">30초</button>
+          <button class="radio-chip" data-sec="60">1분</button>
+          <button class="radio-chip" data-sec="120">2분</button>
+          <button class="radio-chip" data-sec="0">무한</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn-primary modal-ok" data-close>완료</button>
+  </div>
+</div>
+
+<!-- 관리자 모달 -->
+<div id="admin-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><h2>관리자 <span class="host-badge">구나</span></h2><button class="modal-close" data-close>✕</button></div>
+    <div class="modal-body">
+      <p class="players-hint">닉네임이 모임과 다른 계정은 <b>삭제</b>하세요.<br>비번 잊은 사람은 <b>비번 초기화</b> → 그 사람이 다음에 입력하는 비번이 새 비번이 됩니다.</p>
+      <div id="admin-list"></div>
+      <div class="admin-section">
+        <div class="setting-title">가입 허용 명단</div>
+        <p class="players-hint">여기 있는 닉네임만 새로 가입할 수 있어요.</p>
+        <div class="allow-add">
+          <input id="allow-input" type="text" maxlength="12" placeholder="추가할 닉네임" autocomplete="off">
+          <button id="allow-add-btn" class="pbtn">추가</button>
+        </div>
+        <div id="allow-list"></div>
+      </div>
+    </div>
+    <button class="btn-primary modal-ok" data-close>닫기</button>
+  </div>
+</div>
+
+<!-- 랭킹 모달 -->
+<div id="rank-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><h2 id="rank-title">랭킹</h2><button class="modal-close" data-close>✕</button></div>
+    <div class="modal-body">
+      <div id="rank-tabs" class="rank-tabs hidden">
+        <button class="rtab" data-g="omok">오목</button>
+        <button class="rtab" data-g="alk">알까기</button>
+        <button class="rtab" data-g="alk_terr">점령전</button>
+      </div>
+      <div id="rank-season" class="rank-season"></div>
+      <div id="rank-list"></div>
+      <div id="rank-detail" class="hidden"></div>
+    </div>
+    <button class="btn-primary modal-ok" data-close>닫기</button>
+  </div>
+</div>
+
+<!-- 나가기 확인 모달 -->
+<div id="leave-modal" class="modal-overlay hidden">
+  <div class="modal undo-modal">
+    <div class="undo-text">정말 자리에서 나가시겠어요?<br>대국 중 나가면 <b class="red">패배</b>로 처리돼요.</div>
+    <button id="leave-void" class="cbtn" style="width:100%;margin-bottom:8px;background:var(--navy-2);color:#fff;">사정이 있어요 — 상대에게 무효 부탁</button>
+    <div class="undo-btns">
+      <button id="leave-yes" class="cbtn" style="flex:2;background:var(--red);color:#fff;">나가기 (패배)</button>
+      <button id="leave-no" class="cbtn cancel" style="flex:1;">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 무효 요청 모달 -->
+<div id="void-modal" class="modal-overlay hidden">
+  <div class="modal undo-modal">
+    <div class="undo-text" id="void-text">상대가 대국 무효를 부탁했어요.</div>
+    <div class="undo-btns">
+      <button id="void-accept" class="btn-primary">수락 (무효)</button>
+      <button id="void-decline" class="btn-flat">거절</button>
+    </div>
+  </div>
+</div>
+
+<!-- 기권 확인 모달 -->
+<div id="resign-modal" class="modal-overlay hidden">
+  <div class="modal undo-modal">
+    <div class="undo-text">정말 <b class="red">기권</b>할까요?<br>이번 판은 상대 승리로 끝나요.<br>자리는 그대로여서 바로 재대국할 수 있어요.</div>
+    <div class="undo-btns">
+      <button id="resign-yes" class="cbtn" style="flex:2;background:var(--red);color:#fff;">기권하기</button>
+      <button id="resign-no" class="cbtn cancel" style="flex:1;">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 무르기 요청 모달 -->
+<div id="undo-modal" class="modal-overlay hidden">
+  <div class="modal undo-modal">
+    <div class="undo-text" id="undo-text">한 수 무르기를 요청했어요.</div>
+    <div class="undo-btns">
+      <button id="undo-accept" class="btn-primary">수락</button>
+      <button id="undo-decline" class="btn-flat">거절</button>
+    </div>
+  </div>
+</div>
+
+<!-- 승리 모달 -->
+<div id="win-modal" class="modal-overlay hidden">
+  <div class="modal win-modal">
+    <div class="win-text" id="win-text">승리!</div>
+    <button class="win-close" data-close>닫기</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="sb.js"></script>
+<script src="db.js"></script>
+<script src="renju.js"></script>
+<script src="net.js"></script>
+<script src="alkkagi.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
