@@ -1830,7 +1830,7 @@
     if ($("rules-title")) $("rules-title").textContent = "렌주 오목 규칙";
     $("rules-body").innerHTML = html;
   }
-  function showAlkRules() {
+  function buildAlkRules() {
     if ($("rules-title")) $("rules-title").textContent = "알까기 규칙";
     var html = '<p class="rule-intro">바둑알을 손가락으로 <b>튕겨</b> 상대 알을 판 밖으로 쳐내는 게임입니다.</p>';
     html += '<p class="rule-foot" style="text-align:left;line-height:1.8">'
@@ -1840,11 +1840,32 @@
       + '· 한 번에 두 개 이상 쳐낼 수도 있어요.<br>'
       + '· <b>상대 알이 다 나가면 승리</b>.</p>';
     $("rules-body").innerHTML = html;
+  }
+  function buildTerrRules() {
+    if ($("rules-title")) $("rules-title").textContent = "점령전 규칙";
+    var html = '<p class="rule-intro">가운데 <b>과녁</b> 중심에 가깝게 내 알을 튕겨 붙이는 게임입니다.</p>';
+    html += '<p class="rule-foot" style="text-align:left;line-height:1.8">'
+      + '· 내 차례에 바깥 선에서 알을 놓고, 과녁 쪽으로 당겼다 놓아 튕깁니다.<br>'
+      + '· 과녁에 가까울수록 높은 점수 — <b>가운데 3점 · 중간 고리 2점 · 바깥 고리 1점</b>.<br>'
+      + '· 컬링처럼 상대 알을 밀어내거나 밀고 들어가 자리를 차지할 수 있어요.<br>'
+      + '· 흑·백이 알을 다 쓰면 <b>알들의 총점이 높은 쪽이 승리</b>.</p>';
+    $("rules-body").innerHTML = html;
+  }
+  function showRules(game) {
+    if (game === "alk") buildAlkRules();
+    else if (game === "terr") buildTerrRules();
+    else buildRules();
     openModal("rules-modal");
   }
 
   // ---------- 이벤트 ----------
   function openModal(id) { $(id).classList.remove("hidden"); }
+  function openMenu() {
+    if ($("menu-main")) $("menu-main").classList.remove("hidden");
+    if ($("menu-rules")) $("menu-rules").classList.add("hidden");
+    if ($("menu-title")) $("menu-title").textContent = "메뉴";
+    openModal("menu-modal");
+  }
   function requestBegin() {
     if (!(G.seats.black && G.seats.white)) { toast("흑·백 두 자리가 다 차야 시작해요"); return; }
     if (netMode && !amHost) { Net.send({ t: "begin", by: me.nick }); return; }
@@ -1887,10 +1908,13 @@
       onBoardTap(e);
     });
 
-    $("rules-btn").addEventListener("click", function () { buildRules(); openModal("rules-modal"); });
     $("online-count").addEventListener("click", function () { renderPlayersList(); openModal("players-modal"); });
     $("alk-online-count").addEventListener("click", function () { renderPlayersList(); openModal("players-modal"); });
-    $("menu-btn").addEventListener("click", function () { openModal("menu-modal"); });
+    $("menu-btn").addEventListener("click", openMenu);
+    $("menu-rules-btn").addEventListener("click", function () { $("menu-main").classList.add("hidden"); $("menu-rules").classList.remove("hidden"); if ($("menu-title")) $("menu-title").textContent = "규칙"; });
+    $("menu-rules-back").addEventListener("click", function () { $("menu-rules").classList.add("hidden"); $("menu-main").classList.remove("hidden"); if ($("menu-title")) $("menu-title").textContent = "메뉴"; });
+    var rbtns = document.querySelectorAll("#menu-rules [data-rules]");
+    for (var rb = 0; rb < rbtns.length; rb++) rbtns[rb].addEventListener("click", function () { $("menu-modal").classList.add("hidden"); showRules(this.getAttribute("data-rules")); });
     $("rank-btn").addEventListener("click", function () { openRank("omok"); });
     $("alk-rank-btn").addEventListener("click", function () { openRank(curRoomGame === "alk_terr" ? "alk_terr" : "alk"); });
     var rtabs = document.querySelectorAll("#rank-tabs .rtab");
@@ -1957,12 +1981,12 @@
     $("alk-chat-send").addEventListener("click", function () { sendChat("alk"); });
     $("alk-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter") sendChat("alk"); });
     $("chat-log").addEventListener("scroll", function () { if (this.scrollTop < 40) loadOlderChat(); });
-    $("alk-menu-btn").addEventListener("click", function () { openModal("menu-modal"); });
+    $("alk-menu-btn").addEventListener("click", openMenu);
     $("leave-room-btn").addEventListener("click", leaveRoomToLobby);
     $("alk-leave-room-btn").addEventListener("click", leaveRoomToLobby);
 
     // 로비
-    $("lobby-menu-btn").addEventListener("click", function () { openModal("menu-modal"); });
+    $("lobby-menu-btn").addEventListener("click", openMenu);
     $("lobby-rank-btn").addEventListener("click", function () { openRank("all"); });
     $("lobby-chat-send").addEventListener("click", sendLobbyChat);
     $("lobby-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter") sendLobbyChat(); });
@@ -1996,7 +2020,6 @@
     }
     syncMuteIcons();
     $("menu-sound-btn").addEventListener("click", toggleMute);
-    $("alk-rules-btn").addEventListener("click", showAlkRules);
 
     // 자동로그인 등으로 로그인 클릭이 없어도, 첫 사용자 상호작용에 소리 활성화(브라우저 자동재생 정책 해제)
     function unlockAudio() {

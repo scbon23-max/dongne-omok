@@ -106,7 +106,6 @@
   </div>
 
   <div class="action-row slim">
-    <button id="rules-btn" class="btn-flat">규칙</button>
     <button id="rank-btn" class="btn-flat">🏅 랭킹</button>
     <button id="undo-btn" class="btn-flat player-only">무르기</button>
     <button id="resign-btn" class="btn-flat resign" style="display:none">기권</button>
@@ -157,7 +156,6 @@
   </div>
 
   <div class="action-row slim">
-    <button class="btn-flat" id="alk-rules-btn">규칙</button>
     <button class="btn-flat" id="alk-rank-btn">🏅 랭킹</button>
     <button class="btn-flat" id="alk-solo-btn">혼자 연습</button>
     <button class="btn-flat" id="alk-terr-solo-btn">점령전 연습</button>
@@ -205,11 +203,18 @@
 <!-- 메뉴 모달 -->
 <div id="menu-modal" class="modal-overlay hidden">
   <div class="modal">
-    <div class="modal-head"><h2>메뉴</h2><button class="modal-close" data-close>✕</button></div>
-    <div class="modal-body menu-body">
+    <div class="modal-head"><h2 id="menu-title">메뉴</h2><button class="modal-close" data-close>✕</button></div>
+    <div class="modal-body menu-body" id="menu-main">
+      <button id="menu-rules-btn" class="menu-item">📖 규칙</button>
       <button id="menu-sound-btn" class="menu-item">🔊 소리 켜짐</button>
       <button id="admin-btn" class="menu-item admin-only">관리자</button>
       <button id="logout-btn" class="menu-item logout">로그아웃</button>
+    </div>
+    <div class="modal-body menu-body hidden" id="menu-rules">
+      <button id="menu-rules-back" class="menu-item menu-back">← 뒤로</button>
+      <button class="menu-item" data-rules="omok">오목 규칙</button>
+      <button class="menu-item" data-rules="alk">알까기 규칙</button>
+      <button class="menu-item" data-rules="terr">점령전 규칙</button>
     </div>
     <button class="btn-primary modal-ok" data-close>닫기</button>
   </div>

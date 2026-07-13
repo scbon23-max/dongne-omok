@@ -222,7 +222,7 @@ body:not(.is-player) .player-only { display: none; }
 .undo-btns .btn-flat { padding: 14px; background: var(--navy-2); color: #cfe0e7; font-size: 15px; }
 
 /* ---------- 채팅 ---------- */
-.bottom-row { display: flex; gap: 7px; max-width: 420px; width: 100%; margin: 7px auto 0; align-items: stretch; }
+.bottom-row { display: flex; gap: 7px; max-width: 420px; width: 100%; margin: 0 auto; align-items: stretch; }
 .chat-panel { flex: 1; min-width: 0; background: var(--navy-2); border-radius: 12px; padding: 7px; display: flex; flex-direction: column; }
 .online-panel { flex: 0 0 104px; background: var(--navy-2); border-radius: 12px; padding: 7px 8px; display: flex; flex-direction: column; min-width: 0; }
 .online-head { font-size: 11px; color: #8fa6b2; font-weight: 700; margin-bottom: 6px; flex-shrink: 0; }
