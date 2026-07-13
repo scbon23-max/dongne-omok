@@ -350,6 +350,7 @@
     renderAlkUI();
   }
   var alkSolo = false;
+  var alkWinSeq = -1;
   function alkCanFlick() {
     if (!A.started || A.over || A.paused || Alkkagi.isMoving()) return { ok: false };
     if (alkSolo) return { ok: true, color: A.turn };
@@ -578,7 +579,8 @@
         var awn = A.winner === "b" ? A.seats.black : A.seats.white;
         $("alk-wintext").textContent = terr ? terrResultPlain(sc) : (A.winner === "draw" ? "무승부!" : (awn ? awn + "님 승리!" : (A.winner === "b" ? "흑" : "백") + " 승리!"));
         wf.classList.remove("hidden");
-      } else wf.classList.add("hidden");
+        if (alkWinSeq !== A.gameSeq) { alkWinSeq = A.gameSeq; if (A.winner && A.winner !== "draw") playSample(winBuffer); }
+      } else { wf.classList.add("hidden"); alkWinSeq = -1; }
     }
   }
   function terrResultPlain(sc) {
@@ -804,7 +806,7 @@
       case "move": if (amHost) hostApplyMove(msg.nick, msg.r, msg.c); break;
       case "begin": if (amHost) beginGame(msg.by); break;
       case "seat": if (amHost) hostApplySeat(msg.by, msg.nick, msg.seat); break;
-      case "chat": addChatTo(msg.game === "alk" ? "alk" : "omok", msg.nick, msg.text, true); break;
+      case "chat": if (msg.nick !== me.nick) addChatTo(msg.game === "alk" ? "alk" : "omok", msg.nick, msg.text, true); break;
       case "undo_req": if (msg.to === me.nick) showUndoModal(msg.from, msg.gseq, msg.hlen); break;
       case "undo_res":
         $("undo-modal").classList.add("hidden");
@@ -1339,24 +1341,36 @@
     if ($("rank-season")) { $("rank-season").style.display = ""; $("rank-season").innerHTML = ""; }
     $("rank-title").textContent = rankTitle();
     $("rank-list").innerHTML = '<p class="players-hint">불러오는 중…</p>';
-    var accts = await Db.listAccounts();
-    var accSet = {};
-    accts.forEach(function (a) { accSet[a.nickname] = 1; });
-    window.__accSet = accSet;
-    if (rankGame === "all") {
-      rankTab = "omok";
-      var all = await Db.getGames();
-      var byType = { omok: [], alk: [], alk_terr: [] };
-      all.forEach(function (g) { var t = g.game || "omok"; if (byType[t]) byType[t].push(g); });
-      window.__gamesAll = byType;
-      window.__games = all;
-    } else {
-      window.__games = await Db.getGamesByType(rankGame);
-      window.__gamesAll = null;
+    try {
+      var accts = await withTimeout(Db.listAccounts(), 8000);
+      var accSet = {};
+      accts.forEach(function (a) { accSet[a.nickname] = 1; });
+      window.__accSet = accSet;
+      if (rankGame === "all") {
+        rankTab = "omok";
+        var all = await withTimeout(Db.getGames(), 8000);
+        var byType = { omok: [], alk: [], alk_terr: [] };
+        all.forEach(function (g) { var t = g.game || "omok"; if (byType[t]) byType[t].push(g); });
+        window.__gamesAll = byType;
+        window.__games = all;
+      } else {
+        window.__games = await withTimeout(Db.getGamesByType(rankGame), 8000);
+        window.__gamesAll = null;
+      }
+      rankSeasons = seasonsFrom(window.__games);
+      rankSeasonIdx = rankSeasons.length - 1;
+      renderSeason();
+    } catch (e) {
+      if (!$("rank-modal").classList.contains("hidden")) {
+        $("rank-list").innerHTML = '<p class="players-hint">불러오지 못했어요. 잠시 후 다시 눌러 주세요.</p>';
+      }
     }
-    rankSeasons = seasonsFrom(window.__games);
-    rankSeasonIdx = rankSeasons.length - 1;
-    renderSeason();
+  }
+  function withTimeout(p, ms) {
+    return Promise.race([
+      Promise.resolve(p),
+      new Promise(function (_res, rej) { setTimeout(function () { rej(new Error("timeout")); }, ms); })
+    ]);
   }
   function computeSeasonRank(games, s) {
     var sg = (games || []).filter(function (g) { return gameInSeason(g, s); });
@@ -1573,11 +1587,6 @@
     $("confirm-bar").classList.add("hidden");
     submitMove(p.r, p.c);
   }
-  function confirmCancel() {
-    preview = null;
-    $("confirm-bar").classList.add("hidden");
-    render();
-  }
 
   // ---------- 채팅 ----------
   var NICK_COLORS = (function () {
@@ -1640,6 +1649,7 @@
     var inp = $(game === "alk" ? "alk-chat-input" : "chat-input");
     var v = inp.value.trim().slice(0, 80); if (!v) return;
     if (netMode) {
+      addChatTo(game, me.nick, v, true);
       Net.send({ t: "chat", game: game, nick: me.nick, text: v });
       if (window.Db) Db.addChatMsg(chatRoomOf(game), me.nick, v);
     } else addChatTo(game, me.nick, v, true);
@@ -1946,7 +1956,6 @@
     var rtabs = document.querySelectorAll("#rank-tabs .rtab");
     for (var rt = 0; rt < rtabs.length; rt++) rtabs[rt].addEventListener("click", function () { rankTab = this.getAttribute("data-g"); renderSeason(); });
     $("confirm-place").addEventListener("click", confirmPlace);
-    $("confirm-cancel").addEventListener("click", confirmCancel);
     $("center-btn").addEventListener("click", onCenterBtn);
     $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else requestBegin(); });
     $("timer-box").addEventListener("click", function () {
