@@ -176,11 +176,11 @@
   }
   function clubOnlineCount() { return lobbyMode ? lobbyRoster.length : 1; }
   function updateOnlineCounts() {
-    var n = clubOnlineCount(), txt = "온라인 " + n + "명";
-    ["lobby-online-count", "online-count", "alk-online-count"].forEach(function (id) {
-      var el = $(id); if (el) el.textContent = txt;
+    var n = clubOnlineCount();
+    var lc = $("lobby-online-count"); if (lc) lc.textContent = "온라인 " + n + "명";
+    ["lobby-online-num", "online-num", "alk-online-num"].forEach(function (id) {
+      var el = $(id); if (el) el.textContent = n;
     });
-    var ln = $("lobby-online-num"); if (ln) ln.textContent = n;
   }
   function renderLobbyOnline() {
     var box = $("lobby-online-list"); if (!box) return;
@@ -1150,11 +1150,9 @@
   }
   function renderGameOnline(game) {
     var box = $(game === "omok" ? "online-list" : "alk-online-list");
-    var num = $(game === "omok" ? "online-num" : "alk-online-num");
     if (!box) return;
     var here = (game === curGame) ? (netMode ? roster.slice() : [{ nick: me.nick, joinTs: 0 }]) : [];
     here.sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); });
-    if (num) num.textContent = here.length;
     box.innerHTML = here.map(function (m) {
       var tag;
       if (game === "omok") {
@@ -1908,8 +1906,8 @@
       onBoardTap(e);
     });
 
-    $("online-count").addEventListener("click", function () { renderPlayersList(); openModal("players-modal"); });
-    $("alk-online-count").addEventListener("click", function () { renderPlayersList(); openModal("players-modal"); });
+    $("online-head").addEventListener("click", function () { renderPlayersList(); openModal("players-modal"); });
+    $("alk-online-head").addEventListener("click", function () { renderPlayersList(); openModal("players-modal"); });
     $("menu-btn").addEventListener("click", openMenu);
     $("menu-rules-btn").addEventListener("click", function () { $("menu-main").classList.add("hidden"); $("menu-rules").classList.remove("hidden"); if ($("menu-title")) $("menu-title").textContent = "규칙"; });
     $("menu-rules-back").addEventListener("click", function () { $("menu-rules").classList.add("hidden"); $("menu-main").classList.remove("hidden"); if ($("menu-title")) $("menu-title").textContent = "메뉴"; });
