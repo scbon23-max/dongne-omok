@@ -70,7 +70,7 @@ body {
 .player-chip.active .chip-cnt { color: var(--navy); }
 .alk-board-wrap { width: 100%; max-width: 420px; margin: 0 auto; position: relative; }
 #alk-board { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.35); touch-action: none; }
-.win-flag { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; background: rgba(14,42,58,.72); border-radius: 10px; }
+.win-flag { position: absolute; inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; background: rgba(14,42,58,.72); border-radius: 10px; }
 .win-flag.hidden { display: none; }
 .win-flag .wt { font-size: 28px; font-weight: 800; color: #fff; }
 .win-flag button { background: var(--orange); color: #fff; border: none; border-radius: 12px; padding: 11px 20px; font-size: 15px; font-weight: 800; }
@@ -95,7 +95,7 @@ body {
 .btn-flat.cooldown { opacity: .4; }
 
 /* ---------- 게임 헤더 ---------- */
-.game-screen { background: var(--navy); padding: 8px 12px 10px; }
+.game-screen { background: var(--navy); padding: 8px 12px 10px; justify-content: center; }
 .game-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; min-height: 34px; }
 .game-screen > .game-header { order: 10; margin-top: auto; margin-bottom: 0; padding-top: 8px; }
 .online-info { display: flex; align-items: center; gap: 9px; }
@@ -202,6 +202,8 @@ body:not(.is-admin) .admin-only { display: none; }
 .player-chip { cursor: pointer; }
 .action-row.slim { margin: 8px auto; }
 .action-row.slim .btn-flat { padding: 6px 4px; font-size: 13px; white-space: nowrap; }
+.btn-flat.menu-dots { flex: 0 0 auto; padding: 6px 12px; font-size: 16px; letter-spacing: 1px; }
+.ol-crown { font-size: 11px; margin-left: 3px; }
 .menu-body { display: flex; flex-direction: column; gap: 10px; }
 .menu-item { width: 100%; text-align: left; background: #F5F3EC; border: 1px solid #e6e3da; border-radius: 12px; padding: 14px 16px; font-size: 15px; font-weight: 700; color: var(--navy); cursor: pointer; }
 .menu-item:active { background: #ececec; }
@@ -229,7 +231,7 @@ body:not(.is-player) .player-only { display: none; }
 .online-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
 .online-item { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 5px; }
 .online-dot { width: 6px; height: 6px; border-radius: 50%; background: #38C6B0; flex-shrink: 0; }
-.chat-log { height: 116px; overflow-y: auto; font-size: 13px; padding: 2px 4px; }
+.chat-log { height: 104px; overflow-y: auto; font-size: 13px; padding: 2px 4px; }
 .chat-line { margin-bottom: 3px; line-height: 1.4; word-break: break-word; }
 .chat-line.sys { color: #7fa0ad; font-size: 12px; font-style: italic; }
 .chat-nick { color: var(--teal-light); font-weight: 700; }

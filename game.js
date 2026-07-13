@@ -181,6 +181,7 @@
     ["online-total", "alk-online-total", "lobby-online-total"].forEach(function (id) {
       var el = $(id); if (el) el.textContent = total;
     });
+    var lc = $("lobby-online-count"); if (lc) lc.textContent = "온라인 " + total + "명";
     var ln = $("lobby-online-num"); if (ln) ln.textContent = lobbyPeople().length;
   }
   function renderLobbyOnline() {
@@ -288,7 +289,7 @@
     G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = [];
     G.recorded = false; G.started = false; G.lastPlayers = null; G.paused = false; G.pausedRemainMs = null;
     A.seats = { black: null, white: null }; A.turn = "b"; A.started = false; A.over = false; A.winner = null;
-    A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; alkSolo = false;
+    A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; alkSolo = false; omokSolo = false;
     A.mode = "knockout"; A.remain = null; A.score = null;
     if (window.Alkkagi) Alkkagi.setMode("knockout");
     winShownSeq = -1; liveSeq = -1; prevNicks = []; firstPresenceAt = 0;
@@ -563,12 +564,19 @@
     $("alk-chipW").classList.toggle("active", A.turn === "w" && A.started && !A.over);
     var cb = $("alk-center-btn");
     var alkSeatedMe = (!netMode || A.seats.black === me.nick || A.seats.white === me.nick || me.isAdmin);
-    if (cb) { if (!A.started && !A.over && A.seats.black && A.seats.white && alkSeatedMe) { cb.textContent = "대국 시작"; cb.classList.remove("hidden"); } else cb.classList.add("hidden"); }
+    var alkISit = (A.seats.black === me.nick || A.seats.white === me.nick);
+    var alkBoth = A.seats.black && A.seats.white;
+    if (cb) {
+      if (!A.started && !A.over && alkBoth && alkSeatedMe) { cb.textContent = "대국 시작"; cb.dataset.act = "begin"; cb.classList.remove("hidden"); }
+      else if (!A.started && !A.over && alkISit && !alkBoth) { cb.textContent = "연습하기"; cb.dataset.act = "solo"; cb.classList.remove("hidden"); }
+      else cb.classList.add("hidden");
+    }
     var sc = terr ? (A.score || { b: 0, w: 0 }) : null;
     var wf = $("alk-win");
     if (wf) {
       if (A.over) {
-        $("alk-wintext").textContent = terr ? terrResultPlain(sc) : (A.winner === "draw" ? "무승부!" : (A.winner === "b" ? "흑" : "백") + " 승리!");
+        var awn = A.winner === "b" ? A.seats.black : A.seats.white;
+        $("alk-wintext").textContent = terr ? terrResultPlain(sc) : (A.winner === "draw" ? "무승부!" : (awn ? awn + "님 승리!" : (A.winner === "b" ? "흑" : "백") + " 승리!"));
         wf.classList.remove("hidden");
       } else wf.classList.add("hidden");
     }
@@ -664,9 +672,7 @@
   // ---------- 방장 선출 ----------
   function electHost(list) {
     if (!list.length) return null;
-    var admins = list.filter(function (m) { return m.isAdmin; });
-    var pool = admins.length ? admins : list;
-    pool = pool.slice().sort(function (a, b) {
+    var pool = list.slice().sort(function (a, b) {
       if (a.joinTs !== b.joinTs) return a.joinTs - b.joinTs;
       return a.nick < b.nick ? -1 : 1;
     });
@@ -845,7 +851,7 @@
       if (liveSeq === G.gameSeq && winShownSeq !== G.gameSeq) showWin();
     } else {
       liveSeq = G.gameSeq;
-      winShownSeq = -1; $("win-modal").classList.add("hidden");
+      winShownSeq = -1; $("omok-win").classList.add("hidden");
     }
   }
 
@@ -965,7 +971,7 @@
     G.moveDeadline = G.timerSec ? Date.now() + G.timerSec * 1000 : null;
     G.gameSeq = (G.gameSeq || 0) + 1;
     G.rev++;
-    $("win-modal").classList.add("hidden");
+    $("omok-win").classList.add("hidden");
     broadcastState();
     startHostTimer(); updateTurnUI(); render(); updateCenterButton();
   }
@@ -978,7 +984,7 @@
     G.moveDeadline = null;
     G.gameSeq = (G.gameSeq || 0) + 1;
     G.rev++;
-    $("win-modal").classList.add("hidden");
+    $("omok-win").classList.add("hidden");
     broadcastState();
     stopHostTimer(); updateTurnUI(); render(); updateCenterButton();
   }
@@ -1043,11 +1049,11 @@
     var t;
     if (G.draw) t = "무승부!";
     else {
-      var nm = seatName(colorName(G.winner)) || (G.winner === BLACK ? "흑" : "백");
-      t = nm + " 승리!";
+      var nm = seatName(colorName(G.winner));
+      t = nm ? (nm + "님 승리!") : ((G.winner === BLACK ? "흑" : "백") + " 승리!");
     }
-    $("win-text").textContent = t;
-    $("win-modal").classList.remove("hidden");
+    $("omok-wintext").textContent = t;
+    $("omok-win").classList.remove("hidden");
     winShownSeq = G.gameSeq;
     if (!G.draw) playSample(winBuffer);
     setTimeout(refreshScores, 800);
@@ -1139,16 +1145,19 @@
     var btn = $("center-btn"); if (!btn) return;
     var bothFilled = G.seats.black && G.seats.white;
     var seatedMe = (!netMode || G.seats.black === me.nick || G.seats.white === me.nick || me.isAdmin);
-    if (!G.started && bothFilled && seatedMe) {
-      var rematch = G.over && G.lastPlayers && G.seats.black === G.lastPlayers.black && G.seats.white === G.lastPlayers.white;
-      btn.textContent = rematch ? "재대국" : "대국 시작";
+    var iSit = (G.seats.black === me.nick || G.seats.white === me.nick);
+    if (!G.started && !G.over && bothFilled && seatedMe) {
+      btn.textContent = "대국 시작";
+      btn.dataset.act = "begin";
+      btn.classList.remove("hidden");
+    } else if (!G.started && !G.over && iSit && !bothFilled) {
+      btn.textContent = "연습하기";
+      btn.dataset.act = "solo";
       btn.classList.remove("hidden");
     } else btn.classList.add("hidden");
   }
   function renderPresenceUI() {
     updateOnlineCounts();
-    var alone = !netMode || roster.length <= 1;
-    ["alk-solo-btn", "alk-terr-solo-btn"].forEach(function (id) { var b = $(id); if (b) b.style.display = alone ? "" : "none"; });
     renderGameOnline("omok"); renderGameOnline("alk");
   }
   function renderGameOnline(game) {
@@ -1168,7 +1177,8 @@
         tag = arole ? '<span class="ol-tag ' + (arole === "흑" ? "b" : "w") + '">' + arole + '</span>' : "";
       }
       var meMark = (m.nick === me.nick) ? " (나)" : "";
-      return '<div class="online-item">' + tag + '<span style="color:' + nickColor(m.nick) + '">' + esc(m.nick) + esc(meMark) + '</span></div>';
+      var crown = (netMode && m.nick === hostNick) ? '<span class="ol-crown" title="방장">👑</span>' : "";
+      return '<div class="online-item">' + tag + '<span style="color:' + nickColor(m.nick) + '">' + esc(m.nick) + esc(meMark) + '</span>' + crown + '</div>';
     }).join("");
   }
   // ---------- 참가자 목록 ----------
@@ -1607,13 +1617,13 @@
     var log = $(game === "omok" ? "chat-log" : "alk-chat-log");
     if (log) { log.appendChild(makeChatLine(who, text)); log.scrollTop = log.scrollHeight; }
     if (live && who !== "__sys") {
-      if (game === "omok") pushOverlay(who, text);
+      pushOverlay(game, who, text);
       if (game !== (curGame || "omok")) bumpUnread(game);
     }
   }
   function addSysBoth(text) { addChatTo("omok", "__sys", text); addChatTo("alk", "__sys", text); }
-  function pushOverlay(nick, text) {
-    var ov = $("chat-overlay"); if (!ov) return;
+  function pushOverlay(game, nick, text) {
+    var ov = $(game === "alk" ? "alk-chat-overlay" : "chat-overlay"); if (!ov) return;
     var line = document.createElement("div");
     line.className = "ov-line";
     line.innerHTML = '<span class="ov-nick" style="color:' + nickColor(nick) + '">' + esc(nick) + '</span>' + esc(text);
@@ -1874,6 +1884,19 @@
     if (netMode && !amHost) { Net.send({ t: "begin", by: me.nick }); return; }
     beginGame(me.nick);
   }
+  var omokSolo = false;
+  function startOmokSolo() {
+    if (netMode && roster.length > 1) { toast("혼자 연습은 방에 나 혼자 있을 때만 돼요"); return; }
+    omokSolo = true;
+    G.seats = { black: me.nick, white: me.nick };
+    beginGame(me.nick);
+    renderPresenceUI();
+    toast("혼자 연습 — 흑·백 번갈아 둬보세요");
+  }
+  function onCenterBtn() {
+    var b = $("center-btn");
+    if (b && b.dataset.act === "solo") startOmokSolo(); else requestBegin();
+  }
   function onSeatChipTap(color) {
     if (!netMode) return;
     var occ = G.seats[color];
@@ -1924,7 +1947,8 @@
     for (var rt = 0; rt < rtabs.length; rt++) rtabs[rt].addEventListener("click", function () { rankTab = this.getAttribute("data-g"); renderSeason(); });
     $("confirm-place").addEventListener("click", confirmPlace);
     $("confirm-cancel").addEventListener("click", confirmCancel);
-    $("center-btn").addEventListener("click", requestBegin);
+    $("center-btn").addEventListener("click", onCenterBtn);
+    $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else requestBegin(); });
     $("timer-box").addEventListener("click", function () {
       if (me.isAdmin) { syncTimerChips(); openModal("settings-modal"); }
       else toast("방장(구나)만 시간을 바꿀 수 있어요");
@@ -1979,10 +2003,8 @@
       setTimer(parseInt(this.getAttribute("data-sec"), 10));
     });
 
-    $("chat-send").addEventListener("click", function () { sendChat("omok"); });
-    $("chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter") sendChat("omok"); });
-    $("alk-chat-send").addEventListener("click", function () { sendChat("alk"); });
-    $("alk-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter") sendChat("alk"); });
+    $("chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendChat("omok"); });
+    $("alk-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendChat("alk"); });
     $("chat-log").addEventListener("scroll", function () { if (this.scrollTop < 40) loadOlderChat(); });
     $("alk-menu-btn").addEventListener("click", openMenu);
     $("leave-room-btn").addEventListener("click", leaveRoomToLobby);
@@ -1991,8 +2013,7 @@
     // 로비
     $("lobby-menu-btn").addEventListener("click", openMenu);
     $("lobby-rank-btn").addEventListener("click", function () { openRank("all"); });
-    $("lobby-chat-send").addEventListener("click", sendLobbyChat);
-    $("lobby-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter") sendLobbyChat(); });
+    $("lobby-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendLobbyChat(); });
     $("create-room-btn").addEventListener("click", function () { openModal("create-modal"); });
     var createGame = "omok";
     var cchips = document.querySelectorAll("#create-game .radio-chip");
@@ -2008,10 +2029,12 @@
     });
     $("alk-chipB").addEventListener("click", function () { onAlkChipTap("black"); });
     $("alk-chipW").addEventListener("click", function () { onAlkChipTap("white"); });
-    $("alk-center-btn").addEventListener("click", requestAlkBegin);
+    $("alk-center-btn").addEventListener("click", function () {
+      var b = $("alk-center-btn");
+      if (b && b.dataset.act === "solo") { if (curRoomGame === "alk_terr") startTerritorySolo(); else startAlkSolo(); }
+      else requestAlkBegin();
+    });
     $("alk-again").addEventListener("click", function () { if (alkSolo) { if (A.mode === "territory") startTerritorySolo(); else startAlkSolo(); } else requestAlkBegin(); });
-    $("alk-solo-btn").addEventListener("click", startAlkSolo);
-    $("alk-terr-solo-btn").addEventListener("click", startTerritorySolo);
 
     soundMuted = localStorage.getItem("omok_mute") === "1";
     function syncMuteIcons() { var t = soundMuted ? "🔇 소리 꺼짐" : "🔊 소리 켜짐"; if ($("menu-sound-btn")) $("menu-sound-btn").textContent = t; }

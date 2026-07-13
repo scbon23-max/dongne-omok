@@ -43,7 +43,6 @@
       <div class="chat-log" id="lobby-chat-log"></div>
       <div class="chat-input-row">
         <input id="lobby-chat-input" class="chat-input" type="text" placeholder="전체 채팅…" autocomplete="off">
-        <button id="lobby-chat-send" class="btn-send">전송</button>
       </div>
     </div>
     <div class="online-panel">
@@ -57,6 +56,7 @@
   <header class="game-header lobby-headbar">
     <div class="online-info">
       <span id="lobby-conn-dot" class="conn-dot" title="연결 상태"></span>
+      <span id="lobby-online-count">온라인 0명</span>
     </div>
     <div class="hdr-right">
       <button id="lobby-rank-btn" class="hdr-btn">🏅 전체랭킹</button>
@@ -69,15 +69,6 @@
 
 <!-- 게임 화면 -->
 <section id="game" class="screen game-screen hidden">
-  <header class="game-header">
-    <div class="online-info">
-      <span id="conn-dot" class="conn-dot" title="연결 상태"></span>
-    </div>
-    <div class="hdr-right">
-      <button id="menu-btn" class="hdr-btn">메뉴</button>
-    </div>
-  </header>
-
   <div class="players-bar">
     <div class="player-chip" id="chip-black">
       <span class="stone-dot black"></span>
@@ -94,6 +85,10 @@
     <canvas id="board" width="450" height="450"></canvas>
     <div id="chat-overlay" class="chat-overlay"></div>
     <button id="center-btn" class="center-btn hidden">대국 시작</button>
+    <div class="win-flag hidden" id="omok-win">
+      <div class="wt" id="omok-wintext">승리!</div>
+      <button id="omok-again">다시 하기</button>
+    </div>
   </div>
 
   <div id="confirm-bar" class="confirm-bar hidden">
@@ -105,7 +100,8 @@
     <button id="rank-btn" class="btn-flat">🏅 랭킹</button>
     <button id="undo-btn" class="btn-flat player-only">무르기</button>
     <button id="resign-btn" class="btn-flat resign" style="display:none">기권</button>
-    <button id="leave-room-btn" class="btn-flat">← 나가기</button>
+    <button id="leave-room-btn" class="btn-flat">나가기</button>
+    <button id="menu-btn" class="btn-flat menu-dots">⋯</button>
   </div>
 
   <div class="bottom-row">
@@ -113,7 +109,6 @@
       <div class="chat-log" id="chat-log"></div>
       <div class="chat-input-row">
         <input id="chat-input" class="chat-input" type="text" placeholder="메시지 입력…" autocomplete="off">
-        <button id="chat-send" class="btn-send">전송</button>
       </div>
     </div>
     <div class="online-panel">
@@ -127,15 +122,6 @@
 
 <!-- 알까기 게임 화면 -->
 <section id="alkgame" class="screen game-screen hidden">
-  <header class="game-header">
-    <div class="online-info">
-      <span class="conn-dot online"></span>
-    </div>
-    <div class="hdr-right">
-      <button id="alk-menu-btn" class="hdr-btn">메뉴</button>
-    </div>
-  </header>
-
   <div class="players-bar">
     <div class="player-chip" id="alk-chipB"><span class="stone-dot black"></span><span class="player-name"><span id="alk-name-black">탭해서 앉기</span></span><span class="chip-cnt" id="alk-cntB">5</span></div>
     <div class="player-chip right" id="alk-chipW"><span class="chip-cnt" id="alk-cntW">5</span><span class="player-name"><span id="alk-name-white">탭해서 앉기</span></span><span class="stone-dot white"></span></div>
@@ -143,6 +129,7 @@
 
   <div class="alk-board-wrap">
     <canvas id="alk-board" width="440" height="440"></canvas>
+    <div id="alk-chat-overlay" class="chat-overlay"></div>
     <button id="alk-center-btn" class="center-btn hidden">대국 시작</button>
     <div class="win-flag hidden" id="alk-win">
       <div class="wt" id="alk-wintext">흑 승리!</div>
@@ -152,9 +139,8 @@
 
   <div class="action-row slim">
     <button class="btn-flat" id="alk-rank-btn">🏅 랭킹</button>
-    <button class="btn-flat" id="alk-solo-btn">혼자 연습</button>
-    <button class="btn-flat" id="alk-terr-solo-btn">점령전 연습</button>
-    <button class="btn-flat" id="alk-leave-room-btn">← 나가기</button>
+    <button class="btn-flat" id="alk-leave-room-btn">나가기</button>
+    <button id="alk-menu-btn" class="btn-flat menu-dots">⋯</button>
   </div>
 
   <div class="bottom-row">
@@ -162,7 +148,6 @@
       <div class="chat-log" id="alk-chat-log"></div>
       <div class="chat-input-row">
         <input id="alk-chat-input" class="chat-input" type="text" placeholder="알까기방 메시지…" autocomplete="off">
-        <button id="alk-chat-send" class="btn-send">전송</button>
       </div>
     </div>
     <div class="online-panel">
@@ -340,13 +325,6 @@
   </div>
 </div>
 
-<!-- 승리 모달 -->
-<div id="win-modal" class="modal-overlay hidden">
-  <div class="modal win-modal">
-    <div class="win-text" id="win-text">승리!</div>
-    <button class="win-close" data-close>닫기</button>
-  </div>
-</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
