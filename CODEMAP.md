@@ -10,7 +10,7 @@
 | `styles.css` | 전체 스타일 |
 | `config.js` | Supabase URL·공개키·채널(`ROOM: "main"`) |
 | `sb.js` | Supabase 클라이언트 생성(`window.SB`) |
-| `net.js` | 실시간 통신. 로비채널(상시)+방채널(입장시). presence·broadcast. **`rosterOf`=presence 배열의 마지막 항목 읽음**(track이 덮어쓰기 안 되고 쌓여서) |
+| `net.js` | 실시간 통신. 로비채널(상시)+방채널(입장시). presence·broadcast. **`rosterOf`=presence 배열의 마지막 항목 읽음**(track이 덮어쓰기 안 되고 쌓여서). **자동 재접속**: 채널 끊기면(CHANNEL_ERROR/TIMED_OUT/CLOSED) 지수 백오프로 재구독(세대 gen 가드로 중복 방지, 재접속 시 track+onReady 재실행=놓친 채팅 복구). 의도적 `leaveRoom`은 재접속 안 함 |
 | `db.js` | Supabase 테이블 CRUD(accounts/allowlist/games/chat) + 로그인/해시(`login`,`loginHash`,`hashPw`) |
 | `renju.js` | **오목 규칙 엔진**(금수 33/44/장목, 승리판정). 순수 로직 |
 | `alkkagi.js` | **알까기 물리 엔진**(튕김·충돌·판밖퇴출, 점령전 과녁점수). `MAX_PULL`=최대파워 당김거리, `MAXV`=최대속도 |
