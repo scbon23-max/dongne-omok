@@ -175,16 +175,17 @@
     renderLobbyOnline();
   }
   function clubOnlineCount() { return lobbyMode ? lobbyRoster.length : 1; }
+  function lobbyPeople() { return lobbyMode ? lobbyRoster.filter(function (m) { return !m.viewing; }) : [{ nick: me.nick, joinTs: 0 }]; }
   function updateOnlineCounts() {
-    var n = clubOnlineCount();
-    var lc = $("lobby-online-count"); if (lc) lc.textContent = "온라인 " + n + "명";
-    ["lobby-online-num", "online-num", "alk-online-num"].forEach(function (id) {
-      var el = $(id); if (el) el.textContent = n;
+    var total = clubOnlineCount();
+    ["online-total", "alk-online-total", "lobby-online-total"].forEach(function (id) {
+      var el = $(id); if (el) el.textContent = total;
     });
+    var ln = $("lobby-online-num"); if (ln) ln.textContent = lobbyPeople().length;
   }
   function renderLobbyOnline() {
     var box = $("lobby-online-list"); if (!box) return;
-    var arr = lobbyMode ? lobbyRoster.slice() : [{ nick: me.nick, joinTs: 0 }];
+    var arr = lobbyPeople();
     arr.sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); });
     box.innerHTML = arr.map(function (m) {
       var meMark = (m.nick === me.nick) ? " (나)" : "";
@@ -304,6 +305,7 @@
     myJoinTs = Date.now();
     netMode = Net.init(roomId, myMetaObj(null),
       { onReady: onNetReady, onMessage: onMessage, onPresence: onPresence, onStatus: onStatus });
+    if (lobbyMode) Net.trackLobby(myMetaObj(roomId));
     $("lobby").classList.add("hidden");
     if (curGame === "omok") {
       $("game").classList.remove("hidden"); $("alkgame").classList.add("hidden");
@@ -331,6 +333,7 @@
       document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
       stopHostTimer(); clearAllGrace(); clearAlkGrace();
       curRoomId = null; curGame = null;
+      if (lobbyMode) Net.trackLobby(myMetaObj(null));
       $("game").classList.add("hidden"); $("alkgame").classList.add("hidden");
       $("lobby").classList.remove("hidden");
       renderRoomList();
@@ -1150,9 +1153,11 @@
   }
   function renderGameOnline(game) {
     var box = $(game === "omok" ? "online-list" : "alk-online-list");
+    var num = $(game === "omok" ? "online-num" : "alk-online-num");
     if (!box) return;
     var here = (game === curGame) ? (netMode ? roster.slice() : [{ nick: me.nick, joinTs: 0 }]) : [];
     here.sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); });
+    if (num) num.textContent = here.length;
     box.innerHTML = here.map(function (m) {
       var tag;
       if (game === "omok") {

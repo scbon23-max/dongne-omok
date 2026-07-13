@@ -5,7 +5,7 @@ window.Net = (function () {
   function clubId() { return (window.OMOK_CONFIG && window.OMOK_CONFIG.ROOM) || "main"; }
   function rosterOf(ch) {
     var st = ch.presenceState(), arr = [];
-    Object.keys(st).forEach(function (k) { var m = st[k]; if (m && m.length) arr.push(m[0]); });
+    Object.keys(st).forEach(function (k) { var m = st[k]; if (m && m.length) arr.push(m[m.length - 1]); });
     return arr;
   }
 

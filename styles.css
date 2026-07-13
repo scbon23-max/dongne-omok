@@ -97,7 +97,7 @@ body {
 /* ---------- 게임 헤더 ---------- */
 .game-screen { background: var(--navy); padding: 8px 12px 10px; }
 .game-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; min-height: 34px; }
-.game-screen > .game-header, .lobby-screen > .game-header { order: 10; margin-top: auto; margin-bottom: 0; padding-top: 8px; }
+.game-screen > .game-header { order: 10; margin-top: auto; margin-bottom: 0; padding-top: 8px; }
 .online-info { display: flex; align-items: center; gap: 9px; }
 #online-count { font-size: 14px; font-weight: 800; color: #fff; }
 .online-tap { cursor: pointer; }
@@ -275,10 +275,12 @@ body:not(.is-player) .player-only { display: none; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* ── 로비 ── */
-.lobby-screen { background: var(--navy); padding: 8px 12px 10px; }
+.lobby-screen { background: var(--navy); padding: 8px 12px 10px; height: 100dvh; overflow: hidden; }
 .hdr-right { display: flex; gap: 7px; align-items: center; }
-.lobby-rooms { flex: 0 0 auto; display: flex; flex-direction: column; max-width: 420px; width: 100%; margin: 0 auto; }
-.lobby-create { width: 100%; height: auto; padding: 11px 12px; font-size: 14px; border-radius: 12px; background: var(--orange); color: #fff; margin-bottom: 10px; }
+.lobby-screen > .lobby-roomlist { order: 2; flex: 1 1 auto; min-height: 0; overflow-y: auto; max-width: 420px; width: 100%; margin: 8px auto 0; }
+.lobby-screen > .lobby-roomlist::before { content: ""; margin-top: auto; }
+.lobby-screen > .lobby-headbar { order: 3; flex: 0 0 auto; max-width: 420px; width: 100%; margin: 8px auto 0; min-height: 34px; }
+.lobby-screen > .lobby-create { order: 4; flex: 0 0 auto; width: 100%; max-width: 420px; padding: 11px 12px; font-size: 14px; border-radius: 12px; background: var(--orange); color: #fff; margin: 8px auto 0; }
 .room-list { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; padding-bottom: 4px; }
 .room-empty { display: flex; align-items: center; justify-content: center; text-align: center; color: #8ea4af; font-size: 13px; line-height: 1.6; border: 2px dashed rgba(142, 164, 175, .45); border-radius: 14px; padding: 12px 13px; min-height: 64px; }
 .room-card { display: flex; align-items: center; gap: 12px; background: var(--navy-2); border-radius: 14px; padding: 12px 14px; cursor: pointer; border: 2px solid transparent; }
@@ -297,8 +299,8 @@ body:not(.is-player) .player-only { display: none; }
 .room-who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .room-cnt { flex-shrink: 0; }
 .room-enter { flex-shrink: 0; background: var(--orange); color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 14px; font-weight: 800; cursor: pointer; }
-.lobby-bottom { flex: 0 0 auto; margin-top: 8px; }
-.lobby-bottom .chat-log { height: 240px; flex: none; }
+.lobby-screen > .lobby-bottom { order: 1; flex: 0 0 auto; max-width: 420px; width: 100%; margin: 0 auto; }
+.lobby-bottom .chat-log { height: 144px; flex: none; }
 .chat-notice { flex-shrink: 0; margin-bottom: 6px; padding: 6px 8px; border-radius: 8px; background: rgba(243,97,42,.14); color: #f3b28a; font-size: 11px; font-weight: 700; line-height: 1.5; }
 
 .btn-flat.resign { color: var(--red); }

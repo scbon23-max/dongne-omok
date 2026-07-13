@@ -36,22 +36,6 @@
 
 <!-- 로비 -->
 <section id="lobby" class="screen lobby-screen hidden">
-  <header class="game-header">
-    <div class="online-info">
-      <span id="lobby-conn-dot" class="conn-dot" title="연결 상태"></span>
-      <span id="lobby-online-count">온라인 0명</span>
-    </div>
-    <div class="hdr-right">
-      <button id="lobby-rank-btn" class="hdr-btn">🏅 전체랭킹</button>
-      <button id="lobby-menu-btn" class="hdr-btn">메뉴</button>
-    </div>
-  </header>
-
-  <div class="lobby-rooms">
-    <button id="create-room-btn" class="btn-primary lobby-create">+ 방 만들기</button>
-    <div id="room-list" class="room-list"></div>
-  </div>
-
   <div class="bottom-row lobby-bottom">
     <div class="chat-panel">
       <div class="online-head">전체 채팅</div>
@@ -63,10 +47,24 @@
       </div>
     </div>
     <div class="online-panel">
-      <div class="online-head">접속 <span id="lobby-online-num">0</span></div>
+      <div class="online-head"><span id="lobby-online-num">0</span>명 · 전체 <span id="lobby-online-total">0</span>명</div>
       <div class="online-list" id="lobby-online-list"></div>
     </div>
   </div>
+
+  <div id="room-list" class="room-list lobby-roomlist"></div>
+
+  <header class="game-header lobby-headbar">
+    <div class="online-info">
+      <span id="lobby-conn-dot" class="conn-dot" title="연결 상태"></span>
+    </div>
+    <div class="hdr-right">
+      <button id="lobby-rank-btn" class="hdr-btn">🏅 전체랭킹</button>
+      <button id="lobby-menu-btn" class="hdr-btn">메뉴</button>
+    </div>
+  </header>
+
+  <button id="create-room-btn" class="btn-primary lobby-create">+ 방 만들기</button>
 </section>
 
 <!-- 게임 화면 -->
@@ -119,7 +117,7 @@
       </div>
     </div>
     <div class="online-panel">
-      <div class="online-head online-tap" id="online-head" title="참가자 보기">온라인 <span id="online-num">0</span>명</div>
+      <div class="online-head online-tap" id="online-head" title="참가자 보기"><span id="online-num">0</span>명 · 전체 <span id="online-total">0</span>명</div>
       <div class="online-list" id="online-list"></div>
     </div>
   </div>
@@ -168,7 +166,7 @@
       </div>
     </div>
     <div class="online-panel">
-      <div class="online-head online-tap" id="alk-online-head" title="참가자 보기">온라인 <span id="alk-online-num">0</span>명</div>
+      <div class="online-head online-tap" id="alk-online-head" title="참가자 보기"><span id="alk-online-num">0</span>명 · 전체 <span id="alk-online-total">0</span>명</div>
       <div class="online-list" id="alk-online-list"></div>
     </div>
   </div>
