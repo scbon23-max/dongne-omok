@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -55,9 +55,10 @@
   <div class="bottom-row lobby-bottom">
     <div class="chat-panel">
       <div class="online-head">전체 채팅</div>
+      <div class="chat-notice">🛠️ 오류·이상이 생기면 이곳에 증상을 자세히 적어주세요. 수정에 큰 도움이 됩니다 🙏</div>
       <div class="chat-log" id="lobby-chat-log"></div>
       <div class="chat-input-row">
-        <input id="lobby-chat-input" class="chat-input" type="text" maxlength="80" placeholder="전체 채팅…" autocomplete="off">
+        <input id="lobby-chat-input" class="chat-input" type="text" placeholder="전체 채팅…" autocomplete="off">
         <button id="lobby-chat-send" class="btn-send">전송</button>
       </div>
     </div>
@@ -115,7 +116,7 @@
     <div class="chat-panel">
       <div class="chat-log" id="chat-log"></div>
       <div class="chat-input-row">
-        <input id="chat-input" class="chat-input" type="text" maxlength="80" placeholder="메시지 입력…" autocomplete="off">
+        <input id="chat-input" class="chat-input" type="text" placeholder="메시지 입력…" autocomplete="off">
         <button id="chat-send" class="btn-send">전송</button>
       </div>
     </div>
@@ -154,7 +155,6 @@
       <button id="alk-again">다시 하기</button>
     </div>
   </div>
-  <div class="alk-hint" id="alk-hint"><b>흑</b> 차례 — 내 알을 당겼다 놓아 튕기세요</div>
 
   <div class="action-row slim">
     <button class="btn-flat" id="alk-rules-btn">규칙</button>
@@ -167,7 +167,7 @@
     <div class="chat-panel">
       <div class="chat-log" id="alk-chat-log"></div>
       <div class="chat-input-row">
-        <input id="alk-chat-input" class="chat-input" type="text" maxlength="80" placeholder="알까기방 메시지…" autocomplete="off">
+        <input id="alk-chat-input" class="chat-input" type="text" placeholder="알까기방 메시지…" autocomplete="off">
         <button id="alk-chat-send" class="btn-send">전송</button>
       </div>
     </div>

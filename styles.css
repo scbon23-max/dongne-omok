@@ -70,8 +70,6 @@ body {
 .player-chip.active .chip-cnt { color: var(--navy); }
 .alk-board-wrap { width: 100%; max-width: 420px; margin: 0 auto; position: relative; }
 #alk-board { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.35); touch-action: none; }
-.alk-hint { text-align: center; font-size: 12px; font-weight: 600; color: var(--cream); margin-top: 5px; min-height: 16px; }
-.alk-hint b { color: #fff; }
 .win-flag { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; background: rgba(14,42,58,.72); border-radius: 10px; }
 .win-flag.hidden { display: none; }
 .win-flag .wt { font-size: 28px; font-weight: 800; color: #fff; }
@@ -300,7 +298,8 @@ body:not(.is-player) .player-only { display: none; }
 .room-cnt { flex-shrink: 0; }
 .room-enter { flex-shrink: 0; background: var(--orange); color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 14px; font-weight: 800; cursor: pointer; }
 .lobby-bottom { flex: 0 0 auto; margin-top: 8px; }
-.lobby-bottom .chat-log { height: 300px; flex: none; }
+.lobby-bottom .chat-log { height: 240px; flex: none; }
+.chat-notice { flex-shrink: 0; margin-bottom: 6px; padding: 6px 8px; border-radius: 8px; background: rgba(243,97,42,.14); color: #f3b28a; font-size: 11px; font-weight: 700; line-height: 1.5; }
 
 .btn-flat.resign { color: var(--red); }
 .btn-flat.resign:active { background: var(--red); color: #fff; }

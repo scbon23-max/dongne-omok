@@ -562,18 +562,6 @@
     var alkSeatedMe = (!netMode || A.seats.black === me.nick || A.seats.white === me.nick || me.isAdmin);
     if (cb) { if (!A.started && !A.over && A.seats.black && A.seats.white && alkSeatedMe) { cb.textContent = "대국 시작"; cb.classList.remove("hidden"); } else cb.classList.add("hidden"); }
     var sc = terr ? (A.score || { b: 0, w: 0 }) : null;
-    var h = $("alk-hint");
-    if (h) {
-      if (A.paused) h.textContent = "상대 연결이 끊겼어요 — 재접속을 기다려요";
-      else if (A.over) h.innerHTML = terr ? terrResult(sc) : (A.winner === "draw" ? "무승부!" : "<b>" + (A.winner === "b" ? "흑" : "백") + "</b> 승리!");
-      else if (!A.started) h.textContent = terr ? "" : "흑·백 자리에 앉고 대국을 시작하세요";
-      else {
-        var myTurn = (A.seats.black === me.nick && A.turn === "b") || (A.seats.white === me.nick && A.turn === "w");
-        var base = "<b>" + (A.turn === "b" ? "흑" : "백") + "</b> 차례" + (myTurn ? " — 발사돌을 당겨 튕기세요" : " (상대)");
-        if (terr) base += ' · 흑 ' + sc.b + ' : ' + sc.w + ' 백';
-        h.innerHTML = base;
-      }
-    }
     var wf = $("alk-win");
     if (wf) {
       if (A.over) {
@@ -581,10 +569,6 @@
         wf.classList.remove("hidden");
       } else wf.classList.add("hidden");
     }
-  }
-  function terrResult(sc) {
-    if (A.winner === "draw") return "무승부! (흑 " + sc.b + " : " + sc.w + " 백)";
-    return "<b>" + (A.winner === "b" ? "흑" : "백") + "</b> 승리! (흑 " + sc.b + " : " + sc.w + " 백)";
   }
   function terrResultPlain(sc) {
     if (A.winner === "draw") return "무승부 " + sc.b + " : " + sc.w;
@@ -647,7 +631,7 @@
   }
   function sendLobbyChat() {
     var inp = $("lobby-chat-input"); if (!inp) return;
-    var v = inp.value.trim(); if (!v) return;
+    var v = inp.value.trim().slice(0, 80); if (!v) return;
     if (lobbyMode) { Net.sendLobby({ t: "chat", nick: me.nick, text: v }); if (window.Db) Db.addChatMsg(roomName(), me.nick, v); }
     addLobbyChat(me.nick, v);
     inp.value = "";
@@ -1641,7 +1625,7 @@
   function esc(s) { return String(s).replace(/[&<>"]/g, function (m) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[m]; }); }
   function sendChat(game) {
     var inp = $(game === "alk" ? "alk-chat-input" : "chat-input");
-    var v = inp.value.trim(); if (!v) return;
+    var v = inp.value.trim().slice(0, 80); if (!v) return;
     if (netMode) {
       Net.send({ t: "chat", game: game, nick: me.nick, text: v });
       if (window.Db) Db.addChatMsg(chatRoomOf(game), me.nick, v);
@@ -2013,6 +1997,16 @@
     syncMuteIcons();
     $("menu-sound-btn").addEventListener("click", toggleMute);
     $("alk-rules-btn").addEventListener("click", showAlkRules);
+
+    // 자동로그인 등으로 로그인 클릭이 없어도, 첫 사용자 상호작용에 소리 활성화(브라우저 자동재생 정책 해제)
+    function unlockAudio() {
+      initAudio();
+      if (audioCtx && audioCtx.state === "suspended" && audioCtx.resume) audioCtx.resume();
+      if (audioCtx && audioCtx.state === "running") {
+        ["pointerdown", "touchend", "keydown", "click"].forEach(function (ev) { document.removeEventListener(ev, unlockAudio, true); });
+      }
+    }
+    ["pointerdown", "touchend", "keydown", "click"].forEach(function (ev) { document.addEventListener(ev, unlockAudio, true); });
 
     tryAutoLogin();
   }
