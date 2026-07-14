@@ -182,7 +182,7 @@ body:not(.is-admin) .admin-only { display: none; }
 
 /* ---------- 액션 ---------- */
 .action-row { display: flex; gap: 7px; margin: 7px auto 0; width: 100%; max-width: 420px; }
-.confirm-bar { display: flex; gap: 8px; max-width: 420px; width: 100%; margin: 8px auto 0; }
+.confirm-bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; gap: 8px; padding: 10px; background: rgba(14,42,58,.88); border-radius: 0 0 10px 10px; }
 .confirm-bar.hidden { display: none; }
 .cbtn { border: none; border-radius: 11px; padding: 13px; font-size: 15px; font-weight: 800; cursor: pointer; }
 .cbtn.place { flex: 2; background: var(--teal); color: var(--navy); }

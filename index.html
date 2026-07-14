@@ -2,6 +2,37 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<script>
+(function () {
+  try {
+    var ua = navigator.userAgent.toLowerCase();
+    if (ua.indexOf("kakaotalk") === -1) return;
+    if (location.search.indexOf("kko=1") !== -1) return;
+    if (ua.indexOf("android") > -1) {
+      var sep = location.href.indexOf("?") === -1 ? "?" : "&";
+      var fallback = encodeURIComponent(location.href + sep + "kko=1");
+      var target = location.href.replace(/^https?:\/\//i, "");
+      location.href = "intent://" + target + "#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=" + fallback + ";end";
+    } else if (/iphone|ipad|ipod/.test(ua)) {
+      var pageUrl = location.href;
+      var escToSafari = function () {
+        location.href = "kakaoweb://closeBrowser";
+        setTimeout(function () {
+          location.href = "kakaotalk://web/openExternal?url=" + encodeURIComponent(pageUrl);
+        }, 100);
+      };
+      var chromeLeft = false;
+      var onVis = function () { if (document.hidden) chromeLeft = true; };
+      document.addEventListener("visibilitychange", onVis);
+      location.href = pageUrl.replace(/^https:\/\//i, "googlechromes://").replace(/^http:\/\//i, "googlechrome://");
+      setTimeout(function () {
+        document.removeEventListener("visibilitychange", onVis);
+        if (!chromeLeft && !document.hidden) escToSafari();
+      }, 1000);
+    }
+  } catch (e) {}
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
@@ -112,10 +143,9 @@
         <button id="draw-ask-no" style="background:var(--navy-2);color:#fff">거절</button>
       </div>
     </div>
-  </div>
-
-  <div id="confirm-bar" class="confirm-bar hidden">
-    <button id="confirm-place" class="cbtn place">여기 착수</button>
+    <div id="confirm-bar" class="confirm-bar hidden">
+      <button id="confirm-place" class="cbtn place">여기 착수</button>
+    </div>
   </div>
 
   <div class="action-row slim">
