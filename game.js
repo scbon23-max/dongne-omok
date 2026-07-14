@@ -1497,7 +1497,16 @@
     var mm = ("0" + d.getMinutes()).slice(-2);
     return (d.getMonth() + 1) + "/" + d.getDate() + " " + hh + ":" + mm;
   }
-  function showPlayerDetail(nick) {
+  async function movesetFor(games) {
+    var set = {};
+    if (!window.Db || !Db.gamesWithMoves) return set;
+    var ids = games.filter(function (g) { return (g.game === "omok" || !g.game) && g.id != null; }).slice(0, 40).map(function (g) { return g.id; });
+    if (!ids.length) return set;
+    var have = await Db.gamesWithMoves(ids);
+    have.forEach(function (id) { set[id] = 1; });
+    return set;
+  }
+  async function showPlayerDetail(nick) {
     var s = rankSeasons[rankSeasonIdx];
     var src = (rankGame === "all") ? ((window.__gamesAll || {})[rankTab] || []) : (window.__games || []);
     var games = src.filter(function (g) { return (g.black === nick || g.white === nick) && (!s || gameInSeason(g, s)); });
@@ -1507,6 +1516,7 @@
     var box = $("rank-detail");
     box.classList.remove("hidden");
     $("rank-title").textContent = nick + " 전적" + (s ? " · " + s.label : "");
+    var moveSet = await movesetFor(games);
     var html = '<button class="btn-flat rank-back">← 목록</button>';
     if (!games.length) html += '<p class="players-hint">기록이 없어요.</p>';
     else {
@@ -1519,7 +1529,7 @@
         var rcls = result === "승" ? "res-win" : result === "패" ? "res-lose" : "res-draw";
         var colorTag = myColor === "black" ? "흑" : "백";
         var rbtn = "";
-        if ((g.game === "omok" || !g.game) && g.moves && g.moves.length && replayList.length < 5) {
+        if (moveSet[g.id] && replayList.length < 20) {
           var ri = replayList.length; replayList.push(g);
           rbtn = '<button class="replay-btn" data-replay="' + ri + '">복기</button>';
         }
@@ -1542,7 +1552,7 @@
       openReplay(window.__replayGames[+this.getAttribute("data-replay")]);
     });
   }
-  function showHeadToHead(nick, opp) {
+  async function showHeadToHead(nick, opp) {
     var s = rankSeasons[rankSeasonIdx];
     var src = (rankGame === "all") ? ((window.__gamesAll || {})[rankTab] || []) : (window.__games || []);
     var games = src.filter(function (g) {
@@ -1555,6 +1565,7 @@
     });
     var box = $("rank-detail");
     $("rank-title").textContent = "맞대결";
+    var moveSet = await movesetFor(games);
     var html = '<button class="btn-flat rank-back">← ' + esc(nick) + ' 전적</button>';
     html += '<div class="h2h-score"><span class="h2h-side">' + esc(nick) + '</span>'
       + '<span class="h2h-nums"><b class="h2h-w">' + win + '</b><span class="h2h-sep">:</span><b class="h2h-l">' + lose + '</b></span>'
@@ -1570,7 +1581,7 @@
         var rcls = result === "승" ? "res-win" : result === "패" ? "res-lose" : "res-draw";
         var colorTag = myColor === "black" ? "흑" : "백";
         var rbtn = "";
-        if ((g.game === "omok" || !g.game) && g.moves && g.moves.length && replayList.length < 5) {
+        if (moveSet[g.id] && replayList.length < 20) {
           var ri = replayList.length; replayList.push(g);
           rbtn = '<button class="replay-btn" data-replay="' + ri + '">복기</button>';
         }
@@ -1583,9 +1594,12 @@
     bindReplayBtns(box);
   }
   var replayMoves = [], replayIdx = 0, replayCtx = null;
-  function openReplay(g) {
+  async function openReplay(g) {
     if (!g) return;
-    replayMoves = g.moves || [];
+    var moves = g.moves;
+    if (!moves && window.Db && Db.getGameMoves) moves = await Db.getGameMoves(g.id);
+    if (!moves || !moves.length) { toast("이 경기는 기보가 없어요"); return; }
+    replayMoves = moves;
     replayIdx = replayMoves.length;
     var cv = $("replay-canvas"); if (cv) replayCtx = cv.getContext("2d");
     var wtxt = g.winner === "draw" ? "무승부" : ((g.winner === "black" ? g.black : g.white) + "님 승리");

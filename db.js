@@ -73,20 +73,33 @@ window.Db = (function () {
     return r;
   }
   async function recordAlkGame(black, white, winner, gameType) { if (sb) return sb.from("games").insert({ black: black, white: white, winner: winner, game: gameType || "alk" }); }
+  var GAME_COLS = "id,black,white,winner,game,created_at";
   async function getGames() {
     if (!sb) return [];
-    var r = await sb.from("games").select("*").order("created_at", { ascending: false });
+    var r = await sb.from("games").select(GAME_COLS).order("created_at", { ascending: false });
     return r.data || [];
   }
   async function getGamesByType(game) {
     if (!sb) return [];
-    var r = await sb.from("games").select("*").eq("game", game).order("created_at", { ascending: false });
+    var r = await sb.from("games").select(GAME_COLS).eq("game", game).order("created_at", { ascending: false });
     if (r.error) {
       // game 컬럼이 아직 없으면(ALTER 전) 오목만 폴백으로 동작
-      if (game === "omok") { var all = await sb.from("games").select("*").order("created_at", { ascending: false }); return all.data || []; }
+      if (game === "omok") { var all = await sb.from("games").select(GAME_COLS).order("created_at", { ascending: false }); return all.data || []; }
       return [];
     }
     return r.data || [];
+  }
+  async function getGameMoves(id) {
+    if (!sb || id == null) return null;
+    var r = await sb.from("games").select("moves").eq("id", id).limit(1);
+    if (r.error || !r.data || !r.data.length) return null;
+    return r.data[0].moves || null;
+  }
+  async function gamesWithMoves(ids) {
+    if (!sb || !ids || !ids.length) return [];
+    var r = await sb.from("games").select("id").in("id", ids).not("moves", "is", null);
+    if (r.error || !r.data) return [];
+    return r.data.map(function (x) { return x.id; });
   }
   async function addChatMsg(room, nick, text) {
     if (sb) return sb.from("chat").insert({ room: room, nick: nick, text: text });
@@ -113,6 +126,7 @@ window.Db = (function () {
     ADMIN: ADMIN, ensureAdmin: ensureAdmin, login: login, loginHash: loginHash, hashPw: sha256,
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
     recordGame: recordGame, recordAlkGame: recordAlkGame, getGames: getGames, getGamesByType: getGamesByType,
+    getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves,
     addChatMsg: addChatMsg, getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,
     getAllowlist: getAllowlist, addAllowed: addAllowed, removeAllowed: removeAllowed
   };
