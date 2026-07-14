@@ -104,6 +104,7 @@ window.Db = (function () {
     if (r.error || !r.data) return [];
     return r.data.map(function (x) { return x.id; });
   }
+  async function deleteGame(id) { if (sb && id != null) return sb.from("games").delete().eq("id", id); }
   async function addChatMsg(room, nick, text) {
     if (sb) return sb.from("chat").insert({ room: room, nick: nick, text: text });
   }
@@ -129,7 +130,7 @@ window.Db = (function () {
     ADMIN: ADMIN, ensureAdmin: ensureAdmin, login: login, loginHash: loginHash, hashPw: sha256,
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
     recordGame: recordGame, recordAlkGame: recordAlkGame, getGames: getGames, getGamesByType: getGamesByType,
-    getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves,
+    getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves, deleteGame: deleteGame,
     addChatMsg: addChatMsg, getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,
     getAllowlist: getAllowlist, addAllowed: addAllowed, removeAllowed: removeAllowed
   };

@@ -1590,7 +1590,8 @@
           var ri = replayList.length; replayList.push(g);
           rbtn = '<button class="replay-btn" data-replay="' + ri + '">복기</button>';
         }
-        html += '<div class="drow"><span class="' + rcls + '">' + result + '</span><span class="d-color">' + colorTag + '</span><span class="d-vs">vs</span><span class="d-opp" data-opp="' + esc(opp) + '">' + esc(opp) + '</span><span class="d-date">' + fmtDate(g.created_at) + '</span>' + rbtn + '</div>';
+        var delbtn = me.isAdmin ? '<button class="del-game-btn" data-del="' + g.id + '">삭제</button>' : "";
+        html += '<div class="drow"><span class="' + rcls + '">' + result + '</span><span class="d-color">' + colorTag + '</span><span class="d-vs">vs</span><span class="d-opp" data-opp="' + esc(opp) + '">' + esc(opp) + '</span><span class="d-date">' + fmtDate(g.created_at) + '</span>' + rbtn + delbtn + '</div>';
       });
       html += '</div>';
     }
@@ -1600,6 +1601,7 @@
       renderSeason();
     });
     bindReplayBtns(box);
+    bindDelBtns(box);
     var opps = box.querySelectorAll(".d-opp");
     for (var j = 0; j < opps.length; j++) opps[j].addEventListener("click", (function (n) { return function () { showHeadToHead(n, this.getAttribute("data-opp")); }; })(nick));
   }
@@ -1608,6 +1610,31 @@
     for (var i = 0; i < rbtns.length; i++) rbtns[i].addEventListener("click", function () {
       openReplay(window.__replayGames[+this.getAttribute("data-replay")]);
     });
+  }
+  var delArmedId = null, delArmTimer = null;
+  function bindDelBtns(box) {
+    if (!me.isAdmin) return;
+    var btns = box.querySelectorAll(".del-game-btn");
+    for (var i = 0; i < btns.length; i++) btns[i].addEventListener("click", function () { delGameArmed(this); });
+  }
+  function delGameArmed(btn) {
+    if (!me.isAdmin) return;
+    var id = btn.getAttribute("data-del");
+    if (delArmedId !== id) {
+      delArmedId = id; btn.textContent = "정말 삭제?"; btn.classList.add("armed");
+      clearTimeout(delArmTimer); delArmTimer = setTimeout(function () { delArmedId = null; btn.textContent = "삭제"; btn.classList.remove("armed"); }, 3000);
+      return;
+    }
+    delArmedId = null; clearTimeout(delArmTimer);
+    if (!(window.Db && Db.deleteGame)) return;
+    btn.textContent = "삭제 중…"; btn.disabled = true;
+    Db.deleteGame(id).then(function (r) {
+      if (r && r.error) { toast("삭제 실패: " + (r.error.message || "권한")); btn.textContent = "삭제"; btn.disabled = false; btn.classList.remove("armed"); return; }
+      toast("대국 기록을 삭제했어요");
+      if (window.Net && Net.sendLobby) Net.sendLobby({ t: "scores", game: rankGame });
+      refreshScores();
+      openRank(rankGame);
+    }).catch(function () { toast("삭제 오류"); btn.textContent = "삭제"; btn.disabled = false; btn.classList.remove("armed"); });
   }
   async function showHeadToHead(nick, opp) {
     var tok = ++detailToken;
@@ -1644,13 +1671,15 @@
           var ri = replayList.length; replayList.push(g);
           rbtn = '<button class="replay-btn" data-replay="' + ri + '">복기</button>';
         }
-        html += '<div class="drow"><span class="' + rcls + '">' + result + '</span><span class="d-color">' + colorTag + '으로</span><span class="d-date">' + fmtDate(g.created_at) + '</span>' + rbtn + '</div>';
+        var delbtn = me.isAdmin ? '<button class="del-game-btn" data-del="' + g.id + '">삭제</button>' : "";
+        html += '<div class="drow"><span class="' + rcls + '">' + result + '</span><span class="d-color">' + colorTag + '으로</span><span class="d-date">' + fmtDate(g.created_at) + '</span>' + rbtn + delbtn + '</div>';
       });
       html += '</div>';
     }
     box.innerHTML = html;
     box.querySelector(".rank-back").addEventListener("click", function () { showPlayerDetail(nick); });
     bindReplayBtns(box);
+    bindDelBtns(box);
   }
   var replayMoves = [], replayIdx = 0, replayCtx = null;
   async function openReplay(g) {
