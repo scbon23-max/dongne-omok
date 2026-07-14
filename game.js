@@ -842,7 +842,7 @@
       case "alk_flick": if (amHost) hostAlkFlick(msg.nick, msg.idx, msg.vx, msg.vy, msg.px); break;
       case "alk_move": onAlkMove(msg.idx, msg.vx, msg.vy, msg.fin); break;
       case "move": if (amHost) hostApplyMove(msg.nick, msg.r, msg.c); break;
-      case "begin": if (amHost) beginGame(msg.by); break;
+      case "begin": if (amHost && !G.started && (msg.gseq == null || msg.gseq === G.gameSeq)) beginGame(msg.by); break;
       case "seat": if (amHost) hostApplySeat(msg.by, msg.nick, msg.seat); break;
       case "set_timer": if (amHost && (msg.by === ADMIN || msg.by === hostNick)) setTimer(msg.sec); break;
       case "chat": if (msg.nick !== me.nick) addChatTo(msg.game === "alk" ? "alk" : "omok", msg.nick, msg.text, true); break;
@@ -2074,7 +2074,7 @@
   }
   function requestBegin() {
     if (!(G.seats.black && G.seats.white)) { toast("흑·백 두 자리가 다 차야 시작해요"); return; }
-    if (netMode && !amHost) { Net.send({ t: "begin", by: me.nick }); return; }
+    if (netMode && !amHost) { Net.send({ t: "begin", by: me.nick, gseq: G.gameSeq }); return; }
     beginGame(me.nick);
   }
   var omokSolo = false;
