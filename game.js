@@ -2291,10 +2291,10 @@
       initAudio();
       if (audioCtx && audioCtx.state === "suspended" && audioCtx.resume) audioCtx.resume();
       if (audioCtx && audioCtx.state === "running") {
-        ["pointerdown", "touchend", "keydown", "click"].forEach(function (ev) { document.removeEventListener(ev, unlockAudio, true); });
+        ["pointerdown", "touchend", "click"].forEach(function (ev) { document.removeEventListener(ev, unlockAudio, true); });
       }
     }
-    ["pointerdown", "touchend", "keydown", "click"].forEach(function (ev) { document.addEventListener(ev, unlockAudio, true); });
+    ["pointerdown", "touchend", "click"].forEach(function (ev) { document.addEventListener(ev, unlockAudio, true); });
 
     tryAutoLogin();
   }
