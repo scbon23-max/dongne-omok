@@ -68,7 +68,7 @@ body {
 .chip-cnt { margin-left: auto; font-size: 15px; font-weight: 800; color: #fff; }
 .player-chip.right .chip-cnt { margin-left: 0; margin-right: auto; }
 .player-chip.active .chip-cnt { color: var(--navy); }
-.alk-board-wrap { width: 100%; max-width: 420px; margin: 0 auto; position: relative; }
+.alk-board-wrap { width: 100%; max-width: 300px; margin: 0 auto; position: relative; }
 #alk-board { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.35); touch-action: none; }
 .win-flag { position: absolute; inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; background: rgba(14,42,58,.72); border-radius: 10px; }
 .win-flag.hidden { display: none; }

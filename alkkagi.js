@@ -1,6 +1,6 @@
 window.Alkkagi = (function () {
   "use strict";
-  var SZ = 440, R = 14, FR = 0.933, MINV = 0.10, MAX_PULL = 90, MAXV = 22.5;
+  var SW = 340, SH = 440, R = 14, FR = 0.933, MINV = 0.10, MAX_PULL = 90, MAXV = 22.5;
   var cv = null, ctx = null, bound = false;
   var stones = [];
   var turn = "b", seats = { black: null, white: null }, started = false, over = false, winner = null;
@@ -8,16 +8,16 @@ window.Alkkagi = (function () {
   var onFlick = null, canFlick = null, onHit = null, onPlace = null;
   var mode = "knockout";
   var komi = 0;
+  var TCX = SW / 2, TCY = SH / 2, GM = SH * 0.09, RING = { c: SH * 0.062, m: SH * 0.115, o: SH * 0.18 };
   function placeActive(x) {
     for (var i = 0; i < stones.length; i++) {
-      if (stones[i].active) { stones[i].x = Math.max(GM, Math.min(SZ - GM, x)); stones[i].y = stones[i].c === "b" ? SZ - GM : GM; render(); return; }
+      if (stones[i].active) { stones[i].x = Math.max(GM, Math.min(SW - GM, x)); stones[i].y = stones[i].c === "b" ? SH - GM : GM; render(); return; }
     }
   }
-  var TC = SZ / 2, GM = SZ * 0.09, RING = { c: SZ * 0.062, m: SZ * 0.115, o: SZ * 0.18 };
   function setMode(m) { mode = m; }
   function setKomi(k) { komi = k || 0; }
   function ringPoints(x, y) {
-    var d = Math.hypot(x - TC, y - TC);
+    var d = Math.hypot(x - TCX, y - TCY);
     if (d <= RING.c) return 3;
     if (d <= RING.m) return 2;
     if (d <= RING.o) return 1;
@@ -30,20 +30,20 @@ window.Alkkagi = (function () {
   }
   function spawnActive(color) {
     stones = stones.filter(function (s) { return !s.active; });
-    stones.push({ x: TC, y: color === "b" ? SZ - GM : GM, c: color, alive: true, active: true, vx: 0, vy: 0 });
+    stones.push({ x: TCX, y: color === "b" ? SH - GM : GM, c: color, alive: true, active: true, vx: 0, vy: 0 });
   }
   function markActivePlayed() { stones.forEach(function (s) { s.active = false; }); }
   function drawTarget() {
     var fills = [[RING.o, "rgba(90,60,20,.10)"], [RING.m, "rgba(243,97,42,.14)"], [RING.c, "rgba(243,97,42,.30)"]];
-    fills.forEach(function (g) { ctx.beginPath(); ctx.arc(TC, TC, g[0], 0, 7); ctx.fillStyle = g[1]; ctx.fill(); });
-    [RING.o, RING.m, RING.c].forEach(function (r) { ctx.beginPath(); ctx.arc(TC, TC, r, 0, 7); ctx.strokeStyle = "rgba(90,60,20,.4)"; ctx.lineWidth = 1.5; ctx.stroke(); });
-    ctx.beginPath(); ctx.arc(TC, TC, 3, 0, 7); ctx.fillStyle = "#C7481B"; ctx.fill();
+    fills.forEach(function (g) { ctx.beginPath(); ctx.arc(TCX, TCY, g[0], 0, 7); ctx.fillStyle = g[1]; ctx.fill(); });
+    [RING.o, RING.m, RING.c].forEach(function (r) { ctx.beginPath(); ctx.arc(TCX, TCY, r, 0, 7); ctx.strokeStyle = "rgba(90,60,20,.4)"; ctx.lineWidth = 1.5; ctx.stroke(); });
+    ctx.beginPath(); ctx.arc(TCX, TCY, 3, 0, 7); ctx.fillStyle = "#C7481B"; ctx.fill();
   }
 
   function layout() {
-    var arr = [], xs = [SZ * 1 / 6, SZ * 2 / 6, SZ * 3 / 6, SZ * 4 / 6, SZ * 5 / 6];
-    xs.forEach(function (x) { arr.push({ x: x, y: SZ * 0.85, c: "b", alive: true }); });
-    xs.forEach(function (x) { arr.push({ x: x, y: SZ * 0.15, c: "w", alive: true }); });
+    var arr = [], xs = [SW * 1 / 6, SW * 2 / 6, SW * 3 / 6, SW * 4 / 6, SW * 5 / 6];
+    xs.forEach(function (x) { arr.push({ x: x, y: SH * 0.85, c: "b", alive: true }); });
+    xs.forEach(function (x) { arr.push({ x: x, y: SH * 0.15, c: "w", alive: true }); });
     return arr;
   }
   function setStones(arr) { stones = (arr || []).map(function (s) { return { x: s.x, y: s.y, c: s.c, alive: s.alive, active: !!s.active, vx: 0, vy: 0 }; }); }
@@ -51,7 +51,7 @@ window.Alkkagi = (function () {
   function setMeta(t, se, st, ov, wn) { turn = t; if (se) seats = se; started = st; over = ov; winner = wn; render(); }
   function aliveCount(c) { return stones.filter(function (s) { return s.alive && s.c === c; }).length; }
 
-  function pos(e) { var r = cv.getBoundingClientRect(), t = e.touches ? e.touches[0] : e; return { x: (t.clientX - r.left) / r.width * SZ, y: (t.clientY - r.top) / r.height * SZ }; }
+  function pos(e) { var r = cv.getBoundingClientRect(), t = e.touches ? e.touches[0] : e; return { x: (t.clientX - r.left) / r.width * SW, y: (t.clientY - r.top) / r.height * SH }; }
   function hit(p, color) {
     for (var i = 0; i < stones.length; i++) {
       var s = stones[i];
@@ -68,7 +68,7 @@ window.Alkkagi = (function () {
     var p = pos(e), idx = hit(p, g.color);
     if (idx < 0) {
       if (mode === "territory") {
-        var inBand = g.color === "b" ? (p.y > SZ * 0.62) : (p.y < SZ * 0.38);
+        var inBand = g.color === "b" ? (p.y > SH * 0.62) : (p.y < SH * 0.38);
         if (inBand) {
           var act = null;
           for (var k = 0; k < stones.length; k++) { if (stones[k].active) { act = stones[k]; break; } }
@@ -115,7 +115,7 @@ window.Alkkagi = (function () {
           }
         }
       }
-      for (var k = 0; k < stones.length; k++) { var s2 = stones[k]; if (s2.alive && (s2.x < 0 || s2.x > SZ || s2.y < 0 || s2.y > SZ)) s2.alive = false; }
+      for (var k = 0; k < stones.length; k++) { var s2 = stones[k]; if (s2.alive && (s2.x < 0 || s2.x > SW || s2.y < 0 || s2.y > SH)) s2.alive = false; }
       var any = false; for (var m2 = 0; m2 < stones.length; m2++) { if (stones[m2].alive && (stones[m2].vx || stones[m2].vy)) any = true; }
       render();
       if (any) requestAnimationFrame(loop); else { moving = false; if (onSettle) onSettle(); }
@@ -142,7 +142,7 @@ window.Alkkagi = (function () {
           }
         }
       }
-      for (var k = 0; k < sim.length; k++) { var s2 = sim[k]; if (s2.alive && (s2.x < 0 || s2.x > SZ || s2.y < 0 || s2.y > SZ)) s2.alive = false; }
+      for (var k = 0; k < sim.length; k++) { var s2 = sim[k]; if (s2.alive && (s2.x < 0 || s2.x > SW || s2.y < 0 || s2.y > SH)) s2.alive = false; }
       for (var m2 = 0; m2 < sim.length; m2++) { if (sim[m2].alive && (sim[m2].vx || sim[m2].vy)) any = true; }
       if (!any) break;
     }
@@ -152,11 +152,14 @@ window.Alkkagi = (function () {
   }
   function render() {
     if (!ctx) return;
-    ctx.fillStyle = "#E8C88A"; ctx.fillRect(0, 0, SZ, SZ);
+    ctx.fillStyle = "#E8C88A"; ctx.fillRect(0, 0, SW, SH);
     ctx.strokeStyle = "rgba(90,60,20,.28)"; ctx.lineWidth = 1;
-    var g = 13, m = SZ * 0.09, st = (SZ - 2 * m) / (g - 1);
-    for (var i = 0; i < g; i++) { ctx.beginPath(); ctx.moveTo(m, m + st * i); ctx.lineTo(SZ - m, m + st * i); ctx.stroke(); ctx.beginPath(); ctx.moveTo(m + st * i, m); ctx.lineTo(m + st * i, SZ - m); ctx.stroke(); }
-    if (mode === "territory") { drawTarget(); } else { ctx.strokeStyle = "rgba(90,60,20,.18)"; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(0, SZ / 2); ctx.lineTo(SZ, SZ / 2); ctx.stroke(); ctx.setLineDash([]); }
+    var g = 13, mX = GM, mY = GM, stX = (SW - 2 * mX) / (g - 1), stY = (SH - 2 * mY) / (g - 1);
+    for (var i = 0; i < g; i++) {
+      ctx.beginPath(); ctx.moveTo(mX, mY + stY * i); ctx.lineTo(SW - mX, mY + stY * i); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(mX + stX * i, mY); ctx.lineTo(mX + stX * i, SH - mY); ctx.stroke();
+    }
+    if (mode === "territory") { drawTarget(); } else { ctx.strokeStyle = "rgba(90,60,20,.18)"; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(0, SH / 2); ctx.lineTo(SW, SH / 2); ctx.stroke(); ctx.setLineDash([]); }
     var g2 = canFlick ? canFlick() : { ok: false };
     if (drag) {
       var s = stones[drag.idx], dx = s.x - drag.x, dy = s.y - drag.y, d = Math.hypot(dx, dy);
@@ -181,9 +184,9 @@ window.Alkkagi = (function () {
       var sc = territoryScore();
       ctx.font = "bold 18px 'Malgun Gothic', sans-serif";
       ctx.fillStyle = "#1b1b1b"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-      ctx.fillText("흑 " + sc.b + (komi ? " +" + komi : ""), 10, SZ - 8);
+      ctx.fillText("흑 " + sc.b + (komi ? " +" + komi : ""), 10, SH - 8);
       ctx.fillStyle = "#3a2a12"; ctx.textAlign = "right"; ctx.textBaseline = "top";
-      ctx.fillText("백 " + sc.w, SZ - 10, 8);
+      ctx.fillText("백 " + sc.w, SW - 10, 8);
     }
   }
 
