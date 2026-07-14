@@ -82,7 +82,19 @@
   <div class="board-wrap">
     <canvas id="board" width="450" height="450"></canvas>
     <div id="chat-overlay" class="chat-overlay"></div>
-    <button id="center-btn" class="center-btn hidden">대국 시작</button>
+    <div id="center-area" class="center-area hidden">
+      <button id="center-btn" class="center-btn">대국 시작</button>
+      <button id="ai-btn" class="center-btn center-alt hidden">AI와 두기</button>
+      <div id="ai-levels" class="ai-levels hidden">
+        <div class="ai-levels-title">AI 난이도</div>
+        <div class="ai-levels-row">
+          <button class="lvbtn" data-ai="easy">초보</button>
+          <button class="lvbtn" data-ai="medium">중수</button>
+          <button class="lvbtn" data-ai="hard">고수</button>
+        </div>
+        <button id="ai-cancel" class="lvbtn cancel">취소</button>
+      </div>
+    </div>
     <div class="win-flag hidden" id="omok-win">
       <div class="wt" id="omok-wintext">승리!</div>
       <button id="omok-again">다시 하기</button>
@@ -354,6 +366,7 @@
 <script src="sb.js"></script>
 <script src="db.js"></script>
 <script src="renju.js"></script>
+<script src="omok-ai.js"></script>
 <script src="net.js"></script>
 <script src="alkkagi.js"></script>
 <script src="game.js"></script>

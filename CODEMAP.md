@@ -13,7 +13,8 @@
 | `net.js` | 실시간 통신. 로비채널(상시)+방채널(입장시). presence·broadcast. **`rosterOf`=presence 배열의 마지막 항목 읽음**(track이 덮어쓰기 안 되고 쌓여서). **자동 재접속**: 채널 끊기면(CHANNEL_ERROR/TIMED_OUT/CLOSED) 지수 백오프로 재구독(세대 gen 가드로 중복 방지, 재접속 시 track+onReady 재실행=놓친 채팅 복구). 의도적 `leaveRoom`은 재접속 안 함 |
 | `db.js` | Supabase 테이블 CRUD(accounts/allowlist/games/chat) + 로그인/해시(`login`,`loginHash`,`hashPw`) |
 | `renju.js` | **오목 규칙 엔진**(금수 33/44/장목, 승리판정). 순수 로직 |
-| `alkkagi.js` | **알까기 물리 엔진**(튕김·충돌·판밖퇴출, 점령전 과녁점수). `MAX_PULL`=최대파워 당김거리, `MAXV`=최대속도 |
+| `alkkagi.js` | **알까기 물리 엔진**(튕김·충돌·판밖퇴출, 점령전 과녁점수). 직사각형 좌표 `SW`(폭)·`SH`(높이), 과녁중심 `TCX/TCY`. `MAX_PULL`=최대파워 당김거리, `MAXV`=최대속도, `setKomi` |
+| `omok-ai.js` | **오목 AI 엔진**(클라이언트, 서버비용 0). `OmokAI.bestMove(board, color, level)` — 패턴평가(열린3·4·5목) 오펜스+디펜스. level: easy/medium/hard. 게임 연결은 game.js `startAiGame`/`aiTick`(혼자착석 시 "AI와 두기" 버튼) |
 | `game.js` | **컨트롤러(오케스트레이터)** — 나머지 전부. 아래 섹션 참조 |
 
 ## game.js 섹션 (grep: `// ----------`)

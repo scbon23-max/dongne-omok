@@ -290,7 +290,7 @@
     G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = [];
     G.recorded = false; G.started = false; G.lastPlayers = null; G.paused = false; G.pausedRemainMs = null;
     A.seats = { black: null, white: null }; A.turn = "b"; A.started = false; A.over = false; A.winner = null;
-    A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; alkSolo = false; omokSolo = false;
+    A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; alkSolo = false; omokSolo = false; omokAI.on = false; aiPending = false;
     A.mode = "knockout"; A.remain = null; A.score = null;
     if (window.Alkkagi) Alkkagi.setMode("knockout");
     winShownSeq = -1; liveSeq = -1; prevNicks = []; firstPresenceAt = 0;
@@ -910,6 +910,7 @@
     G.moveDeadline = G.timerSec ? Date.now() + G.timerSec * 1000 : null;
     G.rev++;
     broadcastState(); updateTurnUI(); render();
+    aiTick();
   }
 
   function endGame() {
@@ -924,6 +925,7 @@
 
   function recordResult() {
     if (G.recorded) return;
+    if (omokAI.on) return;
     if (!netMode || !amHost) return;
     var b = G.seats.black, w = G.seats.white;
     if (!b || !w || b === w) return;
@@ -1005,7 +1007,7 @@
   }
   function forfeitGame(pair, winnerColor) {
     if (!netMode || !amHost) return;
-    if (window.Db && pair.black && pair.white && pair.black !== pair.white) {
+    if (window.Db && !omokAI.on && pair.black && pair.white && pair.black !== pair.white) {
       Db.recordGame(pair.black, pair.white, winnerColor === BLACK ? "black" : "white", G.history);
     }
     var winnerNick = winnerColor === BLACK ? pair.black : pair.white;
@@ -1158,18 +1160,20 @@
   }
   function updateCenterButton() {
     var btn = $("center-btn"); if (!btn) return;
+    var area = $("center-area"), aiBtn = $("ai-btn"), levels = $("ai-levels");
     var bothFilled = G.seats.black && G.seats.white;
     var seatedMe = (!netMode || G.seats.black === me.nick || G.seats.white === me.nick || me.isAdmin);
     var iSit = (G.seats.black === me.nick || G.seats.white === me.nick);
+    if (levels) levels.classList.add("hidden");
     if (!G.started && !G.over && bothFilled && seatedMe) {
-      btn.textContent = "대국 시작";
-      btn.dataset.act = "begin";
-      btn.classList.remove("hidden");
+      btn.textContent = "대국 시작"; btn.dataset.act = "begin"; btn.classList.remove("hidden");
+      if (aiBtn) aiBtn.classList.add("hidden");
+      if (area) area.classList.remove("hidden");
     } else if (!G.started && !G.over && iSit && !bothFilled) {
-      btn.textContent = "연습하기";
-      btn.dataset.act = "solo";
-      btn.classList.remove("hidden");
-    } else btn.classList.add("hidden");
+      btn.textContent = "혼자 두기"; btn.dataset.act = "solo"; btn.classList.remove("hidden");
+      if (aiBtn) aiBtn.classList.remove("hidden");
+      if (area) area.classList.remove("hidden");
+    } else if (area) area.classList.add("hidden");
   }
   function renderPresenceUI() {
     updateOnlineCounts();
@@ -1997,13 +2001,37 @@
     beginGame(me.nick);
   }
   var omokSolo = false;
+  var omokAI = { on: false, level: null };
+  var aiPending = false;
+  var AI_NICK = "AI";
   function startOmokSolo() {
     if (netMode && roster.length > 1) { toast("혼자 연습은 방에 나 혼자 있을 때만 돼요"); return; }
-    omokSolo = true;
+    omokSolo = true; omokAI.on = false;
     G.seats = { black: me.nick, white: me.nick };
     beginGame(me.nick);
     renderPresenceUI();
     toast("혼자 연습 — 흑·백 번갈아 둬보세요");
+  }
+  function startAiGame(level) {
+    if (netMode && roster.length > 1) { toast("AI 대전은 방에 나 혼자 있을 때만 돼요"); return; }
+    if (!window.OmokAI) { toast("AI를 불러오지 못했어요"); return; }
+    omokSolo = false; omokAI.on = true; omokAI.level = level; aiPending = false;
+    G.seats = { black: me.nick, white: AI_NICK };
+    beginGame(me.nick);
+    renderPresenceUI();
+    var nm = level === "easy" ? "초보" : level === "medium" ? "중수" : "고수";
+    toast("AI(" + nm + ")와 대국 — 당신은 흑");
+  }
+  function aiTick() {
+    if (!omokAI.on || G.over || !G.started || aiPending) return;
+    if (colorName(G.turn) !== "white") return;
+    aiPending = true;
+    setTimeout(function () {
+      aiPending = false;
+      if (!omokAI.on || G.over || !G.started || colorName(G.turn) !== "white") return;
+      var mv = window.OmokAI.bestMove(G.board, WHITE, omokAI.level);
+      if (mv) hostApplyMove(AI_NICK, mv[0], mv[1]);
+    }, 450);
   }
   function onCenterBtn() {
     var b = $("center-btn");
@@ -2059,7 +2087,11 @@
     for (var rt = 0; rt < rtabs.length; rt++) rtabs[rt].addEventListener("click", function () { rankTab = this.getAttribute("data-g"); renderSeason(); });
     $("confirm-place").addEventListener("click", confirmPlace);
     $("center-btn").addEventListener("click", onCenterBtn);
-    $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else requestBegin(); });
+    $("ai-btn").addEventListener("click", function () { $("center-btn").classList.add("hidden"); $("ai-btn").classList.add("hidden"); $("ai-levels").classList.remove("hidden"); });
+    $("ai-cancel").addEventListener("click", function () { $("ai-levels").classList.add("hidden"); updateCenterButton(); });
+    var lvb = document.querySelectorAll(".lvbtn[data-ai]");
+    for (var li = 0; li < lvb.length; li++) lvb[li].addEventListener("click", function () { startAiGame(this.getAttribute("data-ai")); });
+    $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else if (omokAI.on) startAiGame(omokAI.level); else requestBegin(); });
     $("timer-box").addEventListener("click", function () {
       if (me.isAdmin) { syncTimerChips(); openModal("settings-modal"); }
       else toast("방장(구나)만 시간을 바꿀 수 있어요");
