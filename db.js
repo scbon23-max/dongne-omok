@@ -69,7 +69,10 @@ window.Db = (function () {
     var row = { black: black, white: white, winner: winner, game: "omok" };
     if (moves && moves.length) row.moves = moves;
     var r = await sb.from("games").insert(row);
-    if (r && r.error && row.moves) { delete row.moves; return sb.from("games").insert(row); }
+    if (r && r.error && row.moves) {
+      var em = (r.error.message || "") + " " + (r.error.code || "");
+      if (/moves|column|schema|PGRST|42703/i.test(em)) { delete row.moves; return sb.from("games").insert(row); }
+    }
     return r;
   }
   async function recordAlkGame(black, white, winner, gameType) { if (sb) return sb.from("games").insert({ black: black, white: white, winner: winner, game: gameType || "alk" }); }
