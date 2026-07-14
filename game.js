@@ -21,9 +21,12 @@
     started: false,
     lastPlayers: null,
     paused: false,
-    pausedRemainMs: null
+    pausedRemainMs: null,
+    drawAsk: null,       // { gseq, black: null|true|false, white: null|true|false } — 80수 자동 제안
+    drawAskDone: false    // 자동 제안을 이미 물어봤는지(이번 판 1회)
   };
   var ADMIN = "구나";
+  var DRAW_ASK_MOVES = 80;
 
   var me = { nick: "", isAdmin: false };
   var roster = [];
@@ -863,6 +866,13 @@
         if (msg.accept) { if (amHost && !G.over && msg.gseq === G.gameSeq) hostVoidGame(msg.from); toast("대국을 무효 처리했어요"); }
         else if (msg.from === me.nick) { toast("상대가 무효를 거절했어요"); $("leave-modal").classList.remove("hidden"); }
         break;
+      case "drawask_res": if (amHost) hostDrawAskResponse(msg.nick, msg.accept, msg.gseq); break;
+      case "draw_req": if (msg.to === me.nick) showDrawModal(msg.from, msg.gseq); break;
+      case "draw_res":
+        $("draw-modal").classList.add("hidden");
+        if (msg.accept) { if (amHost && !G.over && msg.gseq === G.gameSeq) hostDrawGame(); toast("무승부로 대국을 마쳤어요"); }
+        else if (msg.from === me.nick) toast("상대가 무승부를 거절했어요");
+        break;
     }
   }
 
@@ -872,7 +882,8 @@
       seats: G.seats, timerSec: G.timerSec, moveDeadline: G.moveDeadline,
       moveRemainMs: G.moveDeadline ? Math.max(0, G.moveDeadline - Date.now()) : null,
       rev: G.rev, gameSeq: G.gameSeq, history: G.history,
-      started: G.started, lastPlayers: G.lastPlayers, paused: G.paused, pausedRemainMs: G.pausedRemainMs
+      started: G.started, lastPlayers: G.lastPlayers, paused: G.paused, pausedRemainMs: G.pausedRemainMs,
+      drawAsk: G.drawAsk, drawAskDone: G.drawAskDone
     };
   }
   function broadcastState() { if (netMode) Net.send({ t: "state", state: snapshot() }); }
@@ -886,8 +897,9 @@
     G.history = s.history || [];
     G.started = !!s.started; G.lastPlayers = s.lastPlayers || null;
     G.paused = !!s.paused; G.pausedRemainMs = (typeof s.pausedRemainMs === "number") ? s.pausedRemainMs : null;
+    G.drawAsk = s.drawAsk || null; G.drawAskDone = !!s.drawAskDone;
     maybeSeatSound();
-    syncTimerChips(); updateTurnUI(); renderPlayersList(); render(); updateCenterButton();
+    syncTimerChips(); updateTurnUI(); renderPlayersList(); render(); updateCenterButton(); updateDrawAskUI();
     if (G.over) {
       if (liveSeq === G.gameSeq && winShownSeq !== G.gameSeq) showWin();
     } else {
@@ -932,6 +944,9 @@
     G.history.push({ r: r, c: c, color: G.turn });
     if (res.win) { G.over = true; G.winner = G.turn; G.draw = false; endGame(); return; }
     if (boardFull()) { G.over = true; G.winner = 0; G.draw = true; endGame(); return; }
+    if (!G.drawAskDone && !G.drawAsk && isRealTwoPlayerGame() && G.history.length >= DRAW_ASK_MOVES) {
+      G.drawAsk = { gseq: G.gameSeq, black: null, white: null };
+    }
     G.turn = (G.turn === BLACK) ? WHITE : BLACK;
     G.moveDeadline = G.timerSec ? Date.now() + G.timerSec * 1000 : null;
     G.rev++;
@@ -1008,6 +1023,74 @@
     updateTurnUI(); render();
   }
 
+  // ---------- 무승부 ----------
+  function isRealTwoPlayerGame() {
+    var b = G.seats.black, w = G.seats.white;
+    return !!(b && w && b !== w && b !== AI_NICK && w !== AI_NICK);
+  }
+  function updateDrawAskUI() {
+    var ov = $("draw-ask"); if (!ov) return;
+    var da = G.drawAsk;
+    if (!da || da.gseq !== G.gameSeq || G.over || curGame !== "omok") { ov.classList.add("hidden"); return; }
+    var mySeat = (G.seats.black === me.nick) ? "black" : (G.seats.white === me.nick) ? "white" : null;
+    if (!mySeat || da[mySeat] != null) { ov.classList.add("hidden"); return; }
+    ov.classList.remove("hidden");
+  }
+  function respondDrawAskAuto(accept) {
+    var da = G.drawAsk; if (!da) return;
+    $("draw-ask").classList.add("hidden");
+    if (!netMode) { hostDrawAskResponse(me.nick, accept, da.gseq); return; }
+    Net.send({ t: "drawask_res", nick: me.nick, gseq: da.gseq, accept: accept });
+  }
+  function hostDrawAskResponse(nick, accept, gseq) {
+    if (netMode && !amHost) return;
+    var da = G.drawAsk;
+    if (!da || da.gseq !== gseq || da.gseq !== G.gameSeq || !G.started || G.over) return;
+    var col = (G.seats.black === nick) ? "black" : (G.seats.white === nick) ? "white" : null;
+    if (!col || da[col] != null) return;
+    da[col] = accept;
+    if (da.black === true && da.white === true) {
+      G.drawAsk = null; G.drawAskDone = true;
+      hostDrawGame();
+      return;
+    }
+    if (da.black === false || da.white === false) { G.drawAsk = null; G.drawAskDone = true; }
+    G.rev++;
+    broadcastState();
+  }
+  function hostDrawGame() {
+    if (netMode && !amHost) return;
+    if (!G.started || G.over) return;
+    G.drawAsk = null;
+    G.winner = 0; G.over = true; G.draw = true;
+    Net.send({ t: "chat", nick: "__sys", text: "무승부로 대국이 끝났어요" });
+    endGame();
+  }
+  var drawReqFrom = null, drawReqGseq = 0, drawCooldownUntil = 0;
+  function startDrawCooldown() {
+    drawCooldownUntil = Date.now() + 5000;
+    var b = $("draw-btn"); if (!b) return;
+    b.disabled = true; b.classList.add("cooldown");
+    setTimeout(function () { b.disabled = false; b.classList.remove("cooldown"); }, 5000);
+  }
+  function sendDrawRequest() {
+    var mySeat = (G.seats.black === me.nick) ? "black" : (G.seats.white === me.nick) ? "white" : null;
+    if (!mySeat) { toast("앉은 사람만 제안할 수 있어요"); return; }
+    if (!G.started || G.over) { toast("대국 중에만 제안할 수 있어요"); return; }
+    if (Date.now() < drawCooldownUntil) { toast("무승부 제안은 잠시 뒤에 다시 쓸 수 있어요"); return; }
+    var opp = mySeat === "black" ? G.seats.white : G.seats.black;
+    if (!opp || opp === me.nick) { toast("상대가 없어요"); return; }
+    if (!netMode) { hostDrawGame(); return; }
+    Net.send({ t: "draw_req", from: me.nick, to: opp, gseq: G.gameSeq });
+    startDrawCooldown();
+    toast("무승부를 제안했어요");
+  }
+  function showDrawModal(from, gseq) {
+    drawReqFrom = from; drawReqGseq = gseq || 0;
+    $("draw-text").textContent = from + "님이 무승부를 제안했어요.\n동의하면 승패 없이 대국이 끝나요.";
+    $("draw-modal").classList.remove("hidden");
+  }
+
   function beginGame(by) {
     if (netMode && !amHost) return;
     if (!(G.seats.black && G.seats.white)) { if (by === me.nick) toast("흑·백 두 자리가 다 차야 시작해요"); return; }
@@ -1016,6 +1099,7 @@
     G.board = Renju.emptyBoard();
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
+    G.drawAsk = null; G.drawAskDone = false;
     G.started = true;
     G.paused = false; G.pausedRemainMs = null; clearAllGrace();
     G.lastPlayers = { black: G.seats.black, white: G.seats.white };
@@ -1030,6 +1114,7 @@
     G.board = Renju.emptyBoard();
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
+    G.drawAsk = null; G.drawAskDone = false;
     G.started = false;
     G.paused = false; G.pausedRemainMs = null; clearAllGrace();
     G.moveDeadline = null;
@@ -1207,6 +1292,7 @@
     var seatedMe = (G.seats.black === me.nick || G.seats.white === me.nick);
     document.body.classList.toggle("is-player", seatedMe);
     var rb = $("resign-btn"); if (rb) rb.style.display = (seatedMe && G.started && !G.over) ? "" : "none";
+    var db = $("draw-btn"); if (db) db.style.display = (seatedMe && G.started && !G.over && G.drawAskDone && isRealTwoPlayerGame()) ? "" : "none";
     renderPresenceUI();
     updateCenterButton();
   }
@@ -2251,6 +2337,20 @@
     });
     $("undo-btn").addEventListener("click", sendUndoRequest);
     $("resign-btn").addEventListener("click", function () { openModal("resign-modal"); });
+    $("draw-btn").addEventListener("click", sendDrawRequest);
+    $("draw-ask-yes").addEventListener("click", function () { respondDrawAskAuto(true); });
+    $("draw-ask-no").addEventListener("click", function () { respondDrawAskAuto(false); });
+    $("draw-accept").addEventListener("click", function () {
+      $("draw-modal").classList.add("hidden");
+      if (netMode) Net.send({ t: "draw_res", accept: true, from: drawReqFrom, gseq: drawReqGseq });
+      else hostDrawGame();
+      drawReqFrom = null;
+    });
+    $("draw-decline").addEventListener("click", function () {
+      $("draw-modal").classList.add("hidden");
+      if (netMode && drawReqFrom) Net.send({ t: "draw_res", accept: false, from: drawReqFrom });
+      drawReqFrom = null;
+    });
     $("resign-yes").addEventListener("click", function () { $("resign-modal").classList.add("hidden"); requestResign(); });
     $("resign-no").addEventListener("click", function () { $("resign-modal").classList.add("hidden"); });
     $("undo-accept").addEventListener("click", function () {

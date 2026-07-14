@@ -105,6 +105,13 @@
       <div class="wt" id="omok-wintext">승리!</div>
       <button id="omok-again">다시 하기</button>
     </div>
+    <div class="win-flag hidden" id="draw-ask">
+      <div class="wt" id="draw-ask-text" style="font-size:20px;line-height:1.4;text-align:center">80수를 두었어요.<br>무승부 할까요?</div>
+      <div style="display:flex;gap:10px">
+        <button id="draw-ask-yes">동의</button>
+        <button id="draw-ask-no" style="background:var(--navy-2);color:#fff">거절</button>
+      </div>
+    </div>
   </div>
 
   <div id="confirm-bar" class="confirm-bar hidden">
@@ -115,6 +122,7 @@
     <button id="rank-btn" class="btn-flat">🏅 랭킹</button>
     <button id="undo-btn" class="btn-flat player-only">무르기</button>
     <button id="resign-btn" class="btn-flat resign" style="display:none">기권</button>
+    <button id="draw-btn" class="btn-flat player-only" style="display:none">무승부</button>
     <button id="leave-room-btn" class="btn-flat">나가기</button>
     <button id="menu-btn" class="btn-flat menu-dots">⋯</button>
   </div>
@@ -314,6 +322,17 @@
     <div class="undo-btns">
       <button id="void-accept" class="btn-primary">수락 (무효)</button>
       <button id="void-decline" class="btn-flat">거절</button>
+    </div>
+  </div>
+</div>
+
+<!-- 무승부 제안 모달 -->
+<div id="draw-modal" class="modal-overlay hidden">
+  <div class="modal undo-modal">
+    <div class="undo-text" id="draw-text">상대가 무승부를 제안했어요.</div>
+    <div class="undo-btns">
+      <button id="draw-accept" class="btn-primary">동의 (무승부)</button>
+      <button id="draw-decline" class="btn-flat">거절</button>
     </div>
   </div>
 </div>
