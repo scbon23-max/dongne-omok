@@ -7,6 +7,7 @@ window.Alkkagi = (function () {
   var moving = false, drag = null, dragRaf = 0;
   var onFlick = null, canFlick = null, onHit = null, onPlace = null;
   var mode = "knockout";
+  var komi = 0;
   function placeActive(x) {
     for (var i = 0; i < stones.length; i++) {
       if (stones[i].active) { stones[i].x = Math.max(GM, Math.min(SZ - GM, x)); stones[i].y = stones[i].c === "b" ? SZ - GM : GM; render(); return; }
@@ -14,6 +15,7 @@ window.Alkkagi = (function () {
   }
   var TC = SZ / 2, GM = SZ * 0.09, RING = { c: SZ * 0.062, m: SZ * 0.115, o: SZ * 0.18 };
   function setMode(m) { mode = m; }
+  function setKomi(k) { komi = k || 0; }
   function ringPoints(x, y) {
     var d = Math.hypot(x - TC, y - TC);
     if (d <= RING.c) return 3;
@@ -179,7 +181,7 @@ window.Alkkagi = (function () {
       var sc = territoryScore();
       ctx.font = "bold 18px 'Malgun Gothic', sans-serif";
       ctx.fillStyle = "#1b1b1b"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-      ctx.fillText("흑 " + sc.b, 10, SZ - 8);
+      ctx.fillText("흑 " + sc.b + (komi ? " +" + komi : ""), 10, SZ - 8);
       ctx.fillStyle = "#3a2a12"; ctx.textAlign = "right"; ctx.textBaseline = "top";
       ctx.fillText("백 " + sc.w, SZ - 10, 8);
     }
@@ -200,6 +202,6 @@ window.Alkkagi = (function () {
   return {
     init: init, layout: layout, setStones: setStones, getStones: getStones, setMeta: setMeta,
     runFlick: runFlick, simulate: simulate, render: render, aliveCount: aliveCount, isMoving: function () { return moving; },
-    setMode: setMode, spawnActive: spawnActive, markActivePlayed: markActivePlayed, territoryScore: territoryScore, ringPoints: ringPoints, placeActive: placeActive
+    setMode: setMode, setKomi: setKomi, spawnActive: spawnActive, markActivePlayed: markActivePlayed, territoryScore: territoryScore, ringPoints: ringPoints, placeActive: placeActive
   };
 })();

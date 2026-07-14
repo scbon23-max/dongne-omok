@@ -313,6 +313,17 @@
   </div>
 </div>
 
+<!-- 나가기 확인 모달 (게임 중) -->
+<div id="leave-modal" class="modal-overlay hidden">
+  <div class="modal undo-modal">
+    <div class="undo-text">게임 중이에요.<br><b class="red">기권</b>하고 나가시겠어요?</div>
+    <div class="undo-btns">
+      <button id="leave-yes" class="cbtn" style="flex:2;background:var(--red);color:#fff;">기권하고 나가기</button>
+      <button id="leave-no" class="cbtn cancel" style="flex:1;">취소</button>
+    </div>
+  </div>
+</div>
+
 <!-- 무르기 요청 모달 -->
 <div id="undo-modal" class="modal-overlay hidden">
   <div class="modal undo-modal">
@@ -324,6 +335,21 @@
   </div>
 </div>
 
+<!-- 오목 복기 -->
+<div id="replay-modal" class="modal-overlay hidden">
+  <div class="modal replay-box">
+    <div id="replay-title" class="replay-title">복기</div>
+    <canvas id="replay-canvas" width="360" height="360"></canvas>
+    <div id="replay-move" class="replay-move">0 / 0수</div>
+    <div class="replay-ctrl">
+      <button id="replay-first" class="cbtn">⏮</button>
+      <button id="replay-prev" class="cbtn">◀</button>
+      <button id="replay-next" class="cbtn">▶</button>
+      <button id="replay-last" class="cbtn">⏭</button>
+    </div>
+    <button id="replay-close" class="cbtn cancel replay-close">닫기</button>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>

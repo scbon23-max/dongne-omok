@@ -2,6 +2,7 @@
   "use strict";
 
   var SIZE = Renju.SIZE, BLACK = Renju.BLACK, WHITE = Renju.WHITE;
+  var TERR_KOMI = 1.5;
 
   var G = {
     board: Renju.emptyBoard(),
@@ -324,6 +325,12 @@
     roomCreatedTs = Date.now();
     enterRoom(id, game, (name && name.trim()) || (me.nick + "님의 방"));
   }
+  function requestLeaveRoom() {
+    var inGame = (curGame === "omok" && G.started && !G.over && (G.seats.black === me.nick || G.seats.white === me.nick))
+      || (curGame === "alk" && A.started && !A.over && (A.seats.black === me.nick || A.seats.white === me.nick));
+    if (inGame) { openModal("leave-modal"); return; }
+    leaveRoomToLobby();
+  }
   function leaveRoomToLobby() {
     var forfeited = vacateSeatIfActive();
     var wasAlone = !netMode || roster.length <= 1, wasHostHere = amHost, leavingId = curRoomId;
@@ -480,7 +487,7 @@
       fin = {
         territory: true, stones: played,
         turn: tover ? A.turn : (A.turn === "b" ? "w" : "b"),
-        over: tover, winner: tover ? (sc.b > sc.w ? "b" : sc.w > sc.b ? "w" : "draw") : null,
+        over: tover, winner: tover ? (sc.b + TERR_KOMI > sc.w ? "b" : "w") : null,
         remain: newRemain, score: sc, seq: ++A.seq
       };
     } else {
@@ -559,6 +566,7 @@
     if (nb) nb.innerHTML = chipNameHtml(A.seats.black, scKey);
     if (nw) nw.innerHTML = chipNameHtml(A.seats.white, scKey);
     var terr = (A.mode === "territory");
+    if (window.Alkkagi) Alkkagi.setKomi(terr ? TERR_KOMI : 0);
     if (terr && A.remain) { $("alk-cntB").textContent = A.remain.b; $("alk-cntW").textContent = A.remain.w; }
     else { $("alk-cntB").textContent = window.Alkkagi ? Alkkagi.aliveCount("b") : 5; $("alk-cntW").textContent = window.Alkkagi ? Alkkagi.aliveCount("w") : 5; }
     $("alk-chipB").classList.toggle("active", A.turn === "b" && A.started && !A.over);
@@ -584,8 +592,9 @@
     }
   }
   function terrResultPlain(sc) {
-    if (A.winner === "draw") return "무승부 " + sc.b + " : " + sc.w;
-    return (A.winner === "b" ? "흑" : "백") + " 승리! " + sc.b + " : " + sc.w;
+    var wn = A.winner === "b" ? A.seats.black : A.seats.white;
+    var head = wn ? (wn + "님 승리!") : ((A.winner === "b" ? "흑" : "백") + " 승리!");
+    return head + " (흑 " + sc.b + "+" + TERR_KOMI + " : 백 " + sc.w + ")";
   }
 
   function startGameUI() {
@@ -916,7 +925,7 @@
     if (!b || !w || b === w) return;
     G.recorded = true;
     var winner = G.draw ? "draw" : (G.winner === BLACK ? "black" : "white");
-    if (window.Db) Db.recordGame(b, w, winner);
+    if (window.Db) Db.recordGame(b, w, winner, G.history);
   }
 
   // ---------- 무르기 ----------
@@ -993,7 +1002,7 @@
   function forfeitGame(pair, winnerColor) {
     if (!netMode || !amHost) return;
     if (window.Db && pair.black && pair.white && pair.black !== pair.white) {
-      Db.recordGame(pair.black, pair.white, winnerColor === BLACK ? "black" : "white");
+      Db.recordGame(pair.black, pair.white, winnerColor === BLACK ? "black" : "white", G.history);
     }
     var winnerNick = winnerColor === BLACK ? pair.black : pair.white;
     var loserNick = winnerColor === BLACK ? pair.white : pair.black;
@@ -1493,13 +1502,19 @@
     if (!games.length) html += '<p class="players-hint">기록이 없어요.</p>';
     else {
       html += '<div class="detail-list">';
+      var replayList = []; window.__replayGames = replayList;
       games.forEach(function (g) {
         var opp = g.black === nick ? g.white : g.black;
         var myColor = g.black === nick ? "black" : "white";
         var result = g.winner === "draw" ? "무" : (g.winner === myColor ? "승" : "패");
         var rcls = result === "승" ? "res-win" : result === "패" ? "res-lose" : "res-draw";
         var colorTag = myColor === "black" ? "흑" : "백";
-        html += '<div class="drow"><span class="' + rcls + '">' + result + '</span> <span class="d-color">' + colorTag + '</span> vs <b>' + esc(opp) + '</b><span class="d-date">' + fmtDate(g.created_at) + '</span></div>';
+        var rbtn = "";
+        if ((g.game === "omok" || !g.game) && g.moves && g.moves.length && replayList.length < 5) {
+          var ri = replayList.length; replayList.push(g);
+          rbtn = '<button class="replay-btn" data-replay="' + ri + '">복기</button>';
+        }
+        html += '<div class="drow"><span class="' + rcls + '">' + result + '</span> <span class="d-color">' + colorTag + '</span> vs <b>' + esc(opp) + '</b><span class="d-date">' + fmtDate(g.created_at) + '</span>' + rbtn + '</div>';
       });
       html += '</div>';
     }
@@ -1508,6 +1523,42 @@
       box.classList.add("hidden");
       renderSeason();
     });
+    var rbtns = box.querySelectorAll(".replay-btn");
+    for (var i = 0; i < rbtns.length; i++) rbtns[i].addEventListener("click", function () {
+      openReplay(window.__replayGames[+this.getAttribute("data-replay")]);
+    });
+  }
+  var replayMoves = [], replayIdx = 0, replayCtx = null;
+  function openReplay(g) {
+    if (!g) return;
+    replayMoves = g.moves || [];
+    replayIdx = replayMoves.length;
+    var cv = $("replay-canvas"); if (cv) replayCtx = cv.getContext("2d");
+    var wtxt = g.winner === "draw" ? "무승부" : ((g.winner === "black" ? g.black : g.white) + "님 승리");
+    $("replay-title").textContent = "흑 " + g.black + " vs 백 " + g.white + " · " + wtxt;
+    openModal("replay-modal");
+    renderReplay();
+  }
+  function renderReplay() {
+    var ctx = replayCtx; if (!ctx) return;
+    var W = 360, N = SIZE, M = 18, GP = (W - 2 * M) / (N - 1);
+    function P(i) { return M + i * GP; }
+    ctx.clearRect(0, 0, W, W);
+    ctx.fillStyle = "#E8C88A"; ctx.fillRect(0, 0, W, W);
+    ctx.strokeStyle = "#9A7B45"; ctx.lineWidth = 1.2; ctx.beginPath();
+    for (var i = 0; i < N; i++) { ctx.moveTo(P(0), P(i)); ctx.lineTo(P(N - 1), P(i)); ctx.moveTo(P(i), P(0)); ctx.lineTo(P(i), P(N - 1)); }
+    ctx.stroke();
+    var last = null;
+    for (var k = 0; k < replayIdx; k++) {
+      var mv = replayMoves[k]; if (!mv) continue;
+      var x = P(mv.c), y = P(mv.r), rad = GP * 0.44;
+      ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2);
+      ctx.fillStyle = (mv.color === BLACK) ? "#1b1b1b" : "#f6f6f6"; ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = "rgba(0,0,0,.45)"; ctx.stroke();
+      if (k === replayIdx - 1) last = { x: x, y: y, rad: rad };
+    }
+    if (last) { ctx.beginPath(); ctx.arc(last.x, last.y, last.rad * 0.5, 0, Math.PI * 2); ctx.strokeStyle = "#D23B3B"; ctx.lineWidth = 2.4; ctx.stroke(); }
+    if ($("replay-move")) $("replay-move").textContent = replayIdx + " / " + replayMoves.length + "수";
   }
 
   // ---------- 보드 ----------
@@ -1871,7 +1922,8 @@
       + '· 내 차례에 바깥 선에서 알을 놓고, 과녁 쪽으로 당겼다 놓아 튕깁니다.<br>'
       + '· 과녁에 가까울수록 높은 점수 — <b>가운데 3점 · 중간 고리 2점 · 바깥 고리 1점</b>.<br>'
       + '· 컬링처럼 상대 알을 밀어내거나 밀고 들어가 자리를 차지할 수 있어요.<br>'
-      + '· 흑·백이 알을 다 쓰면 <b>알들의 총점이 높은 쪽이 승리</b>.</p>';
+      + '· 흑·백이 알을 다 쓰면 <b>알들의 총점이 높은 쪽이 승리</b>.<br>'
+      + '· 백이 마지막에 던져 유리하므로, 공정하게 <b>흑에게 덤 +' + TERR_KOMI + '점</b>을 더해 계산합니다.</p>';
     $("rules-body").innerHTML = html;
   }
   function showRules(game) {
@@ -2016,8 +2068,15 @@
     $("alk-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendChat("alk"); });
     $("chat-log").addEventListener("scroll", function () { if (this.scrollTop < 40) loadOlderChat(); });
     $("alk-menu-btn").addEventListener("click", openMenu);
-    $("leave-room-btn").addEventListener("click", leaveRoomToLobby);
-    $("alk-leave-room-btn").addEventListener("click", leaveRoomToLobby);
+    $("leave-room-btn").addEventListener("click", requestLeaveRoom);
+    $("alk-leave-room-btn").addEventListener("click", requestLeaveRoom);
+    $("leave-yes").addEventListener("click", function () { $("leave-modal").classList.add("hidden"); leaveRoomToLobby(); });
+    $("leave-no").addEventListener("click", function () { $("leave-modal").classList.add("hidden"); });
+    $("replay-first").addEventListener("click", function () { replayIdx = 0; renderReplay(); });
+    $("replay-prev").addEventListener("click", function () { if (replayIdx > 0) { replayIdx--; renderReplay(); } });
+    $("replay-next").addEventListener("click", function () { if (replayIdx < replayMoves.length) { replayIdx++; renderReplay(); } });
+    $("replay-last").addEventListener("click", function () { replayIdx = replayMoves.length; renderReplay(); });
+    $("replay-close").addEventListener("click", function () { $("replay-modal").classList.add("hidden"); });
 
     // 로비
     $("lobby-menu-btn").addEventListener("click", openMenu);
@@ -2071,7 +2130,7 @@
 
   window.__omok = {
     G: G, me: me, render: render, submitMove: submitMove, Renju: Renju,
-    _applyState: applyState, _snapshot: snapshot, _overlay: pushOverlay,
+    _applyState: applyState, _snapshot: snapshot, _overlay: pushOverlay, _replay: openReplay,
     get amHost() { return amHost; }, get roster() { return roster; }, get netMode() { return netMode; }
   };
   document.addEventListener("DOMContentLoaded", bind);

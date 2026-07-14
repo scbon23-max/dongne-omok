@@ -64,7 +64,14 @@ window.Db = (function () {
   async function deleteAccount(nick) { if (sb) return sb.from("accounts").delete().eq("nickname", nick); }
   async function clearPassword(nick) { if (sb) return sb.from("accounts").update({ pw_hash: null }).eq("nickname", nick); }
   // 게임 종류는 games.game 컬럼(text)으로 구분: omok / alk / alk_terr / …(미래 확장은 문자열만 추가)
-  async function recordGame(black, white, winner) { if (sb) return sb.from("games").insert({ black: black, white: white, winner: winner, game: "omok" }); }
+  async function recordGame(black, white, winner, moves) {
+    if (!sb) return;
+    var row = { black: black, white: white, winner: winner, game: "omok" };
+    if (moves && moves.length) row.moves = moves;
+    var r = await sb.from("games").insert(row);
+    if (r && r.error && row.moves) { delete row.moves; return sb.from("games").insert(row); }
+    return r;
+  }
   async function recordAlkGame(black, white, winner, gameType) { if (sb) return sb.from("games").insert({ black: black, white: white, winner: winner, game: gameType || "alk" }); }
   async function getGames() {
     if (!sb) return [];

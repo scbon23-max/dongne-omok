@@ -204,6 +204,14 @@ body:not(.is-admin) .admin-only { display: none; }
 .action-row.slim .btn-flat { padding: 6px 4px; font-size: 13px; white-space: nowrap; }
 .btn-flat.menu-dots { flex: 0 0 auto; padding: 6px 12px; font-size: 16px; letter-spacing: 1px; }
 .hdr-btn.menu-dots { padding: 6px 12px; font-size: 16px; letter-spacing: 1px; line-height: 1; }
+.replay-box { text-align: center; max-width: 400px; }
+.replay-title { font-size: 14px; font-weight: 700; color: #cfe0e7; margin-bottom: 10px; }
+#replay-canvas { width: 100%; max-width: 340px; height: auto; aspect-ratio: 1/1; border-radius: 8px; background: #E8C88A; }
+.replay-move { font-size: 14px; font-weight: 700; color: #cfe0e7; margin: 10px 0; }
+.replay-ctrl { display: flex; gap: 8px; margin-bottom: 10px; }
+.replay-ctrl .cbtn { flex: 1; background: var(--navy-2); color: #cfe0e7; padding: 12px; }
+.replay-close { width: 100%; background: var(--navy-2); color: #cfe0e7; }
+.replay-btn { margin-left: 8px; background: var(--teal); color: var(--navy); border: none; border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 800; cursor: pointer; }
 .ol-crown { font-size: 11px; margin-left: 3px; }
 .menu-body { display: flex; flex-direction: column; gap: 10px; }
 .menu-item { width: 100%; text-align: left; background: #F5F3EC; border: 1px solid #e6e3da; border-radius: 12px; padding: 14px 16px; font-size: 15px; font-weight: 700; color: var(--navy); cursor: pointer; }
