@@ -2061,7 +2061,8 @@
     beginGame(me.nick);
   }
   var omokSolo = false;
-  var omokAI = { on: false, level: null };
+  var omokAI = { on: false, level: null, color: WHITE, human: "black" };
+  var aiHumanColor = "black";
   var aiPending = false;
   var AI_NICK = "AI";
   function startOmokSolo() {
@@ -2072,25 +2073,29 @@
     renderPresenceUI();
     toast("혼자 연습 — 흑·백 번갈아 둬보세요");
   }
-  function startAiGame(level) {
+  function startAiGame(level, humanColor) {
     if (!window.OmokAI) { toast("AI를 불러오지 못했어요"); return; }
+    humanColor = (humanColor === "white") ? "white" : "black";
     omokSolo = false; omokAI.on = true; omokAI.level = level; aiPending = false;
-    G.seats = { black: me.nick, white: AI_NICK };
+    omokAI.human = humanColor;
+    omokAI.color = (humanColor === "white") ? BLACK : WHITE;
+    G.seats = (humanColor === "white") ? { black: AI_NICK, white: me.nick } : { black: me.nick, white: AI_NICK };
     beginGame(me.nick);
     renderPresenceUI();
+    aiTick();
     var nm = level === "easy" ? "초보" : level === "medium" ? "중수" : "고수";
-    toast("AI(" + nm + ")와 대국 — 당신은 흑");
+    toast("AI(" + nm + ")와 대국 — 당신은 " + (humanColor === "white" ? "백(후공)" : "흑(선공)"));
   }
   function aiTick() {
     if (!omokAI.on || G.over || !G.started || aiPending) return;
-    if (colorName(G.turn) !== "white") return;
+    if (G.turn !== omokAI.color) return;
     aiPending = true;
     setTimeout(function () {
       aiPending = false;
-      if (!omokAI.on || G.over || !G.started || colorName(G.turn) !== "white") return;
-      var mv = window.OmokAI.bestMove(G.board, WHITE, omokAI.level);
+      if (!omokAI.on || G.over || !G.started || G.turn !== omokAI.color) return;
+      var mv = window.OmokAI.bestMove(G.board, omokAI.color, omokAI.level);
       if (mv) hostApplyMove(AI_NICK, mv[0], mv[1]);
-    }, 450);
+    }, 1000);
   }
   function onCenterBtn() {
     var b = $("center-btn");
@@ -2150,9 +2155,14 @@
     $("center-btn").addEventListener("click", onCenterBtn);
     $("ai-btn").addEventListener("click", function () { $("center-btn").classList.add("hidden"); $("ai-btn").classList.add("hidden"); $("ai-levels").classList.remove("hidden"); });
     $("ai-cancel").addEventListener("click", function () { $("ai-levels").classList.add("hidden"); updateCenterButton(); });
+    var cbtns = document.querySelectorAll(".colorbtn[data-color]");
+    for (var ci = 0; ci < cbtns.length; ci++) cbtns[ci].addEventListener("click", function () {
+      aiHumanColor = this.getAttribute("data-color");
+      for (var k = 0; k < cbtns.length; k++) cbtns[k].classList.toggle("active", cbtns[k] === this);
+    });
     var lvb = document.querySelectorAll(".lvbtn[data-ai]");
-    for (var li = 0; li < lvb.length; li++) lvb[li].addEventListener("click", function () { startAiGame(this.getAttribute("data-ai")); });
-    $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else if (omokAI.on) startAiGame(omokAI.level); else requestBegin(); });
+    for (var li = 0; li < lvb.length; li++) lvb[li].addEventListener("click", function () { startAiGame(this.getAttribute("data-ai"), aiHumanColor); });
+    $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else if (omokAI.on) startAiGame(omokAI.level, omokAI.human); else requestBegin(); });
     $("timer-box").addEventListener("click", function () {
       if (canSetTimer()) { syncTimerChips(); openModal("settings-modal"); }
       else toast("방장이나 관리자만 시간을 바꿀 수 있어요");
