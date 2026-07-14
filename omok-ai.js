@@ -54,6 +54,61 @@ window.OmokAI = (function () {
     return best;
   }
 
+  var MASTER_DEPTH = 4;
+  function cloneBoard(board) { var b = []; for (var r = 0; r < SIZE; r++) b.push(board[r].slice()); return b; }
+  function staticEval(board, side, opp) {
+    var cs = candidates(board), mine = 0, their = 0;
+    for (var i = 0; i < cs.length; i++) {
+      var p = cs[i]; if (board[p[0]][p[1]] !== 0) continue;
+      var a = evalPlace(board, p[0], p[1], side); if (a > mine) mine = a;
+      var b = evalPlace(board, p[0], p[1], opp); if (b > their) their = b;
+    }
+    return mine - their;
+  }
+  function orderedMoves(board, side, opp, cap) {
+    var cs = candidates(board), mv = [];
+    for (var i = 0; i < cs.length; i++) {
+      var p = cs[i]; if (board[p[0]][p[1]] !== 0) continue; if (!legal(board, p[0], p[1], side)) continue;
+      mv.push({ p: p, k: evalPlace(board, p[0], p[1], side) + evalPlace(board, p[0], p[1], opp) });
+    }
+    mv.sort(function (a, b) { return b.k - a.k; });
+    return mv.slice(0, cap);
+  }
+  function negamax(board, side, ply, maxPly, alpha, beta) {
+    var opp = side === BLACK ? WHITE : BLACK;
+    var mv = orderedMoves(board, side, opp, 10);
+    if (!mv.length) return 0;
+    var best = -1e9;
+    for (var m = 0; m < mv.length; m++) {
+      var p = mv[m].p, off = evalPlace(board, p[0], p[1], side);
+      board[p[0]][p[1]] = side;
+      var val;
+      if (off >= WIN) val = WIN - ply;
+      else if (ply + 1 >= maxPly) val = staticEval(board, side, opp);
+      else val = -negamax(board, opp, ply + 1, maxPly, -beta, -alpha);
+      board[p[0]][p[1]] = 0;
+      if (val > best) best = val;
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+  function bestMoveMaster(board0, color) {
+    var opp = color === BLACK ? WHITE : BLACK;
+    var board = cloneBoard(board0);
+    var mv = orderedMoves(board, color, opp, 12);
+    if (!mv.length) return null;
+    var best = -1e18, bestP = mv[0].p;
+    for (var m = 0; m < mv.length; m++) {
+      var p = mv[m].p, off = evalPlace(board, p[0], p[1], color);
+      board[p[0]][p[1]] = color;
+      var val = (off >= WIN) ? (WIN * 2) : -negamax(board, opp, 1, MASTER_DEPTH, -1e9, 1e9);
+      board[p[0]][p[1]] = 0;
+      if (val > best) { best = val; bestP = p; }
+    }
+    return bestP;
+  }
+
   function bestMove(board, color, level) {
     var opp = color === BLACK ? WHITE : BLACK;
     var cands = candidates(board);
@@ -79,6 +134,8 @@ window.OmokAI = (function () {
     if (myOpen4) return myOpen4.p;
     if (oppOpen4 && level !== "easy") return oppOpen4.p;
     if (oppOpen4 && level === "easy" && Math.random() < 0.6) return oppOpen4.p;
+
+    if (level === "master") { var mm = bestMoveMaster(board, color); if (mm) return mm; }
 
     var defW = level === "hard" ? 1.15 : (level === "medium" ? 1.0 : 0.6);
     for (var k = 0; k < scored.length; k++) scored[k].base = scored[k].off + scored[k].def * defW;

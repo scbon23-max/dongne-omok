@@ -2083,7 +2083,7 @@
     beginGame(me.nick);
     renderPresenceUI();
     aiTick();
-    var nm = level === "easy" ? "초보" : level === "medium" ? "중수" : "고수";
+    var nm = level === "easy" ? "초보" : level === "medium" ? "중수" : level === "master" ? "초고수" : "고수";
     toast("AI(" + nm + ")와 대국 — 당신은 " + (humanColor === "white" ? "백(후공)" : "흑(선공)"));
   }
   function aiTick() {
