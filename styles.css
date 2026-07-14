@@ -250,8 +250,9 @@ body:not(.is-player) .player-only { display: none; }
 .btn-send { background: var(--orange); border: none; color: #fff; font-weight: 700; padding: 0 12px; border-radius: 9px; font-size: 13px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
 
 /* ---------- 모달 ---------- */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
-.modal { background: #fff; color: var(--navy); border-radius: 18px; width: 100%; max-width: 360px; max-height: 86dvh; overflow-y: auto; padding: 18px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50; overscroll-behavior: contain; }
+body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
+.modal { background: #fff; color: var(--navy); border-radius: 18px; width: 100%; max-width: 360px; max-height: 86dvh; overflow-y: auto; overscroll-behavior: contain; padding: 18px; }
 .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .modal-head h2 { font-size: 19px; font-weight: 800; }
 .modal-close { background: none; border: none; font-size: 20px; color: #999; cursor: pointer; }

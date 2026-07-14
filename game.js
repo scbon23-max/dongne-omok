@@ -187,7 +187,7 @@
   }
   function renderLobbyOnline() {
     var box = $("lobby-online-list"); if (!box) return;
-    var arr = lobbyPeople();
+    var arr = (lobbyRoster && lobbyRoster.length) ? lobbyRoster.slice() : [{ nick: me.nick, joinTs: 0 }];
     arr.sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); });
     box.innerHTML = arr.map(function (m) {
       var meMark = (m.nick === me.nick) ? " (나)" : "";
@@ -443,7 +443,11 @@
     if (netMode && !amHost) return;
     if (!(A.seats.black && A.seats.white)) { if (by === me.nick) toast("흑·백 두 자리가 다 차야 시작해요"); return; }
     if (netMode && by !== A.seats.black && by !== A.seats.white && by !== ADMIN) return;
+    var rematch = A.over;
     alkSolo = false;
+    if (curRoomGame === "alk_terr" && rematch && A.seats.black !== A.seats.white) {
+      var swap = A.seats.black; A.seats.black = A.seats.white; A.seats.white = swap;
+    }
     if (curRoomGame === "alk_terr") {
       A.mode = "territory"; A.remain = { b: 6, w: 6 }; A.score = { b: 0, w: 0 };
       Alkkagi.setMode("territory"); Alkkagi.setStones([]); Alkkagi.spawnActive("b");
