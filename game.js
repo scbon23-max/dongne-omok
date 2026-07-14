@@ -153,6 +153,7 @@
     document.body.classList.toggle("is-admin", me.isAdmin);
     if (!lobbyConnected) { lobbyConnected = true; appConnect(); startRoomKeeper(); }
     renderRoomList();
+    updateOnlineCounts(); renderLobbyOnline();
   }
   var curGame = null, curRoomGame = null, omokStarted = false, alkStarted = false;
   var A = { seats: { black: null, white: null }, turn: "b", started: false, over: false, winner: null, seq: 0, gameSeq: 0, recorded: false, paused: false };
@@ -348,7 +349,7 @@
       document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
       stopHostTimer(); clearAllGrace(); clearAlkGrace();
       curRoomId = null; curGame = null;
-      if (lobbyMode) Net.trackLobby(myMetaObj(null));
+      if (lobbyMode) { Net.trackLobby(myMetaObj(null)); Net.resyncLobby(); }
       $("game").classList.add("hidden"); $("alkgame").classList.add("hidden");
       $("lobby").classList.remove("hidden");
       renderRoomList();
@@ -1099,7 +1100,7 @@
     var t;
     if (G.draw) t = "무승부!";
     else {
-      var nm = seatName(colorName(G.winner));
+      var nm = seatDisplay(seatName(colorName(G.winner)));
       t = nm ? (nm + "님 승리!") : ((G.winner === BLACK ? "흑" : "백") + " 승리!");
     }
     $("omok-wintext").textContent = t;
@@ -1193,6 +1194,7 @@
   }
   function chipNameHtml(nick, game) {
     if (!nick) return "탭해서 앉기";
+    if (nick === AI_NICK) return esc(aiLevelName(omokAI.level));
     var sc = scoreMap[game] && scoreMap[game][nick];
     return esc(nick) + (sc != null ? ' <span class="chip-score">' + sc + '</span>' : '');
   }
@@ -2080,6 +2082,8 @@
   var aiHumanColor = "black";
   var aiPending = false;
   var AI_NICK = "AI";
+  function aiLevelName(lv) { return lv === "easy" ? "초보" : lv === "medium" ? "중수" : lv === "master" ? "초고수" : "고수"; }
+  function seatDisplay(nick) { return nick === AI_NICK ? aiLevelName(omokAI.level) : nick; }
   function startOmokSolo() {
     if (netMode && roster.length > 1) { toast("혼자 연습은 방에 나 혼자 있을 때만 돼요"); return; }
     omokSolo = true; omokAI.on = false;
@@ -2098,8 +2102,8 @@
     beginGame(me.nick);
     renderPresenceUI();
     aiTick();
-    var nm = level === "easy" ? "초보" : level === "medium" ? "중수" : level === "master" ? "초고수" : "고수";
-    toast("AI(" + nm + ")와 대국 — 당신은 " + (humanColor === "white" ? "백(후공)" : "흑(선공)"));
+    var nm = aiLevelName(level);
+    toast(nm + "와 대국 — 당신은 " + (humanColor === "white" ? "백(후공)" : "흑(선공)"));
   }
   function aiTick() {
     if (!omokAI.on || G.over || !G.started || aiPending) return;

@@ -92,6 +92,7 @@ window.Net = (function () {
     get enabled() { return enabled; },
     get room() { return curRoom; },
     initLobby: initLobby, sendLobby: sendLobby, trackLobby: trackLobby,
+    resyncLobby: function () { if (enabled && lobbyWant) openLobby(); },
     init: init, send: send, track: track, leaveRoom: leaveRoom
   };
 })();
