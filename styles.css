@@ -181,8 +181,9 @@ body:not(.is-admin) .admin-only { display: none; }
 #board { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.35); touch-action: pan-y; }
 
 /* ---------- 액션 ---------- */
-.action-row { display: flex; gap: 7px; margin: 7px auto 0; width: 100%; max-width: 420px; }
-.confirm-bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; gap: 8px; padding: 10px; background: rgba(14,42,58,.88); border-radius: 0 0 10px 10px; }
+.action-wrap { position: relative; margin: 7px auto 0; width: 100%; max-width: 420px; }
+.action-row { display: flex; gap: 7px; width: 100%; }
+.confirm-bar { position: absolute; inset: 0; z-index: 5; display: flex; gap: 8px; }
 .confirm-bar.hidden { display: none; }
 .cbtn { border: none; border-radius: 11px; padding: 13px; font-size: 15px; font-weight: 800; cursor: pointer; }
 .cbtn.place { flex: 2; background: var(--teal); color: var(--navy); }
@@ -209,6 +210,7 @@ body:not(.is-admin) .admin-only { display: none; }
 .colorbtn.active { background: var(--teal); color: var(--navy); }
 .player-chip { cursor: pointer; }
 .action-row.slim { margin: 8px auto; }
+.action-wrap .action-row.slim { margin: 0; }
 .action-row.slim .btn-flat { padding: 6px 4px; font-size: 13px; white-space: nowrap; }
 .btn-flat.menu-dots { flex: 0 0 auto; padding: 6px 12px; font-size: 16px; letter-spacing: 1px; }
 .hdr-btn.menu-dots { padding: 6px 12px; font-size: 16px; letter-spacing: 1px; line-height: 1; }
