@@ -44,6 +44,7 @@
   var hitBuffer = null, hitLoading = false, lastHitAt = 0;
   var prevSeats = { black: null, white: null }, seatSoundArmed = false;
   var oldestChatTs = null, loadingOlder = false, noMoreChat = false;
+  var sessionChat = [];
   var preview = null;
 
   function $(id) { return document.getElementById(id); }
@@ -640,13 +641,24 @@
   function roomName() { return (window.OMOK_CONFIG && window.OMOK_CONFIG.ROOM) || "main"; }
   function loadChatHistory() {
     if (!window.Db || !curRoomId) return;
+    var g = curGame === "alk" ? "alk" : "omok";
     var panel = curGame === "alk" ? "alk-chat-log" : "chat-log";
     Db.getChatHistory(chatRoomOf(curGame), 200).then(function (msgs) {
       if (msgs.length) oldestChatTs = msgs[0].created_at;
       if (msgs.length < 200) noMoreChat = true;
       var log = $(panel); if (!log) return;
       log.innerHTML = "";
-      msgs.forEach(function (m) { log.appendChild(makeChatLine(m.nick, m.text)); });
+      var histCount = {};
+      msgs.forEach(function (m) {
+        log.appendChild(makeChatLine(m.nick, m.text));
+        var k = m.nick + "" + m.text; histCount[k] = (histCount[k] || 0) + 1;
+      });
+      sessionChat.forEach(function (sc) {
+        if (sc.game !== g) return;
+        var k = sc.who + "" + sc.text;
+        if (histCount[k] > 0) { histCount[k]--; return; }
+        log.appendChild(makeChatLine(sc.who, sc.text));
+      });
       log.scrollTop = log.scrollHeight;
     });
   }
@@ -674,6 +686,7 @@
     var a = $("chat-log"), b = $("alk-chat-log");
     if (a) a.innerHTML = ""; if (b) b.innerHTML = "";
     oldestChatTs = null; loadingOlder = false; noMoreChat = false;
+    sessionChat = [];
   }
   function loadOlderChat() {
     if (loadingOlder || noMoreChat || !oldestChatTs || !window.Db) return;
@@ -1790,6 +1803,8 @@
   function addChatTo(game, who, text, live) {
     var log = $(game === "omok" ? "chat-log" : "alk-chat-log");
     if (log) { log.appendChild(makeChatLine(who, text)); log.scrollTop = log.scrollHeight; }
+    sessionChat.push({ game: game, who: who, text: text });
+    if (sessionChat.length > 300) sessionChat.shift();
     if (live && who !== "__sys") {
       pushOverlay(game, who, text);
       if (game !== (curGame || "omok")) bumpUnread(game);
