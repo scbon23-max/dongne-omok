@@ -339,3 +339,49 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 
 /* 점령전 방 배지 */
 .room-badge.alk_terr { background: var(--teal); color: #fff; }
+
+/* ===== 랭킹 리디자인 (다크) ===== */
+.modal.rank-dark { background: var(--navy); color: #eaf2f6; }
+.rank-dark .modal-head h2 { color: #eaf2f6; }
+.rank-dark .modal-close { color: #7d97a4; }
+.rank-dark .players-hint { color: #8aa0ab; }
+.rank-dark .modal-ok { background: var(--teal); color: var(--navy); }
+.rank-dark .rtab { background: var(--navy-2); color: #8aa0ab; }
+.rank-dark .rtab.active { background: var(--teal); color: var(--navy); }
+.rank-dark .season-num { font-size: 19px; font-weight: 800; color: #eaf2f6; }
+.rank-dark .season-sub { font-size: 11px; font-weight: 700; color: #7d97a4; }
+.rank-dark .season-sub.cur { color: var(--teal-light); }
+.rank-dark .rrow { gap: 11px; background: var(--navy-2); border: none; border-radius: 12px; padding: 10px 12px; margin-bottom: 7px; }
+.rank-dark .rrow:active { background: var(--navy-3); }
+.rank-dark .rrow.prov { background: transparent; padding: 8px 12px; margin-bottom: 0; }
+.rank-dark .rk-rank { flex: 0 0 30px; text-align: center; }
+.rank-dark .rk-num { font-size: 14px; font-weight: 800; color: #8aa0ab; }
+.rank-dark .rk-medal { box-shadow: none; font-weight: 800; }
+.rank-dark .rk-prov { display: inline-block; background: var(--navy-3); color: #8fd9c8; font-size: 11px; font-weight: 800; padding: 3px 6px; border-radius: 7px; }
+.rank-dark .rk-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rank-dark .rk-nick { font-size: 15px; font-weight: 800; color: #eaf2f6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank-dark .rrow.prov .rk-nick { font-weight: 700; color: #cfe0e7; }
+.rank-dark .rk-me { background: var(--teal); color: var(--navy); font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 5px; margin-left: 5px; }
+.rank-dark .rk-rec { font-size: 11px; font-weight: 600; color: #8aa0ab; }
+.rank-dark .rk-score { flex: 0 0 auto; min-width: 44px; text-align: right; font-size: 21px; font-weight: 800; color: var(--teal); line-height: 1; }
+.rank-dark .rk-score.prov { font-size: 17px; color: #8aa0ab; }
+.rank-dark .prov-divider { display: flex; align-items: baseline; gap: 8px; margin: 14px 2px 8px; padding-top: 12px; border-top: 1px solid var(--navy-3); }
+.rank-dark .prov-title { font-size: 13px; font-weight: 800; color: var(--teal-light); }
+.rank-dark .prov-note { font-size: 11px; font-weight: 600; color: #7d97a4; }
+.rank-dark .rank-back { margin-bottom: 12px; width: auto; padding: 8px 14px; background: var(--navy-2); color: #cfe0e7; }
+.rank-dark .drow { gap: 8px; padding: 10px 6px; border-bottom: 1px solid var(--navy-2); color: #cfe0e7; }
+.rank-dark .drow .res-win { color: var(--navy); background: var(--teal); font-size: 12px; padding: 2px 8px; }
+.rank-dark .drow .res-lose { color: #fff; background: var(--red); font-size: 12px; padding: 2px 8px; }
+.rank-dark .drow .res-draw { color: #fff; background: #6b8290; font-size: 12px; padding: 2px 8px; }
+.rank-dark .d-color { font-size: 11px; color: #8aa0ab; background: var(--navy-3); padding: 2px 7px; border-radius: 6px; font-weight: 700; }
+.rank-dark .d-vs { font-size: 12px; color: #7d97a4; }
+.rank-dark .d-opp { font-size: 14px; font-weight: 800; color: var(--teal-light); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.rank-dark .d-date { margin-left: auto; font-size: 11px; color: #7d97a4; }
+.rank-dark .replay-btn { background: var(--orange); color: #fff; }
+.rank-dark .h2h-score { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 8px 0 4px; }
+.rank-dark .h2h-side { font-size: 15px; font-weight: 800; color: #eaf2f6; max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-dark .h2h-nums { display: flex; align-items: center; gap: 8px; }
+.rank-dark .h2h-w { font-size: 28px; font-weight: 800; color: var(--teal); }
+.rank-dark .h2h-l { font-size: 28px; font-weight: 800; color: var(--red); }
+.rank-dark .h2h-sep { font-size: 22px; color: #4a5f6b; }
+.rank-dark .h2h-sub { text-align: center; font-size: 12px; color: #8aa0ab; margin-bottom: 12px; }

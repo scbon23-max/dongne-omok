@@ -1421,8 +1421,8 @@
     var bar = $("rank-season"); if (!bar) return;
     var canPrev = rankSeasonIdx > 0, canNext = rankSeasonIdx < rankSeasons.length - 1;
     bar.innerHTML = '<button class="season-nav" id="season-prev"' + (canPrev ? '' : ' disabled') + '>◀</button>'
-      + '<div class="season-label"><span class="season-name">' + s.label + (s.snum >= 1 ? ' (시즌' + s.snum + ')' : '') + '</span>'
-      + '<span class="season-tag ' + (isCur ? 'cur' : '') + '">' + (isCur ? '이번 시즌' : '지난 시즌') + ' · ' + s.months + '</span></div>'
+      + '<div class="season-label"><span class="season-num">시즌 ' + s.snum + '</span>'
+      + '<span class="season-sub ' + (isCur ? 'cur' : '') + '">' + s.label + ' · ' + (isCur ? '이번 시즌' : '지난 시즌') + '</span></div>'
       + '<button class="season-nav" id="season-next"' + (canNext ? '' : ' disabled') + '>▶</button>';
     if (canPrev) $("season-prev").addEventListener("click", function () { rankSeasonIdx--; renderSeason(); });
     if (canNext) $("season-next").addEventListener("click", function () { rankSeasonIdx++; renderSeason(); });
@@ -1449,30 +1449,31 @@
       return s;
     });
   }
-  function rankRowHtml(s, numInner) {
-    return '<div class="rrow" data-nick="' + esc(s.nick) + '">'
-      + '<span class="rk-num">' + numInner + '</span>'
-      + '<span class="rk-name"><span class="rk-nick">' + esc(s.nick) + '</span><span class="rk-rate">승률 ' + s.rate + '% · ' + s.games + '판</span></span>'
-      + '<span class="rk-pts">' + s.score + '</span>'
-      + '<span class="rk-wld">' + s.w + '·' + s.l + '·' + s.d + '</span>'
+  function rankRowHtml(s, mark, prov) {
+    var meMark = (s.nick === me.nick) ? '<span class="rk-me">나</span>' : '';
+    var rec = s.w + '승 ' + s.l + '패' + (s.d ? ' ' + s.d + '무' : '') + ' · 승률 ' + s.rate + '%';
+    return '<div class="rrow' + (prov ? ' prov' : '') + '" data-nick="' + esc(s.nick) + '">'
+      + '<span class="rk-rank">' + mark + '</span>'
+      + '<span class="rk-name"><span class="rk-nick">' + esc(s.nick) + meMark + '</span><span class="rk-rec">' + rec + '</span></span>'
+      + '<span class="rk-score' + (prov ? ' prov' : '') + '">' + s.score + '</span>'
       + '</div>';
   }
   function rankListHtml(ranked, provisional) {
     if (!ranked.length && !provisional.length) return '<p class="players-hint">아직 기록된 대국이 없어요. 한 판 두면 여기 올라옵니다!</p>';
     var medals = ["gold", "silver", "bronze"];
-    var html = '<div class="rank-head"><span>순위</span><span class="rk-name">이름</span><span>점수</span><span>승/패/무</span></div>';
+    var html = "";
     if (ranked.length) {
       ranked.forEach(function (s, i) {
-        var rankInner = i < 3 ? '<span class="rk-medal ' + medals[i] + '">' + (i + 1) + '</span>' : (i + 1);
-        html += rankRowHtml(s, rankInner);
+        var mark = i < 3 ? '<span class="rk-medal ' + medals[i] + '">' + (i + 1) + '</span>' : '<span class="rk-num">' + (i + 1) + '</span>';
+        html += rankRowHtml(s, mark, false);
       });
     } else {
       html += '<p class="players-hint">아직 ' + RANK_MIN_GAMES + '판 이상 둔 사람이 없어요. ' + RANK_MIN_GAMES + '판을 채우면 순위에 올라옵니다!</p>';
     }
     if (provisional.length) {
-      html += '<div class="rank-sub">배치 중 <span class="rank-sub-note">' + RANK_MIN_GAMES + '판을 채우면 순위 등록</span></div>';
+      html += '<div class="prov-divider"><span class="prov-title">배치 중</span><span class="prov-note">' + RANK_MIN_GAMES + '판을 채우면 순위 등록</span></div>';
       provisional.forEach(function (s) {
-        html += rankRowHtml(s, '<span class="rk-prov">' + s.games + '/' + RANK_MIN_GAMES + '</span>');
+        html += rankRowHtml(s, '<span class="rk-prov">' + s.games + '/' + RANK_MIN_GAMES + '</span>', true);
       });
     }
     return html;
@@ -1518,7 +1519,7 @@
           var ri = replayList.length; replayList.push(g);
           rbtn = '<button class="replay-btn" data-replay="' + ri + '">복기</button>';
         }
-        html += '<div class="drow"><span class="' + rcls + '">' + result + '</span> <span class="d-color">' + colorTag + '</span> vs <b>' + esc(opp) + '</b><span class="d-date">' + fmtDate(g.created_at) + '</span>' + rbtn + '</div>';
+        html += '<div class="drow"><span class="' + rcls + '">' + result + '</span><span class="d-color">' + colorTag + '</span><span class="d-vs">vs</span><span class="d-opp" data-opp="' + esc(opp) + '">' + esc(opp) + '</span><span class="d-date">' + fmtDate(g.created_at) + '</span>' + rbtn + '</div>';
       });
       html += '</div>';
     }
@@ -1527,10 +1528,55 @@
       box.classList.add("hidden");
       renderSeason();
     });
+    bindReplayBtns(box);
+    var opps = box.querySelectorAll(".d-opp");
+    for (var j = 0; j < opps.length; j++) opps[j].addEventListener("click", (function (n) { return function () { showHeadToHead(n, this.getAttribute("data-opp")); }; })(nick));
+  }
+  function bindReplayBtns(box) {
     var rbtns = box.querySelectorAll(".replay-btn");
     for (var i = 0; i < rbtns.length; i++) rbtns[i].addEventListener("click", function () {
       openReplay(window.__replayGames[+this.getAttribute("data-replay")]);
     });
+  }
+  function showHeadToHead(nick, opp) {
+    var s = rankSeasons[rankSeasonIdx];
+    var src = (rankGame === "all") ? ((window.__gamesAll || {})[rankTab] || []) : (window.__games || []);
+    var games = src.filter(function (g) {
+      return (((g.black === nick && g.white === opp) || (g.black === opp && g.white === nick))) && (!s || gameInSeason(g, s));
+    });
+    var win = 0, lose = 0, draw = 0;
+    games.forEach(function (g) {
+      var myColor = g.black === nick ? "black" : "white";
+      if (g.winner === "draw") draw++; else if (g.winner === myColor) win++; else lose++;
+    });
+    var box = $("rank-detail");
+    $("rank-title").textContent = "맞대결";
+    var html = '<button class="btn-flat rank-back">← ' + esc(nick) + ' 전적</button>';
+    html += '<div class="h2h-score"><span class="h2h-side">' + esc(nick) + '</span>'
+      + '<span class="h2h-nums"><b class="h2h-w">' + win + '</b><span class="h2h-sep">:</span><b class="h2h-l">' + lose + '</b></span>'
+      + '<span class="h2h-side">' + esc(opp) + '</span></div>';
+    html += '<div class="h2h-sub">' + esc(nick) + ' 기준 · ' + win + '승 ' + lose + '패' + (draw ? ' ' + draw + '무' : '') + '</div>';
+    if (!games.length) html += '<p class="players-hint">맞대결 기록이 없어요.</p>';
+    else {
+      html += '<div class="detail-list">';
+      var replayList = []; window.__replayGames = replayList;
+      games.forEach(function (g) {
+        var myColor = g.black === nick ? "black" : "white";
+        var result = g.winner === "draw" ? "무" : (g.winner === myColor ? "승" : "패");
+        var rcls = result === "승" ? "res-win" : result === "패" ? "res-lose" : "res-draw";
+        var colorTag = myColor === "black" ? "흑" : "백";
+        var rbtn = "";
+        if ((g.game === "omok" || !g.game) && g.moves && g.moves.length && replayList.length < 5) {
+          var ri = replayList.length; replayList.push(g);
+          rbtn = '<button class="replay-btn" data-replay="' + ri + '">복기</button>';
+        }
+        html += '<div class="drow"><span class="' + rcls + '">' + result + '</span><span class="d-color">' + colorTag + '으로</span><span class="d-date">' + fmtDate(g.created_at) + '</span>' + rbtn + '</div>';
+      });
+      html += '</div>';
+    }
+    box.innerHTML = html;
+    box.querySelector(".rank-back").addEventListener("click", function () { showPlayerDetail(nick); });
+    bindReplayBtns(box);
   }
   var replayMoves = [], replayIdx = 0, replayCtx = null;
   function openReplay(g) {
