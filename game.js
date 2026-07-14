@@ -1574,7 +1574,7 @@
     $("rank-title").textContent = nick + " 전적" + (s ? " · " + s.label : "");
     var moveSet = await movesetFor(games);
     if (tok !== detailToken) return;
-    var html = '<button class="btn-flat rank-back">← 목록</button>';
+    var html = '<button class="btn-flat rank-back">← 목록</button>' + (me.isAdmin ? '<button class="rank-edit-btn">편집</button>' : '');
     if (!games.length) html += '<p class="players-hint">기록이 없어요.</p>';
     else {
       html += '<div class="detail-list">';
@@ -1590,7 +1590,7 @@
           var ri = replayList.length; replayList.push(g);
           rbtn = '<button class="replay-btn" data-replay="' + ri + '">복기</button>';
         }
-        var delbtn = me.isAdmin ? '<button class="del-game-btn" data-del="' + g.id + '">삭제</button>' : "";
+        var delbtn = me.isAdmin ? '<button class="del-game-btn" data-del="' + g.id + '">✕</button>' : "";
         html += '<div class="drow"><span class="' + rcls + '">' + result + '</span><span class="d-color">' + colorTag + '</span><span class="d-vs">vs</span><span class="d-opp" data-opp="' + esc(opp) + '">' + esc(opp) + '</span><span class="d-date">' + fmtDate(g.created_at) + '</span>' + rbtn + delbtn + '</div>';
       });
       html += '</div>';
@@ -1602,6 +1602,7 @@
     });
     bindReplayBtns(box);
     bindDelBtns(box);
+    bindEditBtn(box);
     var opps = box.querySelectorAll(".d-opp");
     for (var j = 0; j < opps.length; j++) opps[j].addEventListener("click", (function (n) { return function () { showHeadToHead(n, this.getAttribute("data-opp")); }; })(nick));
   }
@@ -1617,24 +1618,33 @@
     var btns = box.querySelectorAll(".del-game-btn");
     for (var i = 0; i < btns.length; i++) btns[i].addEventListener("click", function () { delGameArmed(this); });
   }
+  function bindEditBtn(box) {
+    if (!me.isAdmin) return;
+    var eb = box.querySelector(".rank-edit-btn"); if (!eb) return;
+    eb.addEventListener("click", function () {
+      var on = box.classList.toggle("editing");
+      eb.textContent = on ? "완료" : "편집";
+      eb.classList.toggle("editing", on);
+    });
+  }
   function delGameArmed(btn) {
     if (!me.isAdmin) return;
     var id = btn.getAttribute("data-del");
     if (delArmedId !== id) {
-      delArmedId = id; btn.textContent = "정말 삭제?"; btn.classList.add("armed");
-      clearTimeout(delArmTimer); delArmTimer = setTimeout(function () { delArmedId = null; btn.textContent = "삭제"; btn.classList.remove("armed"); }, 3000);
+      delArmedId = id; btn.classList.add("armed"); toast("한 번 더 누르면 삭제돼요");
+      clearTimeout(delArmTimer); delArmTimer = setTimeout(function () { delArmedId = null; btn.classList.remove("armed"); }, 3000);
       return;
     }
     delArmedId = null; clearTimeout(delArmTimer);
     if (!(window.Db && Db.deleteGame)) return;
-    btn.textContent = "삭제 중…"; btn.disabled = true;
+    btn.textContent = "…"; btn.disabled = true;
     Db.deleteGame(id).then(function (r) {
-      if (r && r.error) { toast("삭제 실패: " + (r.error.message || "권한")); btn.textContent = "삭제"; btn.disabled = false; btn.classList.remove("armed"); return; }
+      if (r && r.error) { toast("삭제 실패: " + (r.error.message || "권한")); btn.textContent = "✕"; btn.disabled = false; btn.classList.remove("armed"); return; }
       toast("대국 기록을 삭제했어요");
       if (window.Net && Net.sendLobby) Net.sendLobby({ t: "scores", game: rankGame });
       refreshScores();
       openRank(rankGame);
-    }).catch(function () { toast("삭제 오류"); btn.textContent = "삭제"; btn.disabled = false; btn.classList.remove("armed"); });
+    }).catch(function () { toast("삭제 오류"); btn.textContent = "✕"; btn.disabled = false; btn.classList.remove("armed"); });
   }
   async function showHeadToHead(nick, opp) {
     var tok = ++detailToken;
@@ -1652,7 +1662,7 @@
     $("rank-title").textContent = "맞대결";
     var moveSet = await movesetFor(games);
     if (tok !== detailToken) return;
-    var html = '<button class="btn-flat rank-back">← ' + esc(nick) + ' 전적</button>';
+    var html = '<button class="btn-flat rank-back">← ' + esc(nick) + ' 전적</button>' + (me.isAdmin ? '<button class="rank-edit-btn">편집</button>' : '');
     html += '<div class="h2h-score"><span class="h2h-side">' + esc(nick) + '</span>'
       + '<span class="h2h-nums"><b class="h2h-w">' + win + '</b><span class="h2h-sep">:</span><b class="h2h-l">' + lose + '</b></span>'
       + '<span class="h2h-side">' + esc(opp) + '</span></div>';
@@ -1671,7 +1681,7 @@
           var ri = replayList.length; replayList.push(g);
           rbtn = '<button class="replay-btn" data-replay="' + ri + '">복기</button>';
         }
-        var delbtn = me.isAdmin ? '<button class="del-game-btn" data-del="' + g.id + '">삭제</button>' : "";
+        var delbtn = me.isAdmin ? '<button class="del-game-btn" data-del="' + g.id + '">✕</button>' : "";
         html += '<div class="drow"><span class="' + rcls + '">' + result + '</span><span class="d-color">' + colorTag + '으로</span><span class="d-date">' + fmtDate(g.created_at) + '</span>' + rbtn + delbtn + '</div>';
       });
       html += '</div>';
@@ -1680,6 +1690,7 @@
     box.querySelector(".rank-back").addEventListener("click", function () { showPlayerDetail(nick); });
     bindReplayBtns(box);
     bindDelBtns(box);
+    bindEditBtn(box);
   }
   var replayMoves = [], replayIdx = 0, replayCtx = null;
   async function openReplay(g) {
