@@ -197,6 +197,11 @@
   function onLobbyMessage(msg) {
     if (!msg || !msg.t) return;
     if (msg.t === "chat") { if (msg.nick !== me.nick) addLobbyChat(msg.nick, msg.text); return; }
+    if (msg.t === "scores") {
+      refreshScores();
+      if (!$("rank-modal").classList.contains("hidden") && $("rank-detail").classList.contains("hidden")) openRank(rankGame);
+      return;
+    }
     if (msg.t === "lobby_hello") { if (curRoomId && amHost) broadcastRoomOpen(); return; }
     if (msg.t === "room_open") { if (msg.room && msg.room.id) { msg.room.seen = Date.now(); rooms[msg.room.id] = msg.room; renderRoomList(); } return; }
     if (msg.t === "room_close") { if (rooms[msg.id]) { delete rooms[msg.id]; renderRoomList(); } return; }
@@ -532,7 +537,7 @@
     A.recorded = true;
     var winner = A.winner === "draw" ? "draw" : (A.winner === "b" ? "black" : "white");
     var gameType = (A.mode === "territory") ? "alk_terr" : "alk";
-    if (window.Db) Db.recordAlkGame(b, w, winner, gameType);
+    if (window.Db) Db.recordAlkGame(b, w, winner, gameType).then(function () { Net.sendLobby({ t: "scores" }); }).catch(function () {});
   }
   function clearAlkGrace() { ["black", "white"].forEach(function (c) { if (alkGrace[c]) { clearTimeout(alkGrace[c].id); alkGrace[c] = null; } }); }
   function hostReconcileAlkSeats() {
@@ -732,7 +737,7 @@
     updateCenterButton();
     if (amHost && curRoomId) broadcastRoomOpen();
   }
-  function rosterHas(nick) { return roster.some(function (m) { return m.nick === nick; }); }
+  function rosterHas(nick) { if (omokAI.on && nick === AI_NICK) return true; return roster.some(function (m) { return m.nick === nick; }); }
 
   function clearAllGrace() {
     ["black", "white"].forEach(function (col) {
@@ -819,6 +824,7 @@
       case "move": if (amHost) hostApplyMove(msg.nick, msg.r, msg.c); break;
       case "begin": if (amHost) beginGame(msg.by); break;
       case "seat": if (amHost) hostApplySeat(msg.by, msg.nick, msg.seat); break;
+      case "set_timer": if (amHost && (msg.by === ADMIN || msg.by === hostNick)) setTimer(msg.sec); break;
       case "chat": if (msg.nick !== me.nick) addChatTo(msg.game === "alk" ? "alk" : "omok", msg.nick, msg.text, true); break;
       case "undo_req": if (msg.to === me.nick) showUndoModal(msg.from, msg.gseq, msg.hlen); break;
       case "undo_res":
@@ -925,13 +931,13 @@
 
   function recordResult() {
     if (G.recorded) return;
-    if (omokAI.on) return;
     if (!netMode || !amHost) return;
     var b = G.seats.black, w = G.seats.white;
     if (!b || !w || b === w) return;
+    if (b === AI_NICK || w === AI_NICK) return;
     G.recorded = true;
     var winner = G.draw ? "draw" : (G.winner === BLACK ? "black" : "white");
-    if (window.Db) Db.recordGame(b, w, winner, G.history);
+    if (window.Db) Db.recordGame(b, w, winner, G.history).then(function () { Net.sendLobby({ t: "scores" }); }).catch(function () {});
   }
 
   // ---------- 무르기 ----------
@@ -979,6 +985,7 @@
     if (netMode && !amHost) return;
     if (!(G.seats.black && G.seats.white)) { if (by === me.nick) toast("흑·백 두 자리가 다 차야 시작해요"); return; }
     if (netMode && by !== G.seats.black && by !== G.seats.white && by !== ADMIN) return;
+    omokAI.on = (G.seats.white === AI_NICK || G.seats.black === AI_NICK);
     G.board = Renju.emptyBoard();
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
@@ -1007,8 +1014,8 @@
   }
   function forfeitGame(pair, winnerColor) {
     if (!netMode || !amHost) return;
-    if (window.Db && !omokAI.on && pair.black && pair.white && pair.black !== pair.white) {
-      Db.recordGame(pair.black, pair.white, winnerColor === BLACK ? "black" : "white", G.history);
+    if (window.Db && pair.black && pair.white && pair.black !== pair.white && pair.black !== AI_NICK && pair.white !== AI_NICK) {
+      Db.recordGame(pair.black, pair.white, winnerColor === BLACK ? "black" : "white", G.history).then(function () { Net.sendLobby({ t: "scores" }); }).catch(function () {});
     }
     var winnerNick = winnerColor === BLACK ? pair.black : pair.white;
     var loserNick = winnerColor === BLACK ? pair.white : pair.black;
@@ -1125,6 +1132,12 @@
   function syncTimerChips() {
     var chips = document.querySelectorAll("#timer-options .radio-chip");
     for (var i = 0; i < chips.length; i++) chips[i].classList.toggle("active", parseInt(chips[i].getAttribute("data-sec"), 10) === G.timerSec);
+  }
+  function canSetTimer() { return !netMode || amHost || me.isAdmin; }
+  function requestSetTimer(sec) {
+    if (!netMode || amHost) { setTimer(sec); return; }
+    if (me.isAdmin) { G.timerSec = sec; syncTimerChips(); updateTimerUI(); Net.send({ t: "set_timer", by: me.nick, sec: sec }); return; }
+    toast("방장이나 관리자만 시간을 바꿀 수 있어요");
   }
 
   // ---------- 이름/자리/차례 ----------
@@ -2027,7 +2040,6 @@
     toast("혼자 연습 — 흑·백 번갈아 둬보세요");
   }
   function startAiGame(level) {
-    if (netMode && roster.length > 1) { toast("AI 대전은 방에 나 혼자 있을 때만 돼요"); return; }
     if (!window.OmokAI) { toast("AI를 불러오지 못했어요"); return; }
     omokSolo = false; omokAI.on = true; omokAI.level = level; aiPending = false;
     G.seats = { black: me.nick, white: AI_NICK };
@@ -2107,8 +2119,8 @@
     for (var li = 0; li < lvb.length; li++) lvb[li].addEventListener("click", function () { startAiGame(this.getAttribute("data-ai")); });
     $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else if (omokAI.on) startAiGame(omokAI.level); else requestBegin(); });
     $("timer-box").addEventListener("click", function () {
-      if (me.isAdmin) { syncTimerChips(); openModal("settings-modal"); }
-      else toast("방장(구나)만 시간을 바꿀 수 있어요");
+      if (canSetTimer()) { syncTimerChips(); openModal("settings-modal"); }
+      else toast("방장이나 관리자만 시간을 바꿀 수 있어요");
     });
     $("chip-black").addEventListener("click", function () { onSeatChipTap("black"); });
     $("chip-white").addEventListener("click", function () { onSeatChipTap("white"); });
@@ -2156,8 +2168,7 @@
 
     var chips = document.querySelectorAll("#timer-options .radio-chip");
     for (var k = 0; k < chips.length; k++) chips[k].addEventListener("click", function () {
-      if (!(amHost || !netMode)) { toast("방장만 바꿀 수 있어요"); return; }
-      setTimer(parseInt(this.getAttribute("data-sec"), 10));
+      requestSetTimer(parseInt(this.getAttribute("data-sec"), 10));
     });
 
     $("chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendChat("omok"); });
