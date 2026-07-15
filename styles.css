@@ -221,30 +221,24 @@ body:not(.is-admin) .admin-only { display: none; }
 .center-area .center-btn:active { transform: scale(.97); }
 .center-alt { background: var(--navy-2); color: #eaf2f6; }
 .center-alt.hidden { display: none; }
-.ai-levels { width: min(336px, calc(100vw - 54px)); display: flex; flex-direction: column; gap: 13px; background: rgba(14,42,58,.97); padding: 14px; border: 1px solid rgba(234,242,246,.12); border-radius: 14px; box-shadow: 0 10px 26px rgba(0,0,0,.48); }
+.ai-levels { width: min(320px, calc(100vw - 48px)); display: flex; flex-direction: column; gap: 11px; background: rgba(14,42,58,.97); padding: 16px; border: 2px solid var(--navy-3); border-radius: 16px; box-shadow: 0 8px 22px rgba(0,0,0,.45); }
 .ai-levels.hidden { display: none; }
-.ai-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; }
-.ai-panel-title { color: #fff; font-size: 17px; font-weight: 900; }
-.ai-close { width: 30px; height: 30px; border: none; border-radius: 8px; background: var(--navy-3); color: #cfe0e7; font-size: 19px; font-weight: 800; line-height: 30px; cursor: pointer; }
-.ai-close:active { transform: scale(.96); }
+.ai-panel-title { color: #fff; font-size: 18px; font-weight: 900; text-align: center; }
 .ai-section { display: flex; flex-direction: column; gap: 7px; }
-.ai-levels-title { color: #8fa6b2; font-size: 11px; font-weight: 900; letter-spacing: 0; }
+.ai-levels-title { color: #8fa6b2; font-size: 12px; font-weight: 900; }
 .ai-color-segment { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-.colorbtn { min-width: 0; height: 46px; display: flex; align-items: center; justify-content: center; gap: 7px; background: var(--navy-2); color: #cfe0e7; border: 2px solid transparent; border-radius: 10px; font-size: 15px; font-weight: 900; cursor: pointer; }
-.colorbtn em { color: #8fa6b2; font-style: normal; font-size: 11px; font-weight: 800; }
-.colorbtn.active { border-color: var(--teal); background: rgba(47,184,158,.14); color: #fff; }
-.colorbtn.active em { color: var(--teal-light); }
+.colorbtn { min-width: 0; height: 44px; display: flex; align-items: center; justify-content: center; gap: 7px; background: var(--navy-2); color: #cfe0e7; border: 2px solid transparent; border-radius: 11px; font-size: 14px; font-weight: 900; cursor: pointer; }
+.colorbtn.active { border-color: var(--teal); background: var(--teal); color: var(--navy); }
 .ai-stone { width: 15px; height: 15px; border-radius: 50%; flex: 0 0 auto; }
 .ai-stone.black { background: #111; border: 1px solid #6a7378; }
 .ai-stone.white { background: #f3efe7; border: 1px solid #aeb9be; }
 .ai-level-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
-.lvbtn { min-width: 0; height: 58px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; background: var(--navy-2); color: #eaf2f6; border: 2px solid transparent; border-radius: 10px; padding: 9px 11px; font-size: 15px; font-weight: 900; cursor: pointer; text-align: left; }
-.lvbtn span, .lvbtn em { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lvbtn em { color: #7d97a4; font-style: normal; font-size: 10px; font-weight: 900; }
-.lvbtn.master { border-color: rgba(243,97,42,.45); }
-.lvbtn.master em { color: #f3b28a; }
+.lvbtn { min-width: 0; height: 48px; background: var(--navy-2); color: #eaf2f6; border: 2px solid transparent; border-radius: 11px; padding: 0 8px; font-size: 15px; font-weight: 900; cursor: pointer; text-align: center; white-space: nowrap; }
+.lvbtn.master { border-color: var(--orange); color: #fff; }
 .lvbtn:active { transform: scale(.97); }
 .lvbtn:hover { border-color: rgba(47,184,158,.45); }
+.ai-cancel { height: 38px; background: var(--navy-3); color: #cfe0e7; border: none; border-radius: 10px; font-size: 13px; font-weight: 900; cursor: pointer; }
+.ai-cancel:active { transform: scale(.97); }
 .player-chip { cursor: pointer; }
 .action-row.slim { margin: 8px auto; }
 .action-row.slim .btn-flat { padding: 6px 4px; font-size: 13px; white-space: nowrap; }
