@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260715-catchmind-v2">
+<meta name="app-build" content="20260715-catchmind-chat-layout">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -44,7 +44,7 @@
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://scbon23-max.github.io/dongne-omok/">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="styles.css?v=catchmind-v2-20260715">
+<link rel="stylesheet" href="styles.css?v=catchmind-chat-layout-20260715">
 </head>
 <body>
 
@@ -227,7 +227,6 @@
 <!-- 캐치마인드 게임 화면 -->
 <section id="catchgame" class="screen game-screen catch-screen hidden">
   <header class="catch-statusbar">
-    <button id="catch-leave-btn" class="catch-icon-btn" type="button" aria-label="방 나가기">←</button>
     <div id="catch-round-label" class="catch-round-label">게임 대기 중</div>
     <div id="catch-timer" class="catch-timer">--</div>
     <button id="catch-people-btn" class="catch-people-btn" type="button" aria-label="참가자 보기"><span id="catch-online-num">0</span>명</button>
@@ -244,6 +243,7 @@
       <div id="catch-stage-title" class="catch-stage-title">게임 대기 중</div>
       <div id="catch-stage-sub" class="catch-stage-sub">방장이 시작하면 모두 함께 참여해요</div>
       <button id="catch-start-btn" class="center-btn catch-start-btn hidden" type="button">게임 시작</button>
+      <button id="catch-practice-btn" class="center-btn catch-start-btn catch-practice-btn hidden" type="button">연습모드</button>
     </div>
   </div>
 
@@ -257,15 +257,14 @@
     <button id="catch-clear-btn" class="catch-tool catch-tool-icon" type="button" aria-label="그림 모두 지우기">⌫</button>
   </div>
 
-  <div id="catch-input-row" class="catch-input-row">
-    <input id="catch-chat-input" class="chat-input" type="text" maxlength="40" placeholder="정답 또는 채팅 입력" autocomplete="off">
-    <button id="catch-send-btn" class="btn-send" type="button">보내기</button>
-  </div>
-  <div id="catch-chat-log" class="chat-log catch-chat-log"></div>
-
   <div class="action-row slim catch-action-row">
     <button id="catch-rank-btn" class="btn-flat">🏅 랭킹</button>
+    <button id="catch-leave-btn" class="btn-flat">나가기</button>
     <button id="catch-menu-btn" class="btn-flat menu-dots">⋯</button>
+  </div>
+
+  <div id="catch-input-row" class="catch-input-row">
+    <input id="catch-chat-input" class="chat-input" type="text" maxlength="40" placeholder="정답 또는 채팅 입력" autocomplete="off">
   </div>
 
   <div class="room-strip" id="room-strip-catchmind"></div>
@@ -520,14 +519,14 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="sb.js"></script>
-<script src="db.js?v=catchmind-v2-20260715"></script>
+<script src="db.js?v=catchmind-chat-layout-20260715"></script>
 <script src="renju.js"></script>
 <script src="omok-ai.js"></script>
 <script src="net.js"></script>
 <script src="alkkagi.js"></script>
-<script src="game-catalog.js?v=catchmind-v2-20260715"></script>
-<script src="catchmind-words.js?v=catchmind-v2-20260715"></script>
-<script src="catchmind.js?v=catchmind-overlay-sub-20260715"></script>
-<script src="game.js?v=catchmind-v2-20260715"></script>
+<script src="game-catalog.js?v=catchmind-chat-layout-20260715"></script>
+<script src="catchmind-words.js?v=catchmind-chat-layout-20260715"></script>
+<script src="catchmind.js?v=catchmind-chat-layout-20260715"></script>
+<script src="game.js?v=catchmind-chat-layout-20260715"></script>
 </body>
 </html>

@@ -391,6 +391,30 @@ window.CatchMind = (function () {
     hostStartRound(0);
   }
 
+  function startPractice() {
+    if (!api) return;
+    if (activePeople().length > 1) { api.toast("연습모드는 방에 혼자 있을 때만 쓸 수 있어요"); return; }
+    clearSaveRetry();
+    state = freshState();
+    state.phase = "practice";
+    state.matchId = "practice-" + Date.now().toString(36);
+    state.queue = [me().nick];
+    state.drawer = me().nick;
+    state.guessers = [];
+    state.strokes = [];
+    state.drawSeq = 0;
+    state.feed = [{ who: "", text: "혼자 그림을 연습하는 중이에요", kind: "system" }];
+    state.recordStatus = "idle";
+    secretWord = null;
+    drawing = false;
+    currentStroke = null;
+    strokeSentCount = 0;
+    canvasLimitNotified = false;
+    render();
+    if (api.roomChanged) api.roomChanged();
+    api.toast("연습모드 — 자유롭게 그려보세요");
+  }
+
   function hostStartRound(index) {
     if (!api || !api.isHost()) return;
     var live = activeNicks();
@@ -680,6 +704,15 @@ window.CatchMind = (function () {
 
   function onPresence(_list, options) {
     if (!api) return;
+    if (state.phase === "practice" && activePeople().length > 1) {
+      state = freshState();
+      secretWord = null;
+      drawing = false;
+      currentStroke = null;
+      api.toast("다른 사람이 들어와 연습모드를 종료했어요");
+      render();
+      return;
+    }
     var isHost = api.isHost();
     var becameHost = options && options.becameHost;
     var lostHost = previousHost && !isHost;
@@ -719,7 +752,8 @@ window.CatchMind = (function () {
   function renderHeader() {
     var label = $("catch-round-label");
     if (label) {
-      if (state.phase === "drawing" || state.phase === "reveal") label.textContent = (state.drawer || "출제자") + " 그림 · " + (state.roundIndex + 1) + "/" + state.queue.length;
+      if (state.phase === "practice") label.textContent = "연습모드";
+      else if (state.phase === "drawing" || state.phase === "reveal") label.textContent = (state.drawer || "출제자") + " 그림 · " + (state.roundIndex + 1) + "/" + state.queue.length;
       else if (state.phase === "finished") label.textContent = "게임 종료";
       else label.textContent = "게임 대기 중";
     }
@@ -740,7 +774,7 @@ window.CatchMind = (function () {
 
   function renderScores() {
     var box = $("catch-score-strip"); if (!box) return;
-    if (!state.queue.length) {
+    if (!state.queue.length || state.phase === "practice") {
       box.textContent = "";
       box.classList.add("hidden");
       return;
@@ -760,7 +794,8 @@ window.CatchMind = (function () {
 
   function renderWord() {
     var box = $("catch-word"); if (!box) return;
-    if (state.phase === "drawing") box.textContent = state.drawer === me().nick && secretWord ? secretWord : maskWord(state.wordLength);
+    if (state.phase === "practice") box.textContent = "연습모드";
+    else if (state.phase === "drawing") box.textContent = state.drawer === me().nick && secretWord ? secretWord : maskWord(state.wordLength);
     else if (state.phase === "reveal") box.textContent = state.revealWord || "문제 취소";
     else if (state.phase === "finished") box.textContent = "게임 종료";
     else box.textContent = "준비 중";
@@ -777,17 +812,19 @@ window.CatchMind = (function () {
   }
 
   function renderStage() {
-    var stage = $("catch-stage"), title = $("catch-stage-title"), sub = $("catch-stage-sub"), start = $("catch-start-btn");
-    if (!stage || !title || !sub || !start) return;
-    var show = state.phase !== "drawing";
+    var stage = $("catch-stage"), title = $("catch-stage-title"), sub = $("catch-stage-sub"), start = $("catch-start-btn"), practice = $("catch-practice-btn");
+    if (!stage || !title || !sub || !start || !practice) return;
+    var show = state.phase !== "drawing" && state.phase !== "practice";
     stage.classList.toggle("hidden", !show);
     if (!show) return;
     var canStart = api && api.isHost() && activePeople().length >= 2;
+    var canPractice = api && activePeople().length <= 1;
     if (state.phase === "reveal") {
       title.textContent = "정답 · " + (state.revealWord || "문제 취소");
       sub.textContent = "다음 그림을 준비하고 있어요";
       sub.classList.remove("hidden");
       start.classList.add("hidden");
+      practice.classList.add("hidden");
     } else if (state.phase === "finished") {
       var order = scoreOrder(), winner = order[0];
       title.textContent = winner ? winner + "님 1위!" : "게임 종료";
@@ -799,25 +836,31 @@ window.CatchMind = (function () {
       start.textContent = "다시 시작";
       start.classList.toggle("hidden", !canStart);
       start.disabled = state.recordStatus === "pending";
+      practice.classList.toggle("hidden", !canPractice);
+      practice.disabled = !canPractice;
     } else {
       title.textContent = "게임 대기 중";
-      sub.textContent = api && api.isHost() ? "2명 이상이면 바로 시작할 수 있어요" : "방장이 시작하면 모두 함께 참여해요";
+      sub.textContent = canPractice ? "혼자라면 연습모드로 그림을 테스트할 수 있어요" : (api && api.isHost() ? "2명 이상이면 바로 시작할 수 있어요" : "방장이 시작하면 모두 함께 참여해요");
       sub.classList.remove("hidden");
       start.textContent = "게임 시작";
       start.classList.toggle("hidden", !canStart);
       start.disabled = false;
+      practice.classList.toggle("hidden", !canPractice);
+      practice.disabled = !canPractice;
     }
   }
 
   function renderControls() {
     var mine = me().nick;
-    var isDrawer = state.phase === "drawing" && state.drawer === mine;
+    var isPractice = state.phase === "practice" && state.drawer === mine;
+    var isDrawer = (state.phase === "drawing" && state.drawer === mine) || isPractice;
     var isGuesser = state.phase === "drawing" && has(state.guessers, mine) && !state.correct[mine];
     var tools = $("catch-tools"), inputRow = $("catch-input-row"), input = $("catch-chat-input");
     if (tools) tools.classList.toggle("hidden", !isDrawer);
     if (inputRow) inputRow.classList.toggle("hidden", isDrawer);
     if (input) {
-      if (isGuesser) input.placeholder = "정답 또는 채팅 입력";
+      if (isPractice) input.placeholder = "연습 중 · 채팅 입력";
+      else if (isGuesser) input.placeholder = "정답 또는 채팅 입력";
       else if (state.phase === "drawing" && state.correct[mine]) input.placeholder = "정답 완료 · 채팅 입력";
       else if (state.phase === "drawing" && !has(state.queue, mine)) input.placeholder = "다음 게임부터 참여 · 채팅 입력";
       else input.placeholder = "채팅 입력";
@@ -837,7 +880,7 @@ window.CatchMind = (function () {
   }
 
   function canDraw() {
-    return !!(api && state.phase === "drawing" && state.drawer === me().nick && secretWord);
+    return !!(api && state.drawer === me().nick && (state.phase === "practice" || (state.phase === "drawing" && secretWord)));
   }
 
   function pointFromEvent(event) {
@@ -877,6 +920,7 @@ window.CatchMind = (function () {
 
   function sendCurrentStroke(force) {
     if (!api || !currentStroke) return;
+    if (state.phase === "practice") return;
     if (strokeSentCount >= currentStroke.points.length) return;
     var now = Date.now();
     if (!force && now - lastStrokeSend < DRAW_SEND_MS) {
@@ -1004,6 +1048,7 @@ window.CatchMind = (function () {
     canvasLimitNotified = false;
     state.drawSeq++;
     redraw();
+    if (state.phase === "practice") return;
     api.send({
       t: type,
       nick: me().nick,
@@ -1022,7 +1067,7 @@ window.CatchMind = (function () {
     canvas.addEventListener("pointercancel", pointerUp);
 
     $("catch-start-btn").addEventListener("click", hostStartMatch);
-    $("catch-send-btn").addEventListener("click", sendInput);
+    $("catch-practice-btn").addEventListener("click", startPractice);
     $("catch-chat-input").addEventListener("keydown", function (event) {
       if (event.key === "Enter" && !event.isComposing) sendInput();
     });
@@ -1092,6 +1137,7 @@ window.CatchMind = (function () {
   }
 
   function roomMeta() {
+    if (state.phase === "practice") return { status: "대기중", summary: "연습모드" };
     if (state.phase === "drawing") {
       var solved = Object.keys(state.correct).filter(function (nick) { return state.correct[nick]; }).length;
       return { status: "게임중", summary: (state.drawer || "출제자") + " 그림 · " + solved + "/" + state.guessers.length + " 정답" };

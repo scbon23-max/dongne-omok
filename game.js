@@ -3,7 +3,7 @@
 
   var SIZE = Renju.SIZE, BLACK = Renju.BLACK, WHITE = Renju.WHITE;
   var TERR_KOMI = 1.5;
-  var APP_BUILD = "20260715-catchmind-v2";
+  var APP_BUILD = "20260715-catchmind-chat-layout";
   var APP_REFRESH_KEY = "dongne_games_app_refresh";
 
   var G = {
@@ -74,8 +74,14 @@
     return def && def.controller ? window[def.controller] : null;
   }
   function activeController() { return gameController(curRoomGame || curGame); }
+  function canSeeGame(id) {
+    return id !== "catchmind" || (me.isAdmin && me.nick === ADMIN);
+  }
+  function visibleGameIds(ids) {
+    return ids.filter(canSeeGame);
+  }
   function rankableGames() {
-    return window.GameCatalog ? GameCatalog.rankableIds() : ["omok", "alk", "alk_terr"];
+    return visibleGameIds(window.GameCatalog ? GameCatalog.rankableIds() : ["omok", "alk", "alk_terr"]);
   }
   function emptyScoreMap() {
     var out = {};
@@ -349,7 +355,7 @@
   function renderRoomList() {
     var box = $("room-list"); if (!box) return;
     var list = Object.keys(rooms).map(function (k) { return rooms[k]; })
-      .filter(function (r) { return roomFilter === "all" || r.game === roomFilter; })
+      .filter(function (r) { return canSeeGame(r.game) && (roomFilter === "all" || r.game === roomFilter); })
       .sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); });
     if (!list.length) { box.innerHTML = '<div class="room-empty">아직 열린 방이 없어요. 방을 만들어 보세요!</div>'; return; }
     box.innerHTML = list.map(function (r) {
@@ -377,7 +383,7 @@
   function renderRoomStrip() {
     var strip = $(gameUi(activeFamily()).roomStripId);
     if (!strip || !curRoomId) return;
-    var list = Object.keys(rooms).map(function (k) { return rooms[k]; });
+    var list = Object.keys(rooms).map(function (k) { return rooms[k]; }).filter(function (r) { return canSeeGame(r.game); });
     if (!list.some(function (r) { return r.id === curRoomId; })) {
       list.push({ id: curRoomId, game: curRoomGame, name: curRoomTitle, ts: roomCreatedTs });
     }
@@ -479,6 +485,7 @@
   }
 
   function enterRoom(roomId, game, title) {
+    if (!canSeeGame(game)) { toast("아직 테스트 중인 게임이에요"); return false; }
     var target;
     try { target = roomEntryTarget(game); }
     catch (error) {
@@ -524,6 +531,7 @@
     }
   }
   function createRoom(game, name) {
+    if (!canSeeGame(game)) { toast("아직 테스트 중인 게임이에요"); return; }
     var id = "rm" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e4).toString(36);
     roomCreatedTs = Date.now();
     enterRoom(id, game, (name && name.trim()) || (me.nick + "님의 방"));
@@ -2733,17 +2741,31 @@
     });
   }
   function pushOverlay(game, nick, text) {
-    var ov = $(gameUi(gameFamily(game)).chatOverlayId); if (!ov) return;
+    var family = gameFamily(game);
+    var ov = $(gameUi(family).chatOverlayId); if (!ov) return;
     var line = document.createElement("div");
     line.className = "ov-line";
     line.innerHTML = '<span class="ov-nick" style="color:' + nickColor(nick) + '">' + esc(nick) + '</span>' + esc(text);
     ov.appendChild(line);
-    while (ov.children.length > 3) ov.removeChild(ov.children[0]);
-    setTimeout(function () { line.classList.add("show"); }, 20);
+    var maxLines = family === "catchmind" ? 5 : 3;
+    while (ov.children.length > maxLines) ov.removeChild(ov.children[0]);
+    refreshOverlayOpacity(family, ov);
+    setTimeout(function () { line.classList.add("show"); refreshOverlayOpacity(family, ov); }, 20);
     setTimeout(function () {
       line.classList.remove("show");
-      setTimeout(function () { if (line.parentNode) line.parentNode.removeChild(line); }, 300);
+      setTimeout(function () {
+        if (line.parentNode) line.parentNode.removeChild(line);
+        refreshOverlayOpacity(family, ov);
+      }, 300);
     }, 4500);
+  }
+  function refreshOverlayOpacity(family, ov) {
+    if (family !== "catchmind" || !ov) return;
+    var lines = ov.children;
+    for (var i = 0; i < lines.length; i++) {
+      var distanceFromNewest = lines.length - 1 - i;
+      lines[i].style.setProperty("--overlay-opacity", String(Math.max(.22, 1 - distanceFromNewest * .2)));
+    }
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (m) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[m]; }); }
   function sendChatText(game, text) {
@@ -2998,10 +3020,10 @@
   function openModal(id) { $(id).classList.remove("hidden"); }
   function renderCreateGameOptions(selected) {
     var box = $("create-game"); if (!box) return selected || "omok";
-    var ids = window.GameCatalog ? GameCatalog.order : ["omok", "alk", "alk_terr"];
+    var ids = visibleGameIds(window.GameCatalog ? GameCatalog.order : ["omok", "alk", "alk_terr"]);
     if (ids.indexOf(selected) < 0) selected = ids[0] || "omok";
     box.innerHTML = ids.map(function (id) {
-      var label = id === "catchmind" ? gameName(id) + " 테스트중" : gameName(id);
+      var label = gameName(id);
       return '<button class="radio-chip' + (id === selected ? ' active' : '') + '" data-game="' + esc(id) + '">' + esc(label) + '</button>';
     }).join("");
     return selected;
@@ -3230,13 +3252,14 @@
     $("lobby-menu-btn").addEventListener("click", openMenu);
     $("lobby-rank-btn").addEventListener("click", function () { openRank("all"); });
     $("lobby-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendLobbyChat(); });
-    $("create-room-btn").addEventListener("click", function () { openModal("create-modal"); });
+    $("create-room-btn").addEventListener("click", function () { createGame = renderCreateGameOptions(createGame); openModal("create-modal"); });
     var createGame = renderCreateGameOptions("omok");
-    var cchips = document.querySelectorAll("#create-game .radio-chip");
-    for (var ci = 0; ci < cchips.length; ci++) cchips[ci].addEventListener("click", function () {
-      createGame = this.getAttribute("data-game");
-      var all = document.querySelectorAll("#create-game .radio-chip");
-      for (var y = 0; y < all.length; y++) all[y].classList.toggle("active", all[y] === this);
+    $("create-game").addEventListener("click", function (event) {
+      var chip = event.target.closest(".radio-chip");
+      if (!chip || !this.contains(chip)) return;
+      createGame = chip.getAttribute("data-game");
+      var all = this.querySelectorAll(".radio-chip");
+      for (var y = 0; y < all.length; y++) all[y].classList.toggle("active", all[y] === chip);
     });
     $("create-confirm").addEventListener("click", function () {
       $("create-modal").classList.add("hidden");
