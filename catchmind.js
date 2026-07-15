@@ -440,17 +440,20 @@ window.CatchMind = (function () {
     if (state.phase === "reveal") {
       title.textContent = "정답 · " + (state.revealWord || "문제 취소");
       sub.textContent = "다음 그림을 준비하고 있어요";
+      sub.classList.remove("hidden");
       start.classList.add("hidden");
     } else if (state.phase === "finished") {
       var order = scoreOrder(), winner = order[0];
       title.textContent = winner ? winner + "님 1위!" : "게임 종료";
       sub.textContent = state.recorded ? "결과가 시즌 랭킹에 반영돼요" : "참여 기록이 부족해 랭킹에는 반영되지 않았어요";
+      sub.classList.remove("hidden");
       start.textContent = "다시 시작";
       start.classList.toggle("hidden", !canStart);
       start.disabled = false;
     } else {
       title.textContent = "게임 대기 중";
-      sub.textContent = api && api.isHost() ? "2명 이상이면 바로 시작할 수 있어요" : "방장이 시작하면 모두 함께 참여해요";
+      sub.textContent = "";
+      sub.classList.add("hidden");
       start.textContent = "게임 시작";
       start.classList.toggle("hidden", !canStart);
       start.disabled = false;

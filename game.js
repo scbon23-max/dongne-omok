@@ -3,6 +3,8 @@
 
   var SIZE = Renju.SIZE, BLACK = Renju.BLACK, WHITE = Renju.WHITE;
   var TERR_KOMI = 1.5;
+  var APP_BUILD = "20260715-room-entry-v2";
+  var APP_REFRESH_KEY = "dongne_games_app_refresh";
 
   var G = {
     board: Renju.emptyBoard(),
@@ -424,37 +426,99 @@
     clearAllGrace(); clearAlkGrace();
     if (window.Alkkagi) Alkkagi.setStones(Alkkagi.layout());
   }
-  function enterRoom(roomId, game, title) {
-    var previousController = activeController();
-    if (previousController && previousController.leave) previousController.leave();
-    curRoomId = roomId; curRoomGame = game; curGame = gameFamily(game); curRoomTitle = title || roomId;
-    if (rooms[roomId] && rooms[roomId].ts) roomCreatedTs = rooms[roomId].ts;
-    amHost = false; wasHost = false; document.body.classList.remove("is-host"); stopHostTimer();
-    resetRoomGameState(); resetRoomChat();
-    if (game === "alk_terr" && window.Alkkagi) { A.mode = "territory"; Alkkagi.setMode("territory"); Alkkagi.setStones([]); }
-    myJoinTs = Date.now();
-    netMode = Net.init(roomId, myMetaObj(null),
-      { onReady: onNetReady, onMessage: onMessage, onPresence: onPresence, onStatus: onStatus });
-    if (lobbyMode) Net.trackLobby(myMetaObj(roomId));
-    $("lobby").classList.add("hidden");
-    hideGameScreens();
-    if (isOmokFamily(curGame)) {
-      $("game").classList.remove("hidden");
-      if (!omokStarted) { omokStarted = true; startGameUI(); }
-    } else if (isAlkFamily(curGame)) {
-      $("alkgame").classList.remove("hidden");
-      if (!alkStarted) { alkStarted = true; alkStartView(); }
-    } else {
-      var ui = gameUi(curGame);
-      if (ui.screenId && $(ui.screenId)) $(ui.screenId).classList.remove("hidden");
+
+  function refreshAppShell() {
+    var now = Date.now(), last = 0;
+    try {
+      last = Number(sessionStorage.getItem(APP_REFRESH_KEY)) || 0;
+      if (now - last >= 15000) sessionStorage.setItem(APP_REFRESH_KEY, String(now));
+    } catch (e) {}
+    if (now - last < 15000) {
+      toast("화면 업데이트를 불러오지 못했어요. 브라우저를 새로고침해 주세요.", 5000);
+      return;
     }
-    if (!netMode) { amHost = true; document.body.classList.add("is-host"); setConn("local"); }
-    var ctrl = activeController();
-    if (ctrl && ctrl.enter) ctrl.enter(controllerApi());
-    renderPresenceUI(); renderRoomStrip();
-    if (isOmokFamily(curGame)) { updateTurnUI(); render(); }
-    else if (isAlkFamily(curGame)) renderAlkUI();
-    else if (ctrl && ctrl.render) ctrl.render();
+    toast("최신 게임 화면을 불러오는 중이에요", 1600);
+    setTimeout(function () {
+      try {
+        var url = new URL(window.location.href);
+        url.searchParams.set("app", APP_BUILD);
+        window.location.replace(url.toString());
+      } catch (e) {
+        window.location.reload();
+      }
+    }, 250);
+  }
+
+  function roomEntryTarget(game) {
+    var shell = document.querySelector('meta[name="app-build"]');
+    var def = gameDef(game), family = gameFamily(game);
+    var ui = gameUi(family), ctrl = gameController(game);
+    if (!def) {
+      toast("지원하지 않는 게임 방이에요", 3500);
+      return null;
+    }
+    if (!shell || shell.content !== APP_BUILD || !$("lobby") || !ui || !ui.screenId || !$(ui.screenId) || (def.controller && !ctrl)) {
+      refreshAppShell();
+      return null;
+    }
+    return { family: family, ui: ui, controller: ctrl };
+  }
+
+  function rollbackRoomEntry(controller, error) {
+    if (window.console && console.error) console.error("Room entry failed", error);
+    try { if (controller && controller.leave) controller.leave(); } catch (e) {}
+    try { if (window.Net && Net.leaveRoom) Net.leaveRoom(); } catch (e) {}
+    netMode = false; amHost = false; wasHost = false; connected = false;
+    curRoomId = null; curRoomGame = null; curGame = null; curRoomTitle = "";
+    document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
+    stopHostTimer(); clearAllGrace(); clearAlkGrace(); clearAwayRoster();
+    hideGameScreens();
+    if ($("lobby")) $("lobby").classList.remove("hidden");
+    try {
+      if (lobbyMode) { Net.trackLobby(myMetaObj(null)); Net.resyncLobby(); }
+    } catch (e) {}
+    renderRoomList();
+    toast("방 화면을 여는 중 오류가 났어요. 다시 시도해 주세요.", 4500);
+  }
+
+  function enterRoom(roomId, game, title) {
+    var target = roomEntryTarget(game);
+    if (!target) return false;
+    try {
+      var previousController = activeController();
+      if (previousController && previousController.leave) previousController.leave();
+      curRoomId = roomId; curRoomGame = game; curGame = target.family; curRoomTitle = title || roomId;
+      if (rooms[roomId] && rooms[roomId].ts) roomCreatedTs = rooms[roomId].ts;
+      amHost = false; wasHost = false; document.body.classList.remove("is-host"); stopHostTimer();
+      resetRoomGameState(); resetRoomChat();
+      if (game === "alk_terr" && window.Alkkagi) { A.mode = "territory"; Alkkagi.setMode("territory"); Alkkagi.setStones([]); }
+      myJoinTs = Date.now();
+      netMode = Net.init(roomId, myMetaObj(null),
+        { onReady: onNetReady, onMessage: onMessage, onPresence: onPresence, onStatus: onStatus });
+      if (lobbyMode) Net.trackLobby(myMetaObj(roomId));
+      $("lobby").classList.add("hidden");
+      hideGameScreens();
+      if (isOmokFamily(curGame)) {
+        $("game").classList.remove("hidden");
+        if (!omokStarted) { omokStarted = true; startGameUI(); }
+      } else if (isAlkFamily(curGame)) {
+        $("alkgame").classList.remove("hidden");
+        if (!alkStarted) { alkStarted = true; alkStartView(); }
+      } else {
+        $(target.ui.screenId).classList.remove("hidden");
+      }
+      if (!netMode) { amHost = true; document.body.classList.add("is-host"); setConn("local"); }
+      var ctrl = target.controller;
+      if (ctrl && ctrl.enter) ctrl.enter(controllerApi());
+      renderPresenceUI(); renderRoomStrip();
+      if (isOmokFamily(curGame)) { updateTurnUI(); render(); }
+      else if (isAlkFamily(curGame)) renderAlkUI();
+      else if (ctrl && ctrl.render) ctrl.render();
+      return true;
+    } catch (error) {
+      rollbackRoomEntry(target.controller, error);
+      return false;
+    }
   }
   function createRoom(game, name) {
     var id = "rm" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e4).toString(36);
