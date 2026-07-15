@@ -1347,12 +1347,15 @@
     if (gseq != null && gseq !== beginSeq(game)) return;
     if (swapOpponent(game, from) !== me.nick) return;
     swapReqCtx = { game: game, from: from, gseq: gseq == null ? beginSeq(game) : gseq };
-    $("swap-text").textContent = from + "님이 " + beginGameTitle(game) + " 흑·백 자리를 바꾸자고 요청했어요.\n수락하면 바로 자리가 바뀝니다.";
-    $("swap-modal").classList.remove("hidden");
+    var swapText = $("swap-text"), swapModal = $("swap-modal");
+    if (!swapText || !swapModal) { swapReqCtx = null; return; }
+    swapText.textContent = from + "님이 " + beginGameTitle(game) + " 흑·백 자리를 바꾸자고 요청했어요.\n수락하면 바로 자리가 바뀝니다.";
+    swapModal.classList.remove("hidden");
   }
   function respondSwapRequest(accept) {
     var ctx = swapReqCtx;
-    $("swap-modal").classList.add("hidden");
+    var swapModal = $("swap-modal");
+    if (swapModal) swapModal.classList.add("hidden");
     swapReqCtx = null;
     if (!ctx) return;
     Net.send({ t: ctx.game === "alk" ? "alk_swap_res" : "swap_res", accept: !!accept, from: me.nick, to: ctx.from, gseq: ctx.gseq });
@@ -2808,7 +2811,8 @@
     for (var rt = 0; rt < rtabs.length; rt++) rtabs[rt].addEventListener("click", function () { rankTab = this.getAttribute("data-g"); renderSeason(); });
     $("confirm-place").addEventListener("click", confirmPlace);
     $("center-btn").addEventListener("click", onCenterBtn);
-    $("swap-btn").addEventListener("click", function () { requestSeatSwap("omok"); });
+    var swapBtn = $("swap-btn");
+    if (swapBtn) swapBtn.addEventListener("click", function () { requestSeatSwap("omok"); });
     $("ai-btn").addEventListener("click", function () { $("center-btn").classList.add("hidden"); $("ai-btn").classList.add("hidden"); $("ai-levels").classList.remove("hidden"); });
     $("ai-cancel").addEventListener("click", function () { $("ai-levels").classList.add("hidden"); updateCenterButton(); });
     var cbtns = document.querySelectorAll(".colorbtn[data-color]");
@@ -2865,8 +2869,9 @@
     });
     $("begin-accept").addEventListener("click", function () { respondBeginRequest(true); });
     $("begin-decline").addEventListener("click", function () { respondBeginRequest(false); });
-    $("swap-accept").addEventListener("click", function () { respondSwapRequest(true); });
-    $("swap-decline").addEventListener("click", function () { respondSwapRequest(false); });
+    var swapAccept = $("swap-accept"), swapDecline = $("swap-decline");
+    if (swapAccept) swapAccept.addEventListener("click", function () { respondSwapRequest(true); });
+    if (swapDecline) swapDecline.addEventListener("click", function () { respondSwapRequest(false); });
     $("resign-yes").addEventListener("click", function () { $("resign-modal").classList.add("hidden"); requestResign(); });
     $("resign-no").addEventListener("click", function () { $("resign-modal").classList.add("hidden"); });
     $("undo-accept").addEventListener("click", function () {
@@ -2930,7 +2935,8 @@
       if (b && b.dataset.act === "solo") { if (curRoomGame === "alk_terr") startTerritorySolo(); else startAlkSolo(); }
       else requestAlkBegin();
     });
-    $("alk-swap-btn").addEventListener("click", function () { requestSeatSwap("alk"); });
+    var alkSwapBtn = $("alk-swap-btn");
+    if (alkSwapBtn) alkSwapBtn.addEventListener("click", function () { requestSeatSwap("alk"); });
     $("alk-again").addEventListener("click", function () { if (alkSolo) { if (A.mode === "territory") startTerritorySolo(); else startAlkSolo(); } else requestAlkBegin(); });
 
     soundMuted = localStorage.getItem("omok_mute") === "1";
