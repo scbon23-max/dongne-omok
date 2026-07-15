@@ -5,7 +5,7 @@ window.CatchMind = (function () {
   var REVEAL_MS = 3000;
   var CANVAS_BG = "#ffffff";
   var PEN_COLORS = ["#17252f", "#d23b3b", "#2474b5"];
-  var WORDS = [
+  var FALLBACK_WORDS = [
     "가방", "가위", "강아지", "거북이", "고양이", "공룡", "기차", "나무", "냉장고", "눈사람",
     "다리미", "달팽이", "도넛", "딸기", "라면", "로봇", "마이크", "모자", "문어", "바나나",
     "비행기", "사과", "선풍기", "수박", "스케이트", "시계", "신발", "안경", "야구공", "양말",
@@ -18,6 +18,7 @@ window.CatchMind = (function () {
   var api = null;
   var state = freshState();
   var secretWord = null;
+  var usedWords = {};
   var previousHost = false;
   var canvas = null;
   var ctx = null;
@@ -138,8 +139,30 @@ window.CatchMind = (function () {
     while (state.feed.length > 3) state.feed.shift();
   }
 
+  function wordPool() {
+    var pool = Array.isArray(window.CATCHMIND_WORDS) && window.CATCHMIND_WORDS.length ? window.CATCHMIND_WORDS : FALLBACK_WORDS;
+    return pool.filter(function (word) { return typeof word === "string" && /^[가-힣]{1,10}$/.test(word); });
+  }
+
   function pickWord() {
-    return WORDS[Math.floor(Math.random() * WORDS.length)];
+    var pool = wordPool();
+    if (!pool.length) return FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)];
+    var usedCount = Object.keys(usedWords).length;
+    if (usedCount >= pool.length) usedWords = {};
+    for (var tries = 0; tries < 80; tries++) {
+      var candidate = pool[Math.floor(Math.random() * pool.length)];
+      if (!usedWords[candidate]) {
+        usedWords[candidate] = true;
+        return candidate;
+      }
+    }
+    for (var i = 0; i < pool.length; i++) {
+      if (!usedWords[pool[i]]) {
+        usedWords[pool[i]] = true;
+        return pool[i];
+      }
+    }
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   function hostStartMatch() {
@@ -153,6 +176,7 @@ window.CatchMind = (function () {
     state.queue = queue;
     queue.forEach(initStats);
     secretWord = null;
+    usedWords = {};
     hostStartRound(0);
   }
 
