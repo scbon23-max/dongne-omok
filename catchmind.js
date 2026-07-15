@@ -801,8 +801,8 @@ window.CatchMind = (function () {
       start.disabled = state.recordStatus === "pending";
     } else {
       title.textContent = "게임 대기 중";
-      sub.textContent = "";
-      sub.classList.add("hidden");
+      sub.textContent = api && api.isHost() ? "2명 이상이면 바로 시작할 수 있어요" : "방장이 시작하면 모두 함께 참여해요";
+      sub.classList.remove("hidden");
       start.textContent = "게임 시작";
       start.classList.toggle("hidden", !canStart);
       start.disabled = false;
