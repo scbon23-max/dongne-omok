@@ -608,7 +608,7 @@
     var alkISit = (A.seats.black === me.nick || A.seats.white === me.nick);
     var alkBoth = A.seats.black && A.seats.white;
     if (cb) {
-      if (!A.started && !A.over && alkBoth && alkSeatedMe) { cb.textContent = "대국 시작"; cb.dataset.act = "begin"; cb.classList.remove("hidden"); }
+      if (!A.started && !A.over && alkBoth && alkSeatedMe) { cb.textContent = "대국 신청"; cb.dataset.act = "begin"; cb.classList.remove("hidden"); }
       else if (!A.started && !A.over && alkISit && !alkBoth) { cb.textContent = "연습하기"; cb.dataset.act = "solo"; cb.classList.remove("hidden"); }
       else cb.classList.add("hidden");
     }
@@ -1221,7 +1221,7 @@
     if (Date.now() < beginCooldownUntil) { toast("대국 신청은 10초 뒤에 다시 보낼 수 있어요"); return true; }
     Net.send({ t: game === "alk" ? "alk_begin_req" : "begin_req", from: me.nick, to: opp, gseq: beginSeq(game) });
     startBeginCooldown();
-    toast(opp + "님에게 대국 신청을 보냈어요");
+    toast(opp + "님에게 대국 신청을 보냈어요. 상대가 수락하면 시작됩니다", 3200);
     return true;
   }
   function showBeginModal(game, from, gseq) {
@@ -1599,7 +1599,7 @@
     var iSit = (G.seats.black === me.nick || G.seats.white === me.nick);
     if (levels) levels.classList.add("hidden");
     if (!G.started && !G.over && bothFilled && seatedMe) {
-      btn.textContent = "대국 시작"; btn.dataset.act = "begin"; btn.classList.remove("hidden");
+      btn.textContent = "대국 신청"; btn.dataset.act = "begin"; btn.classList.remove("hidden");
       if (aiBtn) aiBtn.classList.add("hidden");
       if (area) area.classList.remove("hidden");
     } else if (!G.started && !G.over && iSit && !bothFilled) {
@@ -2165,7 +2165,7 @@
   }
   function onBoardTap(ev) {
     if (G.over) return;
-    if (!G.started) { toast("‘대국 시작’ 버튼을 눌러 시작해요"); return; }
+    if (!G.started) { toast("‘대국 신청’ 버튼을 눌러 시작해요"); return; }
     var rect = canvas.getBoundingClientRect();
     var scale = canvas.width / rect.width;
     var pt = ev.touches ? ev.touches[0] : ev;
@@ -2277,11 +2277,11 @@
 
   // ---------- 토스트 ----------
   var toastId = null;
-  function toast(msg) {
+  function toast(msg, ms) {
     var t = $("toast");
     if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; document.body.appendChild(t); }
     t.textContent = msg; t.classList.add("show");
-    clearTimeout(toastId); toastId = setTimeout(function () { t.classList.remove("show"); }, 1800);
+    clearTimeout(toastId); toastId = setTimeout(function () { t.classList.remove("show"); }, ms || 1800);
   }
 
   // ---------- 사운드 ----------
@@ -2520,6 +2520,8 @@
   var aiHumanColor = "black";
   var aiPending = false;
   var AI_NICK = "AI";
+  var AI_THINK_DELAY_MS = 1000;
+  var AI_TIMER_SAFETY_MS = 250;
   function aiLevelName(lv) { return lv === "easy" ? "초보" : lv === "medium" ? "중수" : lv === "master" ? "초고수" : "고수"; }
   function seatDisplay(nick) { return nick === AI_NICK ? aiLevelName(omokAI.level) : nick; }
   function startOmokSolo() {
@@ -2547,12 +2549,16 @@
     if (!omokAI.on || G.over || !G.started || aiPending) return;
     if (G.turn !== omokAI.color) return;
     aiPending = true;
+    var delay = AI_THINK_DELAY_MS;
+    if (G.timerSec && G.moveDeadline) {
+      delay = Math.min(delay, Math.max(0, G.moveDeadline - Date.now() - AI_TIMER_SAFETY_MS));
+    }
     setTimeout(function () {
       aiPending = false;
       if (!omokAI.on || G.over || !G.started || G.turn !== omokAI.color) return;
       var mv = window.OmokAI.bestMove(G.board, omokAI.color, omokAI.level);
       if (mv) hostApplyMove(AI_NICK, mv[0], mv[1]);
-    }, 1000);
+    }, delay);
   }
   function onCenterBtn() {
     var b = $("center-btn");
