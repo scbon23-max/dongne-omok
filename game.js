@@ -20,6 +20,7 @@
     recorded: false,
     started: false,
     lastPlayers: null,
+    manualPaused: false,
     paused: false,
     pausedRemainMs: null,
     drawAsk: null,       // { gseq, black: null|true|false, white: null|true|false } — 80수 자동 제안
@@ -299,7 +300,7 @@
   function resetRoomGameState() {
     G.board = Renju.emptyBoard(); G.turn = BLACK; G.lastMove = null; G.over = false; G.winner = 0; G.draw = false;
     G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = [];
-    G.recorded = false; G.started = false; G.lastPlayers = null; G.paused = false; G.pausedRemainMs = null;
+    G.recorded = false; G.started = false; G.lastPlayers = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
     A.seats = { black: null, white: null }; A.turn = "b"; A.started = false; A.over = false; A.winner = null;
     A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; alkSolo = false; omokSolo = false; omokAI.on = false; aiPending = false;
     A.mode = "knockout"; A.remain = null; A.score = null;
@@ -794,7 +795,7 @@
     renderPlayersList(); updateTurnUI(); render(); updateCenterButton();
   }
   function applyPause() {
-    var shouldPause = !!(graceTimers.black || graceTimers.white) && G.started && !G.over;
+    var shouldPause = (G.manualPaused || !!(graceTimers.black || graceTimers.white)) && G.started && !G.over;
     if (shouldPause && !G.paused) {
       G.pausedRemainMs = G.moveDeadline ? Math.max(0, G.moveDeadline - Date.now()) : null;
       G.moveDeadline = null;
@@ -807,6 +808,7 @@
       G.pausedRemainMs = null;
       G.rev++;
     }
+    syncPauseButton();
   }
   function onGraceExpire(col) {
     if (!amHost) { graceTimers[col] = null; return; }
@@ -819,7 +821,7 @@
       var oldSeats = { black: G.seats.black, white: G.seats.white };
       G.seats[col] = null;
       if (otherGone) G.seats[other] = null;
-      G.paused = false; G.pausedRemainMs = null;
+      G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
       hostAfterSeatChange(oldSeats, "leave");
     } else {
       applyPause(); broadcastState();
@@ -848,6 +850,7 @@
       case "begin": if (amHost && !G.started && (msg.gseq == null || msg.gseq === G.gameSeq)) beginGame(msg.by); break;
       case "seat": if (amHost) hostApplySeat(msg.by, msg.nick, msg.seat); break;
       case "set_timer": if (amHost && (msg.by === ADMIN || msg.by === hostNick)) setTimer(msg.sec); break;
+      case "toggle_pause": if (amHost && (msg.by === ADMIN || msg.by === hostNick)) setManualPause(!!msg.paused); break;
       case "chat": if (msg.nick !== me.nick) addChatTo(msg.game === "alk" ? "alk" : "omok", msg.nick, msg.text, true); break;
       case "undo_req": if (msg.to === me.nick) showUndoModal(msg.from, msg.gseq, msg.hlen); break;
       case "undo_res":
@@ -882,7 +885,7 @@
       seats: G.seats, timerSec: G.timerSec, moveDeadline: G.moveDeadline,
       moveRemainMs: G.moveDeadline ? Math.max(0, G.moveDeadline - Date.now()) : null,
       rev: G.rev, gameSeq: G.gameSeq, history: G.history,
-      started: G.started, lastPlayers: G.lastPlayers, paused: G.paused, pausedRemainMs: G.pausedRemainMs,
+      started: G.started, lastPlayers: G.lastPlayers, manualPaused: G.manualPaused, paused: G.paused, pausedRemainMs: G.pausedRemainMs,
       drawAsk: G.drawAsk, drawAskDone: G.drawAskDone
     };
   }
@@ -896,10 +899,11 @@
     G.rev = s.rev || 0; G.gameSeq = s.gameSeq || 0;
     G.history = s.history || [];
     G.started = !!s.started; G.lastPlayers = s.lastPlayers || null;
+    G.manualPaused = !!s.manualPaused;
     G.paused = !!s.paused; G.pausedRemainMs = (typeof s.pausedRemainMs === "number") ? s.pausedRemainMs : null;
     G.drawAsk = s.drawAsk || null; G.drawAskDone = !!s.drawAskDone;
     maybeSeatSound();
-    syncTimerChips(); updateTurnUI(); renderPlayersList(); render(); updateCenterButton(); updateDrawAskUI();
+    syncTimerChips(); syncPauseButton(); updateTurnUI(); renderPlayersList(); render(); updateCenterButton(); updateDrawAskUI();
     if (G.over) {
       if (liveSeq === G.gameSeq && winShownSeq !== G.gameSeq) showWin();
     } else {
@@ -915,7 +919,7 @@
   }
   function submitMove(r, c) {
     if (G.over || !G.started) return;
-    if (G.paused) { toast("상대 재접속을 기다리는 중이에요"); return; }
+    if (G.paused) { toast(G.manualPaused ? "일시정지 중이에요" : "상대 재접속을 기다리는 중이에요"); return; }
     if (netMode) {
       if (!myMoveAllowed()) {
         var mine = (G.seats.black === me.nick || G.seats.white === me.nick);
@@ -956,7 +960,7 @@
 
   function endGame() {
     G.started = false;
-    G.paused = false; G.pausedRemainMs = null; clearAllGrace();
+    G.manualPaused = false; G.paused = false; G.pausedRemainMs = null; clearAllGrace();
     G.rev++;
     stopHostTimer();
     broadcastState();
@@ -1101,7 +1105,7 @@
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
     G.drawAsk = null; G.drawAskDone = false;
     G.started = true;
-    G.paused = false; G.pausedRemainMs = null; clearAllGrace();
+    G.manualPaused = false; G.paused = false; G.pausedRemainMs = null; clearAllGrace();
     G.lastPlayers = { black: G.seats.black, white: G.seats.white };
     G.moveDeadline = G.timerSec ? Date.now() + G.timerSec * 1000 : null;
     G.gameSeq = (G.gameSeq || 0) + 1;
@@ -1116,7 +1120,7 @@
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
     G.drawAsk = null; G.drawAskDone = false;
     G.started = false;
-    G.paused = false; G.pausedRemainMs = null; clearAllGrace();
+    G.manualPaused = false; G.paused = false; G.pausedRemainMs = null; clearAllGrace();
     G.moveDeadline = null;
     G.gameSeq = (G.gameSeq || 0) + 1;
     G.rev++;
@@ -1252,7 +1256,7 @@
   }
   function updateTimerUI() {
     var box = $("timer-box"); if (!box) return;
-    if (G.paused) { box.textContent = "⏸ 대기"; box.classList.remove("urgent"); lastWarnSec = -1; return; }
+    if (G.paused) { box.textContent = G.manualPaused ? "⏸ 일시정지" : "⏸ 대기"; box.classList.remove("urgent"); lastWarnSec = -1; return; }
     if (!G.timerSec || G.over || !G.moveDeadline) { box.textContent = "∞"; box.classList.remove("urgent"); lastWarnSec = -1; return; }
     var remain = Math.max(0, Math.ceil((G.moveDeadline - Date.now()) / 1000));
     var m = Math.floor(remain / 60), s = remain % 60;
@@ -1268,9 +1272,15 @@
   }
   function setTimer(sec) {
     G.timerSec = sec;
-    G.moveDeadline = (sec && G.started && !G.over) ? Date.now() + sec * 1000 : null;
+    if (G.paused) {
+      G.pausedRemainMs = sec ? sec * 1000 : null;
+      G.moveDeadline = null;
+    } else {
+      G.moveDeadline = (sec && G.started && !G.over) ? Date.now() + sec * 1000 : null;
+    }
     G.rev++;
     syncTimerChips();
+    syncPauseButton();
     if (amHost || !netMode) broadcastState();
     updateTimerUI();
   }
@@ -1278,11 +1288,32 @@
     var chips = document.querySelectorAll("#timer-options .radio-chip");
     for (var i = 0; i < chips.length; i++) chips[i].classList.toggle("active", parseInt(chips[i].getAttribute("data-sec"), 10) === G.timerSec);
   }
+  function syncPauseButton() {
+    var btn = $("pause-toggle"); if (!btn) return;
+    btn.textContent = G.manualPaused ? "재개" : "일시정지";
+    btn.classList.toggle("active", !!G.manualPaused);
+    btn.disabled = !G.started || G.over;
+  }
   function canSetTimer() { return !netMode || amHost || me.isAdmin; }
   function requestSetTimer(sec) {
     if (!netMode || amHost) { setTimer(sec); return; }
     if (me.isAdmin) { G.timerSec = sec; syncTimerChips(); updateTimerUI(); Net.send({ t: "set_timer", by: me.nick, sec: sec }); return; }
     toast("방장이나 관리자만 시간을 바꿀 수 있어요");
+  }
+  function setManualPause(paused) {
+    if (!G.started || G.over) { if (paused) toast("진행 중인 대국에서만 일시정지할 수 있어요"); syncPauseButton(); return; }
+    if (G.manualPaused === !!paused) { syncPauseButton(); return; }
+    G.manualPaused = !!paused;
+    G.rev++;
+    applyPause();
+    if (amHost || !netMode) broadcastState();
+    updateTimerUI();
+  }
+  function requestTogglePause() {
+    if (!canSetTimer()) { toast("방장이나 관리자만 일시정지할 수 있어요"); return; }
+    var next = !G.manualPaused;
+    if (!netMode || amHost) { setManualPause(next); return; }
+    if (me.isAdmin) { Net.send({ t: "toggle_pause", by: me.nick, paused: next }); return; }
   }
 
   // ---------- 이름/자리/차례 ----------
@@ -2342,7 +2373,7 @@
     for (var li = 0; li < lvb.length; li++) lvb[li].addEventListener("click", function () { startAiGame(this.getAttribute("data-ai"), aiHumanColor); });
     $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else if (omokAI.on) startAiGame(omokAI.level, omokAI.human); else requestBegin(); });
     $("timer-box").addEventListener("click", function () {
-      if (canSetTimer()) { syncTimerChips(); openModal("settings-modal"); }
+      if (canSetTimer()) { syncTimerChips(); syncPauseButton(); openModal("settings-modal"); }
       else toast("방장이나 관리자만 시간을 바꿀 수 있어요");
     });
     $("chip-black").addEventListener("click", function () { onSeatChipTap("black"); });
@@ -2407,6 +2438,7 @@
     for (var k = 0; k < chips.length; k++) chips[k].addEventListener("click", function () {
       requestSetTimer(parseInt(this.getAttribute("data-sec"), 10));
     });
+    $("pause-toggle").addEventListener("click", requestTogglePause);
 
     $("chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendChat("omok"); });
     $("alk-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendChat("alk"); });

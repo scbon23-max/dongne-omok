@@ -294,6 +294,9 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .radio-row { display: flex; gap: 8px; }
 .radio-chip { flex: 1; padding: 12px 0; border: 2px solid #e2e2e2; background: #fff; border-radius: 12px; font-size: 14px; font-weight: 700; color: #666; cursor: pointer; }
 .radio-chip.active { border-color: var(--orange); background: #FFF3EC; color: var(--orange-dark); }
+.pause-chip { width: 100%; margin-top: 10px; padding: 12px 0; border: 2px solid var(--navy-2); background: var(--navy-2); border-radius: 12px; color: #eaf2f6; font-size: 14px; font-weight: 800; cursor: pointer; }
+.pause-chip.active { border-color: var(--orange); background: var(--orange); color: #fff; }
+.pause-chip:disabled { opacity: .45; cursor: default; }
 .assign-hint { font-size: 12.5px; line-height: 1.6; color: #888; }
 
 .win-close:active { background: rgba(255,255,255,.35); }
