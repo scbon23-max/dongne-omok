@@ -25,6 +25,7 @@
     paused: false,
     pausedRemainMs: null,
     resultInfo: null,
+    winChatText: null,
     drawAsk: null,       // { gseq, black: null|true|false, white: null|true|false } — 80수 자동 제안
     drawAskDone: false    // 자동 제안을 이미 물어봤는지(이번 판 1회)
   };
@@ -40,9 +41,9 @@
   var hostTimerId = null, dispTimerId = null;
   var GRACE_MS = 60000;
   var graceTimers = { black: null, white: null };
-  var winShownSeq = -1, liveSeq = -1, resultCalcSeq = -1;
+  var winShownSeq = -1, liveSeq = -1, resultCalcSeq = -1, omokWinChatSeq = -1, alkWinChatSeq = -1;
   var voidReqFrom = null, voidReqGseq = 0, undoReqCtx = null;
-  var beginReqCtx = null;
+  var beginReqCtx = null, swapReqCtx = null;
   var audioCtx = null, soundMuted = false, lastStoneCount = 0, stoneBuffer = null, stoneLoading = false, silenceEl = null;
   var inoutBuffer = null, inoutLoading = false, prevNicks = [], joinedAt = 0, firstPresenceAt = 0;
   var displayRoster = [], awayMembers = {}, awayTimers = {}, explicitLeaves = {};
@@ -58,6 +59,46 @@
 
   function $(id) { return document.getElementById(id); }
   function colorName(c) { return c === BLACK ? "black" : "white"; }
+  function gameDef(id) { return window.GameCatalog && GameCatalog.get(id); }
+  function gameFamily(id) {
+    if (window.GameCatalog) return GameCatalog.family(id);
+    return id === "omok" ? "omok" : "alk";
+  }
+  function isOmokFamily(id) { return gameFamily(id) === "omok"; }
+  function isAlkFamily(id) { return gameFamily(id) === "alk"; }
+  function activeFamily() { return gameFamily(curRoomGame || curGame || "omok"); }
+  function rankableGames() {
+    return window.GameCatalog ? GameCatalog.rankableIds() : ["omok", "alk", "alk_terr"];
+  }
+  function emptyScoreMap() {
+    var out = {};
+    rankableGames().forEach(function (id) { out[id] = {}; });
+    return out;
+  }
+  function gameUi(id) {
+    var def = gameDef(id) || gameDef(gameFamily(id));
+    if (def) return def;
+    if (window.GameCatalog) {
+      return {
+        screenId: null,
+        roomStripId: null,
+        chatLogId: null,
+        chatInputId: null,
+        chatOverlayId: null,
+        onlineListId: null,
+        onlineNumId: null
+      };
+    }
+    return {
+      screenId: id === "omok" ? "game" : "alkgame",
+      roomStripId: id === "omok" ? "room-strip-omok" : "room-strip-alk",
+      chatLogId: id === "omok" ? "chat-log" : "alk-chat-log",
+      chatInputId: id === "omok" ? "chat-input" : "alk-chat-input",
+      chatOverlayId: id === "omok" ? "chat-overlay" : "alk-chat-overlay",
+      onlineListId: id === "omok" ? "online-list" : "alk-online-list",
+      onlineNumId: id === "omok" ? "online-num" : "alk-online-num"
+    };
+  }
 
   function reasonText(r) {
     if (r === "overline") return "장목(6목 이상)은 흑 금수예요.";
@@ -165,10 +206,10 @@
     updateOnlineCounts(); renderLobbyOnline();
   }
   var curGame = null, curRoomGame = null, omokStarted = false, alkStarted = false;
-  var A = { seats: { black: null, white: null }, turn: "b", started: false, over: false, winner: null, seq: 0, gameSeq: 0, recorded: false, paused: false };
+  var A = { seats: { black: null, white: null }, turn: "b", started: false, over: false, winner: null, seq: 0, gameSeq: 0, recorded: false, paused: false, winChatText: null };
   var alkInited = false;
   var alkGrace = { black: null, white: null };
-  var scoreMap = { omok: {}, alk: {}, alk_terr: {} };
+  var scoreMap = emptyScoreMap();
   // ---------- 로비 ----------
   var lobbyMode = false, lobbyRoster = [], rooms = {}, roomFilter = "all";
   var curRoomId = null, curRoomTitle = "", roomCreatedTs = 0;
@@ -228,11 +269,12 @@
       if (curRoomId && amHost) broadcastRoomOpen();
     }, 5000);
   }
-  function gameName(g) { return g === "omok" ? "오목" : g === "alk_terr" ? "점령전" : "알까기"; }
+  function gameName(g) { return window.GameCatalog ? GameCatalog.name(g) : (g === "omok" ? "오목" : g === "alk_terr" ? "점령전" : "알까기"); }
   function roomMetaObj() {
     var st, black, white;
-    if (curGame === "omok") { st = G.over ? "끝" : G.started ? "게임중" : "대기중"; black = G.seats.black; white = G.seats.white; }
-    else { st = A.over ? "끝" : A.started ? "게임중" : "대기중"; black = A.seats.black; white = A.seats.white; }
+    if (isOmokFamily(curGame)) { st = G.over ? "끝" : G.started ? "게임중" : "대기중"; black = G.seats.black; white = G.seats.white; }
+    else if (isAlkFamily(curGame)) { st = A.over ? "끝" : A.started ? "게임중" : "대기중"; black = A.seats.black; white = A.seats.white; }
+    else { st = "대기중"; black = null; white = null; }
     return { id: curRoomId, game: curRoomGame, name: curRoomTitle, host: me.nick, status: st, black: black || null, white: white || null, count: (netMode ? Math.max(displayRoster.length, roster.length, 1) : 1), ts: roomCreatedTs };
   }
   function broadcastRoomOpen() { if (lobbyMode) Net.sendLobby({ t: "room_open", room: roomMetaObj() }); }
@@ -265,7 +307,7 @@
     renderRoomStrip();
   }
   function renderRoomStrip() {
-    var strip = curGame === "alk" ? $("room-strip-alk") : $("room-strip-omok");
+    var strip = $(gameUi(activeFamily()).roomStripId);
     if (!strip || !curRoomId) return;
     var list = Object.keys(rooms).map(function (k) { return rooms[k]; });
     if (!list.some(function (r) { return r.id === curRoomId; })) {
@@ -276,14 +318,14 @@
       var cur = r.id === curRoomId;
       var gname = gameName(r.game);
       return '<button class="room-chip' + (cur ? ' current' : '') + '" data-id="' + esc(r.id) + '"' + (cur ? ' disabled' : '') + '>'
-        + (cur ? '● ' : '') + '<span class="rc-badge ' + r.game + '">' + gname + '</span>' + esc(r.name || "방") + '</button>';
+        + '<span class="rc-badge ' + r.game + '">' + gname + '</span>' + esc(r.name || "방") + '</button>';
     }).join("");
     var chips = strip.querySelectorAll(".room-chip:not(.current)");
     for (var i = 0; i < chips.length; i++) chips[i].addEventListener("click", function () { switchRoom(this.getAttribute("data-id")); });
   }
   function inActiveGame() {
-    var so = netMode && curGame === "omok" && G.started && !G.over && (G.seats.black === me.nick || G.seats.white === me.nick);
-    var sa = netMode && curGame === "alk" && A.started && !A.over && (A.seats.black === me.nick || A.seats.white === me.nick);
+    var so = netMode && isOmokFamily(curGame) && G.started && !G.over && (G.seats.black === me.nick || G.seats.white === me.nick);
+    var sa = netMode && isAlkFamily(curGame) && A.started && !A.over && (A.seats.black === me.nick || A.seats.white === me.nick);
     return so || sa;
   }
   function switchRoom(id) {
@@ -295,8 +337,8 @@
     enterRoom(r.id, r.game, r.name);
   }
   function vacateSeatIfActive() {
-    var seatedOmok = netMode && curGame === "omok" && G.started && !G.over && (G.seats.black === me.nick || G.seats.white === me.nick);
-    var seatedAlk = netMode && curGame === "alk" && A.started && !A.over && (A.seats.black === me.nick || A.seats.white === me.nick);
+    var seatedOmok = netMode && isOmokFamily(curGame) && G.started && !G.over && (G.seats.black === me.nick || G.seats.white === me.nick);
+    var seatedAlk = netMode && isAlkFamily(curGame) && A.started && !A.over && (A.seats.black === me.nick || A.seats.white === me.nick);
     if (seatedOmok) requestSeat(me.nick, "spec");
     if (seatedAlk) requestAlkSeat(me.nick, "spec");
     return seatedOmok || seatedAlk;
@@ -305,18 +347,18 @@
   function resetRoomGameState() {
     G.board = Renju.emptyBoard(); G.turn = BLACK; G.lastMove = null; G.over = false; G.winner = 0; G.draw = false;
     G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = [];
-    G.recorded = false; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
+    G.recorded = false; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.winChatText = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
     A.seats = { black: null, white: null }; A.turn = "b"; A.started = false; A.over = false; A.winner = null;
-    A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; alkSolo = false; omokSolo = false; omokAI.on = false; aiPending = false;
+    A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; A.winChatText = null; alkSolo = false; omokSolo = false; omokAI.on = false; aiPending = false;
     A.mode = "knockout"; A.remain = null; A.score = null;
     if (window.Alkkagi) Alkkagi.setMode("knockout");
-    winShownSeq = -1; liveSeq = -1; prevNicks = []; firstPresenceAt = 0; clearAwayRoster();
+    winShownSeq = -1; liveSeq = -1; omokWinChatSeq = -1; alkWinChatSeq = -1; prevNicks = []; firstPresenceAt = 0; clearAwayRoster();
     seatSoundArmed = false; prevSeats = { black: null, white: null }; lastRoomSoundAt = 0;
     clearAllGrace(); clearAlkGrace();
     if (window.Alkkagi) Alkkagi.setStones(Alkkagi.layout());
   }
   function enterRoom(roomId, game, title) {
-    curRoomId = roomId; curRoomGame = game; curGame = (game === "omok") ? "omok" : "alk"; curRoomTitle = title || roomId;
+    curRoomId = roomId; curRoomGame = game; curGame = gameFamily(game); curRoomTitle = title || roomId;
     if (rooms[roomId] && rooms[roomId].ts) roomCreatedTs = rooms[roomId].ts;
     amHost = false; wasHost = false; document.body.classList.remove("is-host"); stopHostTimer();
     resetRoomGameState(); resetRoomChat();
@@ -326,16 +368,20 @@
       { onReady: onNetReady, onMessage: onMessage, onPresence: onPresence, onStatus: onStatus });
     if (lobbyMode) Net.trackLobby(myMetaObj(roomId));
     $("lobby").classList.add("hidden");
-    if (curGame === "omok") {
-      $("game").classList.remove("hidden"); $("alkgame").classList.add("hidden");
+    $("game").classList.add("hidden"); $("alkgame").classList.add("hidden");
+    if (isOmokFamily(curGame)) {
+      $("game").classList.remove("hidden");
       if (!omokStarted) { omokStarted = true; startGameUI(); }
-    } else {
-      $("alkgame").classList.remove("hidden"); $("game").classList.add("hidden");
+    } else if (isAlkFamily(curGame)) {
+      $("alkgame").classList.remove("hidden");
       if (!alkStarted) { alkStarted = true; alkStartView(); }
+    } else {
+      var ui = gameUi(curGame);
+      if (ui.screenId && $(ui.screenId)) $(ui.screenId).classList.remove("hidden");
     }
     if (!netMode) { amHost = true; document.body.classList.add("is-host"); setConn("local"); }
     renderPresenceUI(); updateTurnUI(); render(); renderRoomStrip();
-    if (curGame === "alk") renderAlkUI();
+    if (isAlkFamily(curGame)) renderAlkUI();
   }
   function createRoom(game, name) {
     var id = "rm" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e4).toString(36);
@@ -343,8 +389,8 @@
     enterRoom(id, game, (name && name.trim()) || (me.nick + "님의 방"));
   }
   function requestLeaveRoom() {
-    var inGame = (curGame === "omok" && G.started && !G.over && (G.seats.black === me.nick || G.seats.white === me.nick))
-      || (curGame === "alk" && A.started && !A.over && (A.seats.black === me.nick || A.seats.white === me.nick));
+    var inGame = (isOmokFamily(curGame) && G.started && !G.over && (G.seats.black === me.nick || G.seats.white === me.nick))
+      || (isAlkFamily(curGame) && A.started && !A.over && (A.seats.black === me.nick || A.seats.white === me.nick));
     if (inGame) { openModal("leaveroom-modal"); return; }
     leaveRoomToLobby();
   }
@@ -393,7 +439,7 @@
     if (window.Alkkagi) Alkkagi.setMode("knockout");
     Alkkagi.setStones(Alkkagi.layout());
     clearAlkGrace();
-    A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.recorded = true; A.paused = false;
+    A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.recorded = true; A.paused = false; A.winChatText = null;
     A.gameSeq++; A.seq++;
     Alkkagi.setMeta("b", A.seats, true, false, null);
     broadcastAlk(); renderAlkUI();
@@ -410,20 +456,20 @@
     A.mode = "territory"; A.remain = { b: 6, w: 6 }; A.score = { b: 0, w: 0 };
     A.seats = { black: me.nick, white: me.nick };
     clearAlkGrace();
-    A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.recorded = true; A.paused = false;
+    A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.recorded = true; A.paused = false; A.winChatText = null;
     A.gameSeq++; A.seq++;
     Alkkagi.setMode("territory"); Alkkagi.setStones([]); Alkkagi.spawnActive("b");
     Alkkagi.setMeta("b", A.seats, true, false, null);
     broadcastAlk(); renderAlkUI();
     toast("점령전 연습 — 과녁 중심에 가깝게! 흑·백 6개씩");
   }
-  function alkSnapshot() { return { seats: A.seats, turn: A.turn, started: A.started, over: A.over, winner: A.winner, paused: A.paused, seq: A.seq, gameSeq: A.gameSeq, mode: A.mode, remain: A.remain, score: A.score, stones: Alkkagi.getStones() }; }
+  function alkSnapshot() { return { seats: A.seats, turn: A.turn, started: A.started, over: A.over, winner: A.winner, winChatText: A.winChatText, paused: A.paused, seq: A.seq, gameSeq: A.gameSeq, mode: A.mode, remain: A.remain, score: A.score, stones: Alkkagi.getStones() }; }
   function broadcastAlk() { if (netMode) Net.send({ t: "alk_state", state: alkSnapshot() }); }
   function applyAlkState(s) {
     if (!s || (typeof s.seq === "number" && s.seq < A.seq)) return;
     if (window.Alkkagi && Alkkagi.isMoving()) return;
     A.seats = s.seats || { black: null, white: null }; A.turn = s.turn || "b";
-    A.started = !!s.started; A.over = !!s.over; A.winner = s.winner || null; A.paused = !!s.paused;
+    A.started = !!s.started; A.over = !!s.over; A.winner = s.winner || null; A.winChatText = s.winChatText || null; A.paused = !!s.paused;
     A.seq = s.seq || 0; A.gameSeq = s.gameSeq || 0;
     A.mode = s.mode || "knockout"; A.remain = s.remain || null; A.score = s.score || null;
     if (window.Alkkagi) { Alkkagi.setMode(A.mode); Alkkagi.setStones(s.stones || []); Alkkagi.setMeta(A.turn, A.seats, A.started, A.over, A.winner); }
@@ -480,7 +526,7 @@
       Alkkagi.setMode("knockout"); Alkkagi.setStones(Alkkagi.layout());
     }
     clearAlkGrace();
-    A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.recorded = false; A.paused = false; A.gameSeq++; A.seq++;
+    A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.winChatText = null; A.recorded = false; A.paused = false; A.gameSeq++; A.seq++;
     beginReqCtx = null; $("begin-modal").classList.add("hidden");
     Alkkagi.setMeta("b", A.seats, true, false, null);
     broadcastAlk(); renderAlkUI();
@@ -528,6 +574,7 @@
         seq: ++A.seq
       };
     }
+    if (fin.over && fin.winner && fin.winner !== "draw") fin.winChatText = alkWinChatText(fin.winner);
     if (netMode) Net.send({ t: "alk_move", idx: idx, vx: vx, vy: vy, fin: fin });
     else onAlkMove(idx, vx, vy, fin);
   }
@@ -536,7 +583,7 @@
     if (window.Alkkagi && Alkkagi.isMoving()) { alkMoveQueue.push([idx, vx, vy, fin]); return; }
     Alkkagi.runFlick(idx, vx, vy, function () {
       if (fin) {
-        A.turn = fin.turn; A.over = fin.over; A.winner = fin.winner; A.started = !fin.over;
+        A.turn = fin.turn; A.over = fin.over; A.winner = fin.winner; A.winChatText = fin.winChatText || null; A.started = !fin.over;
         if (fin.seq) A.seq = Math.max(A.seq, fin.seq);
         Alkkagi.setStones(fin.stones);
         if (fin.territory) {
@@ -558,7 +605,6 @@
     if (!b || !w || b === w || !A.over || !A.winner) return;
     A.recorded = true;
     var winner = A.winner === "draw" ? "draw" : (A.winner === "b" ? "black" : "white");
-    if (A.winner !== "draw") announceAlkWinChat();
     var gameType = (A.mode === "territory") ? "alk_terr" : "alk";
     if (window.Db) Db.recordAlkGame(b, w, winner, gameType).then(function () { Net.sendLobby({ t: "scores", game: gameType }); }).catch(function () {});
   }
@@ -603,24 +649,27 @@
     else { $("alk-cntB").textContent = window.Alkkagi ? Alkkagi.aliveCount("b") : 5; $("alk-cntW").textContent = window.Alkkagi ? Alkkagi.aliveCount("w") : 5; }
     $("alk-chipB").classList.toggle("active", A.turn === "b" && A.started && !A.over);
     $("alk-chipW").classList.toggle("active", A.turn === "w" && A.started && !A.over);
-    var cb = $("alk-center-btn");
+    var cb = $("alk-center-btn"), sb = $("alk-swap-btn");
     var alkSeatedMe = (!netMode || A.seats.black === me.nick || A.seats.white === me.nick || me.isAdmin);
     var alkISit = (A.seats.black === me.nick || A.seats.white === me.nick);
     var alkBoth = A.seats.black && A.seats.white;
+    var alkCanSwap = !!(netMode && !A.started && !A.over && alkBoth && alkISit);
     if (cb) {
       if (!A.started && !A.over && alkBoth && alkSeatedMe) { cb.textContent = "대국 신청"; cb.dataset.act = "begin"; cb.classList.remove("hidden"); }
       else if (!A.started && !A.over && alkISit && !alkBoth) { cb.textContent = "연습하기"; cb.dataset.act = "solo"; cb.classList.remove("hidden"); }
       else cb.classList.add("hidden");
     }
+    if (sb) sb.classList.toggle("hidden", !alkCanSwap);
     var sc = terr ? (A.score || { b: 0, w: 0 }) : null;
     var wf = $("alk-win");
     if (wf) {
       if (A.over) {
         var awn = A.winner === "b" ? A.seats.black : A.seats.white;
         $("alk-wintext").textContent = terr ? terrResultPlain(sc) : (A.winner === "draw" ? "무승부!" : (awn ? awn + "님 승리!" : (A.winner === "b" ? "흑" : "백") + " 승리!"));
+        showWinChatOnce("alk", A.gameSeq, A.winChatText);
         wf.classList.remove("hidden");
         if (alkWinSeq !== A.gameSeq) { alkWinSeq = A.gameSeq; if (A.winner && A.winner !== "draw") playSample(winBuffer); }
-      } else { wf.classList.add("hidden"); alkWinSeq = -1; }
+      } else { wf.classList.add("hidden"); alkWinSeq = -1; alkWinChatSeq = -1; }
     }
   }
   function terrResultPlain(sc) {
@@ -660,8 +709,8 @@
   function roomName() { return (window.OMOK_CONFIG && window.OMOK_CONFIG.ROOM) || "main"; }
   function loadChatHistory() {
     if (!window.Db || !curRoomId) return;
-    var g = curGame === "alk" ? "alk" : "omok";
-    var panel = curGame === "alk" ? "alk-chat-log" : "chat-log";
+    var g = activeFamily();
+    var panel = gameUi(g).chatLogId;
     Db.getChatHistory(chatRoomOf(curGame), 200).then(function (msgs) {
       if (msgs.length) oldestChatTs = msgs[0].created_at;
       if (msgs.length < 200) noMoreChat = true;
@@ -702,15 +751,20 @@
     inp.value = "";
   }
   function resetRoomChat() {
-    var a = $("chat-log"), b = $("alk-chat-log");
-    if (a) a.innerHTML = ""; if (b) b.innerHTML = "";
+    var seen = {};
+    (window.GameCatalog ? GameCatalog.families() : ["omok", "alk"]).forEach(function (family) {
+      var id = gameUi(family).chatLogId;
+      if (!id || seen[id]) return;
+      seen[id] = true;
+      var log = $(id); if (log) log.innerHTML = "";
+    });
     oldestChatTs = null; loadingOlder = false; noMoreChat = false;
     sessionChat = [];
   }
   function loadOlderChat() {
     if (loadingOlder || noMoreChat || !oldestChatTs || !window.Db) return;
     loadingOlder = true;
-    var log = $("chat-log"); if (!log) { loadingOlder = false; return; }
+    var log = $(gameUi(activeFamily()).chatLogId); if (!log) { loadingOlder = false; return; }
     Db.getChatHistoryBefore(chatRoomOf(curGame), oldestChatTs, 100).then(function (older) {
       if (!older.length) { noMoreChat = true; loadingOlder = false; return; }
       if (older.length < 100) noMoreChat = true;
@@ -798,11 +852,14 @@
 
   function onPresence(list) {
     pruneExplicitLeaves();
+    var shownBefore = {};
+    displayRoster.forEach(function (m) { if (m && m.nick) shownBefore[m.nick] = true; });
+    Object.keys(awayMembers).forEach(function (nick) { shownBefore[nick] = true; });
     roster = (list || []).filter(function (m) { return m && m.nick && !explicitLeaves[m.nick]; });
     var nicks = roster.map(function (m) { return m.nick; });
     if (!firstPresenceAt) firstPresenceAt = Date.now();
     if (Date.now() - firstPresenceAt > 1500) {
-      var joined = nicks.filter(function (n) { return !findDisplayMember(n); });
+      var joined = nicks.filter(function (n) { return !shownBefore[n]; });
       var left = prevNicks.filter(function (n) { return nicks.indexOf(n) < 0; });
       if (joined.length) playRoomEnter();
       joined.forEach(function (n) { addSysBoth(n + "님이 입장했어요"); });
@@ -926,6 +983,8 @@
       case "alk_seat": if (amHost) hostAlkSeat(msg.by, msg.nick, msg.seat); break;
       case "alk_begin_req": if (msg.to === me.nick) showBeginModal("alk", msg.from, msg.gseq); break;
       case "alk_begin_res": onBeginResponse("alk", msg); break;
+      case "alk_swap_req": if (msg.to === me.nick) showSwapModal("alk", msg.from, msg.gseq); break;
+      case "alk_swap_res": onSwapResponse("alk", msg); break;
       case "alk_begin": if (amHost) alkBegin(msg.by); break;
       case "alk_place": if (msg.nick !== me.nick && window.Alkkagi && A.mode === "territory") { Alkkagi.placeActive(msg.x); renderAlkUI(); } break;
       case "alk_flick": if (amHost) hostAlkFlick(msg.nick, msg.idx, msg.vx, msg.vy, msg.px); break;
@@ -933,11 +992,13 @@
       case "move": if (amHost) hostApplyMove(msg.nick, msg.r, msg.c); break;
       case "begin_req": if (msg.to === me.nick) showBeginModal("omok", msg.from, msg.gseq); break;
       case "begin_res": onBeginResponse("omok", msg); break;
+      case "swap_req": if (msg.to === me.nick) showSwapModal("omok", msg.from, msg.gseq); break;
+      case "swap_res": onSwapResponse("omok", msg); break;
       case "begin": if (amHost && !G.started && (msg.gseq == null || msg.gseq === G.gameSeq)) beginGame(msg.by); break;
       case "seat": if (amHost) hostApplySeat(msg.by, msg.nick, msg.seat); break;
       case "set_timer": if (amHost && (msg.by === ADMIN || msg.by === hostNick)) setTimer(msg.sec); break;
       case "toggle_pause": if (amHost && (msg.by === ADMIN || msg.by === hostNick)) setManualPause(!!msg.paused); break;
-      case "chat": if (msg.nick !== me.nick) addChatTo(msg.game === "alk" ? "alk" : "omok", msg.nick, msg.text, true); break;
+      case "chat": if (msg.nick !== me.nick) addChatTo(gameFamily(msg.game || "omok"), msg.nick, msg.text, true); break;
       case "undo_req": if (msg.to === me.nick) showUndoModal(msg.from, msg.gseq, msg.hlen); break;
       case "undo_res":
         $("undo-modal").classList.add("hidden");
@@ -971,7 +1032,7 @@
       seats: G.seats, timerSec: G.timerSec, moveDeadline: G.moveDeadline,
       moveRemainMs: G.moveDeadline ? Math.max(0, G.moveDeadline - Date.now()) : null,
       rev: G.rev, gameSeq: G.gameSeq, history: G.history,
-      started: G.started, lastPlayers: G.lastPlayers, resultAt: G.resultAt, resultInfo: G.resultInfo, manualPaused: G.manualPaused, paused: G.paused, pausedRemainMs: G.pausedRemainMs,
+      started: G.started, lastPlayers: G.lastPlayers, resultAt: G.resultAt, resultInfo: G.resultInfo, winChatText: G.winChatText, manualPaused: G.manualPaused, paused: G.paused, pausedRemainMs: G.pausedRemainMs,
       drawAsk: G.drawAsk, drawAskDone: G.drawAskDone
     };
   }
@@ -984,7 +1045,7 @@
     G.moveDeadline = (typeof s.moveRemainMs === "number") ? (Date.now() + s.moveRemainMs) : s.moveDeadline;
     G.rev = s.rev || 0; G.gameSeq = s.gameSeq || 0;
     G.history = s.history || [];
-    G.started = !!s.started; G.lastPlayers = s.lastPlayers || null; G.resultAt = s.resultAt || null; G.resultInfo = s.resultInfo || null;
+    G.started = !!s.started; G.lastPlayers = s.lastPlayers || null; G.resultAt = s.resultAt || null; G.resultInfo = s.resultInfo || null; G.winChatText = s.winChatText || null;
     G.manualPaused = !!s.manualPaused;
     G.paused = !!s.paused; G.pausedRemainMs = (typeof s.pausedRemainMs === "number") ? s.pausedRemainMs : null;
     G.drawAsk = s.drawAsk || null; G.drawAskDone = !!s.drawAskDone;
@@ -992,10 +1053,10 @@
     syncTimerChips(); syncPauseButton(); updateTurnUI(); renderPlayersList(); render(); updateCenterButton(); updateDrawAskUI();
     if (G.over) {
       if (liveSeq === G.gameSeq && winShownSeq !== G.gameSeq) showWin();
-      else renderWinResult();
+      else { renderWinResult(); showWinChatOnce("omok", G.gameSeq, G.winChatText); }
     } else {
       liveSeq = G.gameSeq;
-      winShownSeq = -1; resultCalcSeq = -1; $("omok-win").classList.add("hidden");
+      winShownSeq = -1; resultCalcSeq = -1; omokWinChatSeq = -1; $("omok-win").classList.add("hidden");
     }
   }
 
@@ -1124,7 +1185,7 @@
   function updateDrawAskUI() {
     var ov = $("draw-ask"); if (!ov) return;
     var da = G.drawAsk;
-    if (!da || da.gseq !== G.gameSeq || G.over || curGame !== "omok") { ov.classList.add("hidden"); return; }
+    if (!da || da.gseq !== G.gameSeq || G.over || !isOmokFamily(curGame)) { ov.classList.add("hidden"); return; }
     var mySeat = (G.seats.black === me.nick) ? "black" : (G.seats.white === me.nick) ? "white" : null;
     if (!mySeat || da[mySeat] != null) { ov.classList.add("hidden"); return; }
     ov.classList.remove("hidden");
@@ -1185,22 +1246,21 @@
   }
 
   function beginGameTitle(game) {
-    if (game === "alk") return curRoomGame === "alk_terr" ? "점령전" : "알까기";
-    return "오목";
+    return gameName(game === curGame ? (curRoomGame || game) : game);
   }
   function beginSeats(game) {
-    return game === "alk" ? A.seats : G.seats;
+    return isAlkFamily(game) ? A.seats : G.seats;
   }
   function beginSeq(game) {
-    return game === "alk" ? A.gameSeq : G.gameSeq;
+    return isAlkFamily(game) ? A.gameSeq : G.gameSeq;
   }
   function beginStarted(game) {
-    return game === "alk" ? A.started : G.started;
+    return isAlkFamily(game) ? A.started : G.started;
   }
   function beginOpponent(game, nick) {
     var seats = beginSeats(game);
     if (!seats || !seats.black || !seats.white || seats.black === seats.white) return null;
-    if (game === "omok" && (seats.black === AI_NICK || seats.white === AI_NICK)) return null;
+    if (isOmokFamily(game) && (seats.black === AI_NICK || seats.white === AI_NICK)) return null;
     if (seats.black === nick) return seats.white;
     if (seats.white === nick) return seats.black;
     return null;
@@ -1219,7 +1279,7 @@
     var opp = beginOpponent(game, me.nick);
     if (!opp) return false;
     if (Date.now() < beginCooldownUntil) { toast("대국 신청은 10초 뒤에 다시 보낼 수 있어요"); return true; }
-    Net.send({ t: game === "alk" ? "alk_begin_req" : "begin_req", from: me.nick, to: opp, gseq: beginSeq(game) });
+    Net.send({ t: isAlkFamily(game) ? "alk_begin_req" : "begin_req", from: me.nick, to: opp, gseq: beginSeq(game) });
     startBeginCooldown();
     toast(opp + "님에게 대국 신청을 보냈어요. 상대가 수락하면 시작됩니다", 3200);
     return true;
@@ -1237,7 +1297,7 @@
     $("begin-modal").classList.add("hidden");
     beginReqCtx = null;
     if (!ctx) return;
-    var t = ctx.game === "alk" ? "alk_begin_res" : "begin_res";
+    var t = isAlkFamily(ctx.game) ? "alk_begin_res" : "begin_res";
     Net.send({ t: t, accept: !!accept, from: me.nick, to: ctx.from, gseq: ctx.gseq });
     if (accept) toast("대국 신청을 수락했어요");
   }
@@ -1248,13 +1308,87 @@
       var samePair = beginOpponent(game, requester) === msg.from;
       var sameSeq = msg.gseq == null || msg.gseq === beginSeq(game);
       if (amHost && samePair && sameSeq && !beginStarted(game)) {
-        if (game === "alk") alkBegin(requester);
+        if (isAlkFamily(game)) alkBegin(requester);
         else beginGame(requester);
       }
       if (requester === me.nick) toast("상대가 대국 신청을 수락했어요");
     } else if (requester === me.nick) {
       toast("상대가 대국 신청을 거절했어요");
     }
+  }
+
+  function swapOver(game) {
+    return game === "alk" ? A.over : G.over;
+  }
+  function swapOpponent(game, nick) {
+    if (beginStarted(game) || swapOver(game)) return null;
+    return beginOpponent(game, nick);
+  }
+  var swapCooldownUntil = 0;
+  function startSwapCooldown() {
+    swapCooldownUntil = Date.now() + REQUEST_COOLDOWN_MS;
+    ["swap-btn", "alk-swap-btn"].forEach(function (id) {
+      var b = $(id); if (!b) return;
+      b.disabled = true; b.classList.add("cooldown");
+      setTimeout(function () { b.disabled = false; b.classList.remove("cooldown"); }, REQUEST_COOLDOWN_MS);
+    });
+  }
+  function requestSeatSwap(game) {
+    if (!netMode) return;
+    var opp = swapOpponent(game, me.nick);
+    if (!opp) { toast("두 사람이 앉아 있고 대국 전일 때만 자리 체인지할 수 있어요"); return; }
+    if (Date.now() < swapCooldownUntil) { toast("자리 체인지는 10초 뒤에 다시 요청할 수 있어요"); return; }
+    Net.send({ t: game === "alk" ? "alk_swap_req" : "swap_req", from: me.nick, to: opp, gseq: beginSeq(game) });
+    startSwapCooldown();
+    toast(opp + "님에게 자리 체인지를 요청했어요", 3200);
+  }
+  function showSwapModal(game, from, gseq) {
+    if (!from || from === me.nick) return;
+    if (gseq != null && gseq !== beginSeq(game)) return;
+    if (swapOpponent(game, from) !== me.nick) return;
+    swapReqCtx = { game: game, from: from, gseq: gseq == null ? beginSeq(game) : gseq };
+    $("swap-text").textContent = from + "님이 " + beginGameTitle(game) + " 흑·백 자리를 바꾸자고 요청했어요.\n수락하면 바로 자리가 바뀝니다.";
+    $("swap-modal").classList.remove("hidden");
+  }
+  function respondSwapRequest(accept) {
+    var ctx = swapReqCtx;
+    $("swap-modal").classList.add("hidden");
+    swapReqCtx = null;
+    if (!ctx) return;
+    Net.send({ t: ctx.game === "alk" ? "alk_swap_res" : "swap_res", accept: !!accept, from: me.nick, to: ctx.from, gseq: ctx.gseq });
+    if (accept) toast("자리 체인지를 수락했어요");
+  }
+  function onSwapResponse(game, msg) {
+    var requester = msg.to || msg.by;
+    if (!requester) return;
+    if (msg.accept) {
+      var samePair = swapOpponent(game, requester) === msg.from;
+      var sameSeq = msg.gseq == null || msg.gseq === beginSeq(game);
+      if (amHost && samePair && sameSeq) hostSwapSeats(game);
+      if (requester === me.nick) toast("상대가 자리 체인지를 수락했어요");
+    } else if (requester === me.nick) {
+      toast("상대가 자리 체인지를 거절했어요");
+    }
+  }
+  function hostSwapSeats(game) {
+    if (netMode && !amHost) return;
+    if (!swapOpponent(game, beginSeats(game).black)) return;
+    if (game === "alk") {
+      var aw = A.seats.white;
+      A.seats.white = A.seats.black;
+      A.seats.black = aw;
+      A.seq++;
+      if (window.Alkkagi) Alkkagi.setMeta(A.turn, A.seats, A.started, A.over, A.winner);
+      broadcastAlk(); renderAlkUI(); renderPlayersList(); renderPresenceUI();
+      return;
+    }
+    var w = G.seats.white;
+    G.seats.white = G.seats.black;
+    G.seats.black = w;
+    omokAI.on = false;
+    G.rev++;
+    broadcastState();
+    renderPlayersList(); updateTurnUI(); render(); updateCenterButton();
   }
 
   function beginGame(by) {
@@ -1266,7 +1400,7 @@
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
     G.drawAsk = null; G.drawAskDone = false;
-    G.resultAt = null; G.resultInfo = null;
+    G.resultAt = null; G.resultInfo = null; G.winChatText = null;
     G.started = true;
     G.manualPaused = false; G.paused = false; G.pausedRemainMs = null; clearAllGrace();
     G.lastPlayers = { black: G.seats.black, white: G.seats.white };
@@ -1283,7 +1417,7 @@
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
     G.drawAsk = null; G.drawAskDone = false;
-    G.resultAt = null; G.resultInfo = null;
+    G.resultAt = null; G.resultInfo = null; G.winChatText = null;
     G.started = false;
     G.manualPaused = false; G.paused = false; G.pausedRemainMs = null; clearAllGrace();
     G.moveDeadline = null;
@@ -1359,7 +1493,7 @@
   }
 
   function showWin() {
-    if (curGame !== "omok") return;
+    if (!isOmokFamily(curGame)) return;
     var t;
     if (G.draw) t = "무승부!";
     else {
@@ -1370,6 +1504,7 @@
     renderWinResult();
     $("omok-win").classList.remove("hidden");
     winShownSeq = G.gameSeq;
+    showWinChatOnce("omok", G.gameSeq, G.winChatText);
     if (!G.draw) playSample(winBuffer);
     setTimeout(refreshScores, 800);
     buildResultInfoAsync();
@@ -1497,7 +1632,7 @@
     var onTurnNick = G.seats[colorName(G.turn)];
     var myTurn = !!onTurnNick && onTurnNick === me.nick;
     if (myTurn && remain >= 1 && remain <= 5) {
-      if (remain !== lastWarnSec) { if (curGame === "omok") playSample(warnBuffer); lastWarnSec = remain; }
+      if (remain !== lastWarnSec) { if (isOmokFamily(curGame)) playSample(warnBuffer); lastWarnSec = remain; }
     } else {
       lastWarnSec = -1;
     }
@@ -1552,7 +1687,11 @@
   function seatName(which) { return G.seats[which] || null; }
   var scoresRefreshT = null, scoresPend = {};
   function scheduleScoresRefresh(game) {
-    if (game) scoresPend[game] = 1; else scoresPend = { omok: 1, alk: 1, alk_terr: 1 };
+    if (game) scoresPend[game] = 1;
+    else {
+      scoresPend = {};
+      rankableGames().forEach(function (id) { scoresPend[id] = 1; });
+    }
     if (scoresRefreshT) return;
     scoresRefreshT = setTimeout(function () {
       scoresRefreshT = null;
@@ -1563,12 +1702,13 @@
   function refreshScores(only) {
     if (!window.Db) return;
     var s = currentSeason();
-    (only ? [only] : ["omok", "alk", "alk_terr"]).forEach(function (game) {
+    (only ? [only] : rankableGames()).forEach(function (game) {
       Db.getGamesByType(game).then(function (games) {
         var sg = games.filter(function (g) { return gameInSeason(g, s); });
         var m = {}; aggregate(sg).forEach(function (st) { m[st.nick] = st.score; });
         scoreMap[game] = m;
-        if (game === "omok") updateTurnUI(); else renderAlkUI();
+        if (isOmokFamily(game)) updateTurnUI();
+        else if (isAlkFamily(game)) renderAlkUI();
       }).catch(function () {});
     });
   }
@@ -1593,40 +1733,49 @@
   }
   function updateCenterButton() {
     var btn = $("center-btn"); if (!btn) return;
-    var area = $("center-area"), aiBtn = $("ai-btn"), levels = $("ai-levels");
+    var area = $("center-area"), aiBtn = $("ai-btn"), swapBtn = $("swap-btn"), levels = $("ai-levels");
     var bothFilled = G.seats.black && G.seats.white;
     var seatedMe = (!netMode || G.seats.black === me.nick || G.seats.white === me.nick || me.isAdmin);
     var iSit = (G.seats.black === me.nick || G.seats.white === me.nick);
+    var canSwap = !!(netMode && !G.started && !G.over && bothFilled && iSit && G.seats.black !== AI_NICK && G.seats.white !== AI_NICK);
     if (levels) levels.classList.add("hidden");
     if (!G.started && !G.over && bothFilled && seatedMe) {
       btn.textContent = "대국 신청"; btn.dataset.act = "begin"; btn.classList.remove("hidden");
+      if (swapBtn) swapBtn.classList.toggle("hidden", !canSwap);
       if (aiBtn) aiBtn.classList.add("hidden");
       if (area) area.classList.remove("hidden");
     } else if (!G.started && !G.over && iSit && !bothFilled) {
       btn.textContent = "혼자 두기"; btn.dataset.act = "solo"; btn.classList.remove("hidden");
+      if (swapBtn) swapBtn.classList.add("hidden");
       if (aiBtn) aiBtn.classList.remove("hidden");
       if (area) area.classList.remove("hidden");
-    } else if (area) area.classList.add("hidden");
+    } else {
+      if (swapBtn) swapBtn.classList.add("hidden");
+      if (area) area.classList.add("hidden");
+    }
   }
   function renderPresenceUI() {
     updateOnlineCounts();
-    renderGameOnline("omok"); renderGameOnline("alk");
+    (window.GameCatalog ? GameCatalog.families() : ["omok", "alk"]).forEach(renderGameOnline);
   }
   function renderGameOnline(game) {
-    var box = $(game === "omok" ? "online-list" : "alk-online-list");
-    var num = $(game === "omok" ? "online-num" : "alk-online-num");
+    var ui = gameUi(game);
+    var box = $(ui.onlineListId);
+    var num = $(ui.onlineNumId);
     if (!box) return;
-    var here = (game === curGame) ? (netMode ? displayRoster.slice() : [{ nick: me.nick, joinTs: 0 }]) : [];
+    var here = (game === activeFamily()) ? (netMode ? displayRoster.slice() : [{ nick: me.nick, joinTs: 0 }]) : [];
     here.sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); });
     if (num) num.textContent = here.length;
     box.innerHTML = here.map(function (m) {
       var tag;
-      if (game === "omok") {
+      if (isOmokFamily(game)) {
         var role = m.nick === G.seats.black ? "흑" : m.nick === G.seats.white ? "백" : "";
         tag = role ? '<span class="ol-tag ' + (role === "흑" ? "b" : "w") + '">' + role + '</span>' : "";
-      } else {
+      } else if (isAlkFamily(game)) {
         var arole = m.nick === A.seats.black ? "흑" : m.nick === A.seats.white ? "백" : "";
         tag = arole ? '<span class="ol-tag ' + (arole === "흑" ? "b" : "w") + '">' + arole + '</span>' : "";
+      } else {
+        tag = "";
       }
       var meMark = (m.nick === me.nick) ? " (나)" : "";
       var crown = (netMode && !m.away && m.nick === hostNick) ? '<span class="ol-crown" title="방장">👑</span>' : "";
@@ -1638,7 +1787,7 @@
   function renderPlayersList() {
     var box = $("players-list"); if (!box) return;
     if (!netMode) { box.innerHTML = '<p class="players-hint">혼자 연습 중입니다. 친구가 링크로 들어오면 여기에 표시됩니다.</p>'; return; }
-    var pseats = curGame === "alk" ? A.seats : G.seats;
+    var pseats = isAlkFamily(curGame) ? A.seats : G.seats;
     var html = "";
     displayRoster.slice().sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); }).forEach(function (m) {
       var role = m.nick === pseats.black ? "흑" : m.nick === pseats.white ? "백" : "관전";
@@ -1661,7 +1810,7 @@
       var btns = box.querySelectorAll(".pbtn");
       for (var i = 0; i < btns.length; i++) btns[i].addEventListener("click", function () {
         var nk = this.getAttribute("data-nick"), st = this.getAttribute("data-seat");
-        if (curGame === "alk") requestAlkSeat(nk, st); else requestSeat(nk, st);
+        if (isAlkFamily(curGame)) requestAlkSeat(nk, st); else requestSeat(nk, st);
       });
     }
   }
@@ -1785,9 +1934,10 @@
   }
 
   var rankGame = "omok", rankTab = "omok", rankSeasons = [], rankSeasonIdx = 0;
-  function rankTitle() { return rankGame === "all" ? "전체 랭킹" : rankGame === "alk" ? "알까기 랭킹" : rankGame === "alk_terr" ? "점령전 랭킹" : "오목 랭킹"; }
+  function rankTitle() { return rankGame === "all" ? "전체 랭킹" : (window.GameCatalog ? GameCatalog.rankName(rankGame) : (rankGame === "alk" ? "알까기 랭킹" : rankGame === "alk_terr" ? "점령전 랭킹" : "오목 랭킹")); }
   async function openRank(game) {
-    rankGame = (game === "alk" || game === "alk_terr" || game === "all") ? game : "omok";
+    var ranks = rankableGames();
+    rankGame = (game === "all" || ranks.indexOf(game) >= 0) ? game : "omok";
     $("rank-modal").classList.remove("hidden");
     $("rank-detail").classList.add("hidden");
     $("rank-list").classList.remove("hidden");
@@ -1801,9 +1951,10 @@
       accts.forEach(function (a) { accSet[a.nickname] = 1; });
       window.__accSet = accSet;
       if (rankGame === "all") {
-        rankTab = "omok";
+        rankTab = ranks[0] || "omok";
         var all = await withTimeout(Db.getGames(), 8000);
-        var byType = { omok: [], alk: [], alk_terr: [] };
+        var byType = {};
+        ranks.forEach(function (id) { byType[id] = []; });
         all.forEach(function (g) { var t = g.game || "omok"; if (byType[t]) byType[t].push(g); });
         window.__gamesAll = byType;
         window.__games = all;
@@ -1835,6 +1986,16 @@
       .sort(function (a, b) { return b.score - a.score; });
     return { ranked: ranked, provisional: provisional };
   }
+  function renderRankTabs() {
+    var tabs = $("rank-tabs"); if (!tabs) return;
+    tabs.innerHTML = rankableGames().map(function (id) {
+      return '<button class="rtab" data-g="' + esc(id) + '">' + esc(gameName(id)) + '</button>';
+    }).join("");
+    var tbtns = tabs.querySelectorAll(".rtab");
+    for (var i = 0; i < tbtns.length; i++) {
+      tbtns[i].addEventListener("click", function () { rankTab = this.getAttribute("data-g"); renderSeason(); });
+    }
+  }
   function renderSeason() {
     var s = rankSeasons[rankSeasonIdx]; if (!s) return;
     var isCur = (s.key === currentSeason().key);
@@ -1846,6 +2007,7 @@
     var tabs = $("rank-tabs");
     if (rankGame === "all") {
       if (tabs) {
+        renderRankTabs();
         tabs.classList.remove("hidden");
         var tbtns = tabs.querySelectorAll(".rtab");
         for (var i = 0; i < tbtns.length; i++) tbtns[i].classList.toggle("active", tbtns[i].getAttribute("data-g") === rankTab);
@@ -2155,7 +2317,7 @@
       ctx.beginPath(); ctx.arc(px(G.lastMove.c), px(G.lastMove.r), RADIUS + 2, 0, Math.PI * 2); ctx.stroke();
     }
     var cnt = stoneCount();
-    if (cnt === lastStoneCount + 1 && curGame === "omok") playStone();
+    if (cnt === lastStoneCount + 1 && isOmokFamily(curGame)) playStone();
     lastStoneCount = cnt;
   }
   function drawStone(x, y, color) {
@@ -2213,8 +2375,10 @@
     return div;
   }
   function chatRoomOf(game) { return curRoomId ? ("r:" + curRoomId) : roomName(); }
-  var unreadCount = { omok: 0, alk: 0 };
+  var unreadCount = {};
+  (window.GameCatalog ? GameCatalog.families() : ["omok", "alk"]).forEach(function (family) { unreadCount[family] = 0; });
   function renderUnread(game) {
+    if (unreadCount[game] == null) unreadCount[game] = 0;
     var n = unreadCount[game];
     var tabs = document.querySelectorAll(".game-tab." + (game === "omok" ? "omok-tab" : "alk-tab"));
     for (var i = 0; i < tabs.length; i++) {
@@ -2223,35 +2387,46 @@
       if (badge) badge.textContent = n > 0 ? (n > 99 ? "99+" : String(n)) : "";
     }
   }
-  function bumpUnread(game) { unreadCount[game]++; renderUnread(game); }
+  function bumpUnread(game) { if (unreadCount[game] == null) unreadCount[game] = 0; unreadCount[game]++; renderUnread(game); }
   function clearUnread(game) { unreadCount[game] = 0; renderUnread(game); }
-  function sendSystemChat(game, text) {
-    if (netMode) Net.send({ t: "chat", game: game, nick: "__sys", text: text });
-    else addChatTo(game, "__sys", text);
+  function showWinChatOnce(game, seq, text) {
+    if (!text) return;
+    if (gameFamily(game) === "alk") {
+      if (alkWinChatSeq === seq) return;
+      alkWinChatSeq = seq;
+    } else {
+      if (omokWinChatSeq === seq) return;
+      omokWinChatSeq = seq;
+    }
+    addChatTo(game, "__sys", text);
   }
   function announceOmokWinChat() {
     if (!G.winner || G.draw) return;
     var nick = seatDisplay(seatName(colorName(G.winner))) || (G.winner === BLACK ? "흑" : "백");
-    sendSystemChat("omok", nick + "님 승리!");
+    G.winChatText = nick + "님 승리!";
   }
-  function announceAlkWinChat() {
-    if (!A.winner || A.winner === "draw") return;
-    var nick = A.winner === "b" ? A.seats.black : A.seats.white;
-    sendSystemChat("alk", (nick || (A.winner === "b" ? "흑" : "백")) + "님 승리!");
+  function alkWinChatText(winner) {
+    var nick = winner === "b" ? A.seats.black : A.seats.white;
+    return (nick || (winner === "b" ? "흑" : "백")) + "님 승리!";
   }
   function addChatTo(game, who, text, live) {
-    var log = $(game === "omok" ? "chat-log" : "alk-chat-log");
+    game = gameFamily(game);
+    var log = $(gameUi(game).chatLogId);
     if (log) { log.appendChild(makeChatLine(who, text)); log.scrollTop = log.scrollHeight; }
     sessionChat.push({ game: game, who: who, text: text });
     if (sessionChat.length > 300) sessionChat.shift();
     if (live && who !== "__sys") {
       pushOverlay(game, who, text);
-      if (game !== (curGame || "omok")) bumpUnread(game);
+      if (game !== activeFamily()) bumpUnread(game);
     }
   }
-  function addSysBoth(text) { addChatTo("omok", "__sys", text); addChatTo("alk", "__sys", text); }
+  function addSysBoth(text) {
+    (window.GameCatalog ? GameCatalog.families() : ["omok", "alk"]).forEach(function (family) {
+      addChatTo(family, "__sys", text);
+    });
+  }
   function pushOverlay(game, nick, text) {
-    var ov = $(game === "alk" ? "alk-chat-overlay" : "chat-overlay"); if (!ov) return;
+    var ov = $(gameUi(gameFamily(game)).chatOverlayId); if (!ov) return;
     var line = document.createElement("div");
     line.className = "ov-line";
     line.innerHTML = '<span class="ov-nick" style="color:' + nickColor(nick) + '">' + esc(nick) + '</span>' + esc(text);
@@ -2265,7 +2440,9 @@
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (m) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[m]; }); }
   function sendChat(game) {
-    var inp = $(game === "alk" ? "alk-chat-input" : "chat-input");
+    game = gameFamily(game);
+    var inp = $(gameUi(game).chatInputId);
+    if (!inp) return;
     var v = inp.value.trim().slice(0, 80); if (!v) return;
     if (netMode) {
       addChatTo(game, me.nick, v, true);
@@ -2349,7 +2526,7 @@
   }
   function playHit(strength) {
     if (soundMuted || !audioCtx || !hitBuffer) return;
-    if (curGame !== "alk") return;
+    if (!isAlkFamily(curGame)) return;
     if (strength < 1.2) return;
     var now = Date.now(); if (now - lastHitAt < 35) return; lastHitAt = now;
     var t = Math.min(1, strength / 18);
@@ -2370,7 +2547,7 @@
     var settled = joinedAt && Date.now() - joinedAt > 2000;
     if (settled && seatSoundArmed) {
       var sat = (ns.black && ns.black !== prevSeats.black) || (ns.white && ns.white !== prevSeats.white);
-      if (sat && curGame === "omok" && Date.now() - lastRoomSoundAt > 400) playSample(seatBuffer);
+      if (sat && isOmokFamily(curGame) && Date.now() - lastRoomSoundAt > 400) playSample(seatBuffer);
     }
     prevSeats = { black: ns.black, white: ns.white };
     seatSoundArmed = true;
@@ -2503,6 +2680,15 @@
 
   // ---------- 이벤트 ----------
   function openModal(id) { $(id).classList.remove("hidden"); }
+  function renderCreateGameOptions(selected) {
+    var box = $("create-game"); if (!box) return selected || "omok";
+    var ids = window.GameCatalog ? GameCatalog.order : ["omok", "alk", "alk_terr"];
+    if (ids.indexOf(selected) < 0) selected = ids[0] || "omok";
+    box.innerHTML = ids.map(function (id) {
+      return '<button class="radio-chip' + (id === selected ? ' active' : '') + '" data-game="' + esc(id) + '">' + esc(gameName(id)) + '</button>';
+    }).join("");
+    return selected;
+  }
   function openMenu() {
     if ($("menu-main")) $("menu-main").classList.remove("hidden");
     if ($("menu-rules")) $("menu-rules").classList.add("hidden");
@@ -2521,7 +2707,7 @@
   var aiPending = false;
   var AI_NICK = "AI";
   var AI_THINK_DELAY_MS = 1000;
-  var AI_TIMER_SAFETY_MS = 250;
+  var aiThinkSeq = 0;
   function aiLevelName(lv) { return lv === "easy" ? "초보" : lv === "medium" ? "중수" : lv === "master" ? "초고수" : "고수"; }
   function seatDisplay(nick) { return nick === AI_NICK ? aiLevelName(omokAI.level) : nick; }
   function startOmokSolo() {
@@ -2549,16 +2735,21 @@
     if (!omokAI.on || G.over || !G.started || aiPending) return;
     if (G.turn !== omokAI.color) return;
     aiPending = true;
-    var delay = AI_THINK_DELAY_MS;
-    if (G.timerSec && G.moveDeadline) {
-      delay = Math.min(delay, Math.max(0, G.moveDeadline - Date.now() - AI_TIMER_SAFETY_MS));
-    }
+    var token = ++aiThinkSeq, startedAt = Date.now(), gameSeq = G.gameSeq;
+    var hlen = G.history ? G.history.length : 0;
     setTimeout(function () {
-      aiPending = false;
-      if (!omokAI.on || G.over || !G.started || G.turn !== omokAI.color) return;
+      if (token !== aiThinkSeq || !omokAI.on || G.over || !G.started || G.turn !== omokAI.color) { aiPending = false; return; }
       var mv = window.OmokAI.bestMove(G.board, omokAI.color, omokAI.level);
-      if (mv) hostApplyMove(AI_NICK, mv[0], mv[1]);
-    }, delay);
+      var wait = Math.max(0, AI_THINK_DELAY_MS - (Date.now() - startedAt));
+      function applyAiMove() {
+        aiPending = false;
+        if (token !== aiThinkSeq || !omokAI.on || G.over || !G.started || G.turn !== omokAI.color) return;
+        if (G.gameSeq !== gameSeq || (G.history ? G.history.length : 0) !== hlen) return;
+        if (mv) hostApplyMove(AI_NICK, mv[0], mv[1]);
+      }
+      if (wait > 0) setTimeout(applyAiMove, wait);
+      else applyAiMove();
+    }, 0);
   }
   function onCenterBtn() {
     var b = $("center-btn");
@@ -2617,6 +2808,7 @@
     for (var rt = 0; rt < rtabs.length; rt++) rtabs[rt].addEventListener("click", function () { rankTab = this.getAttribute("data-g"); renderSeason(); });
     $("confirm-place").addEventListener("click", confirmPlace);
     $("center-btn").addEventListener("click", onCenterBtn);
+    $("swap-btn").addEventListener("click", function () { requestSeatSwap("omok"); });
     $("ai-btn").addEventListener("click", function () { $("center-btn").classList.add("hidden"); $("ai-btn").classList.add("hidden"); $("ai-levels").classList.remove("hidden"); });
     $("ai-cancel").addEventListener("click", function () { $("ai-levels").classList.add("hidden"); updateCenterButton(); });
     var cbtns = document.querySelectorAll(".colorbtn[data-color]");
@@ -2673,6 +2865,8 @@
     });
     $("begin-accept").addEventListener("click", function () { respondBeginRequest(true); });
     $("begin-decline").addEventListener("click", function () { respondBeginRequest(false); });
+    $("swap-accept").addEventListener("click", function () { respondSwapRequest(true); });
+    $("swap-decline").addEventListener("click", function () { respondSwapRequest(false); });
     $("resign-yes").addEventListener("click", function () { $("resign-modal").classList.add("hidden"); requestResign(); });
     $("resign-no").addEventListener("click", function () { $("resign-modal").classList.add("hidden"); });
     $("undo-accept").addEventListener("click", function () {
@@ -2688,9 +2882,9 @@
     $("logout-btn").addEventListener("click", function () { clearAuth(); location.reload(); });
 
     var closers = document.querySelectorAll("[data-close]");
-    for (var i = 0; i < closers.length; i++) closers[i].addEventListener("click", function (e) { var m = e.target.closest(".modal-overlay"); if (m) { if (m.id === "begin-modal") beginReqCtx = null; m.classList.add("hidden"); } });
+    for (var i = 0; i < closers.length; i++) closers[i].addEventListener("click", function (e) { var m = e.target.closest(".modal-overlay"); if (m) { if (m.id === "begin-modal") beginReqCtx = null; if (m.id === "swap-modal") swapReqCtx = null; m.classList.add("hidden"); } });
     var overlays = document.querySelectorAll(".modal-overlay");
-    for (var j = 0; j < overlays.length; j++) overlays[j].addEventListener("click", function (e) { if (e.target === this) { if (this.id === "begin-modal") beginReqCtx = null; this.classList.add("hidden"); } });
+    for (var j = 0; j < overlays.length; j++) overlays[j].addEventListener("click", function (e) { if (e.target === this) { if (this.id === "begin-modal") beginReqCtx = null; if (this.id === "swap-modal") swapReqCtx = null; this.classList.add("hidden"); } });
 
     var chips = document.querySelectorAll("#timer-options .radio-chip");
     for (var k = 0; k < chips.length; k++) chips[k].addEventListener("click", function () {
@@ -2717,7 +2911,7 @@
     $("lobby-rank-btn").addEventListener("click", function () { openRank("all"); });
     $("lobby-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendLobbyChat(); });
     $("create-room-btn").addEventListener("click", function () { openModal("create-modal"); });
-    var createGame = "omok";
+    var createGame = renderCreateGameOptions("omok");
     var cchips = document.querySelectorAll("#create-game .radio-chip");
     for (var ci = 0; ci < cchips.length; ci++) cchips[ci].addEventListener("click", function () {
       createGame = this.getAttribute("data-game");
@@ -2736,6 +2930,7 @@
       if (b && b.dataset.act === "solo") { if (curRoomGame === "alk_terr") startTerritorySolo(); else startAlkSolo(); }
       else requestAlkBegin();
     });
+    $("alk-swap-btn").addEventListener("click", function () { requestSeatSwap("alk"); });
     $("alk-again").addEventListener("click", function () { if (alkSolo) { if (A.mode === "territory") startTerritorySolo(); else startAlkSolo(); } else requestAlkBegin(); });
 
     soundMuted = localStorage.getItem("omok_mute") === "1";
