@@ -108,6 +108,8 @@ body {
 .ol-tag.b { background: #1A1A1A; color: #fff; }
 .ol-tag.w { background: #eee; color: #333; }
 .ol-tag.s { background: #274a59; color: #9fc4d3; }
+.online-item.away { opacity: .72; }
+.away-tag { flex: 0 0 auto; font-size: 9px; font-weight: 800; color: #8fa6b2; border: 1px solid #45606c; border-radius: 6px; padding: 1px 5px; }
 .chip-score { font-size: 10px; font-weight: 700; opacity: .7; margin-left: 3px; }
 .btn-flat:disabled { opacity: .4; cursor: default; }
 .btn-flat.cooldown { opacity: .4; }
@@ -140,6 +142,8 @@ body {
 .role-spec { background: #E4EEF2; color: #4a7180; }
 .mini-host { font-size: 10px; font-weight: 800; color: #fff; background: var(--orange); padding: 1px 6px; border-radius: 6px; }
 .mini-me { font-size: 10px; font-weight: 800; color: var(--teal); }
+.mini-away { font-size: 10px; font-weight: 800; color: #7fa0ad; border: 1px solid #c9d6dc; padding: 1px 6px; border-radius: 6px; }
+.prow.away { opacity: .76; }
 .passign { display: flex; gap: 5px; }
 .pbtn { border: 1px solid #ddd; background: #fff; border-radius: 8px; padding: 6px 9px; font-size: 12px; font-weight: 700; color: #555; cursor: pointer; }
 .pbtn:active { background: #f2f2f2; }

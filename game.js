@@ -37,12 +37,14 @@
 
   var canvas, ctx, MARGIN = 20, GAP, RADIUS;
   var hostTimerId = null, dispTimerId = null;
-  var GRACE_MS = 10000;
+  var GRACE_MS = 60000;
   var graceTimers = { black: null, white: null };
   var winShownSeq = -1, liveSeq = -1, resultCalcSeq = -1;
   var voidReqFrom = null, voidReqGseq = 0, undoReqCtx = null;
+  var beginReqCtx = null;
   var audioCtx = null, soundMuted = false, lastStoneCount = 0, stoneBuffer = null, stoneLoading = false, silenceEl = null;
   var inoutBuffer = null, inoutLoading = false, prevNicks = [], joinedAt = 0, firstPresenceAt = 0;
+  var displayRoster = [], awayMembers = {}, awayTimers = {}, explicitLeaves = {};
   var winBuffer = null, winLoading = false;
   var warnBuffer = null, warnLoading = false, lastWarnSec = -1;
   var seatBuffer = null, seatLoading = false, lastRoomSoundAt = 0;
@@ -230,7 +232,7 @@
     var st, black, white;
     if (curGame === "omok") { st = G.over ? "끝" : G.started ? "게임중" : "대기중"; black = G.seats.black; white = G.seats.white; }
     else { st = A.over ? "끝" : A.started ? "게임중" : "대기중"; black = A.seats.black; white = A.seats.white; }
-    return { id: curRoomId, game: curRoomGame, name: curRoomTitle, host: me.nick, status: st, black: black || null, white: white || null, count: (netMode ? roster.length : 1), ts: roomCreatedTs };
+    return { id: curRoomId, game: curRoomGame, name: curRoomTitle, host: me.nick, status: st, black: black || null, white: white || null, count: (netMode ? Math.max(displayRoster.length, roster.length, 1) : 1), ts: roomCreatedTs };
   }
   function broadcastRoomOpen() { if (lobbyMode) Net.sendLobby({ t: "room_open", room: roomMetaObj() }); }
   function renderRoomList() {
@@ -307,7 +309,7 @@
     A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; alkSolo = false; omokSolo = false; omokAI.on = false; aiPending = false;
     A.mode = "knockout"; A.remain = null; A.score = null;
     if (window.Alkkagi) Alkkagi.setMode("knockout");
-    winShownSeq = -1; liveSeq = -1; prevNicks = []; firstPresenceAt = 0;
+    winShownSeq = -1; liveSeq = -1; prevNicks = []; firstPresenceAt = 0; clearAwayRoster();
     seatSoundArmed = false; prevSeats = { black: null, white: null }; lastRoomSoundAt = 0;
     clearAllGrace(); clearAlkGrace();
     if (window.Alkkagi) Alkkagi.setStones(Alkkagi.layout());
@@ -350,15 +352,18 @@
     var wasAlone = !netMode || roster.length <= 1, wasHostHere = amHost, leavingId = curRoomId;
     var delay = forfeited ? 220 : 0;
     setTimeout(function () {
-      if (wasHostHere && wasAlone && lobbyMode && leavingId) Net.sendLobby({ t: "room_close", id: leavingId });
-      Net.leaveRoom(); netMode = false; amHost = false; wasHost = false;
-      document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
-      stopHostTimer(); clearAllGrace(); clearAlkGrace();
-      curRoomId = null; curGame = null;
-      if (lobbyMode) { Net.trackLobby(myMetaObj(null)); Net.resyncLobby(); }
-      $("game").classList.add("hidden"); $("alkgame").classList.add("hidden");
-      $("lobby").classList.remove("hidden");
-      renderRoomList();
+      if (netMode && leavingId) Net.send({ t: "room_leave", nick: me.nick });
+      setTimeout(function () {
+        if (wasHostHere && wasAlone && lobbyMode && leavingId) Net.sendLobby({ t: "room_close", id: leavingId });
+        Net.leaveRoom(); netMode = false; amHost = false; wasHost = false;
+        document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
+        stopHostTimer(); clearAllGrace(); clearAlkGrace(); clearAwayRoster();
+        curRoomId = null; curGame = null;
+        if (lobbyMode) { Net.trackLobby(myMetaObj(null)); Net.resyncLobby(); }
+        $("game").classList.add("hidden"); $("alkgame").classList.add("hidden");
+        $("lobby").classList.remove("hidden");
+        renderRoomList();
+      }, netMode ? 120 : 0);
     }, delay);
   }
 
@@ -452,7 +457,11 @@
     if (mine && A.started && !A.over && netMode) { if (!confirm("대국 중 자리에서 나가면 패배로 처리돼요. 나가시겠어요?")) return; }
     requestAlkSeat(me.nick, mine ? "spec" : seat);
   }
-  function requestAlkBegin() { if (!netMode) { alkBegin(me.nick); return; } Net.send({ t: "alk_begin", by: me.nick }); }
+  function requestAlkBegin() {
+    if (!netMode) { alkBegin(me.nick); return; }
+    if (sendBeginRequest("alk")) return;
+    Net.send({ t: "alk_begin", by: me.nick });
+  }
   function alkBegin(by) {
     if (netMode && !amHost) return;
     if (!(A.seats.black && A.seats.white)) { if (by === me.nick) toast("흑·백 두 자리가 다 차야 시작해요"); return; }
@@ -471,6 +480,7 @@
     }
     clearAlkGrace();
     A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.recorded = false; A.paused = false; A.gameSeq++; A.seq++;
+    beginReqCtx = null; $("begin-modal").classList.add("hidden");
     Alkkagi.setMeta("b", A.seats, true, false, null);
     broadcastAlk(); renderAlkUI();
   }
@@ -722,18 +732,85 @@
     return pool[0].nick;
   }
 
+  function announceRoomLeave(nick) {
+    if (!nick || !firstPresenceAt || Date.now() - firstPresenceAt <= 1500) return;
+    playRoomLeave();
+    addSysBoth(nick + "님이 나갔어요");
+  }
+  function findDisplayMember(nick) {
+    for (var i = 0; i < displayRoster.length; i++) if (displayRoster[i].nick === nick) return displayRoster[i];
+    for (var j = 0; j < roster.length; j++) if (roster[j].nick === nick) return roster[j];
+    return null;
+  }
+  function pruneExplicitLeaves() {
+    var now = Date.now();
+    Object.keys(explicitLeaves).forEach(function (nick) {
+      if (explicitLeaves[nick] <= now) delete explicitLeaves[nick];
+    });
+  }
+  function buildDisplayRoster() {
+    pruneExplicitLeaves();
+    var seen = {}, out = [];
+    roster.forEach(function (m) {
+      if (!m || !m.nick || explicitLeaves[m.nick]) return;
+      seen[m.nick] = true;
+      out.push(m);
+    });
+    Object.keys(awayMembers).forEach(function (nick) {
+      if (seen[nick] || explicitLeaves[nick]) return;
+      out.push(awayMembers[nick]);
+    });
+    displayRoster = out;
+  }
+  function clearAwayRoster() {
+    Object.keys(awayTimers).forEach(function (nick) { clearTimeout(awayTimers[nick]); });
+    displayRoster = []; awayMembers = {}; awayTimers = {}; explicitLeaves = {};
+  }
+  function expireAway(nick) {
+    if (!awayMembers[nick] || rosterHas(nick)) return;
+    clearTimeout(awayTimers[nick]); delete awayTimers[nick]; delete awayMembers[nick];
+    buildDisplayRoster();
+    announceRoomLeave(nick);
+    renderPresenceUI();
+    renderPlayersList();
+    if (amHost && curRoomId) broadcastRoomOpen();
+  }
+  function markAway(nick) {
+    if (!nick || explicitLeaves[nick] || awayMembers[nick]) return;
+    var meta = findDisplayMember(nick) || { nick: nick, joinTs: Date.now() };
+    awayMembers[nick] = Object.assign({}, meta, { away: true, awayUntil: Date.now() + GRACE_MS });
+    awayTimers[nick] = setTimeout(function () { expireAway(nick); }, GRACE_MS);
+  }
+  function completeExplicitLeave(nick) {
+    if (!nick) return;
+    var wasShown = !!findDisplayMember(nick);
+    explicitLeaves[nick] = Date.now() + 5000;
+    if (awayTimers[nick]) { clearTimeout(awayTimers[nick]); delete awayTimers[nick]; }
+    delete awayMembers[nick];
+    buildDisplayRoster();
+    if (wasShown) announceRoomLeave(nick);
+    renderPresenceUI();
+    renderPlayersList();
+    if (amHost && curRoomId) broadcastRoomOpen();
+  }
+
   function onPresence(list) {
-    roster = list || [];
+    pruneExplicitLeaves();
+    roster = (list || []).filter(function (m) { return m && m.nick && !explicitLeaves[m.nick]; });
     var nicks = roster.map(function (m) { return m.nick; });
     if (!firstPresenceAt) firstPresenceAt = Date.now();
     if (Date.now() - firstPresenceAt > 1500) {
-      var joined = nicks.filter(function (n) { return prevNicks.indexOf(n) < 0; });
+      var joined = nicks.filter(function (n) { return !findDisplayMember(n); });
       var left = prevNicks.filter(function (n) { return nicks.indexOf(n) < 0; });
       if (joined.length) playRoomEnter();
-      if (left.length) playRoomLeave();
       joined.forEach(function (n) { addSysBoth(n + "님이 입장했어요"); });
-      left.forEach(function (n) { addSysBoth(n + "님이 나갔어요"); });
+      left.forEach(markAway);
     }
+    nicks.forEach(function (n) {
+      if (awayTimers[n]) { clearTimeout(awayTimers[n]); delete awayTimers[n]; }
+      delete awayMembers[n];
+    });
+    buildDisplayRoster();
     prevNicks = nicks;
     hostNick = electHost(roster);
     amHost = (hostNick === me.nick);
@@ -841,14 +918,19 @@
           if (amHost || A.seq > 0) broadcastAlk();
         }
         break;
+      case "room_leave": if (msg.nick !== me.nick) completeExplicitLeave(msg.nick); break;
       case "resign": if (amHost) hostResign(msg.by || msg.nick, msg.nick); break;
       case "alk_state": applyAlkState(msg.state); break;
       case "alk_seat": if (amHost) hostAlkSeat(msg.by, msg.nick, msg.seat); break;
+      case "alk_begin_req": if (msg.to === me.nick) showBeginModal("alk", msg.from, msg.gseq); break;
+      case "alk_begin_res": onBeginResponse("alk", msg); break;
       case "alk_begin": if (amHost) alkBegin(msg.by); break;
       case "alk_place": if (msg.nick !== me.nick && window.Alkkagi && A.mode === "territory") { Alkkagi.placeActive(msg.x); renderAlkUI(); } break;
       case "alk_flick": if (amHost) hostAlkFlick(msg.nick, msg.idx, msg.vx, msg.vy, msg.px); break;
       case "alk_move": onAlkMove(msg.idx, msg.vx, msg.vy, msg.fin); break;
       case "move": if (amHost) hostApplyMove(msg.nick, msg.r, msg.c); break;
+      case "begin_req": if (msg.to === me.nick) showBeginModal("omok", msg.from, msg.gseq); break;
+      case "begin_res": onBeginResponse("omok", msg); break;
       case "begin": if (amHost && !G.started && (msg.gseq == null || msg.gseq === G.gameSeq)) beginGame(msg.by); break;
       case "seat": if (amHost) hostApplySeat(msg.by, msg.nick, msg.seat); break;
       case "set_timer": if (amHost && (msg.by === ADMIN || msg.by === hostNick)) setTimer(msg.sec); break;
@@ -1100,6 +1182,68 @@
     $("draw-modal").classList.remove("hidden");
   }
 
+  function beginGameTitle(game) {
+    if (game === "alk") return curRoomGame === "alk_terr" ? "점령전" : "알까기";
+    return "오목";
+  }
+  function beginSeats(game) {
+    return game === "alk" ? A.seats : G.seats;
+  }
+  function beginSeq(game) {
+    return game === "alk" ? A.gameSeq : G.gameSeq;
+  }
+  function beginStarted(game) {
+    return game === "alk" ? A.started : G.started;
+  }
+  function beginOpponent(game, nick) {
+    var seats = beginSeats(game);
+    if (!seats || !seats.black || !seats.white || seats.black === seats.white) return null;
+    if (game === "omok" && (seats.black === AI_NICK || seats.white === AI_NICK)) return null;
+    if (seats.black === nick) return seats.white;
+    if (seats.white === nick) return seats.black;
+    return null;
+  }
+  function sendBeginRequest(game) {
+    if (!netMode || beginStarted(game)) return false;
+    var opp = beginOpponent(game, me.nick);
+    if (!opp) return false;
+    Net.send({ t: game === "alk" ? "alk_begin_req" : "begin_req", from: me.nick, to: opp, gseq: beginSeq(game) });
+    toast(opp + "님에게 대국 신청을 보냈어요");
+    return true;
+  }
+  function showBeginModal(game, from, gseq) {
+    if (!from || from === me.nick || beginStarted(game)) return;
+    if (gseq != null && gseq !== beginSeq(game)) return;
+    if (beginOpponent(game, from) !== me.nick) return;
+    beginReqCtx = { game: game, from: from, gseq: gseq == null ? beginSeq(game) : gseq };
+    $("begin-text").textContent = from + "님이 " + beginGameTitle(game) + " 대국을 신청했어요.\n수락하면 바로 시작해요.";
+    $("begin-modal").classList.remove("hidden");
+  }
+  function respondBeginRequest(accept) {
+    var ctx = beginReqCtx;
+    $("begin-modal").classList.add("hidden");
+    beginReqCtx = null;
+    if (!ctx) return;
+    var t = ctx.game === "alk" ? "alk_begin_res" : "begin_res";
+    Net.send({ t: t, accept: !!accept, from: me.nick, to: ctx.from, gseq: ctx.gseq });
+    if (accept) toast("대국 신청을 수락했어요");
+  }
+  function onBeginResponse(game, msg) {
+    var requester = msg.to || msg.by;
+    if (!requester) return;
+    if (msg.accept) {
+      var samePair = beginOpponent(game, requester) === msg.from;
+      var sameSeq = msg.gseq == null || msg.gseq === beginSeq(game);
+      if (amHost && samePair && sameSeq && !beginStarted(game)) {
+        if (game === "alk") alkBegin(requester);
+        else beginGame(requester);
+      }
+      if (requester === me.nick) toast("상대가 대국 신청을 수락했어요");
+    } else if (requester === me.nick) {
+      toast("상대가 대국 신청을 거절했어요");
+    }
+  }
+
   function beginGame(by) {
     if (netMode && !amHost) return;
     if (!(G.seats.black && G.seats.white)) { if (by === me.nick) toast("흑·백 두 자리가 다 차야 시작해요"); return; }
@@ -1116,6 +1260,7 @@
     G.moveDeadline = G.timerSec ? Date.now() + G.timerSec * 1000 : null;
     G.gameSeq = (G.gameSeq || 0) + 1;
     G.rev++;
+    beginReqCtx = null; $("begin-modal").classList.add("hidden");
     $("omok-win").classList.add("hidden");
     broadcastState();
     startHostTimer(); updateTurnUI(); render(); updateCenterButton();
@@ -1449,7 +1594,7 @@
     var box = $(game === "omok" ? "online-list" : "alk-online-list");
     var num = $(game === "omok" ? "online-num" : "alk-online-num");
     if (!box) return;
-    var here = (game === curGame) ? (netMode ? roster.slice() : [{ nick: me.nick, joinTs: 0 }]) : [];
+    var here = (game === curGame) ? (netMode ? displayRoster.slice() : [{ nick: me.nick, joinTs: 0 }]) : [];
     here.sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); });
     if (num) num.textContent = here.length;
     box.innerHTML = here.map(function (m) {
@@ -1462,8 +1607,9 @@
         tag = arole ? '<span class="ol-tag ' + (arole === "흑" ? "b" : "w") + '">' + arole + '</span>' : "";
       }
       var meMark = (m.nick === me.nick) ? " (나)" : "";
-      var crown = (netMode && m.nick === hostNick) ? '<span class="ol-crown" title="방장">👑</span>' : "";
-      return '<div class="online-item">' + tag + '<span style="color:' + nickColor(m.nick) + '">' + esc(m.nick) + esc(meMark) + '</span>' + crown + '</div>';
+      var crown = (netMode && !m.away && m.nick === hostNick) ? '<span class="ol-crown" title="방장">👑</span>' : "";
+      var away = m.away ? '<span class="away-tag">자리비움</span>' : "";
+      return '<div class="online-item' + (m.away ? ' away' : '') + '">' + tag + '<span style="color:' + nickColor(m.nick) + '">' + esc(m.nick) + esc(meMark) + '</span>' + crown + away + '</div>';
     }).join("");
   }
   // ---------- 참가자 목록 ----------
@@ -1472,13 +1618,14 @@
     if (!netMode) { box.innerHTML = '<p class="players-hint">혼자 연습 중입니다. 친구가 링크로 들어오면 여기에 표시됩니다.</p>'; return; }
     var pseats = curGame === "alk" ? A.seats : G.seats;
     var html = "";
-    roster.slice().sort(function (a, b) { return a.joinTs - b.joinTs; }).forEach(function (m) {
+    displayRoster.slice().sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); }).forEach(function (m) {
       var role = m.nick === pseats.black ? "흑" : m.nick === pseats.white ? "백" : "관전";
       var roleCls = role === "흑" ? "role-black" : role === "백" ? "role-white" : "role-spec";
-      var hostMark = (m.nick === hostNick) ? ' <span class="mini-host">방장</span>' : "";
+      var hostMark = (!m.away && m.nick === hostNick) ? ' <span class="mini-host">방장</span>' : "";
       var meMark = (m.nick === me.nick) ? ' <span class="mini-me">나</span>' : "";
-      html += '<div class="prow"><span class="pname"><span class="rtag ' + roleCls + '">' + role + '</span>' + esc(m.nick) + hostMark + meMark + '</span>';
-      if (me.isAdmin) {
+      var awayMark = m.away ? ' <span class="mini-away">자리비움</span>' : "";
+      html += '<div class="prow' + (m.away ? ' away' : '') + '"><span class="pname"><span class="rtag ' + roleCls + '">' + role + '</span>' + esc(m.nick) + hostMark + meMark + awayMark + '</span>';
+      if (me.isAdmin && !m.away) {
         html += '<span class="passign">';
         html += '<button class="pbtn" data-seat="black" data-nick="' + esc(m.nick) + '">흑</button>';
         html += '<button class="pbtn" data-seat="white" data-nick="' + esc(m.nick) + '">백</button>';
@@ -2328,6 +2475,7 @@
   }
   function requestBegin() {
     if (!(G.seats.black && G.seats.white)) { toast("흑·백 두 자리가 다 차야 시작해요"); return; }
+    if (netMode && sendBeginRequest("omok")) return;
     if (netMode && !amHost) { Net.send({ t: "begin", by: me.nick, gseq: G.gameSeq }); return; }
     beginGame(me.nick);
   }
@@ -2481,6 +2629,8 @@
       if (netMode && drawReqFrom) Net.send({ t: "draw_res", accept: false, from: drawReqFrom });
       drawReqFrom = null;
     });
+    $("begin-accept").addEventListener("click", function () { respondBeginRequest(true); });
+    $("begin-decline").addEventListener("click", function () { respondBeginRequest(false); });
     $("resign-yes").addEventListener("click", function () { $("resign-modal").classList.add("hidden"); requestResign(); });
     $("resign-no").addEventListener("click", function () { $("resign-modal").classList.add("hidden"); });
     $("undo-accept").addEventListener("click", function () {
@@ -2496,9 +2646,9 @@
     $("logout-btn").addEventListener("click", function () { clearAuth(); location.reload(); });
 
     var closers = document.querySelectorAll("[data-close]");
-    for (var i = 0; i < closers.length; i++) closers[i].addEventListener("click", function (e) { var m = e.target.closest(".modal-overlay"); if (m) m.classList.add("hidden"); });
+    for (var i = 0; i < closers.length; i++) closers[i].addEventListener("click", function (e) { var m = e.target.closest(".modal-overlay"); if (m) { if (m.id === "begin-modal") beginReqCtx = null; m.classList.add("hidden"); } });
     var overlays = document.querySelectorAll(".modal-overlay");
-    for (var j = 0; j < overlays.length; j++) overlays[j].addEventListener("click", function (e) { if (e.target === this) this.classList.add("hidden"); });
+    for (var j = 0; j < overlays.length; j++) overlays[j].addEventListener("click", function (e) { if (e.target === this) { if (this.id === "begin-modal") beginReqCtx = null; this.classList.add("hidden"); } });
 
     var chips = document.querySelectorAll("#timer-options .radio-chip");
     for (var k = 0; k < chips.length; k++) chips[k].addEventListener("click", function () {
