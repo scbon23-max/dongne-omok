@@ -11,6 +11,7 @@ window.CatchMind = (function () {
   var MAX_CANVAS_POINTS = 3200;
   var MAX_PLAYERS = 40;
   var MAX_SCORE = 1000000;
+  var MAX_FEED_LINES = 5;
   var FEED_KINDS = ["guess", "correct", "answer", "system"];
   var RECORD_STATUSES = ["idle", "pending", "saved", "failed", "skipped"];
   var SAVE_RETRY_DELAYS = [1000, 3000, 7000];
@@ -137,7 +138,7 @@ window.CatchMind = (function () {
   }
   function safeFeed(raw) {
     if (!Array.isArray(raw)) return [];
-    return raw.slice(-3).map(function (item) {
+    return raw.slice(-MAX_FEED_LINES).map(function (item) {
       item = item && typeof item === "object" ? item : {};
       var kind = FEED_KINDS.indexOf(item.kind) >= 0 ? item.kind : "guess";
       return { who: safeNick(item.who), text: safeText(item.text, 60), kind: kind };
@@ -290,7 +291,7 @@ window.CatchMind = (function () {
 
   function addFeed(who, text, kind) {
     state.feed.push({ who: who || "", text: String(text || "").slice(0, 60), kind: kind || "guess" });
-    while (state.feed.length > 3) state.feed.shift();
+    while (state.feed.length > MAX_FEED_LINES) state.feed.shift();
   }
 
   function wordPool() {
@@ -803,9 +804,10 @@ window.CatchMind = (function () {
 
   function renderFeed() {
     var box = $("catch-feed"); if (!box) return;
-    box.innerHTML = state.feed.map(function (item) {
+    box.innerHTML = state.feed.map(function (item, index) {
       var kind = FEED_KINDS.indexOf(item.kind) >= 0 ? item.kind : "guess";
-      var cls = "catch-feed-line " + kind;
+      var age = Math.min(state.feed.length - 1 - index, MAX_FEED_LINES - 1);
+      var cls = "catch-feed-line " + kind + " feed-age-" + age;
       if (item.who) return '<div class="' + cls + '"><b>' + esc(item.who) + '</b> ' + esc(item.text) + '</div>';
       return '<div class="' + cls + '">' + esc(item.text) + '</div>';
     }).join("");

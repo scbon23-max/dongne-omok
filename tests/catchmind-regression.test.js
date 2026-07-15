@@ -97,6 +97,17 @@ test("state sanitizing blocks markup and malformed values", () => {
   assert.equal(clean.feed[0].kind, "guess");
 });
 
+test("the drawing feed keeps the newest five messages", () => {
+  const api = loadCatchMind();
+  const clean = api.sanitizeSnapshot(baseSnapshot({
+    feed: Array.from({ length: 7 }, (_, index) => ({ who: "A", text: String(index), kind: "guess" }))
+  }));
+
+  assert.equal(clean.feed.length, 5);
+  assert.equal(clean.feed[0].text, "2");
+  assert.equal(clean.feed[4].text, "6");
+});
+
 test("canvas snapshots remain below the free broadcast payload limit", () => {
   const api = loadCatchMind();
   const queue = Array.from({ length: api.limits.players }, (_, index) => ("\uAC00".repeat(36) + index).slice(0, 40));
