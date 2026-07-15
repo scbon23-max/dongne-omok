@@ -118,19 +118,26 @@
       <button id="swap-btn" class="center-btn center-swap-action hidden">자리 체인지</button>
       <button id="ai-btn" class="center-btn center-alt hidden">AI와 두기</button>
       <div id="ai-levels" class="ai-levels hidden">
-        <div class="ai-levels-title">내 돌</div>
-        <div class="ai-levels-row">
-          <button class="colorbtn active" data-color="black">흑 (선공)</button>
-          <button class="colorbtn" data-color="white">백 (후공)</button>
+        <div class="ai-panel-head">
+          <div class="ai-panel-title">AI 대국</div>
+          <button id="ai-cancel" class="ai-close" type="button" aria-label="닫기">×</button>
         </div>
-        <div class="ai-levels-title">AI 난이도</div>
-        <div class="ai-levels-row">
-          <button class="lvbtn" data-ai="easy">초보</button>
-          <button class="lvbtn" data-ai="medium">중수</button>
-          <button class="lvbtn" data-ai="hard">고수</button>
-          <button class="lvbtn" data-ai="master">초고수</button>
+        <div class="ai-section">
+          <div class="ai-levels-title">내 돌</div>
+          <div class="ai-color-segment">
+            <button class="colorbtn active" data-color="black"><span class="ai-stone black"></span><span>흑</span><em>선공</em></button>
+            <button class="colorbtn" data-color="white"><span class="ai-stone white"></span><span>백</span><em>후공</em></button>
+          </div>
         </div>
-        <button id="ai-cancel" class="lvbtn cancel">취소</button>
+        <div class="ai-section">
+          <div class="ai-levels-title">난이도</div>
+          <div class="ai-level-grid">
+            <button class="lvbtn" data-ai="easy"><span>초보</span><em>Easy</em></button>
+            <button class="lvbtn" data-ai="medium"><span>중수</span><em>Normal</em></button>
+            <button class="lvbtn" data-ai="hard"><span>고수</span><em>Hard</em></button>
+            <button class="lvbtn master" data-ai="master"><span>초고수</span><em>Master</em></button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="win-flag hidden" id="omok-win">
