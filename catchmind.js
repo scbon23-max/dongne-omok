@@ -229,10 +229,8 @@ window.CatchMind = (function () {
     }
   }
 
-  function allRemainingCorrect() {
-    var live = activeNicks();
-    var remaining = state.guessers.filter(function (nick) { return has(live, nick) && !state.correct[nick]; });
-    return remaining.length === 0;
+  function allGuessersCorrect() {
+    return state.guessers.length > 0 && state.guessers.every(function (nick) { return !!state.correct[nick]; });
   }
 
   function hostGuess(msg) {
@@ -253,7 +251,7 @@ window.CatchMind = (function () {
       }
       addFeed("", nick + "님 정답! +10", "correct");
       commit();
-      if (allRemainingCorrect()) hostEndRound("모두 맞혔어요");
+      if (allGuessersCorrect()) hostEndRound("모두 맞혔어요");
     } else {
       addFeed(nick, text, "guess");
       commit();
@@ -326,10 +324,8 @@ window.CatchMind = (function () {
     if (isHost && becameHost && state.phase === "drawing" && !secretWord) {
       hostEndRound("방장이 바뀌어 이번 문제를 넘겼어요");
     } else if (isHost && state.phase === "drawing") {
-      var live = activeNicks();
-      if (!has(live, state.drawer)) hostEndRound("그리는 사람이 나가서 문제를 넘겼어요");
-      else if (allRemainingCorrect()) hostEndRound("참여 중인 사람이 모두 맞혔어요");
-      else broadcastState();
+      // Presence can briefly mark a reconnecting player away. Only accepted guesses finish a round.
+      broadcastState();
     } else if (isHost) {
       broadcastState();
     }

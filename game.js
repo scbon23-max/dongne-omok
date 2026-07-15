@@ -2934,7 +2934,8 @@
     var ids = window.GameCatalog ? GameCatalog.order : ["omok", "alk", "alk_terr"];
     if (ids.indexOf(selected) < 0) selected = ids[0] || "omok";
     box.innerHTML = ids.map(function (id) {
-      return '<button class="radio-chip' + (id === selected ? ' active' : '') + '" data-game="' + esc(id) + '">' + esc(gameName(id)) + '</button>';
+      var label = id === "catchmind" ? gameName(id) + " 테스트중" : gameName(id);
+      return '<button class="radio-chip' + (id === selected ? ' active' : '') + '" data-game="' + esc(id) + '">' + esc(label) + '</button>';
     }).join("");
     return selected;
   }
