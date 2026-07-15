@@ -741,10 +741,11 @@ window.CatchMind = (function () {
   function renderScores() {
     var box = $("catch-score-strip"); if (!box) return;
     if (!state.queue.length) {
-      var count = activePeople().length;
-      box.textContent = count < 2 ? "2명 이상 모이면 시작할 수 있어요" : count + "명 준비 완료";
+      box.textContent = "";
+      box.classList.add("hidden");
       return;
     }
+    box.classList.remove("hidden");
     var top = scoreOrder().slice(0, 3);
     box.innerHTML = top.map(function (nick) {
       return '<span><b>' + esc(nick) + '</b> ' + (state.scores[nick] || 0) + '점</span>';
