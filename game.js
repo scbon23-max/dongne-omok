@@ -3,7 +3,7 @@
 
   var SIZE = Renju.SIZE, BLACK = Renju.BLACK, WHITE = Renju.WHITE;
   var TERR_KOMI = 1.5;
-  var APP_BUILD = "20260715-room-entry-v2";
+  var APP_BUILD = "20260715-catchmind-v2";
   var APP_REFRESH_KEY = "dongne_games_app_refresh";
 
   var G = {
@@ -465,7 +465,7 @@
     if (window.console && console.error) console.error("Room entry failed", error);
     try { if (controller && controller.leave) controller.leave(); } catch (e) {}
     try { if (window.Net && Net.leaveRoom) Net.leaveRoom(); } catch (e) {}
-    netMode = false; amHost = false; wasHost = false; connected = false;
+    netMode = false; hostNick = null; amHost = false; wasHost = false; connected = false;
     curRoomId = null; curRoomGame = null; curGame = null; curRoomTitle = "";
     document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
     try { stopHostTimer(); clearAllGrace(); clearAlkGrace(); clearAwayRoster(); } catch (e) {}
@@ -492,7 +492,7 @@
       if (previousController && previousController.leave) previousController.leave();
       curRoomId = roomId; curRoomGame = game; curGame = target.family; curRoomTitle = title || roomId;
       if (rooms[roomId] && rooms[roomId].ts) roomCreatedTs = rooms[roomId].ts;
-      amHost = false; wasHost = false; document.body.classList.remove("is-host"); stopHostTimer();
+      hostNick = null; amHost = false; wasHost = false; document.body.classList.remove("is-host"); stopHostTimer();
       resetRoomGameState(); resetRoomChat();
       if (game === "alk_terr" && window.Alkkagi) { A.mode = "territory"; Alkkagi.setMode("territory"); Alkkagi.setStones([]); }
       myJoinTs = Date.now();
@@ -555,7 +555,7 @@
       if (netMode && leavingId) Net.send({ t: "room_leave", nick: me.nick });
       setTimeout(function () {
         if (wasHostHere && wasAlone && lobbyMode && leavingId) Net.sendLobby({ t: "room_close", id: leavingId });
-        Net.leaveRoom(); netMode = false; amHost = false; wasHost = false;
+        Net.leaveRoom(); netMode = false; hostNick = null; amHost = false; wasHost = false;
         document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
         stopHostTimer(); clearAllGrace(); clearAlkGrace(); clearAwayRoster();
         curRoomId = null; curGame = null;

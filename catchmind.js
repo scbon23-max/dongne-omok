@@ -3,8 +3,17 @@ window.CatchMind = (function () {
 
   var ROUND_MS = 60000;
   var REVEAL_MS = 3000;
+  var DRAW_SEND_MS = 60;
   var CANVAS_BG = "#ffffff";
   var PEN_COLORS = ["#17252f", "#d23b3b", "#2474b5"];
+  var MAX_STROKES = 100;
+  var MAX_POINTS_PER_STROKE = 600;
+  var MAX_CANVAS_POINTS = 3200;
+  var MAX_PLAYERS = 40;
+  var MAX_SCORE = 1000000;
+  var FEED_KINDS = ["guess", "correct", "answer", "system"];
+  var RECORD_STATUSES = ["idle", "pending", "saved", "failed", "skipped"];
+  var SAVE_RETRY_DELAYS = [1000, 3000, 7000];
   var FALLBACK_WORDS = [
     "가방", "가위", "강아지", "거북이", "고양이", "공룡", "기차", "나무", "냉장고", "눈사람",
     "다리미", "달팽이", "도넛", "딸기", "라면", "로봇", "마이크", "모자", "문어", "바나나",
@@ -18,7 +27,7 @@ window.CatchMind = (function () {
   var api = null;
   var state = freshState();
   var secretWord = null;
-  var usedWords = {};
+  var usedWords = Object.create(null);
   var previousHost = false;
   var canvas = null;
   var ctx = null;
@@ -30,6 +39,14 @@ window.CatchMind = (function () {
   var selectedColor = PEN_COLORS[0];
   var lastStrokeSend = 0;
   var pendingStrokeTimer = null;
+  var strokeSentCount = 0;
+  var canvasLimitNotified = false;
+  var saveTimer = null;
+  var pendingSave = null;
+  var guessTimes = Object.create(null);
+  var stateHost = null;
+  var lastSyncRequestAt = 0;
+  var lastCanvasRequestAt = 0;
 
   function freshState() {
     return {
@@ -42,14 +59,15 @@ window.CatchMind = (function () {
       guessers: [],
       deadline: null,
       nextAt: null,
-      scores: {},
-      stats: {},
-      correct: {},
+      scores: Object.create(null),
+      stats: Object.create(null),
+      correct: Object.create(null),
       strokes: [],
+      drawSeq: 0,
       feed: [],
       revealWord: null,
       wordLength: 0,
-      recorded: false
+      recordStatus: "idle"
     };
   }
 
@@ -64,9 +82,67 @@ window.CatchMind = (function () {
   function activePeople() { return people().filter(function (p) { return p && p.nick && !p.away; }); }
   function activeNicks() { return activePeople().map(function (p) { return p.nick; }); }
   function has(arr, value) { return arr.indexOf(value) >= 0; }
-  function clone(value) { return JSON.parse(JSON.stringify(value)); }
   function normalize(value) { return String(value || "").toLowerCase().replace(/[\s\-_.!,?]/g, ""); }
   function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+  function safeInteger(value, min, max, fallback) {
+    var parsed = Number(value);
+    if (!isFinite(parsed)) return fallback;
+    return clamp(Math.floor(parsed), min, max);
+  }
+  function safeText(value, max) { return String(value == null ? "" : value).slice(0, max); }
+  function safeNick(value) {
+    var nick = safeText(value, 40).trim();
+    return /^(?:__proto__|prototype|constructor)$/.test(nick) ? "" : nick;
+  }
+  function safeNickList(raw) {
+    if (!Array.isArray(raw)) return [];
+    var out = [], seen = Object.create(null);
+    for (var i = 0; i < raw.length && out.length < MAX_PLAYERS; i++) {
+      var nick = safeNick(raw[i]);
+      if (!nick || seen[nick]) continue;
+      seen[nick] = true;
+      out.push(nick);
+    }
+    return out;
+  }
+  function safeDuration(value, max) {
+    if (typeof value !== "number" || !isFinite(value)) return null;
+    return clamp(Math.round(value), 0, max);
+  }
+  function safeScores(raw, queue) {
+    var out = Object.create(null);
+    queue.forEach(function (nick) {
+      out[nick] = safeInteger(raw && raw[nick], 0, MAX_SCORE, 0);
+    });
+    return out;
+  }
+  function safeStats(raw, queue) {
+    var out = Object.create(null);
+    queue.forEach(function (nick) {
+      var row = raw && raw[nick];
+      if (!row || typeof row !== "object") row = {};
+      out[nick] = {
+        points: safeInteger(row.points, 0, MAX_SCORE, 0),
+        maxPoints: safeInteger(row.maxPoints, 0, MAX_SCORE, 0),
+        correct: safeInteger(row.correct, 0, MAX_SCORE, 0),
+        drawCorrect: safeInteger(row.drawCorrect, 0, MAX_SCORE, 0)
+      };
+    });
+    return out;
+  }
+  function safeCorrect(raw, guessers) {
+    var out = Object.create(null);
+    guessers.forEach(function (nick) { if (raw && raw[nick] === true) out[nick] = true; });
+    return out;
+  }
+  function safeFeed(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw.slice(-3).map(function (item) {
+      item = item && typeof item === "object" ? item : {};
+      var kind = FEED_KINDS.indexOf(item.kind) >= 0 ? item.kind : "guess";
+      return { who: safeNick(item.who), text: safeText(item.text, 60), kind: kind };
+    });
+  }
 
   function initStats(nick) {
     if (state.scores[nick] == null) state.scores[nick] = 0;
@@ -76,6 +152,7 @@ window.CatchMind = (function () {
 
   function snapshot() {
     return {
+      protocol: 2,
       phase: state.phase,
       rev: state.rev,
       matchId: state.matchId,
@@ -89,17 +166,46 @@ window.CatchMind = (function () {
       stats: state.stats,
       correct: state.correct,
       strokes: state.strokes,
+      drawSeq: state.drawSeq,
       feed: state.feed,
       revealWord: state.revealWord,
       wordLength: state.wordLength,
-      recorded: state.recorded
+      recordStatus: state.recordStatus,
+      recorded: state.recordStatus === "saved"
     };
   }
 
   function broadcastState() {
     if (!api || !api.isHost()) return;
-    api.send({ t: "cm_state", state: snapshot() });
+    api.send({ t: "cm_state", by: me().nick, state: snapshot() });
     api.roomChanged();
+  }
+
+  function requestStateSync(force) {
+    if (!api || api.isHost()) return;
+    var now = Date.now();
+    if (!force && now - lastSyncRequestAt < 500) return;
+    lastSyncRequestAt = now;
+    api.send({ t: "hello", nick: me().nick });
+  }
+
+  function requestCanvasSync(force) {
+    if (!api || !api.isHost() || state.phase !== "drawing" || !state.drawer || state.drawer === me().nick) return;
+    var now = Date.now();
+    if (!force && now - lastCanvasRequestAt < 500) return;
+    lastCanvasRequestAt = now;
+    api.send({
+      t: "cm_canvas_req",
+      from: me().nick,
+      to: state.drawer,
+      matchId: state.matchId,
+      roundIndex: state.roundIndex
+    });
+  }
+
+  function requestCanvasRecovery() {
+    if (api && api.isHost()) requestCanvasSync(false);
+    else requestStateSync(false);
   }
 
   function commit() {
@@ -108,30 +214,78 @@ window.CatchMind = (function () {
     render();
   }
 
-  function applyState(next) {
-    if (!next || typeof next.rev !== "number" || next.rev < state.rev) return;
-    var sameRound = state.matchId === next.matchId && state.roundIndex === next.roundIndex;
+  function sanitizeSnapshot(next) {
+    if (!next || typeof next !== "object") return null;
+    var rev = safeInteger(next.rev, 0, Number.MAX_SAFE_INTEGER, null);
+    if (rev == null) return null;
+    var phases = ["idle", "drawing", "reveal", "finished"];
+    var phase = phases.indexOf(next.phase) >= 0 ? next.phase : "idle";
+    var queue = safeNickList(next.queue);
+    var drawer = safeNick(next.drawer);
+    if (!has(queue, drawer)) drawer = null;
+    var guessers = safeNickList(next.guessers).filter(function (nick) {
+      return nick !== drawer && has(queue, nick);
+    });
+    var recordStatus = RECORD_STATUSES.indexOf(next.recordStatus) >= 0
+      ? next.recordStatus
+      : (next.recorded ? "saved" : "idle");
+    return {
+      phase: phase,
+      rev: rev,
+      matchId: next.matchId == null ? null : safeText(next.matchId, 80),
+      queue: queue,
+      roundIndex: safeInteger(next.roundIndex, 0, Math.max(queue.length, 1), 0),
+      drawer: drawer,
+      guessers: guessers,
+      remainMs: safeDuration(next.remainMs, ROUND_MS + 5000),
+      nextRemainMs: safeDuration(next.nextRemainMs, REVEAL_MS + 5000),
+      scores: safeScores(next.scores, queue),
+      stats: safeStats(next.stats, queue),
+      correct: safeCorrect(next.correct, guessers),
+      strokes: sanitizeStrokes(next.strokes),
+      drawSeq: safeInteger(next.drawSeq, 0, Number.MAX_SAFE_INTEGER, 0),
+      feed: safeFeed(next.feed),
+      revealWord: next.revealWord == null ? null : safeText(next.revealWord, 40),
+      wordLength: safeInteger(next.wordLength, 0, 10, 0),
+      recordStatus: recordStatus
+    };
+  }
+
+  function applyState(next, authorityChanged) {
+    var clean = sanitizeSnapshot(next);
+    if (!clean || (!authorityChanged && clean.rev < state.rev)) return false;
+    var sameRound = state.matchId === clean.matchId && state.roundIndex === clean.roundIndex;
+    if (!authorityChanged && clean.rev === state.rev) {
+      if (!sameRound || clean.drawSeq <= state.drawSeq) return false;
+      state.strokes = clean.strokes;
+      state.drawSeq = clean.drawSeq;
+      redraw();
+      return true;
+    }
+    var keepNewerCanvas = !authorityChanged && sameRound && state.drawSeq > clean.drawSeq;
     state = {
-      phase: next.phase || "idle",
-      rev: next.rev,
-      matchId: next.matchId || null,
-      queue: next.queue || [],
-      roundIndex: next.roundIndex || 0,
-      drawer: next.drawer || null,
-      guessers: next.guessers || [],
-      deadline: typeof next.remainMs === "number" ? Date.now() + next.remainMs : null,
-      nextAt: typeof next.nextRemainMs === "number" ? Date.now() + next.nextRemainMs : null,
-      scores: next.scores || {},
-      stats: next.stats || {},
-      correct: next.correct || {},
-      strokes: next.strokes || [],
-      feed: next.feed || [],
-      revealWord: next.revealWord || null,
-      wordLength: next.wordLength || 0,
-      recorded: !!next.recorded
+      phase: clean.phase,
+      rev: clean.rev,
+      matchId: clean.matchId,
+      queue: clean.queue,
+      roundIndex: clean.roundIndex,
+      drawer: clean.drawer,
+      guessers: clean.guessers,
+      deadline: clean.remainMs != null ? Date.now() + clean.remainMs : null,
+      nextAt: clean.nextRemainMs != null ? Date.now() + clean.nextRemainMs : null,
+      scores: clean.scores,
+      stats: clean.stats,
+      correct: clean.correct,
+      strokes: keepNewerCanvas ? state.strokes : clean.strokes,
+      drawSeq: keepNewerCanvas ? state.drawSeq : clean.drawSeq,
+      feed: clean.feed,
+      revealWord: clean.revealWord,
+      wordLength: clean.wordLength,
+      recordStatus: clean.recordStatus
     };
     if (!sameRound) secretWord = null;
     render();
+    return true;
   }
 
   function addFeed(who, text, kind) {
@@ -148,7 +302,7 @@ window.CatchMind = (function () {
     var pool = wordPool();
     if (!pool.length) return FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)];
     var usedCount = Object.keys(usedWords).length;
-    if (usedCount >= pool.length) usedWords = {};
+    if (usedCount >= pool.length) usedWords = Object.create(null);
     for (var tries = 0; tries < 80; tries++) {
       var candidate = pool[Math.floor(Math.random() * pool.length)];
       if (!usedWords[candidate]) {
@@ -165,18 +319,75 @@ window.CatchMind = (function () {
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
+  function clearSaveRetry() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    pendingSave = null;
+  }
+
+  function resetMatchState(queue, matchId) {
+    var currentRev = state.rev;
+    state = freshState();
+    state.rev = currentRev;
+    state.matchId = matchId || (Date.now().toString(36) + "-" + Math.floor(Math.random() * 100000).toString(36));
+    state.queue = safeNickList(queue);
+    return state;
+  }
+
+  function resultsFromState() {
+    return state.queue.map(function (nick) {
+      var s = state.stats[nick];
+      if (!s || !s.maxPoints) return null;
+      return { nick: nick, points: s.points, maxPoints: s.maxPoints, correct: s.correct, drawCorrect: s.drawCorrect };
+    }).filter(Boolean);
+  }
+
+  function recordSaveFailed(matchId, results, attempt) {
+    if (!api || !api.isHost() || state.matchId !== matchId || state.phase !== "finished") return;
+    if (attempt < SAVE_RETRY_DELAYS.length) {
+      pendingSave = { matchId: matchId, results: results, attempt: attempt };
+      saveTimer = setTimeout(function () {
+        saveTimer = null;
+        persistResults(matchId, results, attempt + 1);
+      }, SAVE_RETRY_DELAYS[attempt]);
+      return;
+    }
+    pendingSave = null;
+    state.recordStatus = "failed";
+    commit();
+    api.toast("랭킹 기록 저장에 실패했어요");
+  }
+
+  function persistResults(matchId, results, attempt) {
+    if (!api || !api.isHost() || state.matchId !== matchId || state.phase !== "finished") return;
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    pendingSave = { matchId: matchId, results: results, attempt: attempt };
+    var request;
+    try { request = api.recordMatch(matchId, results); }
+    catch (error) { recordSaveFailed(matchId, results, attempt); return; }
+    Promise.resolve(request).then(function (res) {
+      if (!pendingSave || pendingSave.matchId !== matchId || pendingSave.attempt !== attempt) return;
+      if (res && res.error) { recordSaveFailed(matchId, results, attempt); return; }
+      pendingSave = null;
+      if (api && api.isHost() && state.matchId === matchId && state.phase === "finished") {
+        state.recordStatus = "saved";
+        commit();
+      }
+      if (api) api.scoresChanged();
+    }).catch(function () { recordSaveFailed(matchId, results, attempt); });
+  }
+
   function hostStartMatch() {
     if (!api || !api.isHost()) return;
     var queue = activePeople().sort(function (a, b) {
       return (a.joinTs || 0) - (b.joinTs || 0) || String(a.nick).localeCompare(String(b.nick));
     }).map(function (p) { return p.nick; });
+    queue = safeNickList(queue);
     if (queue.length < 2) { api.toast("2명 이상 모여야 시작할 수 있어요"); return; }
-    state = freshState();
-    state.matchId = Date.now().toString(36) + "-" + Math.floor(Math.random() * 100000).toString(36);
-    state.queue = queue;
-    queue.forEach(initStats);
+    clearSaveRetry();
+    resetMatchState(queue);
+    state.queue.forEach(initStats);
     secretWord = null;
-    usedWords = {};
+    usedWords = Object.create(null);
     hostStartRound(0);
   }
 
@@ -185,18 +396,28 @@ window.CatchMind = (function () {
     var live = activeNicks();
     while (index < state.queue.length && !has(live, state.queue[index])) index++;
     if (index >= state.queue.length) { hostFinishMatch(); return; }
+    var drawer = state.queue[index];
+    var guessers = state.queue.filter(function (nick) { return nick !== drawer && has(live, nick); });
+    if (!guessers.length) { hostFinishMatch(); return; }
 
     state.phase = "drawing";
     state.roundIndex = index;
-    state.drawer = state.queue[index];
-    state.guessers = state.queue.filter(function (nick) { return nick !== state.drawer && has(live, nick); });
+    state.drawer = drawer;
+    state.guessers = guessers;
     state.correct = {};
     state.strokes = [];
+    state.drawSeq = 0;
     state.feed = [];
     state.revealWord = null;
     state.deadline = Date.now() + ROUND_MS;
     state.nextAt = null;
-    state.recorded = false;
+    state.recordStatus = "idle";
+    lastCanvasRequestAt = 0;
+    drawing = false;
+    currentStroke = null;
+    strokeSentCount = 0;
+    canvasLimitNotified = false;
+    guessTimes = Object.create(null);
     secretWord = pickWord();
     state.wordLength = Array.from(secretWord).length;
 
@@ -207,6 +428,7 @@ window.CatchMind = (function () {
     broadcastState();
     api.send({
       t: "cm_secret",
+      from: me().nick,
       to: state.drawer,
       matchId: state.matchId,
       roundIndex: state.roundIndex,
@@ -236,21 +458,12 @@ window.CatchMind = (function () {
     state.revealWord = null;
     secretWord = null;
 
-    var results = state.queue.map(function (nick) {
-      var s = state.stats[nick];
-      if (!s || !s.maxPoints) return null;
-      return { nick: nick, points: s.points, maxPoints: s.maxPoints, correct: s.correct, drawCorrect: s.drawCorrect };
-    }).filter(Boolean);
-    state.recorded = results.length >= 2;
+    var results = resultsFromState();
+    state.recordStatus = results.length >= 2 ? "pending" : "skipped";
     addFeed("", "게임이 끝났어요. 최종 점수를 확인해 보세요", "system");
     commit();
 
-    if (state.recorded) {
-      api.recordMatch(state.matchId, results).then(function (res) {
-        if (res && res.error) { api.toast("랭킹 기록 저장에 실패했어요"); return; }
-        api.scoresChanged();
-      }).catch(function () { api.toast("랭킹 기록 저장에 실패했어요"); });
-    }
+    if (state.recordStatus === "pending") persistResults(state.matchId, results, 0);
   }
 
   function allGuessersCorrect() {
@@ -260,8 +473,11 @@ window.CatchMind = (function () {
   function hostGuess(msg) {
     if (!api.isHost() || state.phase !== "drawing" || !secretWord) return;
     if (msg.matchId !== state.matchId || msg.roundIndex !== state.roundIndex) return;
-    var nick = String(msg.nick || ""), text = String(msg.text || "").trim().slice(0, 40);
-    if (!text || !has(state.guessers, nick) || state.correct[nick]) return;
+    var nick = safeNick(msg.nick), text = safeText(msg.text, 40).trim();
+    if (!text || !has(state.guessers, nick) || !has(activeNicks(), nick) || state.correct[nick]) return;
+    var now = Date.now();
+    if (guessTimes[nick] && now - guessTimes[nick] < 250) return;
+    guessTimes[nick] = now;
 
     if (normalize(text) === normalize(secretWord)) {
       state.correct[nick] = true;
@@ -283,35 +499,153 @@ window.CatchMind = (function () {
   }
 
   function validRoundMessage(msg) {
-    return state.phase === "drawing" && msg.matchId === state.matchId && msg.roundIndex === state.roundIndex && msg.nick === state.drawer;
+    return state.phase === "drawing" && msg.matchId === state.matchId && msg.roundIndex === state.roundIndex
+      && safeNick(msg.nick) === state.drawer && has(activeNicks(), state.drawer);
   }
 
-  function sanitizeStroke(raw) {
+  function safePoint(raw) {
+    raw = raw && typeof raw === "object" ? raw : {};
+    return { x: clamp(Number(raw.x) || 0, 0, 1), y: clamp(Number(raw.y) || 0, 0, 1) };
+  }
+
+  function sanitizeStroke(raw, pointLimit) {
     if (!raw || !raw.id || !Array.isArray(raw.points)) return null;
     var color = PEN_COLORS.indexOf(raw.color) >= 0 || raw.color === CANVAS_BG ? raw.color : PEN_COLORS[0];
-    var points = raw.points.slice(0, 600).map(function (p) {
-      return { x: clamp(Number(p.x) || 0, 0, 1), y: clamp(Number(p.y) || 0, 0, 1) };
-    });
+    var limit = Math.min(MAX_POINTS_PER_STROKE, Math.max(0, pointLimit == null ? MAX_POINTS_PER_STROKE : pointLimit));
+    var points = raw.points.slice(0, limit).map(safePoint);
     if (!points.length) return null;
-    return { id: String(raw.id).slice(0, 80), color: color, width: clamp(Number(raw.width) || 8, 4, 36), points: points };
+    return { id: safeText(raw.id, 80), color: color, width: clamp(Number(raw.width) || 8, 4, 36), points: points };
+  }
+
+  function sanitizeStrokes(raw) {
+    if (!Array.isArray(raw)) return [];
+    var out = [], total = 0;
+    for (var i = 0; i < raw.length && out.length < MAX_STROKES && total < MAX_CANVAS_POINTS; i++) {
+      var stroke = sanitizeStroke(raw[i], MAX_CANVAS_POINTS - total);
+      if (!stroke) continue;
+      out.push(stroke);
+      total += stroke.points.length;
+    }
+    return out;
+  }
+
+  function canvasPointCount() {
+    return state.strokes.reduce(function (sum, stroke) {
+      return sum + (stroke && Array.isArray(stroke.points) ? stroke.points.length : 0);
+    }, 0);
   }
 
   function upsertStroke(stroke) {
     var found = -1;
     for (var i = 0; i < state.strokes.length; i++) if (state.strokes[i].id === stroke.id) { found = i; break; }
+    var previousPoints = found >= 0 ? state.strokes[found].points.length : 0;
+    var available = Math.max(0, MAX_CANVAS_POINTS - (canvasPointCount() - previousPoints));
+    stroke.points = stroke.points.slice(0, Math.min(MAX_POINTS_PER_STROKE, available));
+    if (!stroke.points.length) return false;
     if (found >= 0) state.strokes[found] = stroke;
-    else if (state.strokes.length < 120) state.strokes.push(stroke);
+    else if (state.strokes.length < MAX_STROKES) state.strokes.push(stroke);
+    else return false;
+    redraw();
+    return true;
+  }
+
+  function sanitizeStrokeDelta(raw) {
+    if (!raw || !raw.id || !Array.isArray(raw.points)) return null;
+    var offset = safeInteger(raw.offset, 0, MAX_POINTS_PER_STROKE, null);
+    if (offset == null) return null;
+    var color = PEN_COLORS.indexOf(raw.color) >= 0 || raw.color === CANVAS_BG ? raw.color : PEN_COLORS[0];
+    return {
+      id: safeText(raw.id, 80),
+      color: color,
+      width: clamp(Number(raw.width) || 8, 4, 36),
+      offset: offset,
+      points: raw.points.slice(0, MAX_POINTS_PER_STROKE).map(safePoint)
+    };
+  }
+
+  function applyStrokeDelta(raw) {
+    var delta = sanitizeStrokeDelta(raw);
+    if (!delta || !delta.points.length) return false;
+    var found = -1;
+    for (var i = 0; i < state.strokes.length; i++) if (state.strokes[i].id === delta.id) { found = i; break; }
+    if (found < 0 && delta.offset !== 0) return false;
+    var existing = found >= 0 ? state.strokes[found] : null;
+    var points = existing ? existing.points.slice() : [];
+    if (delta.offset > points.length) return false;
+    var otherPoints = canvasPointCount() - points.length;
+    var maxLength = Math.min(MAX_POINTS_PER_STROKE, Math.max(0, MAX_CANVAS_POINTS - otherPoints));
+    for (var j = 0; j < delta.points.length; j++) {
+      var at = delta.offset + j;
+      if (at >= maxLength) break;
+      if (at < points.length) points[at] = delta.points[j];
+      else if (at === points.length) points.push(delta.points[j]);
+      else break;
+    }
+    if (!points.length) return false;
+    return upsertStroke({
+      id: delta.id,
+      color: existing ? existing.color : delta.color,
+      width: existing ? existing.width : delta.width,
+      points: points
+    });
+  }
+
+  function applyDrawMessage(msg) {
+    var seq = safeInteger(msg.seq, 1, Number.MAX_SAFE_INTEGER, null);
+    if (seq == null || seq <= state.drawSeq || !validRoundMessage(msg)) return;
+    if (seq !== state.drawSeq + 1 || !applyStrokeDelta(msg.stroke)) {
+      requestCanvasRecovery();
+      return;
+    }
+    state.drawSeq = seq;
+  }
+
+  function applyCanvasCommand(msg, type) {
+    var seq = safeInteger(msg.seq, 1, Number.MAX_SAFE_INTEGER, null);
+    if (seq == null || seq <= state.drawSeq || !validRoundMessage(msg)) return;
+    if (seq !== state.drawSeq + 1) { requestCanvasRecovery(); return; }
+    if (type === "cm_undo") state.strokes.pop();
+    else if (type === "cm_clear") state.strokes = [];
+    state.drawSeq = seq;
     redraw();
   }
 
+  function sendCanvasSnapshot(msg) {
+    if (!api || state.phase !== "drawing" || state.drawer !== me().nick) return;
+    if (msg.from !== api.host() || msg.to !== me().nick || msg.matchId !== state.matchId || msg.roundIndex !== state.roundIndex) return;
+    api.send({
+      t: "cm_canvas_state",
+      from: me().nick,
+      to: api.host(),
+      matchId: state.matchId,
+      roundIndex: state.roundIndex,
+      drawSeq: state.drawSeq,
+      strokes: state.strokes
+    });
+  }
+
+  function applyCanvasSnapshot(msg) {
+    if (!api || !api.isHost() || state.phase !== "drawing") return;
+    if (msg.from !== state.drawer || msg.to !== me().nick || msg.matchId !== state.matchId || msg.roundIndex !== state.roundIndex) return;
+    var seq = safeInteger(msg.drawSeq, 0, Number.MAX_SAFE_INTEGER, null);
+    if (seq == null || seq < state.drawSeq || !Array.isArray(msg.strokes)) return;
+    state.strokes = sanitizeStrokes(msg.strokes);
+    state.drawSeq = seq;
+    lastCanvasRequestAt = Date.now();
+    redraw();
+    broadcastState();
+  }
+
   function onMessage(msg) {
-    if (!msg || !msg.t) return false;
+    if (!msg || typeof msg.t !== "string") return false;
     if (msg.t === "hello") {
-      if (api && api.isHost() && msg.nick !== me().nick) {
+      var helloNick = safeNick(msg.nick);
+      if (api && api.isHost() && helloNick && helloNick !== me().nick && has(activeNicks(), helloNick)) {
         broadcastState();
-        if (state.phase === "drawing" && secretWord && msg.nick === state.drawer) {
+        if (state.phase === "drawing" && secretWord && helloNick === state.drawer) {
           api.send({
             t: "cm_secret",
+            from: me().nick,
             to: state.drawer,
             matchId: state.matchId,
             roundIndex: state.roundIndex,
@@ -323,21 +657,24 @@ window.CatchMind = (function () {
     }
     if (msg.t.indexOf("cm_") !== 0) return false;
 
-    if (msg.t === "cm_state") applyState(msg.state);
+    if (msg.t === "cm_state") {
+      if (api && !api.isHost() && msg.by === api.host()) {
+        if (applyState(msg.state, stateHost !== msg.by)) stateHost = msg.by;
+      }
+    }
     else if (msg.t === "cm_secret") {
-      if (msg.to === me().nick && msg.matchId === state.matchId && msg.roundIndex === state.roundIndex) {
-        secretWord = String(msg.word || "");
+      if (api && msg.from === api.host() && msg.to === me().nick && msg.matchId === state.matchId && msg.roundIndex === state.roundIndex) {
+        var incomingWord = safeText(msg.word, 10);
+        if (!/^[가-힣]{1,10}$/.test(incomingWord)) return true;
+        secretWord = incomingWord;
         render();
       }
-    } else if (msg.t === "cm_guess") hostGuess(msg);
-    else if (msg.t === "cm_draw" && validRoundMessage(msg)) {
-      var stroke = sanitizeStroke(msg.stroke);
-      if (stroke) upsertStroke(stroke);
-    } else if (msg.t === "cm_undo" && validRoundMessage(msg)) {
-      state.strokes.pop(); redraw();
-    } else if (msg.t === "cm_clear" && validRoundMessage(msg)) {
-      state.strokes = []; redraw();
-    }
+    } else if (msg.t === "cm_canvas_req") sendCanvasSnapshot(msg);
+    else if (msg.t === "cm_canvas_state") applyCanvasSnapshot(msg);
+    else if (msg.t === "cm_guess") hostGuess(msg);
+    else if (msg.t === "cm_draw") applyDrawMessage(msg);
+    else if (msg.t === "cm_undo") applyCanvasCommand(msg, "cm_undo");
+    else if (msg.t === "cm_clear") applyCanvasCommand(msg, "cm_clear");
     return true;
   }
 
@@ -345,6 +682,8 @@ window.CatchMind = (function () {
     if (!api) return;
     var isHost = api.isHost();
     var becameHost = options && options.becameHost;
+    var lostHost = previousHost && !isHost;
+    if (isHost) stateHost = me().nick;
     if (isHost && becameHost && state.phase === "drawing" && !secretWord) {
       hostEndRound("방장이 바뀌어 이번 문제를 넘겼어요");
     } else if (isHost && state.phase === "drawing") {
@@ -353,6 +692,11 @@ window.CatchMind = (function () {
     } else if (isHost) {
       broadcastState();
     }
+    if (isHost && becameHost && state.phase === "finished" && state.recordStatus === "pending") {
+      persistResults(state.matchId, resultsFromState(), 0);
+    }
+    if (isHost && state.phase === "drawing") requestCanvasSync(false);
+    if (!isHost && (lostHost || stateHost !== api.host())) requestStateSync(true);
     previousHost = isHost;
     render();
   }
@@ -424,7 +768,8 @@ window.CatchMind = (function () {
   function renderFeed() {
     var box = $("catch-feed"); if (!box) return;
     box.innerHTML = state.feed.map(function (item) {
-      var cls = "catch-feed-line " + (item.kind || "guess");
+      var kind = FEED_KINDS.indexOf(item.kind) >= 0 ? item.kind : "guess";
+      var cls = "catch-feed-line " + kind;
       if (item.who) return '<div class="' + cls + '"><b>' + esc(item.who) + '</b> ' + esc(item.text) + '</div>';
       return '<div class="' + cls + '">' + esc(item.text) + '</div>';
     }).join("");
@@ -445,11 +790,14 @@ window.CatchMind = (function () {
     } else if (state.phase === "finished") {
       var order = scoreOrder(), winner = order[0];
       title.textContent = winner ? winner + "님 1위!" : "게임 종료";
-      sub.textContent = state.recorded ? "결과가 시즌 랭킹에 반영돼요" : "참여 기록이 부족해 랭킹에는 반영되지 않았어요";
+      if (state.recordStatus === "pending") sub.textContent = "랭킹 기록을 저장하고 있어요";
+      else if (state.recordStatus === "saved") sub.textContent = "결과가 시즌 랭킹에 반영됐어요";
+      else if (state.recordStatus === "failed") sub.textContent = "랭킹 기록 저장에 실패했어요";
+      else sub.textContent = "참여 기록이 부족해 랭킹에는 반영되지 않았어요";
       sub.classList.remove("hidden");
       start.textContent = "다시 시작";
       start.classList.toggle("hidden", !canStart);
-      start.disabled = false;
+      start.disabled = state.recordStatus === "pending";
     } else {
       title.textContent = "게임 대기 중";
       sub.textContent = "";
@@ -528,25 +876,48 @@ window.CatchMind = (function () {
 
   function sendCurrentStroke(force) {
     if (!api || !currentStroke) return;
+    if (strokeSentCount >= currentStroke.points.length) return;
     var now = Date.now();
-    if (!force && now - lastStrokeSend < 50) {
+    if (!force && now - lastStrokeSend < DRAW_SEND_MS) {
       if (!pendingStrokeTimer) {
-        pendingStrokeTimer = setTimeout(function () { pendingStrokeTimer = null; sendCurrentStroke(true); }, 50);
+        pendingStrokeTimer = setTimeout(function () { pendingStrokeTimer = null; sendCurrentStroke(true); }, DRAW_SEND_MS);
       }
       return;
     }
     lastStrokeSend = now;
+    var offset = strokeSentCount;
+    var points = currentStroke.points.slice(offset).map(function (point) { return { x: point.x, y: point.y }; });
+    if (!points.length) return;
+    strokeSentCount = currentStroke.points.length;
+    state.drawSeq++;
     api.send({
       t: "cm_draw",
       nick: me().nick,
       matchId: state.matchId,
       roundIndex: state.roundIndex,
-      stroke: clone(currentStroke)
+      seq: state.drawSeq,
+      stroke: {
+        id: currentStroke.id,
+        color: currentStroke.color,
+        width: currentStroke.width,
+        offset: offset,
+        points: points
+      }
     });
+  }
+
+  function notifyCanvasLimit() {
+    if (canvasLimitNotified || !api) return;
+    canvasLimitNotified = true;
+    api.toast("그림이 너무 길어 새 선을 더 그릴 수 없어요");
   }
 
   function pointerDown(event) {
     if (!canDraw()) return;
+    if (state.strokes.length >= MAX_STROKES || canvasPointCount() >= MAX_CANVAS_POINTS) {
+      notifyCanvasLimit();
+      return;
+    }
     event.preventDefault();
     drawing = true;
     if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
@@ -557,7 +928,13 @@ window.CatchMind = (function () {
       width: selectedTool === "eraser" ? 30 : 8,
       points: [pointFromEvent(event)]
     };
-    upsertStroke(currentStroke);
+    strokeSentCount = 0;
+    if (!upsertStroke(currentStroke)) {
+      drawing = false;
+      currentStroke = null;
+      notifyCanvasLimit();
+      return;
+    }
     sendCurrentStroke(true);
   }
 
@@ -567,7 +944,12 @@ window.CatchMind = (function () {
     var point = pointFromEvent(event), prev = currentStroke.points[currentStroke.points.length - 1];
     var dx = point.x - prev.x, dy = point.y - prev.y;
     if (dx * dx + dy * dy < 0.000015) return;
-    if (currentStroke.points.length < 600) currentStroke.points.push(point);
+    if (currentStroke.points.length >= MAX_POINTS_PER_STROKE) return;
+    if (canvasPointCount() >= MAX_CANVAS_POINTS) {
+      notifyCanvasLimit();
+      return;
+    }
+    currentStroke.points.push(point);
     upsertStroke(currentStroke);
     sendCurrentStroke(false);
   }
@@ -609,6 +991,27 @@ window.CatchMind = (function () {
     input.value = "";
   }
 
+  function sendCanvasCommand(type) {
+    if (!canDraw() || drawing) return;
+    if (type === "cm_undo") {
+      if (!state.strokes.length) return;
+      state.strokes.pop();
+    } else if (type === "cm_clear") {
+      if (!state.strokes.length) return;
+      state.strokes = [];
+    } else return;
+    canvasLimitNotified = false;
+    state.drawSeq++;
+    redraw();
+    api.send({
+      t: type,
+      nick: me().nick,
+      matchId: state.matchId,
+      roundIndex: state.roundIndex,
+      seq: state.drawSeq
+    });
+  }
+
   function bind() {
     if (bound) return;
     bound = true;
@@ -636,22 +1039,27 @@ window.CatchMind = (function () {
       selectedColor = this.getAttribute("data-catch-color"); selectedTool = "pen"; syncToolButtons();
     });
     $("catch-undo-btn").addEventListener("click", function () {
-      if (!canDraw()) return;
-      api.send({ t: "cm_undo", nick: me().nick, matchId: state.matchId, roundIndex: state.roundIndex });
+      sendCanvasCommand("cm_undo");
     });
     $("catch-clear-btn").addEventListener("click", function () {
-      if (!canDraw()) return;
-      api.send({ t: "cm_clear", nick: me().nick, matchId: state.matchId, roundIndex: state.roundIndex });
+      sendCanvasCommand("cm_clear");
     });
   }
 
   function enter(nextApi) {
+    clearSaveRetry();
     api = nextApi;
     state = freshState();
     secretWord = null;
     previousHost = false;
     drawing = false;
     currentStroke = null;
+    strokeSentCount = 0;
+    canvasLimitNotified = false;
+    guessTimes = Object.create(null);
+    stateHost = null;
+    lastSyncRequestAt = 0;
+    lastCanvasRequestAt = 0;
     canvas = $("catch-board");
     ctx = canvas ? canvas.getContext("2d") : null;
     if (canvas) bind();
@@ -663,15 +1071,23 @@ window.CatchMind = (function () {
   function leave() {
     if (tickId) { clearInterval(tickId); tickId = null; }
     if (pendingStrokeTimer) { clearTimeout(pendingStrokeTimer); pendingStrokeTimer = null; }
+    clearSaveRetry();
     api = null;
     state = freshState();
     secretWord = null;
     drawing = false;
     currentStroke = null;
+    strokeSentCount = 0;
+    canvasLimitNotified = false;
+    guessTimes = Object.create(null);
+    stateHost = null;
+    lastSyncRequestAt = 0;
+    lastCanvasRequestAt = 0;
   }
 
   function onReady() {
-    if (api) api.send({ t: "hello", nick: me().nick });
+    if (api && api.isHost()) requestCanvasSync(false);
+    else requestStateSync(false);
   }
 
   function roomMeta() {
@@ -725,7 +1141,7 @@ window.CatchMind = (function () {
     };
   }
 
-  return {
+  var controller = {
     enter: enter,
     leave: leave,
     onReady: onReady,
@@ -738,4 +1154,25 @@ window.CatchMind = (function () {
     rules: rules,
     get state() { return state; }
   };
+  if (window.__CATCHMIND_TEST__) {
+    controller._test = {
+      freshState: freshState,
+      resetMatchState: resetMatchState,
+      sanitizeSnapshot: sanitizeSnapshot,
+      sanitizeStrokes: sanitizeStrokes,
+      applyState: applyState,
+      applyStrokeDelta: applyStrokeDelta,
+      allGuessersCorrect: allGuessersCorrect,
+      onMessage: onMessage,
+      onPresence: onPresence,
+      persistResults: persistResults,
+      clearSaveRetry: clearSaveRetry,
+      snapshot: snapshot,
+      getState: function () { return state; },
+      setState: function (next) { state = next; },
+      setApi: function (next) { api = next; },
+      limits: { strokes: MAX_STROKES, pointsPerStroke: MAX_POINTS_PER_STROKE, canvasPoints: MAX_CANVAS_POINTS, players: MAX_PLAYERS }
+    };
+  }
+  return controller;
 })();
