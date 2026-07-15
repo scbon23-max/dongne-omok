@@ -30,6 +30,7 @@
   };
   var ADMIN = "구나";
   var DRAW_ASK_MOVES = 80;
+  var REQUEST_COOLDOWN_MS = 10000;
 
   var me = { nick: "", isAdmin: false };
   var roster = [];
@@ -557,6 +558,7 @@
     if (!b || !w || b === w || !A.over || !A.winner) return;
     A.recorded = true;
     var winner = A.winner === "draw" ? "draw" : (A.winner === "b" ? "black" : "white");
+    if (A.winner !== "draw") announceAlkWinChat();
     var gameType = (A.mode === "territory") ? "alk_terr" : "alk";
     if (window.Db) Db.recordAlkGame(b, w, winner, gameType).then(function () { Net.sendLobby({ t: "scores", game: gameType }); }).catch(function () {});
   }
@@ -1031,7 +1033,7 @@
     G.lastMove = { r: r, c: c };
     if (!G.history) G.history = [];
     G.history.push({ r: r, c: c, color: G.turn });
-    if (res.win) { G.over = true; G.winner = G.turn; G.draw = false; endGame(); return; }
+    if (res.win) { G.over = true; G.winner = G.turn; G.draw = false; announceOmokWinChat(); endGame(); return; }
     if (boardFull()) { G.over = true; G.winner = 0; G.draw = true; endGame(); return; }
     if (!G.drawAskDone && !G.drawAsk && isRealTwoPlayerGame() && G.history.length >= DRAW_ASK_MOVES) {
       G.drawAsk = { gseq: G.gameSeq, black: null, white: null };
@@ -1069,15 +1071,15 @@
   // ---------- 무르기 ----------
   var undoCooldownUntil = 0;
   function startUndoCooldown() {
-    undoCooldownUntil = Date.now() + 3000;
+    undoCooldownUntil = Date.now() + REQUEST_COOLDOWN_MS;
     var b = $("undo-btn"); if (!b) return;
     b.disabled = true; b.classList.add("cooldown");
-    setTimeout(function () { b.disabled = false; b.classList.remove("cooldown"); }, 3000);
+    setTimeout(function () { b.disabled = false; b.classList.remove("cooldown"); }, REQUEST_COOLDOWN_MS);
   }
   function sendUndoRequest() {
     if (G.over) { toast("대국이 끝났어요"); return; }
     if (!G.history || !G.history.length) { toast("무를 수가 없어요"); return; }
-    if (Date.now() < undoCooldownUntil) { toast("무르기는 3초 뒤에 다시 쓸 수 있어요"); return; }
+    if (Date.now() < undoCooldownUntil) { toast("무르기는 10초 뒤에 다시 쓸 수 있어요"); return; }
     if (!netMode) { performUndo(); startUndoCooldown(); return; }
     if (G.seats.black === AI_NICK || G.seats.white === AI_NICK) {
       aiPending = false;
@@ -1159,16 +1161,16 @@
   }
   var drawReqFrom = null, drawReqGseq = 0, drawCooldownUntil = 0;
   function startDrawCooldown() {
-    drawCooldownUntil = Date.now() + 5000;
+    drawCooldownUntil = Date.now() + REQUEST_COOLDOWN_MS;
     var b = $("draw-btn"); if (!b) return;
     b.disabled = true; b.classList.add("cooldown");
-    setTimeout(function () { b.disabled = false; b.classList.remove("cooldown"); }, 5000);
+    setTimeout(function () { b.disabled = false; b.classList.remove("cooldown"); }, REQUEST_COOLDOWN_MS);
   }
   function sendDrawRequest() {
     var mySeat = (G.seats.black === me.nick) ? "black" : (G.seats.white === me.nick) ? "white" : null;
     if (!mySeat) { toast("앉은 사람만 제안할 수 있어요"); return; }
     if (!G.started || G.over) { toast("대국 중에만 제안할 수 있어요"); return; }
-    if (Date.now() < drawCooldownUntil) { toast("무승부 제안은 잠시 뒤에 다시 쓸 수 있어요"); return; }
+    if (Date.now() < drawCooldownUntil) { toast("무승부 제안은 10초 뒤에 다시 쓸 수 있어요"); return; }
     var opp = mySeat === "black" ? G.seats.white : G.seats.black;
     if (!opp || opp === me.nick) { toast("상대가 없어요"); return; }
     if (!netMode) { hostDrawGame(); return; }
@@ -1203,11 +1205,22 @@
     if (seats.white === nick) return seats.black;
     return null;
   }
+  var beginCooldownUntil = 0;
+  function startBeginCooldown() {
+    beginCooldownUntil = Date.now() + REQUEST_COOLDOWN_MS;
+    ["center-btn", "alk-center-btn", "omok-again", "alk-again"].forEach(function (id) {
+      var b = $(id); if (!b) return;
+      b.disabled = true; b.classList.add("cooldown");
+      setTimeout(function () { b.disabled = false; b.classList.remove("cooldown"); }, REQUEST_COOLDOWN_MS);
+    });
+  }
   function sendBeginRequest(game) {
     if (!netMode || beginStarted(game)) return false;
     var opp = beginOpponent(game, me.nick);
     if (!opp) return false;
+    if (Date.now() < beginCooldownUntil) { toast("대국 신청은 10초 뒤에 다시 보낼 수 있어요"); return true; }
     Net.send({ t: game === "alk" ? "alk_begin_req" : "begin_req", from: me.nick, to: opp, gseq: beginSeq(game) });
+    startBeginCooldown();
     toast(opp + "님에게 대국 신청을 보냈어요");
     return true;
   }
@@ -1312,15 +1325,24 @@
   }
 
   // ---------- 무효(상대 동의) ----------
+  var voidCooldownUntil = 0;
+  function startVoidCooldown() {
+    voidCooldownUntil = Date.now() + REQUEST_COOLDOWN_MS;
+    var b = $("leave-void"); if (!b) return;
+    b.disabled = true; b.classList.add("cooldown");
+    setTimeout(function () { b.disabled = false; b.classList.remove("cooldown"); }, REQUEST_COOLDOWN_MS);
+  }
   function sendVoidRequest() {
     var mySeat = (G.seats.black === me.nick) ? "black" : (G.seats.white === me.nick) ? "white" : null;
     if (!mySeat) { $("leave-modal").classList.add("hidden"); requestSeat(me.nick, "spec"); return; }
     if (!G.started || G.over) { $("leave-modal").classList.add("hidden"); requestSeat(me.nick, "spec"); return; }
     var opp = mySeat === "black" ? G.seats.white : G.seats.black;
     if (!opp) { toast("상대가 없어요"); return; }
+    if (netMode && Date.now() < voidCooldownUntil) { toast("무효 요청은 10초 뒤에 다시 보낼 수 있어요"); return; }
     $("leave-modal").classList.add("hidden");
     if (!netMode) { hostVoidGame(me.nick); return; }
     Net.send({ t: "void_req", from: me.nick, to: opp, gseq: G.gameSeq });
+    startVoidCooldown();
     toast("무효 처리를 상대에게 부탁했어요");
   }
   function showVoidModal(from, gseq) {
@@ -2203,6 +2225,20 @@
   }
   function bumpUnread(game) { unreadCount[game]++; renderUnread(game); }
   function clearUnread(game) { unreadCount[game] = 0; renderUnread(game); }
+  function sendSystemChat(game, text) {
+    if (netMode) Net.send({ t: "chat", game: game, nick: "__sys", text: text });
+    else addChatTo(game, "__sys", text);
+  }
+  function announceOmokWinChat() {
+    if (!G.winner || G.draw) return;
+    var nick = seatDisplay(seatName(colorName(G.winner))) || (G.winner === BLACK ? "흑" : "백");
+    sendSystemChat("omok", nick + "님 승리!");
+  }
+  function announceAlkWinChat() {
+    if (!A.winner || A.winner === "draw") return;
+    var nick = A.winner === "b" ? A.seats.black : A.seats.white;
+    sendSystemChat("alk", (nick || (A.winner === "b" ? "흑" : "백")) + "님 승리!");
+  }
   function addChatTo(game, who, text, live) {
     var log = $(game === "omok" ? "chat-log" : "alk-chat-log");
     if (log) { log.appendChild(makeChatLine(who, text)); log.scrollTop = log.scrollHeight; }
