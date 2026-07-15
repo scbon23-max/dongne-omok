@@ -70,12 +70,28 @@ body {
 .player-chip.active .chip-cnt { color: var(--navy); }
 .alk-board-wrap { width: 100%; max-width: 300px; margin: 0 auto; position: relative; }
 #alk-board { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.35); touch-action: none; }
-.win-flag { position: absolute; inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; background: rgba(14,42,58,.72); border-radius: 10px; }
+.win-flag { position: absolute; inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; background: rgba(14,42,58,.72); border-radius: 10px; padding: 16px; }
 .win-flag.hidden { display: none; }
 .win-flag .wt { font-size: 28px; font-weight: 800; color: #fff; }
-.win-delta { font-size: 24px; font-weight: 800; color: var(--teal); text-shadow: 0 2px 10px rgba(56,198,176,.6); margin-top: -6px; }
-.win-delta.hidden { display: none; }
+.win-result-list { width: min(100%, 340px); display: flex; flex-direction: column; padding: 3px 14px; }
+.win-result-list.hidden { display: none; }
+.win-result-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; }
+.win-result-row + .win-result-row { border-top: 1px solid rgba(255,255,255,.22); }
+.win-result-row:first-child { border-top: none; }
+.win-result-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 16px; font-weight: 800; color: #fff; }
+.win-result-name .nick { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-move { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 2px; font-size: 13px; font-weight: 900; }
+.rank-move.up { color: var(--teal-light); }
+.rank-move.down { color: #FF8A8A; }
+.rank-static { flex: 0 0 auto; font-size: 12px; font-weight: 800; color: #9fb2bd; }
+.win-result-score { flex: 0 0 auto; white-space: nowrap; font-size: 17px; font-weight: 900; color: #fff; }
+.score-delta { margin-left: 4px; font-size: 14px; }
+.score-delta.up { color: var(--teal-light); }
+.score-delta.down { color: #FF8A8A; }
+.score-delta.same { color: #9fb2bd; }
+.win-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .win-flag button { background: var(--orange); color: #fff; border: none; border-radius: 12px; padding: 11px 20px; font-size: 15px; font-weight: 800; }
+.win-flag button.secondary { background: var(--navy-2); color: #eaf2f6; }
 
 /* 하단 게임 전환 탭 */
 .game-tabs { display: flex; gap: 8px; margin: 8px auto 0; width: 100%; max-width: 420px; padding-bottom: env(safe-area-inset-bottom); }

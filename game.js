@@ -20,9 +20,11 @@
     recorded: false,
     started: false,
     lastPlayers: null,
+    resultAt: null,
     manualPaused: false,
     paused: false,
     pausedRemainMs: null,
+    resultInfo: null,
     drawAsk: null,       // { gseq, black: null|true|false, white: null|true|false } — 80수 자동 제안
     drawAskDone: false    // 자동 제안을 이미 물어봤는지(이번 판 1회)
   };
@@ -37,7 +39,7 @@
   var hostTimerId = null, dispTimerId = null;
   var GRACE_MS = 10000;
   var graceTimers = { black: null, white: null };
-  var winShownSeq = -1, liveSeq = -1;
+  var winShownSeq = -1, liveSeq = -1, resultCalcSeq = -1;
   var voidReqFrom = null, voidReqGseq = 0, undoReqCtx = null;
   var audioCtx = null, soundMuted = false, lastStoneCount = 0, stoneBuffer = null, stoneLoading = false, silenceEl = null;
   var inoutBuffer = null, inoutLoading = false, prevNicks = [], joinedAt = 0, firstPresenceAt = 0;
@@ -300,7 +302,7 @@
   function resetRoomGameState() {
     G.board = Renju.emptyBoard(); G.turn = BLACK; G.lastMove = null; G.over = false; G.winner = 0; G.draw = false;
     G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = [];
-    G.recorded = false; G.started = false; G.lastPlayers = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
+    G.recorded = false; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
     A.seats = { black: null, white: null }; A.turn = "b"; A.started = false; A.over = false; A.winner = null;
     A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; alkSolo = false; omokSolo = false; omokAI.on = false; aiPending = false;
     A.mode = "knockout"; A.remain = null; A.score = null;
@@ -885,7 +887,7 @@
       seats: G.seats, timerSec: G.timerSec, moveDeadline: G.moveDeadline,
       moveRemainMs: G.moveDeadline ? Math.max(0, G.moveDeadline - Date.now()) : null,
       rev: G.rev, gameSeq: G.gameSeq, history: G.history,
-      started: G.started, lastPlayers: G.lastPlayers, manualPaused: G.manualPaused, paused: G.paused, pausedRemainMs: G.pausedRemainMs,
+      started: G.started, lastPlayers: G.lastPlayers, resultAt: G.resultAt, resultInfo: G.resultInfo, manualPaused: G.manualPaused, paused: G.paused, pausedRemainMs: G.pausedRemainMs,
       drawAsk: G.drawAsk, drawAskDone: G.drawAskDone
     };
   }
@@ -898,7 +900,7 @@
     G.moveDeadline = (typeof s.moveRemainMs === "number") ? (Date.now() + s.moveRemainMs) : s.moveDeadline;
     G.rev = s.rev || 0; G.gameSeq = s.gameSeq || 0;
     G.history = s.history || [];
-    G.started = !!s.started; G.lastPlayers = s.lastPlayers || null;
+    G.started = !!s.started; G.lastPlayers = s.lastPlayers || null; G.resultAt = s.resultAt || null; G.resultInfo = s.resultInfo || null;
     G.manualPaused = !!s.manualPaused;
     G.paused = !!s.paused; G.pausedRemainMs = (typeof s.pausedRemainMs === "number") ? s.pausedRemainMs : null;
     G.drawAsk = s.drawAsk || null; G.drawAskDone = !!s.drawAskDone;
@@ -906,9 +908,10 @@
     syncTimerChips(); syncPauseButton(); updateTurnUI(); renderPlayersList(); render(); updateCenterButton(); updateDrawAskUI();
     if (G.over) {
       if (liveSeq === G.gameSeq && winShownSeq !== G.gameSeq) showWin();
+      else renderWinResult();
     } else {
       liveSeq = G.gameSeq;
-      winShownSeq = -1; $("omok-win").classList.add("hidden");
+      winShownSeq = -1; resultCalcSeq = -1; $("omok-win").classList.add("hidden");
     }
   }
 
@@ -960,6 +963,8 @@
 
   function endGame() {
     G.started = false;
+    G.resultAt = new Date().toISOString();
+    G.resultInfo = null;
     G.manualPaused = false; G.paused = false; G.pausedRemainMs = null; clearAllGrace();
     G.rev++;
     stopHostTimer();
@@ -1104,6 +1109,7 @@
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
     G.drawAsk = null; G.drawAskDone = false;
+    G.resultAt = null; G.resultInfo = null;
     G.started = true;
     G.manualPaused = false; G.paused = false; G.pausedRemainMs = null; clearAllGrace();
     G.lastPlayers = { black: G.seats.black, white: G.seats.white };
@@ -1119,6 +1125,7 @@
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
     G.drawAsk = null; G.drawAskDone = false;
+    G.resultAt = null; G.resultInfo = null;
     G.started = false;
     G.manualPaused = false; G.paused = false; G.pausedRemainMs = null; clearAllGrace();
     G.moveDeadline = null;
@@ -1193,42 +1200,100 @@
       t = nm ? (nm + "님 승리!") : ((G.winner === BLACK ? "흑" : "백") + " 승리!");
     }
     $("omok-wintext").textContent = t;
-    var wd = $("win-delta"); if (wd) { wd.textContent = ""; wd.classList.add("hidden"); }
+    renderWinResult();
     $("omok-win").classList.remove("hidden");
     winShownSeq = G.gameSeq;
     if (!G.draw) playSample(winBuffer);
     setTimeout(refreshScores, 800);
-    if (!G.draw) showEloDeltaAsync();
+    buildResultInfoAsync();
   }
-  async function computeEloDelta(myNick, oppNick, myColor, iWon, beforeTs) {
-    if (!window.Db) return null;
-    var games = await Db.getGamesByType("omok");
-    var s = currentSeason();
-    var priorGames = games.filter(function (g) { return g.created_at < beforeTs && gameInSeason(g, s); });
-    var stats = aggregate(priorGames);
-    function eloOf(nick) {
-      for (var i = 0; i < stats.length; i++) if (stats[i].nick === nick) return stats[i].elo;
-      return ELO_START;
+  function renderWinResult() {
+    var box = $("win-result-list"); if (!box) return;
+    var info = G.resultInfo;
+    if (!info || !info.players || !info.players.length) {
+      box.innerHTML = "";
+      box.classList.add("hidden");
+      return;
     }
-    var myElo = eloOf(myNick), oppElo = eloOf(oppNick);
-    var eMy = 1 / (1 + Math.pow(10, (oppElo - myElo) / 400));
-    var sMy = iWon ? 1 : 0;
-    return Math.round(ELO_K * (sMy - eMy));
+    box.innerHTML = info.players.map(function (p) {
+      var delta = p.delta || 0;
+      var dcls = delta > 0 ? "up" : delta < 0 ? "down" : "same";
+      var dtext = (delta > 0 ? "+" : "") + delta;
+      var rankHtml = "";
+      if (p.rankText) {
+        if (p.rankMove > 0) rankHtml = '<span class="rank-move up">▲ ' + esc(p.rankText) + '</span>';
+        else if (p.rankMove < 0) rankHtml = '<span class="rank-move down">▼ ' + esc(p.rankText) + '</span>';
+        else rankHtml = '<span class="rank-static">' + esc(p.rankText) + '</span>';
+      }
+      return '<div class="win-result-row">'
+        + '<div class="win-result-name"><span class="nick">' + esc(p.nick) + '</span>' + rankHtml + '</div>'
+        + '<div class="win-result-score">' + p.score + '점 <span class="score-delta ' + dcls + '">' + dtext + '</span></div>'
+        + '</div>';
+    }).join("");
+    box.classList.remove("hidden");
   }
-  async function showEloDeltaAsync() {
-    var mySeat = (G.seats.black === me.nick) ? "black" : (G.seats.white === me.nick) ? "white" : null;
-    if (!mySeat || !isRealTwoPlayerGame()) return;
-    var myColor = mySeat === "black" ? BLACK : WHITE;
-    var iWon = (G.winner === myColor);
-    if (!iWon) return;
-    var oppNick = mySeat === "black" ? G.seats.white : G.seats.black;
-    var thisGameSeq = G.gameSeq, beforeTs = new Date().toISOString();
-    var delta;
-    try { delta = await computeEloDelta(me.nick, oppNick, myColor, iWon, beforeTs); } catch (e) { return; }
-    if (delta == null || thisGameSeq !== G.gameSeq) return;
-    var el = $("win-delta"); if (!el) return;
-    el.textContent = "+" + delta + "점 획득!";
-    el.classList.remove("hidden");
+  function currentOmokResultRow() {
+    var b = G.seats.black, w = G.seats.white;
+    if ((!b || !w) && G.lastPlayers) { b = G.lastPlayers.black; w = G.lastPlayers.white; }
+    if (!b || !w || b === w) return null;
+    return {
+      black: b,
+      white: w,
+      winner: G.draw ? "draw" : (G.winner === BLACK ? "black" : "white"),
+      game: "omok",
+      created_at: G.resultAt || new Date().toISOString()
+    };
+  }
+  function rankLookup(stats) {
+    var ranked = stats.filter(function (st) { return st.games >= RANK_MIN_GAMES; })
+      .sort(function (a, b) { return b.score - a.score || b.rate - a.rate; });
+    var map = {};
+    ranked.forEach(function (st, i) { map[st.nick] = i + 1; });
+    return map;
+  }
+  async function buildResultInfoAsync() {
+    var thisGameSeq = G.gameSeq;
+    resultCalcSeq = thisGameSeq;
+    if (!isRealTwoPlayerGame() || !window.Db) return;
+    var row = currentOmokResultRow();
+    if (!row) return;
+    try {
+      var allGames = await Db.getGamesByType("omok");
+      if (resultCalcSeq !== thisGameSeq || G.gameSeq !== thisGameSeq) return;
+      var season = currentSeason();
+      var resultTime = new Date(row.created_at).getTime();
+      function sameCurrentGame(g) {
+        if (!g || g.game && g.game !== "omok") return false;
+        if (g.black !== row.black || g.white !== row.white || g.winner !== row.winner) return false;
+        var gt = new Date(g.created_at).getTime();
+        return isFinite(gt) && Math.abs(gt - resultTime) < 120000;
+      }
+      var seasonGames = (allGames || []).filter(function (g) { return gameInSeason(g, season) && !sameCurrentGame(g); });
+      var priorGames = seasonGames.filter(function (g) { return new Date(g.created_at).getTime() < resultTime; });
+      var afterGames = priorGames.concat([row]);
+      var beforeStats = aggregate(priorGames);
+      var afterStats = aggregate(afterGames);
+      var beforeRank = rankLookup(beforeStats), afterRank = rankLookup(afterStats);
+      function statOf(stats, nick) {
+        for (var i = 0; i < stats.length; i++) if (stats[i].nick === nick) return stats[i];
+        return { nick: nick, score: ELO_START, games: 0, rate: 0 };
+      }
+      function playerInfo(nick) {
+        var before = statOf(beforeStats, nick), after = statOf(afterStats, nick);
+        var br = beforeRank[nick] || null, ar = afterRank[nick] || null;
+        return {
+          nick: nick,
+          score: after.score,
+          delta: after.score - before.score,
+          rankText: ar ? ar + "등" : "",
+          rankMove: (br && ar && br !== ar) ? (br > ar ? 1 : -1) : 0
+        };
+      }
+      var order = G.draw ? [row.black, row.white] : (row.winner === "black" ? [row.black, row.white] : [row.white, row.black]);
+      G.resultInfo = { gameSeq: thisGameSeq, players: order.map(playerInfo) };
+      renderWinResult();
+      if (amHost || !netMode) { G.rev++; broadcastState(); }
+    } catch (e) {}
   }
 
   // ---------- 타이머 ----------
@@ -2372,6 +2437,7 @@
     var lvb = document.querySelectorAll(".lvbtn[data-ai]");
     for (var li = 0; li < lvb.length; li++) lvb[li].addEventListener("click", function () { startAiGame(this.getAttribute("data-ai"), aiHumanColor); });
     $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else if (omokAI.on) startAiGame(omokAI.level, omokAI.human); else requestBegin(); });
+    $("omok-win-rank").addEventListener("click", function () { openRank("omok"); });
     $("timer-box").addEventListener("click", function () {
       if (canSetTimer()) { syncTimerChips(); syncPauseButton(); openModal("settings-modal"); }
       else toast("방장이나 관리자만 시간을 바꿀 수 있어요");
