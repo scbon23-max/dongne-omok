@@ -57,7 +57,7 @@ window.GameCatalog = (function () {
       controller: "CatchMind",
       screenId: "catchgame",
       roomStripId: "room-strip-catchmind",
-      chatLogId: "catch-chat-log",
+      chatLogId: null,
       chatInputId: "catch-chat-input",
       chatOverlayId: "catch-chat-overlay",
       onlineListId: null,
