@@ -3,7 +3,7 @@
 
   var SIZE = Renju.SIZE, BLACK = Renju.BLACK, WHITE = Renju.WHITE;
   var TERR_KOMI = 1.5;
-  var APP_BUILD = "20260715-catchmind-chat-layout";
+  var APP_BUILD = "20260716-ai-paint";
   var APP_REFRESH_KEY = "dongne_games_app_refresh";
 
   var G = {
@@ -3048,6 +3048,13 @@
   var AI_THINK_DELAY_MS = 1000;
   var aiThinkSeq = 0;
   function aiLevelName(lv) { return lv === "easy" ? "초보" : lv === "medium" ? "중수" : lv === "master" ? "초고수" : "고수"; }
+  function afterBoardPaint(fn) {
+    if (window.requestAnimationFrame && (typeof document === "undefined" || !document.hidden)) {
+      window.requestAnimationFrame(function () { setTimeout(fn, 0); });
+    } else {
+      setTimeout(fn, 16);
+    }
+  }
   function seatDisplay(nick) { return nick === AI_NICK ? aiLevelName(omokAI.level) : nick; }
   function startOmokSolo() {
     if (netMode && roster.length > 1) { toast("혼자 연습은 방에 나 혼자 있을 때만 돼요"); return; }
@@ -3077,7 +3084,7 @@
     aiPending = true;
     var token = ++aiThinkSeq, startedAt = Date.now(), gameSeq = G.gameSeq;
     var hlen = G.history ? G.history.length : 0;
-    setTimeout(function () {
+    afterBoardPaint(function () {
       if (token !== aiThinkSeq || !omokAI.on || G.over || !G.started || G.turn !== omokAI.color) { aiPending = false; return; }
       var mv = window.OmokAI.bestMove(G.board, omokAI.color, omokAI.level);
       var wait = Math.max(0, AI_THINK_DELAY_MS - (Date.now() - startedAt));
