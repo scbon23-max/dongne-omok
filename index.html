@@ -318,7 +318,7 @@
 <!-- 랭킹 모달 -->
 <div id="rank-modal" class="modal-overlay hidden">
   <div class="modal rank-dark">
-    <div class="modal-head"><h2 id="rank-title">랭킹</h2><button class="modal-close" data-close>✕</button></div>
+    <div class="modal-head"><div class="modal-head-title"><h2 id="rank-title">랭킹</h2><button id="rank-info-btn" class="rank-info-btn" title="점수 계산 방식">ⓘ</button></div><button class="modal-close" data-close>✕</button></div>
     <div class="modal-body">
       <div id="rank-tabs" class="rank-tabs hidden">
         <button class="rtab" data-g="omok">오목</button>
@@ -328,6 +328,24 @@
       <div id="rank-season" class="rank-season"></div>
       <div id="rank-list"></div>
       <div id="rank-detail" class="hidden"></div>
+    </div>
+    <button class="btn-primary modal-ok" data-close>닫기</button>
+  </div>
+</div>
+
+<!-- 랭킹 점수 설명 모달 -->
+<div id="rank-info-modal" class="modal-overlay hidden">
+  <div class="modal rank-dark">
+    <div class="modal-head"><h2>점수는 이렇게 매겨져요</h2><button class="modal-close" data-close>✕</button></div>
+    <div class="modal-body">
+      <ul class="rank-info-list">
+        <li>모두 <b>1000점</b>에서 시작해요.</li>
+        <li>이기면 오르고 지면 내려가요. 무승부는 아주 조금만 움직여요.</li>
+        <li><b>나보다 센 사람을 이기면 점수가 많이 올라요.</b> 나보다 약한 사람을 이기면 조금만 올라요.</li>
+        <li>반대로 <b>약한 사람에게 지면 많이 깎이고</b>, 센 사람에게 져도 조금만 깎여요.</li>
+        <li>이번 시즌에 <b>5판 이상</b> 두면 정식 순위에 올라가요. 5판이 안 되면 "배치 중"으로 표시돼요.</li>
+        <li>시즌은 <b>3개월마다</b> 새로 시작돼서, 그때 점수도 다시 1000점부터 시작해요.</li>
+      </ul>
     </div>
     <button class="btn-primary modal-ok" data-close>닫기</button>
   </div>

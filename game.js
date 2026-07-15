@@ -2293,6 +2293,7 @@
     var rbtns = document.querySelectorAll("#menu-rules [data-rules]");
     for (var rb = 0; rb < rbtns.length; rb++) rbtns[rb].addEventListener("click", function () { $("menu-modal").classList.add("hidden"); showRules(this.getAttribute("data-rules")); });
     $("rank-btn").addEventListener("click", function () { openRank("omok"); });
+    $("rank-info-btn").addEventListener("click", function () { openModal("rank-info-modal"); });
     $("alk-rank-btn").addEventListener("click", function () { openRank(curRoomGame === "alk_terr" ? "alk_terr" : "alk"); });
     var rtabs = document.querySelectorAll("#rank-tabs .rtab");
     for (var rt = 0; rt < rtabs.length; rt++) rtabs[rt].addEventListener("click", function () { rankTab = this.getAttribute("data-g"); renderSeason(); });
