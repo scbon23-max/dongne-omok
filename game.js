@@ -1189,10 +1189,42 @@
       t = nm ? (nm + "님 승리!") : ((G.winner === BLACK ? "흑" : "백") + " 승리!");
     }
     $("omok-wintext").textContent = t;
+    var wd = $("win-delta"); if (wd) { wd.textContent = ""; wd.classList.add("hidden"); }
     $("omok-win").classList.remove("hidden");
     winShownSeq = G.gameSeq;
     if (!G.draw) playSample(winBuffer);
     setTimeout(refreshScores, 800);
+    if (!G.draw) showEloDeltaAsync();
+  }
+  async function computeEloDelta(myNick, oppNick, myColor, iWon, beforeTs) {
+    if (!window.Db) return null;
+    var games = await Db.getGamesByType("omok");
+    var s = currentSeason();
+    var priorGames = games.filter(function (g) { return g.created_at < beforeTs && gameInSeason(g, s); });
+    var stats = aggregate(priorGames);
+    function eloOf(nick) {
+      for (var i = 0; i < stats.length; i++) if (stats[i].nick === nick) return stats[i].elo;
+      return ELO_START;
+    }
+    var myElo = eloOf(myNick), oppElo = eloOf(oppNick);
+    var eMy = 1 / (1 + Math.pow(10, (oppElo - myElo) / 400));
+    var sMy = iWon ? 1 : 0;
+    return Math.round(ELO_K * (sMy - eMy));
+  }
+  async function showEloDeltaAsync() {
+    var mySeat = (G.seats.black === me.nick) ? "black" : (G.seats.white === me.nick) ? "white" : null;
+    if (!mySeat || !isRealTwoPlayerGame()) return;
+    var myColor = mySeat === "black" ? BLACK : WHITE;
+    var iWon = (G.winner === myColor);
+    if (!iWon) return;
+    var oppNick = mySeat === "black" ? G.seats.white : G.seats.black;
+    var thisGameSeq = G.gameSeq, beforeTs = new Date().toISOString();
+    var delta;
+    try { delta = await computeEloDelta(me.nick, oppNick, myColor, iWon, beforeTs); } catch (e) { return; }
+    if (delta == null || thisGameSeq !== G.gameSeq) return;
+    var el = $("win-delta"); if (!el) return;
+    el.textContent = "+" + delta + "점 획득!";
+    el.classList.remove("hidden");
   }
 
   // ---------- 타이머 ----------
