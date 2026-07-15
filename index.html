@@ -115,6 +115,7 @@
     <div id="chat-overlay" class="chat-overlay"></div>
     <div id="center-area" class="center-area hidden">
       <button id="center-btn" class="center-btn">대국 신청</button>
+      <button id="swap-btn" class="center-btn center-swap-action hidden">자리 체인지</button>
       <button id="ai-btn" class="center-btn center-alt hidden">AI와 두기</button>
       <div id="ai-levels" class="ai-levels hidden">
         <div class="ai-levels-title">내 돌</div>
@@ -188,6 +189,7 @@
     <canvas id="alk-board" width="340" height="440"></canvas>
     <div id="alk-chat-overlay" class="chat-overlay"></div>
     <button id="alk-center-btn" class="center-btn hidden">대국 신청</button>
+    <button id="alk-swap-btn" class="center-btn center-swap-action center-swap hidden">자리 체인지</button>
     <div class="win-flag hidden" id="alk-win">
       <div class="wt" id="alk-wintext">흑 승리!</div>
       <button id="alk-again">대국 신청</button>
@@ -401,6 +403,17 @@
   </div>
 </div>
 
+<!-- 자리 체인지 요청 모달 -->
+<div id="swap-modal" class="modal-overlay hidden">
+  <div class="modal undo-modal">
+    <div class="undo-text" id="swap-text">상대가 자리 체인지를 요청했어요.</div>
+    <div class="undo-btns">
+      <button id="swap-accept" class="btn-primary">수락</button>
+      <button id="swap-decline" class="btn-flat">거절</button>
+    </div>
+  </div>
+</div>
+
 <!-- 기권 확인 모달 -->
 <div id="resign-modal" class="modal-overlay hidden">
   <div class="modal undo-modal">
@@ -458,6 +471,7 @@
 <script src="omok-ai.js"></script>
 <script src="net.js"></script>
 <script src="alkkagi.js"></script>
+<script src="game-catalog.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

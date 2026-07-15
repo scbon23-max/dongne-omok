@@ -99,6 +99,17 @@
       onlineNumId: id === "omok" ? "online-num" : "alk-online-num"
     };
   }
+  function gameDefs() {
+    return window.GameCatalog ? GameCatalog.all() : [gameUi("omok"), gameUi("alk")];
+  }
+  function hideGameScreens() {
+    var seen = {};
+    gameDefs().forEach(function (def) {
+      if (!def || !def.screenId || seen[def.screenId]) return;
+      seen[def.screenId] = true;
+      var el = $(def.screenId); if (el) el.classList.add("hidden");
+    });
+  }
 
   function reasonText(r) {
     if (r === "overline") return "장목(6목 이상)은 흑 금수예요.";
@@ -197,8 +208,7 @@
   var lobbyConnected = false;
   function showLobby() {
     $("entry").classList.add("hidden");
-    $("game").classList.add("hidden");
-    $("alkgame").classList.add("hidden");
+    hideGameScreens();
     $("lobby").classList.remove("hidden");
     document.body.classList.toggle("is-admin", me.isAdmin);
     if (!lobbyConnected) { lobbyConnected = true; appConnect(); startRoomKeeper(); }
@@ -231,7 +241,9 @@
   function lobbyPeople() { return lobbyMode ? lobbyRoster.filter(function (m) { return !m.viewing; }) : [{ nick: me.nick, joinTs: 0 }]; }
   function updateOnlineCounts() {
     var total = clubOnlineCount();
-    ["online-total", "alk-online-total", "lobby-online-total"].forEach(function (id) {
+    var ids = { "lobby-online-total": 1 };
+    gameDefs().forEach(function (def) { if (def && def.onlineTotalId) ids[def.onlineTotalId] = 1; });
+    Object.keys(ids).forEach(function (id) {
       var el = $(id); if (el) el.textContent = total;
     });
     var lc = $("lobby-online-count"); if (lc) lc.textContent = "온라인 " + total + "명";
@@ -368,7 +380,7 @@
       { onReady: onNetReady, onMessage: onMessage, onPresence: onPresence, onStatus: onStatus });
     if (lobbyMode) Net.trackLobby(myMetaObj(roomId));
     $("lobby").classList.add("hidden");
-    $("game").classList.add("hidden"); $("alkgame").classList.add("hidden");
+    hideGameScreens();
     if (isOmokFamily(curGame)) {
       $("game").classList.remove("hidden");
       if (!omokStarted) { omokStarted = true; startGameUI(); }
@@ -407,7 +419,7 @@
         stopHostTimer(); clearAllGrace(); clearAlkGrace(); clearAwayRoster();
         curRoomId = null; curGame = null;
         if (lobbyMode) { Net.trackLobby(myMetaObj(null)); Net.resyncLobby(); }
-        $("game").classList.add("hidden"); $("alkgame").classList.add("hidden");
+        hideGameScreens();
         $("lobby").classList.remove("hidden");
         renderRoomList();
       }, netMode ? 120 : 0);
