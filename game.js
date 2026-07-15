@@ -428,12 +428,13 @@
   }
 
   function refreshAppShell() {
-    var now = Date.now(), last = 0;
+    var now = Date.now(), last = 0, alreadyRequested = false;
     try {
+      alreadyRequested = new URL(window.location.href).searchParams.get("app") === APP_BUILD;
       last = Number(sessionStorage.getItem(APP_REFRESH_KEY)) || 0;
       if (now - last >= 15000) sessionStorage.setItem(APP_REFRESH_KEY, String(now));
     } catch (e) {}
-    if (now - last < 15000) {
+    if (alreadyRequested || now - last < 15000) {
       toast("화면 업데이트를 불러오지 못했어요. 브라우저를 새로고침해 주세요.", 5000);
       return;
     }
@@ -453,11 +454,7 @@
     var shell = document.querySelector('meta[name="app-build"]');
     var def = gameDef(game), family = gameFamily(game);
     var ui = gameUi(family), ctrl = gameController(game);
-    if (!def) {
-      toast("지원하지 않는 게임 방이에요", 3500);
-      return null;
-    }
-    if (!shell || shell.content !== APP_BUILD || !$("lobby") || !ui || !ui.screenId || !$(ui.screenId) || (def.controller && !ctrl)) {
+    if (!shell || shell.content !== APP_BUILD || !def || !$("lobby") || !ui || !ui.screenId || !$(ui.screenId) || (def.controller && !ctrl)) {
       refreshAppShell();
       return null;
     }
@@ -471,18 +468,24 @@
     netMode = false; amHost = false; wasHost = false; connected = false;
     curRoomId = null; curRoomGame = null; curGame = null; curRoomTitle = "";
     document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
-    stopHostTimer(); clearAllGrace(); clearAlkGrace(); clearAwayRoster();
-    hideGameScreens();
+    try { stopHostTimer(); clearAllGrace(); clearAlkGrace(); clearAwayRoster(); } catch (e) {}
+    try { hideGameScreens(); } catch (e) {}
     if ($("lobby")) $("lobby").classList.remove("hidden");
     try {
       if (lobbyMode) { Net.trackLobby(myMetaObj(null)); Net.resyncLobby(); }
     } catch (e) {}
-    renderRoomList();
+    try { renderRoomList(); } catch (e) {}
     toast("방 화면을 여는 중 오류가 났어요. 다시 시도해 주세요.", 4500);
   }
 
   function enterRoom(roomId, game, title) {
-    var target = roomEntryTarget(game);
+    var target;
+    try { target = roomEntryTarget(game); }
+    catch (error) {
+      if (window.console && console.error) console.error("Room entry preflight failed", error);
+      refreshAppShell();
+      return false;
+    }
     if (!target) return false;
     try {
       var previousController = activeController();
