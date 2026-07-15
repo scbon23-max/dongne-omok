@@ -76,6 +76,24 @@ window.Db = (function () {
     return r;
   }
   async function recordAlkGame(black, white, winner, gameType) { if (sb) return sb.from("games").insert({ black: black, white: white, winner: winner, game: gameType || "alk" }); }
+  async function recordCatchmindMatch(matchId, results) {
+    if (!sb || !results || !results.length) return;
+    var safeId = String(matchId || Date.now().toString(36)).replace(/[^a-zA-Z0-9_-]/g, "");
+    var rows = results.map(function (r) {
+      var points = Math.max(0, Math.round(Number(r.points) || 0));
+      var maxPoints = Math.max(1, Math.round(Number(r.maxPoints) || 1));
+      var correct = Math.max(0, Math.round(Number(r.correct) || 0));
+      var drawCorrect = Math.max(0, Math.round(Number(r.drawCorrect) || 0));
+      return {
+        black: String(r.nick || "").slice(0, 40),
+        white: ["cm", safeId, points, maxPoints, correct, drawCorrect].join(":"),
+        winner: "draw",
+        game: "catchmind"
+      };
+    }).filter(function (row) { return !!row.black; });
+    if (!rows.length) return;
+    return sb.from("games").insert(rows);
+  }
   var GAME_COLS = "id,black,white,winner,game,created_at";
   async function getGames() {
     if (!sb) return [];
@@ -129,7 +147,7 @@ window.Db = (function () {
   return {
     ADMIN: ADMIN, ensureAdmin: ensureAdmin, login: login, loginHash: loginHash, hashPw: sha256,
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
-    recordGame: recordGame, recordAlkGame: recordAlkGame, getGames: getGames, getGamesByType: getGamesByType,
+    recordGame: recordGame, recordAlkGame: recordAlkGame, recordCatchmindMatch: recordCatchmindMatch, getGames: getGames, getGamesByType: getGamesByType,
     getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves, deleteGame: deleteGame,
     addChatMsg: addChatMsg, getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,
     getAllowlist: getAllowlist, addAllowed: addAllowed, removeAllowed: removeAllowed

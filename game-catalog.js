@@ -47,10 +47,26 @@ window.GameCatalog = (function () {
       onlineListId: "alk-online-list",
       onlineNumId: "alk-online-num",
       onlineTotalId: "alk-online-total"
+    },
+    catchmind: {
+      id: "catchmind",
+      family: "catchmind",
+      name: "캐치마인드",
+      rankName: "캐치마인드 랭킹",
+      rankable: true,
+      controller: "CatchMind",
+      screenId: "catchgame",
+      roomStripId: "room-strip-catchmind",
+      chatLogId: "catch-chat-log",
+      chatInputId: "catch-chat-input",
+      chatOverlayId: "catch-chat-overlay",
+      onlineListId: null,
+      onlineNumId: "catch-online-num",
+      onlineTotalId: null
     }
   };
 
-  var order = ["omok", "alk", "alk_terr"];
+  var order = ["omok", "alk", "alk_terr", "catchmind"];
 
   function get(id) {
     return defs[id] || null;

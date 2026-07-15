@@ -37,13 +37,13 @@
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
-<meta property="og:description" content="닉네임 넣고 바로 한 판! 실시간 오목·알까기 대국·랭킹·채팅">
+<meta property="og:description" content="닉네임 넣고 바로 한 판! 실시간 오목·알까기·캐치마인드·랭킹·채팅">
 <meta property="og:image" content="https://scbon23-max.github.io/dongne-omok/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://scbon23-max.github.io/dongne-omok/">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=catchmind-20260715">
 </head>
 <body>
 
@@ -223,6 +223,53 @@
   <div class="room-strip" id="room-strip-alk"></div>
 </section>
 
+<!-- 캐치마인드 게임 화면 -->
+<section id="catchgame" class="screen game-screen catch-screen hidden">
+  <header class="catch-statusbar">
+    <button id="catch-leave-btn" class="catch-icon-btn" type="button" aria-label="방 나가기">←</button>
+    <div id="catch-round-label" class="catch-round-label">게임 대기 중</div>
+    <div id="catch-timer" class="catch-timer">--</div>
+    <button id="catch-people-btn" class="catch-people-btn" type="button" aria-label="참가자 보기"><span id="catch-online-num">0</span>명</button>
+  </header>
+
+  <div id="catch-score-strip" class="catch-score-strip">2명 이상 모이면 시작할 수 있어요</div>
+
+  <div class="catch-board-wrap">
+    <div class="catch-wordbar"><span>제시어</span><strong id="catch-word">준비 중</strong></div>
+    <canvas id="catch-board" width="720" height="720" aria-label="캐치마인드 그림판"></canvas>
+    <div id="catch-chat-overlay" class="chat-overlay catch-chat-overlay"></div>
+    <div id="catch-feed" class="catch-feed" aria-live="polite"></div>
+    <div id="catch-stage" class="catch-stage">
+      <div id="catch-stage-title" class="catch-stage-title">게임 대기 중</div>
+      <div id="catch-stage-sub" class="catch-stage-sub">방장이 시작하면 모두 함께 참여해요</div>
+      <button id="catch-start-btn" class="center-btn catch-start-btn hidden" type="button">게임 시작</button>
+    </div>
+  </div>
+
+  <div id="catch-tools" class="catch-tools hidden" aria-label="그리기 도구">
+    <button class="catch-tool active" type="button" data-catch-tool="pen">펜</button>
+    <button class="catch-tool" type="button" data-catch-tool="eraser">지우개</button>
+    <button class="catch-color active" type="button" data-catch-color="#17252f" aria-label="검정색"><span style="background:#17252f"></span></button>
+    <button class="catch-color" type="button" data-catch-color="#d23b3b" aria-label="빨간색"><span style="background:#d23b3b"></span></button>
+    <button class="catch-color" type="button" data-catch-color="#2474b5" aria-label="파란색"><span style="background:#2474b5"></span></button>
+    <button id="catch-undo-btn" class="catch-tool catch-tool-icon" type="button" aria-label="마지막 선 되돌리기">↶</button>
+    <button id="catch-clear-btn" class="catch-tool catch-tool-icon" type="button" aria-label="그림 모두 지우기">⌫</button>
+  </div>
+
+  <div id="catch-input-row" class="catch-input-row">
+    <input id="catch-chat-input" class="chat-input" type="text" maxlength="40" placeholder="정답 또는 채팅 입력" autocomplete="off">
+    <button id="catch-send-btn" class="btn-send" type="button">보내기</button>
+  </div>
+  <div id="catch-chat-log" class="chat-log catch-chat-log"></div>
+
+  <div class="action-row slim catch-action-row">
+    <button id="catch-rank-btn" class="btn-flat">🏅 랭킹</button>
+    <button id="catch-menu-btn" class="btn-flat menu-dots">⋯</button>
+  </div>
+
+  <div class="room-strip" id="room-strip-catchmind"></div>
+</section>
+
 <!-- 방 만들기 모달 -->
 <div id="create-modal" class="modal-overlay hidden">
   <div class="modal">
@@ -260,6 +307,7 @@
       <button class="menu-item" data-rules="omok">오목 규칙</button>
       <button class="menu-item" data-rules="alk">알까기 규칙</button>
       <button class="menu-item" data-rules="terr">점령전 규칙</button>
+      <button class="menu-item" data-rules="catchmind">캐치마인드 규칙</button>
     </div>
     <button class="btn-primary modal-ok" data-close>닫기</button>
   </div>
@@ -279,7 +327,7 @@
   <div class="modal">
     <div class="modal-head"><h2>참가자</h2><button class="modal-close" data-close>✕</button></div>
     <div class="modal-body">
-      <p class="players-hint host-only">이름 옆 버튼으로 흑·백·관전을 지정합니다.</p>
+      <p id="players-hint" class="players-hint host-only">이름 옆 버튼으로 흑·백·관전을 지정합니다.</p>
       <div id="players-list"></div>
     </div>
     <button class="btn-primary modal-ok" data-close>닫기</button>
@@ -350,7 +398,7 @@
   <div class="modal rank-dark">
     <div class="modal-head"><h2>점수는 이렇게 매겨져요</h2><button class="modal-close" data-close>✕</button></div>
     <div class="modal-body">
-      <ul class="rank-info-list">
+      <ul id="rank-info-list" class="rank-info-list">
         <li>모두 <b>1000점</b>에서 시작해요.</li>
         <li>이기면 오르고 지면 내려가요. 무승부는 아주 조금만 움직여요.</li>
         <li><b>나보다 센 사람을 이기면 점수가 많이 올라요.</b> 나보다 약한 사람을 이기면 조금만 올라요.</li>
@@ -433,7 +481,7 @@
 <!-- 방 나가기 확인 모달 (게임 중) -->
 <div id="leaveroom-modal" class="modal-overlay hidden">
   <div class="modal undo-modal">
-    <div class="undo-text">게임 중이에요.<br><b class="red">기권</b>하고 나가시겠어요?</div>
+    <div id="leaveroom-text" class="undo-text">게임 중이에요.<br><b class="red">기권</b>하고 나가시겠어요?</div>
     <div class="undo-btns">
       <button id="leaveroom-yes" class="cbtn" style="flex:2;background:var(--red);color:#fff;">기권하고 나가기</button>
       <button id="leaveroom-no" class="cbtn cancel" style="flex:1;">취소</button>
@@ -471,12 +519,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="sb.js"></script>
-<script src="db.js"></script>
+<script src="db.js?v=catchmind-20260715"></script>
 <script src="renju.js"></script>
 <script src="omok-ai.js"></script>
 <script src="net.js"></script>
 <script src="alkkagi.js"></script>
-<script src="game-catalog.js"></script>
-<script src="game.js"></script>
+<script src="game-catalog.js?v=catchmind-20260715"></script>
+<script src="catchmind.js?v=catchmind-20260715"></script>
+<script src="game.js?v=catchmind-20260715"></script>
 </body>
 </html>

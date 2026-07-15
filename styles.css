@@ -70,6 +70,70 @@ body {
 .player-chip.active .chip-cnt { color: var(--navy); }
 .alk-board-wrap { width: 100%; max-width: 300px; margin: 0 auto; position: relative; }
 #alk-board { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.35); touch-action: none; }
+
+/* ---------- 캐치마인드 ---------- */
+.game-screen.catch-screen { height: 100dvh; min-height: 0; justify-content: flex-start; overflow-y: auto; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+.catch-statusbar { width: 100%; max-width: 420px; margin: 0 auto 7px; display: grid; grid-template-columns: 36px minmax(0, 1fr) auto auto; align-items: center; gap: 6px; }
+.catch-icon-btn, .catch-people-btn { min-height: 36px; border: none; border-radius: 9px; background: var(--navy-2); color: #cfe0e7; font-size: 13px; font-weight: 800; cursor: pointer; }
+.catch-icon-btn { width: 36px; font-size: 20px; }
+.catch-people-btn { padding: 0 10px; white-space: nowrap; }
+.catch-round-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: 14px; font-weight: 800; color: #eaf2f6; }
+.catch-timer { min-width: 52px; padding: 8px 9px; border-radius: 9px; background: var(--teal); color: var(--navy); text-align: center; font-size: 13px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.catch-timer.urgent { background: var(--red); color: #fff; animation: pulse .5s infinite alternate; }
+.catch-score-strip { width: 100%; max-width: 420px; min-height: 34px; margin: 0 auto 7px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; gap: 4px; color: #8fa6b2; font-size: 11.5px; font-weight: 700; text-align: center; }
+.catch-score-strip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catch-score-strip b { color: #eaf2f6; font-weight: 900; }
+.catch-board-wrap { width: 100%; max-width: 420px; margin: 0 auto; position: relative; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,.35); background: #fff; }
+.catch-wordbar { height: 40px; display: flex; align-items: center; justify-content: center; gap: 8px; background: #f5f0e8; border-bottom: 1px solid #ddd3c7; color: #73808a; font-size: 13px; }
+.catch-wordbar strong { color: var(--navy); font-size: 17px; font-weight: 900; letter-spacing: 0; }
+#catch-board { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; background: #fff; touch-action: none; }
+.catch-stage { position: absolute; z-index: 8; left: 0; right: 0; top: 40px; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 18px; background: rgba(14,42,58,.72); text-align: center; }
+.catch-stage.hidden { display: none; }
+.catch-stage-title { color: #fff; font-size: 24px; font-weight: 900; }
+.catch-stage-sub { max-width: 280px; color: #cfe0e7; font-size: 13px; line-height: 1.5; font-weight: 700; }
+.catch-start-btn { position: static; transform: none; margin-top: 4px; padding: 12px 24px; font-size: 17px; }
+.catch-start-btn:active { transform: scale(.97); }
+.catch-start-btn:disabled { opacity: .45; cursor: default; }
+.catch-feed { position: absolute; z-index: 6; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; }
+.catch-feed-line { max-width: 100%; padding: 4px 9px; border-radius: 7px; background: rgba(14,42,58,.78); color: #fff; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
+.catch-feed-line b { color: var(--teal-light); }
+.catch-feed-line.correct { background: var(--teal); color: var(--navy); font-weight: 900; }
+.catch-feed-line.answer { background: var(--orange); color: #fff; }
+.catch-feed-line.system { color: #d6e3e8; }
+.catch-chat-overlay { top: 48px; bottom: auto; }
+.catch-tools { width: 100%; max-width: 420px; min-height: 42px; margin: 7px auto 0; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.catch-tool, .catch-color { height: 38px; border: 2px solid transparent; border-radius: 9px; background: var(--navy-2); color: #cfe0e7; font-size: 12px; font-weight: 800; cursor: pointer; }
+.catch-tool { padding: 0 10px; }
+.catch-tool-icon { min-width: 38px; padding: 0; font-size: 18px; }
+.catch-tool.active { border-color: var(--teal); background: var(--teal); color: var(--navy); }
+.catch-color { width: 38px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.catch-color span { width: 16px; height: 16px; display: block; border-radius: 50%; border: 1px solid rgba(255,255,255,.45); }
+.catch-color.active { border-color: var(--teal); }
+.catch-input-row { width: 100%; max-width: 420px; margin: 7px auto 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.catch-input-row .chat-input { width: 100%; min-width: 0; }
+.catch-input-row .btn-send { min-width: 70px; }
+.catch-chat-log { width: 100%; max-width: 420px; height: 54px; margin: 6px auto 0; padding: 6px 9px; border-radius: 9px; background: var(--navy-2); }
+.catch-chat-log:empty { display: none; }
+.catch-action-row { margin-bottom: 0; }
+.catch-action-row .btn-flat { min-height: 34px; }
+.catch-player-score { flex: 0 0 auto; color: var(--teal); font-size: 14px; font-weight: 900; }
+.role-draw { background: var(--orange); color: #fff; }
+.role-correct { background: var(--teal); color: var(--navy); }
+.role-catch { background: #e4eef2; color: #4a7180; }
+.cm-detail-row { flex-wrap: wrap; }
+.cm-rank-detail { flex: 1 1 130px; min-width: 0; color: #a8bbc4; font-size: 12px; line-height: 1.4; font-weight: 700; overflow-wrap: anywhere; }
+.cm-rank-perf { flex: 0 0 auto; min-width: 68px; padding: 3px 7px; border-radius: 7px; background: var(--teal); color: var(--navy); text-align: center; font-size: 12px; font-weight: 900; }
+
+@media (max-width: 350px) {
+  .catch-statusbar { grid-template-columns: 34px minmax(0, 1fr) auto auto; gap: 4px; }
+  .catch-icon-btn { width: 34px; }
+  .catch-people-btn { padding: 0 7px; }
+  .catch-timer { min-width: 48px; padding-left: 6px; padding-right: 6px; }
+  .catch-tools { gap: 3px; }
+  .catch-tool { padding: 0 7px; }
+  .catch-color, .catch-tool-icon { width: 35px; min-width: 35px; }
+  .cm-detail-row .d-date { flex-basis: 100%; text-align: right; }
+}
 .win-flag { position: absolute; inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; background: rgba(14,42,58,.72); border-radius: 10px; padding: 16px; }
 .win-flag.hidden { display: none; }
 .win-flag .wt { font-size: 28px; font-weight: 800; color: #fff; }
@@ -162,7 +226,7 @@ body:not(.is-admin) .admin-only { display: none; }
 .rk-medal.bronze { background: #C8875A; }
 .rk-name { flex: 1; text-align: left; display: flex; flex-direction: column; gap: 1px; }
 .rk-nick { font-size: 15px; font-weight: 700; color: var(--navy); }
-.rank-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.rank-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
 .rtab { flex: 1; background: #f0f0f0; border: none; color: #888; font-size: 13px; font-weight: 800; padding: 9px 4px; border-radius: 10px; cursor: pointer; }
 .rtab.active { background: var(--orange); color: #fff; }
 .rk-prov { display: inline-block; font-size: 12px; font-weight: 700; color: #b0b0b0; }
@@ -351,6 +415,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .room-badge { flex-shrink: 0; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 7px; }
 .room-badge.omok { background: #cbd8df; color: var(--navy); }
 .room-badge.alk { background: var(--orange); color: #fff; }
+.room-badge.catchmind { background: #f3e86d; color: var(--navy); }
 .room-name { font-size: 15px; font-weight: 800; color: #eaf2f6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .room-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8ea4af; min-width: 0; }
 .room-status { font-weight: 800; flex-shrink: 0; }
@@ -376,6 +441,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .rc-badge.omok { background: #cbd8df; color: var(--navy); }
 .rc-badge.alk { background: var(--orange); color: #fff; }
 .rc-badge.alk_terr { background: var(--teal); color: #fff; }
+.rc-badge.catchmind { background: #f3e86d; color: var(--navy); }
 
 /* ── 랭킹 시즌 바 ── */
 .rank-season { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--navy-2); border-radius: 12px; padding: 8px 10px; margin-bottom: 10px; }

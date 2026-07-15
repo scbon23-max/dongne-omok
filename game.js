@@ -67,6 +67,11 @@
   function isOmokFamily(id) { return gameFamily(id) === "omok"; }
   function isAlkFamily(id) { return gameFamily(id) === "alk"; }
   function activeFamily() { return gameFamily(curRoomGame || curGame || "omok"); }
+  function gameController(id) {
+    var def = gameDef(id) || gameDef(gameFamily(id));
+    return def && def.controller ? window[def.controller] : null;
+  }
+  function activeController() { return gameController(curRoomGame || curGame); }
   function rankableGames() {
     return window.GameCatalog ? GameCatalog.rankableIds() : ["omok", "alk", "alk_terr"];
   }
@@ -109,6 +114,40 @@
       seen[def.screenId] = true;
       var el = $(def.screenId); if (el) el.classList.add("hidden");
     });
+  }
+  function controllerApi() {
+    return {
+      me: function () { return { nick: me.nick, isAdmin: me.isAdmin }; },
+      roster: function () {
+        if (netMode && displayRoster.length) return displayRoster.slice();
+        return [{ nick: me.nick, isAdmin: me.isAdmin, joinTs: myJoinTs || 0 }];
+      },
+      isHost: function () { return !netMode || amHost; },
+      host: function () { return hostNick || me.nick; },
+      isNet: function () { return netMode; },
+      send: function (msg) {
+        if (netMode) Net.send(msg);
+        else {
+          var ctrl = activeController();
+          if (ctrl && ctrl.onMessage) ctrl.onMessage(msg);
+        }
+      },
+      sendChat: function (text) { sendChatText(activeFamily(), text); },
+      toast: toast,
+      openRank: function () { openRank(curRoomGame || curGame); },
+      openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
+      openMenu: openMenu,
+      leaveRoom: requestLeaveRoom,
+      roomChanged: broadcastRoomOpen,
+      recordMatch: function (matchId, results) {
+        if (!window.Db || !Db.recordCatchmindMatch) return Promise.resolve(null);
+        return Promise.resolve(Db.recordCatchmindMatch(matchId, results));
+      },
+      scoresChanged: function () {
+        scheduleScoresRefresh("catchmind");
+        if (lobbyMode) Net.sendLobby({ t: "scores", game: "catchmind" });
+      }
+    };
   }
 
   function reasonText(r) {
@@ -282,12 +321,27 @@
     }, 5000);
   }
   function gameName(g) { return window.GameCatalog ? GameCatalog.name(g) : (g === "omok" ? "오목" : g === "alk_terr" ? "점령전" : "알까기"); }
+  function roomSeatName(nick, room) {
+    if (nick === AI_NICK) {
+      var level = room && room.aiLevel;
+      return level ? aiLevelName(level) : nick;
+    }
+    return nick;
+  }
   function roomMetaObj() {
-    var st, black, white;
+    var st, black, white, summary = null;
     if (isOmokFamily(curGame)) { st = G.over ? "끝" : G.started ? "게임중" : "대기중"; black = G.seats.black; white = G.seats.white; }
     else if (isAlkFamily(curGame)) { st = A.over ? "끝" : A.started ? "게임중" : "대기중"; black = A.seats.black; white = A.seats.white; }
-    else { st = "대기중"; black = null; white = null; }
-    return { id: curRoomId, game: curRoomGame, name: curRoomTitle, host: me.nick, status: st, black: black || null, white: white || null, count: (netMode ? Math.max(displayRoster.length, roster.length, 1) : 1), ts: roomCreatedTs };
+    else {
+      var ctrl = activeController(), meta = ctrl && ctrl.roomMeta ? ctrl.roomMeta() : null;
+      st = meta && meta.status ? meta.status : "대기중";
+      summary = meta && meta.summary ? meta.summary : null;
+      black = null; white = null;
+    }
+    var aiLevel = (black === AI_NICK || white === AI_NICK) ? omokAI.level : null;
+    var shownBlack = (black === AI_NICK && aiLevel) ? aiLevelName(aiLevel) : black;
+    var shownWhite = (white === AI_NICK && aiLevel) ? aiLevelName(aiLevel) : white;
+    return { id: curRoomId, game: curRoomGame, name: curRoomTitle, host: me.nick, status: st, summary: summary, black: shownBlack || null, white: shownWhite || null, aiLevel: aiLevel, count: (netMode ? Math.max(displayRoster.length, roster.length, 1) : 1), ts: roomCreatedTs };
   }
   function broadcastRoomOpen() { if (lobbyMode) Net.sendLobby({ t: "room_open", room: roomMetaObj() }); }
   function renderRoomList() {
@@ -298,8 +352,8 @@
     if (!list.length) { box.innerHTML = '<div class="room-empty">아직 열린 방이 없어요. 방을 만들어 보세요!</div>'; return; }
     box.innerHTML = list.map(function (r) {
       var gname = gameName(r.game);
-      var seats = [r.black, r.white].filter(Boolean);
-      var who = seats.length ? seats.map(esc).join(" vs ") : "빈 자리";
+      var seats = [roomSeatName(r.black, r), roomSeatName(r.white, r)].filter(Boolean);
+      var who = r.summary ? esc(r.summary) : (seats.length ? seats.map(esc).join(" vs ") : "빈 자리");
       var playing = r.status === "게임중";
       var act = playing ? "관전" : "입장";
       return '<div class="room-card" data-id="' + esc(r.id) + '">'
@@ -338,7 +392,8 @@
   function inActiveGame() {
     var so = netMode && isOmokFamily(curGame) && G.started && !G.over && (G.seats.black === me.nick || G.seats.white === me.nick);
     var sa = netMode && isAlkFamily(curGame) && A.started && !A.over && (A.seats.black === me.nick || A.seats.white === me.nick);
-    return so || sa;
+    var ctrl = activeController();
+    return so || sa || !!(ctrl && ctrl.isBusy && ctrl.isBusy());
   }
   function switchRoom(id) {
     if (!id || id === curRoomId) return;
@@ -370,6 +425,8 @@
     if (window.Alkkagi) Alkkagi.setStones(Alkkagi.layout());
   }
   function enterRoom(roomId, game, title) {
+    var previousController = activeController();
+    if (previousController && previousController.leave) previousController.leave();
     curRoomId = roomId; curRoomGame = game; curGame = gameFamily(game); curRoomTitle = title || roomId;
     if (rooms[roomId] && rooms[roomId].ts) roomCreatedTs = rooms[roomId].ts;
     amHost = false; wasHost = false; document.body.classList.remove("is-host"); stopHostTimer();
@@ -392,8 +449,12 @@
       if (ui.screenId && $(ui.screenId)) $(ui.screenId).classList.remove("hidden");
     }
     if (!netMode) { amHost = true; document.body.classList.add("is-host"); setConn("local"); }
-    renderPresenceUI(); updateTurnUI(); render(); renderRoomStrip();
-    if (isAlkFamily(curGame)) renderAlkUI();
+    var ctrl = activeController();
+    if (ctrl && ctrl.enter) ctrl.enter(controllerApi());
+    renderPresenceUI(); renderRoomStrip();
+    if (isOmokFamily(curGame)) { updateTurnUI(); render(); }
+    else if (isAlkFamily(curGame)) renderAlkUI();
+    else if (ctrl && ctrl.render) ctrl.render();
   }
   function createRoom(game, name) {
     var id = "rm" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e4).toString(36);
@@ -401,12 +462,25 @@
     enterRoom(id, game, (name && name.trim()) || (me.nick + "님의 방"));
   }
   function requestLeaveRoom() {
+    var ctrl = activeController();
+    if (ctrl && ctrl.isBusy && ctrl.isBusy()) {
+      if ($("leaveroom-text")) $("leaveroom-text").innerHTML = "캐치마인드가 진행 중이에요.<br>나가면 이번 게임 점수는 더 이상 얻지 못해요.";
+      if ($("leaveroom-yes")) $("leaveroom-yes").textContent = "게임에서 나가기";
+      openModal("leaveroom-modal");
+      return;
+    }
     var inGame = (isOmokFamily(curGame) && G.started && !G.over && (G.seats.black === me.nick || G.seats.white === me.nick))
       || (isAlkFamily(curGame) && A.started && !A.over && (A.seats.black === me.nick || A.seats.white === me.nick));
-    if (inGame) { openModal("leaveroom-modal"); return; }
+    if (inGame) {
+      if ($("leaveroom-text")) $("leaveroom-text").innerHTML = '게임 중이에요.<br><b class="red">기권</b>하고 나가시겠어요?';
+      if ($("leaveroom-yes")) $("leaveroom-yes").textContent = "기권하고 나가기";
+      openModal("leaveroom-modal"); return;
+    }
     leaveRoomToLobby();
   }
   function leaveRoomToLobby() {
+    var leavingController = activeController();
+    if (leavingController && leavingController.leave) leavingController.leave();
     var forfeited = vacateSeatIfActive();
     var wasAlone = !netMode || roster.length <= 1, wasHostHere = amHost, leavingId = curRoomId;
     var delay = forfeited ? 220 : 0;
@@ -717,7 +791,12 @@
     d.className = "conn-dot " + s;
     d.title = s === "online" ? "실시간 연결됨" : s === "local" ? "혼자 연습" : s === "off" ? "연결 끊김" : "연결 중…";
   }
-  function onNetReady() { Net.send({ t: "hello", nick: me.nick }); loadChatHistory(); refreshScores(); }
+  function onNetReady() {
+    var ctrl = activeController();
+    if (ctrl && ctrl.onReady) ctrl.onReady();
+    else Net.send({ t: "hello", nick: me.nick });
+    loadChatHistory(); refreshScores();
+  }
   function roomName() { return (window.OMOK_CONFIG && window.OMOK_CONFIG.ROOM) || "main"; }
   function loadChatHistory() {
     if (!window.Db || !curRoomId) return;
@@ -888,24 +967,32 @@
     var becameHost = amHost && !wasHost;
     wasHost = amHost;
     document.body.classList.toggle("is-host", amHost);
+    var ctrl = activeController();
     if (amHost) {
-      if (becameHost && G.started && !G.over && !G.paused && G.timerSec &&
-          (!G.moveDeadline || G.moveDeadline <= Date.now())) {
-        G.moveDeadline = Date.now() + G.timerSec * 1000;
-        G.rev++;
+      if (isOmokFamily(curGame)) {
+        if (becameHost && G.started && !G.over && !G.paused && G.timerSec &&
+            (!G.moveDeadline || G.moveDeadline <= Date.now())) {
+          G.moveDeadline = Date.now() + G.timerSec * 1000;
+          G.rev++;
+        }
+        hostReconcileSeats();
+        startHostTimer();
+      } else if (isAlkFamily(curGame)) {
+        hostReconcileAlkSeats();
+        stopHostTimer();
+      } else {
+        stopHostTimer();
       }
-      hostReconcileSeats();
-      hostReconcileAlkSeats();
-      startHostTimer();
     } else {
       clearAllGrace();
       clearAlkGrace();
       stopHostTimer();
     }
+    if (ctrl && ctrl.onPresence) ctrl.onPresence(displayRoster.slice(), { becameHost: becameHost });
     renderPlayersList();
-    updateTurnUI();
-    render();
-    updateCenterButton();
+    if (isOmokFamily(curGame)) { updateTurnUI(); render(); updateCenterButton(); }
+    else if (isAlkFamily(curGame)) renderAlkUI();
+    else if (ctrl && ctrl.render) ctrl.render();
     if (amHost && curRoomId) broadcastRoomOpen();
   }
   function rosterHas(nick) { if (omokAI.on && nick === AI_NICK) return true; return roster.some(function (m) { return m.nick === nick; }); }
@@ -981,6 +1068,8 @@
   // ---------- 메시지 ----------
   function onMessage(msg) {
     if (!msg || !msg.t) return;
+    var ctrl = activeController();
+    if (ctrl && ctrl.onMessage && ctrl.onMessage(msg)) return;
     switch (msg.t) {
       case "state": applyState(msg.state); break;
       case "hello":
@@ -1720,7 +1809,7 @@
     (only ? [only] : rankableGames()).forEach(function (game) {
       Db.getGamesByType(game).then(function (games) {
         var sg = games.filter(function (g) { return gameInSeason(g, s); });
-        var m = {}; aggregate(sg).forEach(function (st) { m[st.nick] = st.score; });
+        var m = {}; aggregateForGame(game, sg).forEach(function (st) { m[st.nick] = st.score; });
         scoreMap[game] = m;
         if (isOmokFamily(game)) updateTurnUI();
         else if (isAlkFamily(game)) renderAlkUI();
@@ -1777,10 +1866,10 @@
     var ui = gameUi(game);
     var box = $(ui.onlineListId);
     var num = $(ui.onlineNumId);
-    if (!box) return;
     var here = (game === activeFamily()) ? (netMode ? displayRoster.slice() : [{ nick: me.nick, joinTs: 0 }]) : [];
     here.sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); });
     if (num) num.textContent = here.length;
+    if (!box) return;
     box.innerHTML = here.map(function (m) {
       var tag;
       if (isOmokFamily(game)) {
@@ -1801,6 +1890,13 @@
   // ---------- 참가자 목록 ----------
   function renderPlayersList() {
     var box = $("players-list"); if (!box) return;
+    var hint = $("players-hint");
+    var ctrl = activeController();
+    if (ctrl && ctrl.renderPlayers) { ctrl.renderPlayers(box, hint); return; }
+    if (hint) {
+      hint.className = "players-hint host-only";
+      hint.textContent = "이름 옆 버튼으로 흑·백·관전을 지정합니다.";
+    }
     if (!netMode) { box.innerHTML = '<p class="players-hint">혼자 연습 중입니다. 친구가 링크로 들어오면 여기에 표시됩니다.</p>'; return; }
     var pseats = isAlkFamily(curGame) ? A.seats : G.seats;
     var html = "";
@@ -1949,7 +2045,26 @@
   }
 
   var rankGame = "omok", rankTab = "omok", rankSeasons = [], rankSeasonIdx = 0;
+  function shownRankGame() { return rankGame === "all" ? rankTab : rankGame; }
   function rankTitle() { return rankGame === "all" ? "전체 랭킹" : (window.GameCatalog ? GameCatalog.rankName(rankGame) : (rankGame === "alk" ? "알까기 랭킹" : rankGame === "alk_terr" ? "점령전 랭킹" : "오목 랭킹")); }
+  function renderRankInfo() {
+    var list = $("rank-info-list"); if (!list) return;
+    if (shownRankGame() === "catchmind") {
+      list.innerHTML = '<li>모두 <b>1000점</b>에서 시작해요.</li>'
+        + '<li>게임 안에서는 정답을 맞히면 <b>+10점</b>, 내 그림을 한 사람이 맞힐 때마다 <b>+3점</b>을 받아요.</li>'
+        + '<li>방 인원 차이를 줄이기 위해 <b>획득점수 ÷ 가능한 최대점수</b>인 활약도로 한 판의 성과를 계산해요.</li>'
+        + '<li>같이 플레이한 사람들의 활약도를 서로 비교해 레이팅이 오르거나 내려가요. 높은 점수의 상대보다 잘하면 더 많이 올라요.</li>'
+        + '<li>이번 시즌에 <b>5회 이상</b> 참여하면 정식 순위에 올라가요. 5회가 안 되면 "배치 중"으로 표시돼요.</li>'
+        + '<li>시즌은 <b>3개월마다</b> 새로 시작되고, 레이팅도 다시 1000점부터 시작해요.</li>';
+      return;
+    }
+    list.innerHTML = '<li>모두 <b>1000점</b>에서 시작해요.</li>'
+      + '<li>이기면 오르고 지면 내려가요. 무승부는 아주 조금만 움직여요.</li>'
+      + '<li><b>나보다 센 사람을 이기면 점수가 많이 올라요.</b> 나보다 약한 사람을 이기면 조금만 올라요.</li>'
+      + '<li>반대로 <b>약한 사람에게 지면 많이 깎이고</b>, 센 사람에게 져도 조금만 깎여요.</li>'
+      + '<li>이번 시즌에 <b>5판 이상</b> 두면 정식 순위에 올라가요. 5판이 안 되면 "배치 중"으로 표시돼요.</li>'
+      + '<li>시즌은 <b>3개월마다</b> 새로 시작돼서, 그때 점수도 다시 1000점부터 시작해요.</li>';
+  }
   async function openRank(game) {
     var ranks = rankableGames();
     rankGame = (game === "all" || ranks.indexOf(game) >= 0) ? game : "omok";
@@ -1992,9 +2107,9 @@
       new Promise(function (_res, rej) { setTimeout(function () { rej(new Error("timeout")); }, ms); })
     ]);
   }
-  function computeSeasonRank(games, s) {
+  function computeSeasonRank(game, games, s) {
     var sg = (games || []).filter(function (g) { return gameInSeason(g, s); });
-    var stats = aggregate(sg).filter(function (st) { return window.__accSet && window.__accSet[st.nick]; });
+    var stats = aggregateForGame(game, sg).filter(function (st) { return window.__accSet && window.__accSet[st.nick]; });
     var ranked = stats.filter(function (st) { return st.games >= RANK_MIN_GAMES; })
       .sort(function (a, b) { return b.score - a.score || b.rate - a.rate; });
     var provisional = stats.filter(function (st) { return st.games < RANK_MIN_GAMES; })
@@ -2027,12 +2142,12 @@
         var tbtns = tabs.querySelectorAll(".rtab");
         for (var i = 0; i < tbtns.length; i++) tbtns[i].classList.toggle("active", tbtns[i].getAttribute("data-g") === rankTab);
       }
-      var r = computeSeasonRank((window.__gamesAll || {})[rankTab], s);
-      renderRank(r.ranked, r.provisional);
+      var r = computeSeasonRank(rankTab, (window.__gamesAll || {})[rankTab], s);
+      renderRank(rankTab, r.ranked, r.provisional);
     } else {
       if (tabs) tabs.classList.add("hidden");
-      var r2 = computeSeasonRank(window.__games, s);
-      renderRank(r2.ranked, r2.provisional);
+      var r2 = computeSeasonRank(rankGame, window.__games, s);
+      renderRank(rankGame, r2.ranked, r2.provisional);
     }
   }
   function renderSeasonBar(s, isCur) {
@@ -2067,31 +2182,103 @@
       return s;
     });
   }
-  function rankRowHtml(s, mark, prov) {
+  function parseCatchmindRecord(g) {
+    if (!g || !g.black) return null;
+    var parts = String(g.white || "").split(":");
+    if (parts[0] !== "cm" || parts.length < 6) return null;
+    var points = Number(parts[2]), maxPoints = Number(parts[3]);
+    if (!isFinite(points) || !isFinite(maxPoints) || maxPoints <= 0) return null;
+    return {
+      id: g.id,
+      nick: g.black,
+      matchId: parts[1],
+      points: Math.max(0, points),
+      maxPoints: maxPoints,
+      correct: Math.max(0, Number(parts[4]) || 0),
+      drawCorrect: Math.max(0, Number(parts[5]) || 0),
+      createdAt: g.created_at
+    };
+  }
+  function aggregateCatchmind(games) {
+    var grouped = {};
+    (games || []).forEach(function (g) {
+      var row = parseCatchmindRecord(g); if (!row || !row.matchId) return;
+      if (!grouped[row.matchId]) grouped[row.matchId] = { at: row.createdAt, players: {} };
+      grouped[row.matchId].players[row.nick] = row;
+      if (new Date(row.createdAt) < new Date(grouped[row.matchId].at)) grouped[row.matchId].at = row.createdAt;
+    });
+    var matches = Object.keys(grouped).map(function (id) { return grouped[id]; })
+      .sort(function (a, b) { return new Date(a.at) - new Date(b.at); });
+    var map = {};
+    function ent(nick) {
+      if (!map[nick]) map[nick] = { nick: nick, w: 0, l: 0, d: 0, elo: ELO_START, games: 0, points: 0, maxPoints: 0, correct: 0, drawCorrect: 0 };
+      return map[nick];
+    }
+    matches.forEach(function (match) {
+      var rows = Object.keys(match.players).map(function (nick) { return match.players[nick]; });
+      if (rows.length < 2) return;
+      var before = rows.map(function (row) {
+        var stat = ent(row.nick);
+        return { row: row, elo: stat.elo, performance: Math.min(1, row.points / row.maxPoints) };
+      });
+      var deltas = {};
+      before.forEach(function (player) {
+        var actual = 0, expected = 0;
+        before.forEach(function (opponent) {
+          if (opponent === player) return;
+          actual += player.performance === opponent.performance ? 0.5 : (player.performance > opponent.performance ? 1 : 0);
+          expected += 1 / (1 + Math.pow(10, (opponent.elo - player.elo) / 400));
+        });
+        deltas[player.row.nick] = ELO_K * ((actual - expected) / (before.length - 1));
+      });
+      rows.forEach(function (row) {
+        var stat = ent(row.nick);
+        stat.elo += deltas[row.nick];
+        stat.games++;
+        stat.points += row.points;
+        stat.maxPoints += row.maxPoints;
+        stat.correct += row.correct;
+        stat.drawCorrect += row.drawCorrect;
+      });
+    });
+    return Object.keys(map).map(function (nick) {
+      var stat = map[nick];
+      stat.rate = stat.maxPoints ? Math.min(100, Math.round(stat.points / stat.maxPoints * 100)) : 0;
+      stat.score = Math.round(stat.elo);
+      return stat;
+    });
+  }
+  function aggregateForGame(game, games) {
+    return game === "catchmind" ? aggregateCatchmind(games) : aggregate(games);
+  }
+  function rankRowHtml(game, s, mark, prov) {
     var meMark = (s.nick === me.nick) ? '<span class="rk-me">나</span>' : '';
-    var rec = s.w + '승 ' + s.l + '패' + (s.d ? ' ' + s.d + '무' : '') + ' · 승률 ' + s.rate + '%';
+    var rec = game === "catchmind"
+      ? s.games + '회 참여 · 활약도 ' + s.rate + '%'
+      : s.w + '승 ' + s.l + '패' + (s.d ? ' ' + s.d + '무' : '') + ' · 승률 ' + s.rate + '%';
     return '<div class="rrow' + (prov ? ' prov' : '') + '" data-nick="' + esc(s.nick) + '">'
       + '<span class="rk-rank">' + mark + '</span>'
       + '<span class="rk-name"><span class="rk-nick">' + esc(s.nick) + meMark + '</span><span class="rk-rec">' + rec + '</span></span>'
       + '<span class="rk-score' + (prov ? ' prov' : '') + '">' + s.score + '</span>'
       + '</div>';
   }
-  function rankListHtml(ranked, provisional) {
-    if (!ranked.length && !provisional.length) return '<p class="players-hint">아직 기록된 대국이 없어요. 한 판 두면 여기 올라옵니다!</p>';
+  function rankListHtml(game, ranked, provisional) {
+    if (!ranked.length && !provisional.length) return '<p class="players-hint">' + (game === "catchmind" ? '아직 완료된 캐치마인드 기록이 없어요.' : '아직 기록된 대국이 없어요. 한 판 두면 여기 올라옵니다!') + '</p>';
     var medals = ["gold", "silver", "bronze"];
+    var unit = game === "catchmind" ? "회" : "판";
     var html = "";
     if (ranked.length) {
       ranked.forEach(function (s, i) {
         var mark = i < 3 ? '<span class="rk-medal ' + medals[i] + '">' + (i + 1) + '</span>' : '<span class="rk-num">' + (i + 1) + '</span>';
-        html += rankRowHtml(s, mark, false);
+        html += rankRowHtml(game, s, mark, false);
       });
     } else {
-      html += '<p class="players-hint">아직 ' + RANK_MIN_GAMES + '판 이상 둔 사람이 없어요. ' + RANK_MIN_GAMES + '판을 채우면 순위에 올라옵니다!</p>';
+      html += '<p class="players-hint">아직 ' + RANK_MIN_GAMES + unit + ' 이상 ' + (game === "catchmind" ? '참여한 사람이 없어요.' : '둔 사람이 없어요.') + ' ' + RANK_MIN_GAMES + unit + ' 채우면 순위에 올라옵니다!</p>';
     }
     if (provisional.length) {
-      html += '<div class="prov-divider"><span class="prov-title">배치 중</span><span class="prov-note">' + RANK_MIN_GAMES + '판을 채우면 순위 등록</span></div>';
+      html += '<div class="prov-divider"><span class="prov-title">배치 중</span><span class="prov-note">' + RANK_MIN_GAMES + unit + ' 채우면 순위 등록</span></div>';
       provisional.forEach(function (s) {
-        html += rankRowHtml(s, '<span class="rk-prov">' + s.games + '/' + RANK_MIN_GAMES + '</span>', true);
+        html += rankRowHtml(game, s, '<span class="rk-prov">' + s.games + '/' + RANK_MIN_GAMES + '</span>', true);
       });
     }
     return html;
@@ -2100,8 +2287,8 @@
     var rows = $("rank-list").querySelectorAll(".rrow");
     for (var i = 0; i < rows.length; i++) rows[i].addEventListener("click", function () { showPlayerDetail(this.getAttribute("data-nick")); });
   }
-  function renderRank(ranked, provisional) {
-    $("rank-list").innerHTML = rankListHtml(ranked, provisional);
+  function renderRank(game, ranked, provisional) {
+    $("rank-list").innerHTML = rankListHtml(game, ranked, provisional);
     bindRankRows();
   }
   function fmtDate(iso) {
@@ -2121,10 +2308,48 @@
     have.forEach(function (id) { set[id] = 1; });
     return set;
   }
+  function showCatchmindDetail(nick, src, season, tok) {
+    var seasonGames = (src || []).filter(function (g) { return !season || gameInSeason(g, season); });
+    var seen = {}, records = [];
+    seasonGames.forEach(function (g) {
+      var row = parseCatchmindRecord(g);
+      if (!row || row.nick !== nick || seen[row.matchId]) return;
+      seen[row.matchId] = 1;
+      records.push(row);
+    });
+    records.sort(function (a, b) { return new Date(b.createdAt) - new Date(a.createdAt); });
+    var stat = aggregateCatchmind(seasonGames).filter(function (item) { return item.nick === nick; })[0];
+    if (tok !== detailToken) return;
+    $("rank-list").classList.add("hidden");
+    if ($("rank-tabs")) $("rank-tabs").classList.add("hidden");
+    if ($("rank-season")) $("rank-season").style.display = "none";
+    var box = $("rank-detail");
+    box.classList.remove("hidden");
+    $("rank-title").textContent = nick + " 캐치마인드" + (season ? " · " + season.label : "");
+    var html = '<button class="btn-flat rank-back">← 목록</button>';
+    if (stat) html += '<p class="players-hint">레이팅 <b>' + stat.score + '</b> · ' + stat.games + '회 참여 · 평균 활약도 <b>' + stat.rate + '%</b></p>';
+    if (!records.length) html += '<p class="players-hint">기록이 없어요.</p>';
+    else {
+      html += '<div class="detail-list">';
+      records.forEach(function (row) {
+        var performance = Math.min(100, Math.round(row.points / row.maxPoints * 100));
+        html += '<div class="drow cm-detail-row"><span class="cm-rank-perf">활약도 ' + performance + '%</span>'
+          + '<span class="cm-rank-detail">' + row.points + '점 · 정답 ' + row.correct + ' · 그림 성공 ' + row.drawCorrect + '</span>'
+          + '<span class="d-date">' + fmtDate(row.createdAt) + '</span></div>';
+      });
+      html += '</div>';
+    }
+    box.innerHTML = html;
+    box.querySelector(".rank-back").addEventListener("click", function () {
+      box.classList.add("hidden");
+      renderSeason();
+    });
+  }
   async function showPlayerDetail(nick) {
     var tok = ++detailToken;
     var s = rankSeasons[rankSeasonIdx];
     var src = (rankGame === "all") ? ((window.__gamesAll || {})[rankTab] || []) : (window.__games || []);
+    if (shownRankGame() === "catchmind") { showCatchmindDetail(nick, src, s, tok); return; }
     var games = src.filter(function (g) { return (g.black === nick || g.white === nick) && (!s || gameInSeason(g, s)); });
     $("rank-list").classList.add("hidden");
     if ($("rank-tabs")) $("rank-tabs").classList.add("hidden");
@@ -2454,17 +2679,21 @@
     }, 4500);
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (m) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[m]; }); }
-  function sendChat(game) {
+  function sendChatText(game, text) {
     game = gameFamily(game);
-    var inp = $(gameUi(game).chatInputId);
-    if (!inp) return;
-    var v = inp.value.trim().slice(0, 80); if (!v) return;
+    var v = String(text || "").trim().slice(0, 80); if (!v) return false;
     if (netMode) {
       addChatTo(game, me.nick, v, true);
       Net.send({ t: "chat", game: game, nick: me.nick, text: v });
       if (window.Db) Db.addChatMsg(chatRoomOf(game), me.nick, v);
     } else addChatTo(game, me.nick, v, true);
-    inp.value = "";
+    return true;
+  }
+  function sendChat(game) {
+    game = gameFamily(game);
+    var inp = $(gameUi(game).chatInputId);
+    if (!inp) return;
+    if (sendChatText(game, inp.value)) inp.value = "";
   }
 
   // ---------- 토스트 ----------
@@ -2687,7 +2916,12 @@
     $("rules-body").innerHTML = html;
   }
   function showRules(game) {
-    if (game === "alk") buildAlkRules();
+    var ctrl = gameController(game);
+    if (ctrl && ctrl.rules) {
+      var content = ctrl.rules();
+      if ($("rules-title")) $("rules-title").textContent = content.title || (gameName(game) + " 규칙");
+      $("rules-body").innerHTML = content.html || "";
+    } else if (game === "alk") buildAlkRules();
     else if (game === "terr") buildTerrRules();
     else buildRules();
     openModal("rules-modal");
@@ -2742,6 +2976,7 @@
     G.seats = (humanColor === "white") ? { black: AI_NICK, white: me.nick } : { black: me.nick, white: AI_NICK };
     beginGame(me.nick);
     renderPresenceUI();
+    broadcastRoomOpen();
     aiTick();
     var nm = aiLevelName(level);
     toast(nm + "와 대국 — 당신은 " + (humanColor === "white" ? "백(후공)" : "흑(선공)"));
@@ -2817,7 +3052,7 @@
     var rbtns = document.querySelectorAll("#menu-rules [data-rules]");
     for (var rb = 0; rb < rbtns.length; rb++) rbtns[rb].addEventListener("click", function () { $("menu-modal").classList.add("hidden"); showRules(this.getAttribute("data-rules")); });
     $("rank-btn").addEventListener("click", function () { openRank("omok"); });
-    $("rank-info-btn").addEventListener("click", function () { openModal("rank-info-modal"); });
+    $("rank-info-btn").addEventListener("click", function () { renderRankInfo(); openModal("rank-info-modal"); });
     $("alk-rank-btn").addEventListener("click", function () { openRank(curRoomGame === "alk_terr" ? "alk_terr" : "alk"); });
     var rtabs = document.querySelectorAll("#rank-tabs .rtab");
     for (var rt = 0; rt < rtabs.length; rt++) rtabs[rt].addEventListener("click", function () { rankTab = this.getAttribute("data-g"); renderSeason(); });
