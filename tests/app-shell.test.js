@@ -101,4 +101,8 @@ test("the Omok board uses a HiDPI backing store with logical input coordinates",
   assert.match(game, /var W = BOARD_SIZE/);
   assert.match(game, /var scale = BOARD_SIZE \/ rect\.width/);
   assert.match(game, /ctx\.shadowBlur = RADIUS \* 0\.28 \* boardPixelRatio/);
+  assert.match(game, /var STONE_SOURCE_INSET = 0\.09/);
+  assert.match(game, /RADIUS = GAP \* 0\.49/);
+  assert.match(game, /ctx\.drawImage\(img, sourceX, sourceY, sourceWidth, sourceHeight, x - size \/ 2/);
+  assert.match(game, /ctx\.arc\(px\(G\.lastMove\.c\), px\(G\.lastMove\.r\), RADIUS \* 0\.82/);
 });

@@ -40,6 +40,7 @@
 
   var canvas, ctx, MARGIN = 20, GAP, RADIUS;
   var BOARD_SIZE = 450, boardPixelRatio = 1, boardResizeId = null, boardResizeBound = false;
+  var STONE_SOURCE_INSET = 0.09;
   var stoneImages = { black: null, white: null, ready: false };
   var hostTimerId = null, dispTimerId = null;
   var GRACE_MS = 60000;
@@ -2668,7 +2669,7 @@
     ctx.imageSmoothingEnabled = true;
     if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
     GAP = (BOARD_SIZE - 2 * MARGIN) / (SIZE - 1);
-    RADIUS = GAP * 0.44;
+    RADIUS = GAP * 0.49;
   }
   function px(i) { return MARGIN + i * GAP; }
   function localAssetUrl(path) {
@@ -2738,8 +2739,8 @@
       }
     }
     if (G.lastMove) {
-      ctx.strokeStyle = "#F3612A"; ctx.lineWidth = 3.4;
-      ctx.beginPath(); ctx.arc(px(G.lastMove.c), px(G.lastMove.r), RADIUS + 2, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "#F3612A"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(px(G.lastMove.c), px(G.lastMove.r), RADIUS * 0.82, 0, Math.PI * 2); ctx.stroke();
     }
     var cnt = stoneCount();
     if (cnt === lastStoneCount + 1 && isOmokFamily(curGame)) playStone();
@@ -2754,10 +2755,14 @@
   function drawStone(x, y, color) {
     var img = color === BLACK ? stoneImages.black : stoneImages.white;
     if (img && img.complete && img.naturalWidth) {
-      var size = RADIUS * 2.63;
+      var sourceX = img.naturalWidth * STONE_SOURCE_INSET;
+      var sourceY = img.naturalHeight * STONE_SOURCE_INSET;
+      var sourceWidth = img.naturalWidth - sourceX * 2;
+      var sourceHeight = img.naturalHeight - sourceY * 2;
+      var size = RADIUS * 2;
       ctx.save();
       setStoneShadow(color);
-      ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+      ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, x - size / 2, y - size / 2, size, size);
       ctx.restore();
       return;
     }
