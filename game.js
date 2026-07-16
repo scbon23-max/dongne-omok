@@ -38,7 +38,7 @@
   var roster = [];
   var hostNick = null, amHost = false, wasHost = false, netMode = false, connected = false;
 
-  var canvas, ctx, MARGIN = 20, GAP, RADIUS;
+  var canvas, ctx, MARGIN = 28, GAP, RADIUS;
   var BOARD_SIZE = 450, boardPixelRatio = 1, boardResizeId = null, boardResizeBound = false;
   var STONE_SOURCE_INSET = 0.09;
   var stoneImages = { black: null, white: null, ready: false };
@@ -2630,10 +2630,10 @@
       var x = P(mv.c), y = P(mv.r), rad = GP * 0.44;
       ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2);
       ctx.fillStyle = (mv.color === BLACK) ? "#1b1b1b" : "#f6f6f6"; ctx.fill();
-      ctx.lineWidth = 1; ctx.strokeStyle = "rgba(0,0,0,.45)"; ctx.stroke();
+      strokeInsideCircle(ctx, x, y, rad, "rgba(0,0,0,.45)", 1, 0);
       if (k === replayIdx - 1) last = { x: x, y: y, rad: rad };
     }
-    if (last) { ctx.beginPath(); ctx.arc(last.x, last.y, last.rad * 0.5, 0, Math.PI * 2); ctx.strokeStyle = "#D23B3B"; ctx.lineWidth = 2.4; ctx.stroke(); }
+    if (last) strokeInsideCircle(ctx, last.x, last.y, last.rad * 0.5, "#D23B3B", 2.4, 0);
     if ($("replay-move")) $("replay-move").textContent = replayIdx + " / " + replayMoves.length + "수";
   }
 
@@ -2669,9 +2669,20 @@
     ctx.imageSmoothingEnabled = true;
     if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
     GAP = (BOARD_SIZE - 2 * MARGIN) / (SIZE - 1);
-    RADIUS = GAP * 0.485;
+    RADIUS = GAP * 0.5;
   }
   function px(i) { return MARGIN + i * GAP; }
+  function strokeInsideCircle(target, x, y, radius, color, width, inset, dash) {
+    target.save();
+    target.shadowColor = "transparent";
+    target.strokeStyle = color;
+    target.lineWidth = width;
+    if (target.setLineDash) target.setLineDash(dash || []);
+    target.beginPath();
+    target.arc(x, y, Math.max(0, radius - width / 2 - (inset || 0)), 0, Math.PI * 2);
+    target.stroke();
+    target.restore();
+  }
   function localAssetUrl(path) {
     return window.AppShell && AppShell.assetUrl ? AppShell.assetUrl(path) : path;
   }
@@ -2712,17 +2723,18 @@
         ctx.beginPath(); ctx.moveTo(x - d, y - d); ctx.lineTo(x + d, y + d); ctx.moveTo(x + d, y - d); ctx.lineTo(x - d, y + d); ctx.stroke();
       }
     }
+    // Shadows are painted first so every neighboring stone remains above them.
+    for (var sr = 0; sr < SIZE; sr++) for (var sc = 0; sc < SIZE; sc++) if (G.board[sr][sc]) drawStoneShadow(px(sc), px(sr), G.board[sr][sc]);
     for (var r = 0; r < SIZE; r++) for (var c = 0; c < SIZE; c++) if (G.board[r][c]) drawStone(px(c), px(r), G.board[r][c]);
     if (proHint && proHintContext && proHintContext.position === proHintPositionKey() &&
         G.board[proHint.r] && G.board[proHint.r][proHint.c] === 0) {
       var hintX = px(proHint.c), hintY = px(proHint.r);
       ctx.save();
       ctx.fillStyle = "rgba(47,184,158,.22)";
-      ctx.beginPath(); ctx.arc(hintX, hintY, RADIUS + 5, 0, Math.PI * 2); ctx.fill();
-      ctx.setLineDash([6, 4]);
-      ctx.strokeStyle = "#0B6B61"; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(hintX, hintY, RADIUS + 5, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(hintX, hintY, RADIUS, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      strokeInsideCircle(ctx, hintX, hintY, RADIUS, "#0B6B61", 3, 0.75, [6, 4]);
+      ctx.save();
       ctx.fillStyle = "#F3612A";
       ctx.beginPath(); ctx.arc(hintX, hintY, 4, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
@@ -2734,8 +2746,7 @@
         ctx.globalAlpha = 0.42;
         drawStone(px(preview.c), px(preview.r), G.turn);
         ctx.globalAlpha = 1;
-        ctx.strokeStyle = "#2FB89E"; ctx.lineWidth = 2.6;
-        ctx.beginPath(); ctx.arc(px(preview.c), px(preview.r), RADIUS + 3, 0, Math.PI * 2); ctx.stroke();
+        strokeInsideCircle(ctx, px(preview.c), px(preview.r), RADIUS, "#2FB89E", 2.6, 0.75);
       }
     }
     if (G.lastMove) drawLastMoveMarker(G.lastMove);
@@ -2744,22 +2755,24 @@
     lastStoneCount = cnt;
   }
   function setStoneShadow(color) {
-    ctx.shadowColor = color === WHITE ? "rgba(42,29,16,.19)" : "rgba(42,29,16,.16)";
-    ctx.shadowBlur = RADIUS * 0.16 * boardPixelRatio;
-    ctx.shadowOffsetX = RADIUS * 0.035 * boardPixelRatio;
-    ctx.shadowOffsetY = RADIUS * 0.08 * boardPixelRatio;
+    ctx.shadowColor = color === WHITE ? "rgba(42,29,16,.31)" : "rgba(42,29,16,.28)";
+    ctx.shadowBlur = RADIUS * 0.28 * boardPixelRatio;
+    ctx.shadowOffsetX = RADIUS * 0.1 * boardPixelRatio;
+    ctx.shadowOffsetY = RADIUS * 0.18 * boardPixelRatio;
+  }
+  function drawStoneShadow(x, y, color) {
+    ctx.save();
+    setStoneShadow(color);
+    ctx.fillStyle = "#D8AA63";
+    ctx.beginPath();
+    ctx.arc(x, y, RADIUS * 0.97, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
   function drawLastMoveMarker(move) {
     var color = G.board[move.r] && G.board[move.r][move.c];
     if (color !== BLACK && color !== WHITE) return;
-    ctx.save();
-    ctx.shadowColor = "transparent";
-    ctx.strokeStyle = color === BLACK ? "#FFB347" : "#D94A2F";
-    ctx.lineWidth = 2.4;
-    ctx.beginPath();
-    ctx.arc(px(move.c), px(move.r), RADIUS - 2.25, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+    strokeInsideCircle(ctx, px(move.c), px(move.r), RADIUS, color === BLACK ? "#FFB347" : "#D94A2F", 2.4, 0.75);
   }
   function drawStone(x, y, color) {
     var img = color === BLACK ? stoneImages.black : stoneImages.white;
@@ -2770,17 +2783,16 @@
       var sourceHeight = img.naturalHeight - sourceY * 2;
       var size = RADIUS * 2;
       ctx.save();
-      setStoneShadow(color);
       ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, x - size / 2, y - size / 2, size, size);
       ctx.restore();
       return;
     }
     ctx.save();
-    setStoneShadow(color);
     ctx.beginPath(); ctx.arc(x, y, RADIUS, 0, Math.PI * 2);
-    if (color === BLACK) { ctx.fillStyle = "#1A1A1A"; ctx.fill(); ctx.shadowColor = "transparent"; ctx.strokeStyle = "#000"; ctx.lineWidth = 1; ctx.stroke(); }
-    else { ctx.fillStyle = "#F7F7F2"; ctx.fill(); ctx.shadowColor = "transparent"; ctx.strokeStyle = "#B9B4A6"; ctx.lineWidth = 1; ctx.stroke(); }
+    if (color === BLACK) { ctx.fillStyle = "#1A1A1A"; ctx.fill(); }
+    else { ctx.fillStyle = "#F7F7F2"; ctx.fill(); }
     ctx.restore();
+    strokeInsideCircle(ctx, x, y, RADIUS, color === BLACK ? "#000" : "#B9B4A6", 1, 0);
   }
   function onBoardTap(ev) {
     if (G.over) return;
