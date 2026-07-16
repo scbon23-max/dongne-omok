@@ -107,14 +107,18 @@ body {
 .catch-chat-overlay { top: auto; bottom: 96px; }
 .catch-chat-overlay .ov-line { --overlay-opacity: 1; }
 .catch-chat-overlay .ov-line.show { opacity: var(--overlay-opacity); }
-.catch-tools { width: 100%; max-width: 420px; min-height: 42px; margin: 7px auto 0; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.catch-tools { width: 100%; max-width: 420px; min-height: 42px; margin: 7px auto 0; display: flex; align-items: center; justify-content: flex-start; gap: 5px; padding: 0 2px; }
 .catch-tool, .catch-color { height: 38px; border: 2px solid transparent; border-radius: 9px; background: var(--navy-2); color: #cfe0e7; font-size: 12px; font-weight: 800; cursor: pointer; }
 .catch-tool { padding: 0 10px; }
-.catch-tool-icon { min-width: 38px; padding: 0; font-size: 18px; }
+.catch-tool-icon { width: 38px; min-width: 38px; padding: 0; font-size: 18px; line-height: 1; }
 .catch-tool.active { border-color: var(--teal); background: var(--teal); color: var(--navy); }
 .catch-color { width: 38px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 .catch-color span { width: 16px; height: 16px; display: block; border-radius: 50%; border: 1px solid rgba(255,255,255,.45); }
 .catch-color.active { border-color: var(--teal); }
+.catch-palette-btn span { width: 18px; height: 18px; display: block; border-radius: 5px; border: 1px solid rgba(255,255,255,.45); background: conic-gradient(#d23b3b 0 25%, #eab308 0 50%, #22c55e 0 75%, #2474b5 0); }
+.catch-palette { width: 100%; max-width: 420px; margin: 6px auto 0; padding: 6px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; border: 1px solid rgba(207,224,231,.24); border-radius: 10px; background: rgba(22,56,74,.94); box-shadow: 0 4px 12px rgba(0,0,0,.22); }
+.catch-palette-color { width: 100%; aspect-ratio: 1 / 1; min-height: 28px; border: 2px solid rgba(255,255,255,.5); border-radius: 8px; cursor: pointer; }
+.catch-palette-color:active { transform: scale(.94); }
 .catch-input-row { width: 100%; max-width: 420px; margin: 0 auto; display: flex; padding: 6px; border: 1px solid #587581; border-radius: 10px; background: #244858; box-shadow: 0 2px 8px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.08); transition: border-color .16s ease, box-shadow .16s ease; }
 .catch-input-row:focus-within { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(47,184,158,.28), 0 2px 8px rgba(0,0,0,.24); }
 .catch-input-row .chat-input { width: 100%; min-width: 0; border: 1px solid #45626f; background: #0a2634; box-shadow: inset 0 1px 4px rgba(0,0,0,.28); }
@@ -136,6 +140,7 @@ body {
   .catch-tools { gap: 3px; }
   .catch-tool { padding: 0 7px; }
   .catch-color, .catch-tool-icon { width: 35px; min-width: 35px; }
+  .catch-palette { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 5px; }
   .cm-detail-row .d-date { flex-basis: 100%; text-align: right; }
 }
 .win-flag { position: absolute; inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; background: rgba(14,42,58,.72); border-radius: 10px; padding: 16px; }

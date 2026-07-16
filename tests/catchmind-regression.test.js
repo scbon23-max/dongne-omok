@@ -97,6 +97,19 @@ test("state sanitizing blocks markup and malformed values", () => {
   assert.equal(clean.feed[0].kind, "guess");
 });
 
+test("custom drawing colors allow safe hex values only", () => {
+  const api = loadCatchMind();
+  const clean = api.sanitizeSnapshot(baseSnapshot({
+    strokes: [
+      { id: "custom", color: "#22C55E", width: 8, points: [{ x: 0.2, y: 0.2 }] },
+      { id: "bad", color: "url(javascript:alert(1))", width: 8, points: [{ x: 0.3, y: 0.3 }] }
+    ]
+  }));
+
+  assert.equal(clean.strokes[0].color, "#22c55e");
+  assert.equal(clean.strokes[1].color, "#17252f");
+});
+
 test("the drawing feed keeps the newest five messages", () => {
   const api = loadCatchMind();
   const clean = api.sanitizeSnapshot(baseSnapshot({

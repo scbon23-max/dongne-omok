@@ -6,6 +6,11 @@ window.CatchMind = (function () {
   var DRAW_SEND_MS = 60;
   var CANVAS_BG = "#ffffff";
   var PEN_COLORS = ["#17252f", "#d23b3b", "#2474b5"];
+  var PALETTE_COLORS = [
+    "#17252f", "#6b7280", "#d23b3b", "#f97316", "#eab308", "#22c55e",
+    "#14b8a6", "#38bdf8", "#2474b5", "#8b5cf6", "#ec4899", "#7c4a2d"
+  ];
+  var COLOR_STORAGE_KEY = "catchmind.quickColors.v1";
   var MAX_STROKES = 100;
   var MAX_POINTS_PER_STROKE = 600;
   var MAX_CANVAS_POINTS = 3200;
@@ -37,6 +42,7 @@ window.CatchMind = (function () {
   var drawing = false;
   var currentStroke = null;
   var selectedTool = "pen";
+  var selectedColorSlot = 0;
   var selectedColor = PEN_COLORS[0];
   var lastStrokeSend = 0;
   var pendingStrokeTimer = null;
@@ -91,6 +97,26 @@ window.CatchMind = (function () {
     return clamp(Math.floor(parsed), min, max);
   }
   function safeText(value, max) { return String(value == null ? "" : value).slice(0, max); }
+  function safeColor(value) {
+    var color = String(value == null ? "" : value).trim().toLowerCase();
+    return /^#[0-9a-f]{6}$/.test(color) ? color : null;
+  }
+  function safeStrokeColor(value) {
+    if (String(value).toLowerCase() === CANVAS_BG) return CANVAS_BG;
+    return safeColor(value) || PEN_COLORS[0];
+  }
+  function loadPenColors() {
+    if (!window.localStorage) return;
+    try {
+      var saved = JSON.parse(window.localStorage.getItem(COLOR_STORAGE_KEY) || "[]");
+      if (!Array.isArray(saved)) return;
+      for (var i = 0; i < PEN_COLORS.length; i++) PEN_COLORS[i] = safeColor(saved[i]) || PEN_COLORS[i];
+    } catch (e) {}
+  }
+  function savePenColors() {
+    if (!window.localStorage) return;
+    try { window.localStorage.setItem(COLOR_STORAGE_KEY, JSON.stringify(PEN_COLORS)); } catch (e) {}
+  }
   function safeNick(value) {
     var nick = safeText(value, 40).trim();
     return /^(?:__proto__|prototype|constructor)$/.test(nick) ? "" : nick;
@@ -535,7 +561,7 @@ window.CatchMind = (function () {
 
   function sanitizeStroke(raw, pointLimit) {
     if (!raw || !raw.id || !Array.isArray(raw.points)) return null;
-    var color = PEN_COLORS.indexOf(raw.color) >= 0 || raw.color === CANVAS_BG ? raw.color : PEN_COLORS[0];
+    var color = safeStrokeColor(raw.color);
     var limit = Math.min(MAX_POINTS_PER_STROKE, Math.max(0, pointLimit == null ? MAX_POINTS_PER_STROKE : pointLimit));
     var points = raw.points.slice(0, limit).map(safePoint);
     if (!points.length) return null;
@@ -578,7 +604,7 @@ window.CatchMind = (function () {
     if (!raw || !raw.id || !Array.isArray(raw.points)) return null;
     var offset = safeInteger(raw.offset, 0, MAX_POINTS_PER_STROKE, null);
     if (offset == null) return null;
-    var color = PEN_COLORS.indexOf(raw.color) >= 0 || raw.color === CANVAS_BG ? raw.color : PEN_COLORS[0];
+    var color = safeStrokeColor(raw.color);
     return {
       id: safeText(raw.id, 80),
       color: color,
@@ -859,6 +885,7 @@ window.CatchMind = (function () {
     var isGuesser = state.phase === "drawing" && has(state.guessers, mine) && !state.correct[mine];
     var tools = $("catch-tools"), inputRow = $("catch-input-row"), input = $("catch-chat-input");
     if (tools) tools.classList.toggle("hidden", !isDrawer);
+    if (!isDrawer) setPaletteOpen(false);
     if (inputRow) inputRow.classList.toggle("hidden", isDrawer);
     if (input) {
       if (isPractice) input.placeholder = "연습 중 · 채팅 입력";
@@ -1010,7 +1037,99 @@ window.CatchMind = (function () {
     currentStroke = null;
   }
 
+  function colorSlotFromButton(button, fallback) {
+    var raw = button ? button.getAttribute("data-catch-color-slot") : null;
+    if (raw == null || raw === "") return fallback;
+    return safeInteger(raw, 0, PEN_COLORS.length - 1, fallback);
+  }
+
+  function updateColorButtons() {
+    var colorButtons = document.querySelectorAll("[data-catch-color]");
+    for (var i = 0; i < colorButtons.length; i++) {
+      var slot = colorSlotFromButton(colorButtons[i], i);
+      var color = PEN_COLORS[slot] || PEN_COLORS[0];
+      colorButtons[i].setAttribute("data-catch-color-slot", String(slot));
+      colorButtons[i].setAttribute("data-catch-color", color);
+      colorButtons[i].setAttribute("aria-label", "color " + (slot + 1));
+      var chip = colorButtons[i].querySelector("span");
+      if (chip) chip.style.background = color;
+    }
+  }
+
+  function setupToolButtons() {
+    var tools = $("catch-tools");
+    if (!tools) return;
+    var pen = document.querySelector('[data-catch-tool="pen"]');
+    var eraser = document.querySelector('[data-catch-tool="eraser"]');
+    var undo = $("catch-undo-btn");
+    var clear = $("catch-clear-btn");
+    var firstColor = document.querySelector("[data-catch-color]");
+    if (pen) { pen.classList.add("catch-tool-icon"); pen.textContent = "✎"; pen.setAttribute("aria-label", "펜"); }
+    if (eraser) { eraser.classList.add("catch-tool-icon"); eraser.textContent = "⌫"; eraser.setAttribute("aria-label", "지우개"); }
+    if (clear) { clear.textContent = "×"; clear.setAttribute("aria-label", "그림 모두 지우기"); }
+    if (undo) { undo.textContent = "↶"; undo.setAttribute("aria-label", "마지막 선 되돌리기"); }
+    if (clear && firstColor) tools.insertBefore(clear, firstColor);
+  }
+
+  function setPaletteOpen(open) {
+    var palette = $("catch-palette"), button = $("catch-palette-btn");
+    if (palette) palette.classList.toggle("hidden", !open);
+    if (button) {
+      button.classList.toggle("active", !!open);
+      button.setAttribute("aria-expanded", String(!!open));
+    }
+  }
+
+  function buildPaletteUi() {
+    var tools = $("catch-tools");
+    if (!tools || $("catch-palette-btn")) return;
+    var undo = $("catch-undo-btn");
+    var button = document.createElement("button");
+    button.id = "catch-palette-btn";
+    button.className = "catch-tool catch-tool-icon catch-palette-btn";
+    button.type = "button";
+    button.setAttribute("aria-label", "palette");
+    button.setAttribute("aria-expanded", "false");
+    button.appendChild(document.createElement("span"));
+    tools.insertBefore(button, undo || null);
+
+    var palette = document.createElement("div");
+    palette.id = "catch-palette";
+    palette.className = "catch-palette hidden";
+    palette.setAttribute("aria-label", "color palette");
+    PALETTE_COLORS.forEach(function (color) {
+      var swatch = document.createElement("button");
+      swatch.className = "catch-palette-color";
+      swatch.type = "button";
+      swatch.setAttribute("data-catch-palette-color", color);
+      swatch.setAttribute("aria-label", color);
+      swatch.style.background = color;
+      palette.appendChild(swatch);
+    });
+    tools.parentNode.insertBefore(palette, tools.nextSibling);
+  }
+
+  function selectColorSlot(slot) {
+    selectedColorSlot = slot == null || slot === "" ? 0 : safeInteger(slot, 0, PEN_COLORS.length - 1, 0);
+    selectedColor = PEN_COLORS[selectedColorSlot] || PEN_COLORS[0];
+    selectedTool = "pen";
+    syncToolButtons();
+  }
+
+  function replaceSelectedColor(color) {
+    color = safeColor(color);
+    if (!color) return;
+    PEN_COLORS[selectedColorSlot] = color;
+    selectedColor = color;
+    selectedTool = "pen";
+    savePenColors();
+    updateColorButtons();
+    setPaletteOpen(false);
+    syncToolButtons();
+  }
+
   function syncToolButtons() {
+    updateColorButtons();
     var toolButtons = document.querySelectorAll("[data-catch-tool]");
     for (var i = 0; i < toolButtons.length; i++) {
       var on = toolButtons[i].getAttribute("data-catch-tool") === selectedTool;
@@ -1019,7 +1138,7 @@ window.CatchMind = (function () {
     }
     var colorButtons = document.querySelectorAll("[data-catch-color]");
     for (var j = 0; j < colorButtons.length; j++) {
-      var active = colorButtons[j].getAttribute("data-catch-color") === selectedColor && selectedTool === "pen";
+      var active = colorSlotFromButton(colorButtons[j], j) === selectedColorSlot && selectedTool === "pen";
       colorButtons[j].classList.toggle("active", active);
       colorButtons[j].setAttribute("aria-pressed", String(active));
     }
@@ -1063,6 +1182,11 @@ window.CatchMind = (function () {
   function bind() {
     if (bound) return;
     bound = true;
+    loadPenColors();
+    selectedColor = PEN_COLORS[selectedColorSlot] || PEN_COLORS[0];
+    setupToolButtons();
+    buildPaletteUi();
+    updateColorButtons();
     canvas.addEventListener("pointerdown", pointerDown);
     canvas.addEventListener("pointermove", pointerMove);
     canvas.addEventListener("pointerup", pointerUp);
@@ -1080,11 +1204,19 @@ window.CatchMind = (function () {
 
     var toolButtons = document.querySelectorAll("[data-catch-tool]");
     for (var i = 0; i < toolButtons.length; i++) toolButtons[i].addEventListener("click", function () {
-      selectedTool = this.getAttribute("data-catch-tool"); syncToolButtons();
+      selectedTool = this.getAttribute("data-catch-tool"); setPaletteOpen(false); syncToolButtons();
     });
     var colorButtons = document.querySelectorAll("[data-catch-color]");
     for (var j = 0; j < colorButtons.length; j++) colorButtons[j].addEventListener("click", function () {
-      selectedColor = this.getAttribute("data-catch-color"); selectedTool = "pen"; syncToolButtons();
+      selectColorSlot(this.getAttribute("data-catch-color-slot"));
+    });
+    $("catch-palette-btn").addEventListener("click", function () {
+      var palette = $("catch-palette");
+      setPaletteOpen(!palette || palette.classList.contains("hidden"));
+    });
+    var paletteButtons = document.querySelectorAll("[data-catch-palette-color]");
+    for (var k = 0; k < paletteButtons.length; k++) paletteButtons[k].addEventListener("click", function () {
+      replaceSelectedColor(this.getAttribute("data-catch-palette-color"));
     });
     $("catch-undo-btn").addEventListener("click", function () {
       sendCanvasCommand("cm_undo");
