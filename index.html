@@ -44,7 +44,7 @@
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://scbon23-max.github.io/dongne-omok/">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="styles.css?v=catchmind-layout-v1-20260716">
+<link rel="stylesheet" href="styles.css?v=catchmind-score-scroll-v1-20260716">
 </head>
 <body>
 
@@ -228,8 +228,6 @@
 <section id="catchgame" class="screen game-screen catch-screen hidden">
   <header class="catch-statusbar">
     <div id="catch-round-label" class="catch-round-label">게임 대기 중</div>
-    <div id="catch-timer" class="catch-timer">--</div>
-    <button id="catch-people-btn" class="catch-people-btn" type="button" aria-label="참가자 보기"><span id="catch-online-num">0</span>명</button>
   </header>
 
   <div id="catch-score-strip" class="catch-score-strip hidden"></div>
@@ -241,7 +239,13 @@
   </div>
 
   <div class="catch-board-wrap">
-    <div class="catch-wordbar"><span>제시어</span><strong id="catch-word">준비 중</strong></div>
+    <div class="catch-wordbar">
+      <div class="catch-word-main"><span>제시어</span><strong id="catch-word">준비 중</strong></div>
+      <div class="catch-word-meta">
+        <div id="catch-timer" class="catch-timer">--</div>
+        <button id="catch-people-btn" class="catch-people-btn" type="button" aria-label="참가자 보기"><span id="catch-online-num">0</span>명</button>
+      </div>
+    </div>
     <canvas id="catch-board" width="720" height="720" aria-label="캐치마인드 그림판"></canvas>
     <div id="catch-chat-overlay" class="chat-overlay catch-chat-overlay"></div>
     <div id="catch-feed" class="catch-feed" aria-live="polite"></div>
@@ -524,7 +528,7 @@
 <script src="alkkagi.js"></script>
 <script src="game-catalog.js?v=catchmind-chat-layout-20260715"></script>
 <script src="catchmind-words.js?v=catchmind-curated-v2-20260716"></script>
-<script src="catchmind.js?v=catchmind-layout-v1-20260716"></script>
+<script src="catchmind.js?v=catchmind-score-scroll-v1-20260716"></script>
 <script src="game.js?v=ai-paint-20260716"></script>
 </body>
 </html>

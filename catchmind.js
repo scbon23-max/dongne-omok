@@ -807,8 +807,8 @@ window.CatchMind = (function () {
       return;
     }
     box.classList.remove("hidden");
-    var top = scoreOrder().slice(0, 3);
-    box.innerHTML = top.map(function (nick) {
+    var ordered = scoreOrder();
+    box.innerHTML = ordered.map(function (nick) {
       return '<span><b>' + esc(nick) + '</b> ' + (state.scores[nick] || 0) + '점</span>';
     }).join("");
   }
