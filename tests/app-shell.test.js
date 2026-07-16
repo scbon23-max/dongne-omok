@@ -91,3 +91,14 @@ test("room entry is not blocked by an HTML and JavaScript build label mismatch",
 test("late-loaded game code still binds the interface", () => {
   assert.match(game, /if \(document\.readyState === "loading"\) document\.addEventListener\("DOMContentLoaded", bind\);\s*else bind\(\);/);
 });
+
+test("the Omok board uses a HiDPI backing store with logical input coordinates", () => {
+  assert.match(game, /var BOARD_SIZE = 450/);
+  assert.match(game, /Math\.min\(3, Number\(window\.devicePixelRatio\) \|\| 1\)/);
+  assert.match(game, /canvas\.width = backingSize/);
+  assert.match(game, /ctx\.setTransform\(renderScale, 0, 0, renderScale, 0, 0\)/);
+  assert.match(game, /ctx\.imageSmoothingQuality = "high"/);
+  assert.match(game, /var W = BOARD_SIZE/);
+  assert.match(game, /var scale = BOARD_SIZE \/ rect\.width/);
+  assert.match(game, /ctx\.shadowBlur = RADIUS \* 0\.28 \* boardPixelRatio/);
+});

@@ -39,6 +39,7 @@
   var hostNick = null, amHost = false, wasHost = false, netMode = false, connected = false;
 
   var canvas, ctx, MARGIN = 20, GAP, RADIUS;
+  var BOARD_SIZE = 450, boardPixelRatio = 1, boardResizeId = null, boardResizeBound = false;
   var stoneImages = { black: null, white: null, ready: false };
   var hostTimerId = null, dispTimerId = null;
   var GRACE_MS = 60000;
@@ -2630,9 +2631,37 @@
 
   // ---------- 보드 ----------
   function layoutBoard() {
-    canvas = $("board"); ctx = canvas.getContext("2d");
-    GAP = (canvas.width - 2 * MARGIN) / (SIZE - 1); RADIUS = GAP * 0.44;
+    canvas = $("board");
+    syncBoardResolution();
+    if (!boardResizeBound) {
+      boardResizeBound = true;
+      window.addEventListener("resize", function () {
+        clearTimeout(boardResizeId);
+        boardResizeId = setTimeout(function () {
+          if (!canvas) return;
+          syncBoardResolution();
+          render();
+        }, 80);
+      });
+    }
     loadStoneImages();
+  }
+  function syncBoardResolution() {
+    if (!canvas) return;
+    var ratio = Math.max(1, Math.min(3, Number(window.devicePixelRatio) || 1));
+    var backingSize = Math.round(BOARD_SIZE * ratio);
+    if (canvas.width !== backingSize || canvas.height !== backingSize || boardPixelRatio !== ratio) {
+      canvas.width = backingSize;
+      canvas.height = backingSize;
+      boardPixelRatio = ratio;
+    }
+    ctx = canvas.getContext("2d");
+    var renderScale = backingSize / BOARD_SIZE;
+    ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
+    GAP = (BOARD_SIZE - 2 * MARGIN) / (SIZE - 1);
+    RADIUS = GAP * 0.44;
   }
   function px(i) { return MARGIN + i * GAP; }
   function localAssetUrl(path) {
@@ -2656,7 +2685,7 @@
   }
   function render() {
     if (!ctx) return;
-    var W = canvas.width;
+    var W = BOARD_SIZE;
     ctx.clearRect(0, 0, W, W);
     ctx.fillStyle = "#E8C88A"; ctx.fillRect(0, 0, W, W);
     ctx.strokeStyle = "#9A7B45"; ctx.lineWidth = 1.4; ctx.beginPath();
@@ -2697,9 +2726,9 @@
   }
   function setStoneShadow() {
     ctx.shadowColor = "rgba(42,29,16,.28)";
-    ctx.shadowBlur = RADIUS * 0.28;
-    ctx.shadowOffsetX = RADIUS * 0.1;
-    ctx.shadowOffsetY = RADIUS * 0.18;
+    ctx.shadowBlur = RADIUS * 0.28 * boardPixelRatio;
+    ctx.shadowOffsetX = RADIUS * 0.1 * boardPixelRatio;
+    ctx.shadowOffsetY = RADIUS * 0.18 * boardPixelRatio;
   }
   function drawStone(x, y, color) {
     var img = color === BLACK ? stoneImages.black : stoneImages.white;
@@ -2722,7 +2751,7 @@
     if (G.over) return;
     if (!G.started) { toast("‘대국 신청’ 버튼을 눌러 시작해요"); return; }
     var rect = canvas.getBoundingClientRect();
-    var scale = canvas.width / rect.width;
+    var scale = BOARD_SIZE / rect.width;
     var pt = ev.touches ? ev.touches[0] : ev;
     var x = (pt.clientX - rect.left) * scale, y = (pt.clientY - rect.top) * scale;
     var c = Math.round((x - MARGIN) / GAP), r = Math.round((y - MARGIN) / GAP);
