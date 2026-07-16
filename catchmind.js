@@ -835,9 +835,11 @@ window.CatchMind = (function () {
     livePeople.forEach(function (person) { if (!has(ordered, person.nick)) ordered.push(person.nick); });
     box.innerHTML = ordered.map(function (nick) {
       var isParticipant = !!participantSet[nick];
-      var cls = (nick === state.drawer ? " drawer" : "") + (isParticipant ? "" : " spectator");
+      var isCorrect = state.phase === "drawing" && !!state.correct[nick];
+      var cls = (nick === state.drawer ? " drawer" : "") + (isCorrect ? " correct" : "") + (isParticipant ? "" : " spectator");
       var score = isParticipant && state.queue.length ? " " + (state.scores[nick] || 0) + "점" : "";
-      return '<span class="' + cls.trim() + '"><b>' + esc(nick) + '</b>' + score + '</span>';
+      var badge = isCorrect ? ' <em>정답</em>' : "";
+      return '<span class="' + cls.trim() + '"><b>' + esc(nick) + '</b>' + badge + score + '</span>';
     }).join("");
   }
 
