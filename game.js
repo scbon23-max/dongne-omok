@@ -259,6 +259,7 @@
     hideGameScreens();
     $("lobby").classList.remove("hidden");
     document.body.classList.toggle("is-admin", me.isAdmin);
+    updateProHintControl();
     if (!lobbyConnected) { lobbyConnected = true; appConnect(); startRoomKeeper(); }
     renderRoomList();
     updateOnlineCounts(); renderLobbyOnline();
@@ -1285,6 +1286,7 @@
     if (netMode && G.seats[colorName(G.turn)] !== nick) return;
     var res = Renju.checkMove(G.board, r, c, G.turn);
     if (!res.legal) { if (nick === me.nick) toast(reasonText(res.reason)); return; }
+    clearProHint(true);
     G.board[r][c] = G.turn;
     G.lastMove = { r: r, c: c };
     if (!G.history) G.history = [];
@@ -1360,6 +1362,7 @@
   function performUndo(resumeAi) {
     if (netMode && !amHost) return;
     if (G.over || !G.history || !G.history.length) return;
+    clearProHint(true);
     var last = G.history.pop();
     G.board[last.r][last.c] = 0;
     G.turn = last.color;
@@ -1593,6 +1596,7 @@
     if (netMode && !amHost) return;
     if (!(G.seats.black && G.seats.white)) { if (by === me.nick) toast("흑·백 두 자리가 다 차야 시작해요"); return; }
     if (netMode && by !== G.seats.black && by !== G.seats.white && by !== ADMIN) return;
+    clearProHint(true);
     omokAI.on = (G.seats.white === AI_NICK || G.seats.black === AI_NICK);
     G.board = Renju.emptyBoard();
     G.turn = BLACK; G.lastMove = null; G.history = [];
@@ -1805,6 +1809,7 @@
       if (netMode && !amHost) return;
       if (!G.started || G.over || G.paused || !G.timerSec || !G.moveDeadline) return;
       if (Date.now() >= G.moveDeadline) {
+        clearProHint(true);
         G.turn = (G.turn === BLACK) ? WHITE : BLACK;
         G.moveDeadline = Date.now() + G.timerSec * 1000;
         G.rev++;
@@ -1859,6 +1864,7 @@
     btn.textContent = G.manualPaused ? "재개" : "일시정지";
     btn.classList.toggle("active", !!G.manualPaused);
     btn.disabled = !G.started || G.over;
+    updateProHintControl();
   }
   function canSetTimer() { return !netMode || amHost || me.isAdmin; }
   function requestSetTimer(sec) {
@@ -1918,6 +1924,7 @@
     return esc(nick) + (sc != null ? ' <span class="chip-score">' + sc + '</span>' : '');
   }
   function updateTurnUI() {
+    syncProHintState();
     var isBlack = G.turn === BLACK;
     $("name-black").innerHTML = chipNameHtml(seatName("black"), "omok");
     $("name-white").innerHTML = chipNameHtml(seatName("white"), "omok");
@@ -2612,7 +2619,7 @@
     var W = 360, N = SIZE, M = 18, GP = (W - 2 * M) / (N - 1);
     function P(i) { return M + i * GP; }
     ctx.clearRect(0, 0, W, W);
-    ctx.fillStyle = "#E8C88A"; ctx.fillRect(0, 0, W, W);
+    ctx.fillStyle = "#D8AA63"; ctx.fillRect(0, 0, W, W);
     ctx.strokeStyle = "#9A7B45"; ctx.lineWidth = 1.2; ctx.beginPath();
     for (var i = 0; i < N; i++) { ctx.moveTo(P(0), P(i)); ctx.lineTo(P(N - 1), P(i)); ctx.moveTo(P(i), P(0)); ctx.lineTo(P(i), P(N - 1)); }
     ctx.stroke();
@@ -2687,7 +2694,7 @@
     if (!ctx) return;
     var W = BOARD_SIZE;
     ctx.clearRect(0, 0, W, W);
-    ctx.fillStyle = "#E8C88A"; ctx.fillRect(0, 0, W, W);
+    ctx.fillStyle = "#D8AA63"; ctx.fillRect(0, 0, W, W);
     ctx.strokeStyle = "#9A7B45"; ctx.lineWidth = 1.4; ctx.beginPath();
     for (var i = 0; i < SIZE; i++) {
       ctx.moveTo(px(0), px(i)); ctx.lineTo(px(SIZE - 1), px(i));
@@ -2705,6 +2712,20 @@
       }
     }
     for (var r = 0; r < SIZE; r++) for (var c = 0; c < SIZE; c++) if (G.board[r][c]) drawStone(px(c), px(r), G.board[r][c]);
+    if (proHint && proHintContext && proHintContext.position === proHintPositionKey() &&
+        G.board[proHint.r] && G.board[proHint.r][proHint.c] === 0) {
+      var hintX = px(proHint.c), hintY = px(proHint.r);
+      ctx.save();
+      ctx.fillStyle = "rgba(47,184,158,.22)";
+      ctx.beginPath(); ctx.arc(hintX, hintY, RADIUS + 5, 0, Math.PI * 2); ctx.fill();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = "#0B6B61"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(hintX, hintY, RADIUS + 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#F3612A";
+      ctx.beginPath(); ctx.arc(hintX, hintY, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     if (preview) {
       var badPrev = G.over || G.board[preview.r][preview.c] !== 0 || (netMode && G.seats[colorName(G.turn)] !== me.nick);
       if (badPrev) { preview = null; if ($("confirm-bar")) $("confirm-bar").classList.add("hidden"); }
@@ -2724,8 +2745,8 @@
     if (cnt === lastStoneCount + 1 && isOmokFamily(curGame)) playStone();
     lastStoneCount = cnt;
   }
-  function setStoneShadow() {
-    ctx.shadowColor = "rgba(42,29,16,.28)";
+  function setStoneShadow(color) {
+    ctx.shadowColor = color === WHITE ? "rgba(42,29,16,.31)" : "rgba(42,29,16,.28)";
     ctx.shadowBlur = RADIUS * 0.28 * boardPixelRatio;
     ctx.shadowOffsetX = RADIUS * 0.1 * boardPixelRatio;
     ctx.shadowOffsetY = RADIUS * 0.18 * boardPixelRatio;
@@ -2733,15 +2754,15 @@
   function drawStone(x, y, color) {
     var img = color === BLACK ? stoneImages.black : stoneImages.white;
     if (img && img.complete && img.naturalWidth) {
-      var size = RADIUS * 2.44;
+      var size = RADIUS * 2.63;
       ctx.save();
-      setStoneShadow();
+      setStoneShadow(color);
       ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
       ctx.restore();
       return;
     }
     ctx.save();
-    setStoneShadow();
+    setStoneShadow(color);
     ctx.beginPath(); ctx.arc(x, y, RADIUS, 0, Math.PI * 2);
     if (color === BLACK) { ctx.fillStyle = "#1A1A1A"; ctx.fill(); ctx.shadowColor = "transparent"; ctx.strokeStyle = "#000"; ctx.lineWidth = 1; ctx.stroke(); }
     else { ctx.fillStyle = "#F7F7F2"; ctx.fill(); ctx.shadowColor = "transparent"; ctx.strokeStyle = "#B9B4A6"; ctx.lineWidth = 1; ctx.stroke(); }
@@ -2772,6 +2793,7 @@
     if (!preview) return;
     var p = preview; preview = null;
     $("confirm-bar").classList.add("hidden");
+    clearProHint(true);
     submitMove(p.r, p.c);
   }
 
@@ -2903,6 +2925,41 @@
     if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; document.body.appendChild(t); }
     t.textContent = msg; t.classList.add("show");
     clearTimeout(toastId); toastId = setTimeout(function () { t.classList.remove("show"); }, ms || 1800);
+  }
+
+  var proLoadHideId = null;
+  function ensureProLoadProgress() {
+    var box = $("pro-load-progress");
+    if (box) return box;
+    box = document.createElement("div");
+    box.id = "pro-load-progress";
+    box.className = "pro-load-progress hidden";
+    box.setAttribute("role", "status");
+    box.setAttribute("aria-live", "polite");
+    box.innerHTML = '<div class="pro-load-top"><span id="pro-load-label">프로 AI 다운로드 중</span><strong id="pro-load-percent">0%</strong></div>' +
+      '<div id="pro-load-track" class="pro-load-track" role="progressbar" aria-label="프로 AI 준비 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="pro-load-bar"></span></div>';
+    document.body.appendChild(box);
+    return box;
+  }
+  function showProLoadProgress(percent, phase) {
+    var box = ensureProLoadProgress();
+    percent = Math.max(0, Math.min(100, Math.floor(Number(percent) || 0)));
+    clearTimeout(proLoadHideId); proLoadHideId = null;
+    $("pro-load-label").textContent = phase === "ready" ? "프로 AI 준비 완료" :
+      (phase === "initializing" ? "프로 엔진 초기화 중" : "프로 AI 다운로드 중");
+    $("pro-load-percent").textContent = percent + "%";
+    $("pro-load-bar").style.width = percent + "%";
+    $("pro-load-track").setAttribute("aria-valuenow", String(percent));
+    box.classList.remove("hidden");
+  }
+  function hideProLoadProgress() {
+    clearTimeout(proLoadHideId); proLoadHideId = null;
+    var box = $("pro-load-progress");
+    if (box) box.classList.add("hidden");
+  }
+  function finishProLoadProgress() {
+    showProLoadProgress(100, "ready");
+    proLoadHideId = setTimeout(hideProLoadProgress, 650);
   }
 
   // ---------- 사운드 ----------
@@ -3069,7 +3126,7 @@
   // ---------- 규칙 ----------
   function ruleDiagram(title, desc, cells, mark) {
     var n = 5, cell = 26, pad = 13, w = pad * 2 + cell * (n - 1);
-    var s = '<div class="rule-item"><svg viewBox="0 0 ' + w + ' ' + w + '" class="rule-svg"><rect x="0" y="0" width="' + w + '" height="' + w + '" fill="#E8C88A" rx="6"/><g stroke="#9A7B45" stroke-width="1">';
+    var s = '<div class="rule-item"><svg viewBox="0 0 ' + w + ' ' + w + '" class="rule-svg"><rect x="0" y="0" width="' + w + '" height="' + w + '" fill="#D8AA63" rx="6"/><g stroke="#9A7B45" stroke-width="1">';
     for (var i = 0; i < n; i++) { var q = pad + i * cell; s += '<line x1="' + pad + '" y1="' + q + '" x2="' + (w - pad) + '" y2="' + q + '"/><line x1="' + q + '" y1="' + pad + '" x2="' + q + '" y2="' + (w - pad) + '"/>'; }
     s += '</g>';
     for (var k = 0; k < cells.length; k++) {
@@ -3159,9 +3216,168 @@
   var aiThinkSeq = 0;
   var aiWorker = null;
   var aiWorkerKind = null;
+  var proHint = null;
+  var proHintPending = false;
+  var proHintToken = 0;
+  var proHintWorker = null;
+  var proHintContext = null;
+  var proHintProgress = null;
+
+  function isGunaAdmin() {
+    return me.isAdmin === true && me.nick === ADMIN;
+  }
+  function proHintPositionKey() {
+    var moves = G.history || [];
+    var parts = [String(G.gameSeq || 0), String(G.turn), String(moves.length)];
+    for (var i = 0; i < moves.length; i++) {
+      parts.push(moves[i].r + "," + moves[i].c + "," + moves[i].color);
+    }
+    return parts.join("|");
+  }
+  function proHintSessionActive() {
+    if (!isGunaAdmin() || !omokAI.on || omokAI.level !== "god" || !G.started || G.over) return false;
+    var humanSeat = G.seats.black === me.nick ? "black" : (G.seats.white === me.nick ? "white" : null);
+    return !!humanSeat && G.seats[humanSeat === "black" ? "white" : "black"] === AI_NICK;
+  }
+  function canRequestProHint() {
+    return proHintSessionActive() && !G.paused && G.turn !== omokAI.color &&
+      G.seats[colorName(G.turn)] === me.nick;
+  }
+  function ensureProHintControl() {
+    var row = $("pro-hint-row");
+    if (!isGunaAdmin()) {
+      if (row) row.remove();
+      return null;
+    }
+    if (row) return row;
+    var actionRow = document.querySelector("#game > .action-row.slim");
+    if (!actionRow || !actionRow.parentNode) return null;
+    row = document.createElement("div");
+    row.id = "pro-hint-row";
+    row.className = "pro-hint-row hidden";
+    var button = document.createElement("button");
+    button.id = "pro-hint-btn";
+    button.className = "pro-hint-btn";
+    button.type = "button";
+    button.textContent = "프로 추천수 보기";
+    button.addEventListener("click", requestProHint);
+    row.appendChild(button);
+    actionRow.parentNode.insertBefore(row, actionRow);
+    return row;
+  }
+  function updateProHintControl() {
+    var row = ensureProHintControl();
+    if (!row) return;
+    var button = $("pro-hint-btn");
+    var active = proHintSessionActive();
+    row.classList.toggle("hidden", !active);
+    if (!active || !button) return;
+    var available = canRequestProHint();
+    button.disabled = proHintPending || !available;
+    if (proHintPending) {
+      button.textContent = proHintProgress == null ? "프로 추천수 분석 중..." : "프로 준비 중 " + proHintProgress + "%";
+    } else if (G.paused) {
+      button.textContent = "대국 일시정지";
+    } else if (!available) {
+      button.textContent = "프로 차례 진행 중";
+    } else {
+      button.textContent = proHint ? "프로 추천수 다시 보기" : "프로 추천수 보기";
+    }
+  }
+  function clearProHint(terminateWorker) {
+    proHintToken++;
+    if (terminateWorker && proHintWorker) {
+      proHintWorker.terminate();
+      if (aiWorker === proHintWorker) { aiWorker = null; aiWorkerKind = null; }
+    }
+    proHintWorker = null;
+    proHintPending = false;
+    proHint = null;
+    proHintContext = null;
+    proHintProgress = null;
+    updateProHintControl();
+  }
+  function syncProHintState() {
+    if (proHintContext && (proHintContext.position !== proHintPositionKey() || !proHintSessionActive())) {
+      clearProHint(true);
+    }
+    updateProHintControl();
+  }
+  function failProHint(token, worker) {
+    if (token !== proHintToken) return;
+    proHintToken++;
+    worker.terminate();
+    if (aiWorker === worker) { aiWorker = null; aiWorkerKind = null; }
+    proHintWorker = null;
+    proHintPending = false;
+    proHint = null;
+    proHintContext = null;
+    proHintProgress = null;
+    updateProHintControl();
+    toast("프로 추천수를 불러오지 못했어요", 2600);
+  }
+  function requestProHint() {
+    if (!isGunaAdmin()) return;
+    if (!proHintSessionActive()) return;
+    if (!canRequestProHint()) { toast(G.paused ? "일시정지 중이에요" : "내 차례에만 추천수를 볼 수 있어요"); return; }
+
+    clearProHint(true);
+    preview = null;
+    if ($("confirm-bar")) $("confirm-bar").classList.add("hidden");
+    var worker = ensureAiWorker("god");
+    if (!worker) { toast("프로 추천수를 불러오지 못했어요"); return; }
+
+    var token = ++proHintToken;
+    var requestId = "pro-hint-" + token;
+    var board = G.board.map(function (row) { return row.slice(); });
+    var history = (G.history || []).map(function (move) { return { r: move.r, c: move.c, color: move.color }; });
+    var color = G.turn;
+    proHintPending = true;
+    proHintWorker = worker;
+    proHintContext = { position: proHintPositionKey(), color: color };
+    proHintProgress = null;
+    updateProHintControl();
+    render();
+
+    worker.onmessage = function (event) {
+      if (token !== proHintToken) return;
+      var data = event.data || {};
+      if (data.type === "progress") {
+        proHintProgress = Math.max(0, Math.min(100, Math.floor(Number(data.percent) || 0)));
+        updateProHintControl();
+        return;
+      }
+      if (data.id !== requestId) return;
+      var move = data.move;
+      var stillCurrent = proHintContext && proHintContext.position === proHintPositionKey() && canRequestProHint();
+      var legal = Array.isArray(move) && move.length === 2 && stillCurrent &&
+        Renju.checkMove(G.board, move[0], move[1], color).legal;
+      if (data.error || !legal) { failProHint(token, worker); return; }
+      worker.onmessage = null;
+      worker.onerror = null;
+      proHintWorker = null;
+      proHintPending = false;
+      proHintProgress = null;
+      proHint = { r: move[0], c: move[1] };
+      updateProHintControl();
+      render();
+      toast("프로라면 표시된 자리에 둡니다", 2800);
+    };
+    worker.onerror = function () { failProHint(token, worker); };
+    worker.postMessage({
+      type: "search",
+      id: requestId,
+      board: board,
+      history: history,
+      color: color,
+      options: rapfiSearchOptions()
+    });
+  }
   function cancelAiSearch() {
     aiThinkSeq++;
     aiPending = false;
+    clearProHint(false);
+    hideProLoadProgress();
     if (aiWorker) {
       aiWorker.terminate();
       aiWorker = null;
@@ -3179,7 +3395,7 @@
     if (!window.Worker) return null;
     try {
       aiWorker = new Worker(kind === "rapfi"
-        ? "rapfi-worker.js?v=rapfi-3aedf3a-pro-v1-20260716"
+        ? "rapfi-worker.js?v=rapfi-3aedf3a-pro-v2-20260717"
         : "omok-ai-worker.js?v=ai-promoted-v1-20260716");
       aiWorkerKind = kind;
     } catch (e) {
@@ -3268,6 +3484,7 @@
     function startFallback() {
       if (settled || prepToken !== aiThinkSeq) return;
       settled = true;
+      hideProLoadProgress();
       worker.terminate();
       if (aiWorker === worker) { aiWorker = null; aiWorkerKind = null; }
       if (!seatsStillReady()) return;
@@ -3276,15 +3493,20 @@
     }
     worker.onmessage = function (event) {
       var data = event.data || {};
+      if (data.type === "progress") {
+        showProLoadProgress(data.percent, data.phase);
+        return;
+      }
       if (data.type === "error") { startFallback(); return; }
       if (data.type !== "ready" || settled || prepToken !== aiThinkSeq) return;
       settled = true;
       if (!seatsStillReady()) { cancelAiSearch(); return; }
+      finishProLoadProgress();
       beginAiGameNow(level, humanColor, aiSeat);
     };
     worker.onerror = startFallback;
+    showProLoadProgress(0, "download");
     worker.postMessage({ type: "init" });
-    toast("프로 AI 준비 중...");
   }
   function aiTick() {
     if (!omokAI.on || G.over || !G.started || aiPending) return;

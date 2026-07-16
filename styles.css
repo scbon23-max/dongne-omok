@@ -309,6 +309,11 @@ body:not(.is-admin) .admin-only { display: none; }
 
 /* ---------- 액션 ---------- */
 .action-row { display: flex; gap: 7px; margin: 7px auto 0; width: 100%; max-width: 420px; position: relative; }
+.pro-hint-row { width: 100%; max-width: 420px; min-height: 38px; margin: 8px auto 0; }
+.pro-hint-row.hidden { display: none; }
+.pro-hint-btn { width: 100%; height: 38px; border: 1px solid var(--teal); border-radius: 8px; background: #163746; color: #f3fbfa; font-size: 13px; font-weight: 800; cursor: pointer; }
+.pro-hint-btn:active:not(:disabled) { background: #1d4a5b; }
+.pro-hint-btn:disabled { border-color: #43606c; color: #91a5ae; cursor: default; }
 .confirm-bar { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); z-index: 5; display: flex; gap: 8px; }
 .confirm-bar.hidden { display: none; }
 .cbtn { border: none; border-radius: 11px; padding: 13px; font-size: 15px; font-weight: 800; cursor: pointer; }
@@ -437,6 +442,12 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 /* 토스트 */
 .toast { position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%) translateY(20px); background: rgba(0,0,0,.86); color: #fff; padding: 11px 18px; border-radius: 12px; font-size: 13.5px; font-weight: 600; opacity: 0; pointer-events: none; transition: .2s; z-index: 60; max-width: 90vw; text-align: center; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.pro-load-progress { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); width: min(340px, calc(100vw - 32px)); padding: 12px 14px; border: 1px solid #355564; border-radius: 8px; background: rgba(14,42,58,.97); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.42); z-index: 70; pointer-events: none; }
+.pro-load-progress.hidden { display: none; }
+.pro-load-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; font-size: 13px; font-weight: 800; }
+.pro-load-top strong { color: #f0bd58; font-size: 14px; }
+.pro-load-track { width: 100%; height: 7px; overflow: hidden; border-radius: 4px; background: #294653; }
+.pro-load-track > span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--teal); transition: width .14s linear; }
 
 /* ── 로비 ── */
 .lobby-screen { background: var(--navy); padding: 8px 12px 10px; height: 100dvh; overflow: hidden; }

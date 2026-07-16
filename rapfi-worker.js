@@ -4,10 +4,15 @@ importScripts("renju.js?v=rapfi-pro-v1-20260716");
 
 var RAPFI_REVISION = "3aedf3a2ab0ab710a9f3d00e57d5287ceb864894";
 var RAPFI_ASSET_ROOT = "assets/rapfi/";
+var RAPFI_LOADER_BYTES = 38359;
+var RAPFI_WASM_BYTES = 1206772;
+var RAPFI_DATA_BYTES = 19853161;
+var RAPFI_BUNDLE_BYTES = RAPFI_LOADER_BYTES + RAPFI_WASM_BYTES + RAPFI_DATA_BYTES;
 var rapfiModule = null;
 var rapfiPromise = null;
 var loaderImported = false;
 var activeSearch = null;
+var lastProgressKey = "";
 
 function assetUrl(name) {
   return RAPFI_ASSET_ROOT + name + "?v=" + RAPFI_REVISION.slice(0, 8);
@@ -35,9 +40,40 @@ function receiveStderr(line) {
   if (activeSearch) keepLine(activeSearch.errors, String(line || "").trim());
 }
 
+function reportProgress(phase, percent, loadedBytes, totalBytes) {
+  percent = Math.max(0, Math.min(100, Math.floor(Number(percent) || 0)));
+  var key = phase + ":" + percent;
+  if (key === lastProgressKey) return;
+  lastProgressKey = key;
+  self.postMessage({
+    type: "progress",
+    phase: phase,
+    percent: percent,
+    loadedBytes: Math.max(0, Number(loadedBytes) || 0),
+    totalBytes: Math.max(0, Number(totalBytes) || RAPFI_BUNDLE_BYTES)
+  });
+}
+
+function receiveStatus(status) {
+  var text = String(status || "");
+  var match = /^Downloading data\.\.\. \((\d+)\/(\d+)\)$/.exec(text);
+  if (match) {
+    var loaded = Number(match[1]);
+    var dataTotal = Number(match[2]) || RAPFI_DATA_BYTES;
+    var total = RAPFI_LOADER_BYTES + RAPFI_WASM_BYTES + dataTotal;
+    var bundleLoaded = RAPFI_LOADER_BYTES + Math.min(loaded, dataTotal);
+    reportProgress("download", Math.min(94, bundleLoaded / total * 100), bundleLoaded, total);
+  } else if (text.indexOf("Downloading data...") === 0) {
+    reportProgress("download", 1, RAPFI_LOADER_BYTES, RAPFI_BUNDLE_BYTES);
+  } else if (text === "Running...") {
+    reportProgress("initializing", 99, RAPFI_BUNDLE_BYTES, RAPFI_BUNDLE_BYTES);
+  }
+}
+
 function ensureRapfi() {
   if (rapfiPromise) return rapfiPromise;
   rapfiPromise = Promise.resolve().then(function () {
+    reportProgress("download", 0, 0, RAPFI_BUNDLE_BYTES);
     if (!loaderImported) {
       importScripts(assetUrl("rapfi-single-simd128.js"));
       loaderImported = true;
@@ -48,13 +84,14 @@ function ensureRapfi() {
       onReceiveStdout: receiveStdout,
       onReceiveStderr: receiveStderr,
       onExit: function () { rapfiModule = null; },
-      setStatus: function () {}
+      setStatus: receiveStatus
     });
   }).then(function (module) {
     rapfiModule = module;
     module.sendCommand("INFO rule 4");
     module.sendCommand("START 15");
     module.sendCommand("INFO show_detail 0");
+    reportProgress("ready", 100, RAPFI_BUNDLE_BYTES, RAPFI_BUNDLE_BYTES);
     return module;
   }).catch(function (error) {
     rapfiModule = null;

@@ -65,6 +65,23 @@ test("Rapfi output coordinates convert back to board row and column", () => {
   context.activeSearch = null;
 });
 
+test("Rapfi download status reports bundle progress through engine initialization", () => {
+  messages.length = 0;
+  context.lastProgressKey = "";
+  context.receiveStatus("Downloading data...");
+  context.receiveStatus("Downloading data... (9926580/19853161)");
+  context.receiveStatus("Running...");
+  context.reportProgress("ready", 100, context.RAPFI_BUNDLE_BYTES, context.RAPFI_BUNDLE_BYTES);
+
+  assert.deepEqual(messages.map((message) => [message.type, message.phase, message.percent]), [
+    ["progress", "download", 1],
+    ["progress", "download", 47],
+    ["progress", "initializing", 99],
+    ["progress", "ready", 100]
+  ]);
+  assert.equal(messages[1].totalBytes, 21098292);
+});
+
 test("timed searches use the current deadline and unlimited searches end on depth", () => {
   const commands = [];
   const module = { sendCommand(command) { commands.push(command); } };

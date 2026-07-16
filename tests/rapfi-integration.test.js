@@ -15,12 +15,13 @@ test("the Pro difficulty routes only its moves through Rapfi", () => {
   assert.match(index, /class="lvbtn pro" data-ai="god">프로<\/button>/);
   assert.match(styles, /\.lvbtn\.pro \{[^}]*grid-column: 1 \/ -1/);
   assert.match(game, /level === "god" \? "rapfi" : "classic"/);
-  assert.match(game, /rapfi-worker\.js\?v=rapfi-3aedf3a-pro-v1-20260716/);
+  assert.match(game, /rapfi-worker\.js\?v=rapfi-3aedf3a-pro-v2-20260717/);
   assert.match(game, /fallbackLevel = omokAI\.level === "god" \? "master"/);
   assert.match(game, /프로 AI 오류로 초고수로 전환했어요/);
   assert.match(game, /history: G\.history \|\| \[\]/);
   assert.match(game, /lv === "god" \? "프로"/);
-  assert.match(game, /worker\.postMessage\(\{ type: "init" \}\);\s*toast\("프로 AI 준비 중\.\.\."\)/);
+  assert.match(game, /showProLoadProgress\(0, "download"\);\s*worker\.postMessage\(\{ type: "init" \}\);/);
+  assert.match(game, /if \(data\.type === "progress"\) \{\s*showProLoadProgress\(data\.percent, data\.phase\)/);
   assert.match(game, /"ai-cancel"\)\.addEventListener\("click", function \(\) \{ cancelAiSearch\(\)/);
 });
 
