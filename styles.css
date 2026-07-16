@@ -334,6 +334,7 @@ body:not(.is-admin) .admin-only { display: none; }
 .ai-level-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .lvbtn { min-width: 0; height: 48px; background: var(--navy-2); color: #eaf2f6; border: 2px solid transparent; border-radius: 11px; padding: 0 8px; font-size: 15px; font-weight: 900; cursor: pointer; text-align: center; white-space: nowrap; }
 .lvbtn.master { border-color: var(--orange); color: #fff; }
+.lvbtn.pro { grid-column: 1 / -1; background: #163746; border-color: #e7b34f; color: #fff; }
 .lvbtn:active { transform: scale(.97); }
 .lvbtn:hover { border-color: rgba(47,184,158,.45); }
 .ai-cancel { height: 38px; background: var(--navy-3); color: #cfe0e7; border: none; border-radius: 10px; font-size: 13px; font-weight: 900; cursor: pointer; }

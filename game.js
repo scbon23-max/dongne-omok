@@ -3090,21 +3090,33 @@
   var AI_THINK_DELAY_MS = 1000;
   var aiThinkSeq = 0;
   var aiWorker = null;
+  var aiWorkerKind = null;
   function cancelAiSearch() {
     aiThinkSeq++;
     aiPending = false;
     if (aiWorker) {
       aiWorker.terminate();
       aiWorker = null;
+      aiWorkerKind = null;
     }
   }
-  function ensureAiWorker() {
-    if (aiWorker) return aiWorker;
+  function ensureAiWorker(level) {
+    var kind = level === "god" ? "rapfi" : "classic";
+    if (aiWorker && aiWorkerKind === kind) return aiWorker;
+    if (aiWorker) {
+      aiWorker.terminate();
+      aiWorker = null;
+      aiWorkerKind = null;
+    }
     if (!window.Worker) return null;
     try {
-      aiWorker = new Worker("omok-ai-worker.js?v=ai-promoted-v1-20260716");
+      aiWorker = new Worker(kind === "rapfi"
+        ? "rapfi-worker.js?v=rapfi-3aedf3a-pro-v1-20260716"
+        : "omok-ai-worker.js?v=ai-promoted-v1-20260716");
+      aiWorkerKind = kind;
     } catch (e) {
       aiWorker = null;
+      aiWorkerKind = null;
     }
     return aiWorker;
   }
@@ -3115,6 +3127,13 @@
     if (G.timerSec && remaining) options.softTimeMs = Math.max(500, remaining - 1200);
     return options;
   }
+  function rapfiSearchOptions() {
+    return {
+      timerSec: G.timerSec || 0,
+      deadlineMs: G.moveDeadline || 0,
+      maxDepth: 12
+    };
+  }
   function afterBoardPaint(fn) {
     if (window.requestAnimationFrame && (typeof document === "undefined" || !document.hidden)) {
       window.requestAnimationFrame(function () { setTimeout(fn, 0); });
@@ -3122,7 +3141,7 @@
       setTimeout(fn, 16);
     }
   }
-  function aiLevelName(lv) { return lv === "easy" ? "초보" : lv === "medium" ? "중수" : lv === "master" ? "초고수" : "고수"; }
+  function aiLevelName(lv) { return lv === "easy" ? "초보" : lv === "medium" ? "중수" : lv === "master" ? "초고수" : lv === "god" ? "프로" : "고수"; }
   function seatDisplay(nick) { return nick === AI_NICK ? aiLevelName(omokAI.level) : nick; }
   function aiHumanSeatColor(seats, nick) {
     if (!seats) return null;
@@ -3139,13 +3158,7 @@
     renderPresenceUI();
     toast("혼자 연습 — 흑·백 번갈아 둬보세요");
   }
-  function startAiGame(level) {
-    if (!window.OmokAI) { toast("AI를 불러오지 못했어요"); return; }
-    var humanColor = aiHumanSeatColor(G.seats, me.nick);
-    if (!humanColor) { toast("먼저 흑이나 백 자리에 앉아주세요"); return; }
-    var aiSeat = (humanColor === "white") ? "black" : "white";
-    if (G.seats[aiSeat] && G.seats[aiSeat] !== AI_NICK) { toast("반대 자리가 비어 있어야 AI와 둘 수 있어요"); return; }
-    cancelAiSearch();
+  function beginAiGameNow(level, humanColor, aiSeat) {
     omokSolo = false; omokAI.on = true; omokAI.level = level; aiPending = false;
     omokAI.color = (aiSeat === "black") ? BLACK : WHITE;
     G.seats[aiSeat] = AI_NICK;
@@ -3155,6 +3168,55 @@
     aiTick();
     var nm = aiLevelName(level);
     toast(nm + "와 대국 — 당신은 " + (humanColor === "white" ? "백(후공)" : "흑(선공)"));
+    if (level === "god") {
+      var timerLabel = !G.timerSec ? "무한" : G.timerSec === 60 ? "1분" : G.timerSec === 120 ? "2분" : G.timerSec + "초";
+      addChatTo("omok", "__sys", "프로는 30초→1분→2분 순으로 시간이 길수록 더 깊게 분석해 난이도가 올라갑니다. 무한은 깊이 12 완주 방식입니다. 현재 설정: " + timerLabel);
+    }
+  }
+  function startAiGame(level) {
+    if (!window.OmokAI) { toast("AI를 불러오지 못했어요"); return; }
+    var humanColor = aiHumanSeatColor(G.seats, me.nick);
+    if (!humanColor) { toast("먼저 흑이나 백 자리에 앉아주세요"); return; }
+    var aiSeat = (humanColor === "white") ? "black" : "white";
+    if (G.seats[aiSeat] && G.seats[aiSeat] !== AI_NICK) { toast("반대 자리가 비어 있어야 AI와 둘 수 있어요"); return; }
+    cancelAiSearch();
+    if (level !== "god") {
+      beginAiGameNow(level, humanColor, aiSeat);
+      return;
+    }
+
+    var prepToken = aiThinkSeq;
+    var worker = ensureAiWorker(level);
+    if (!worker) {
+      beginAiGameNow("master", humanColor, aiSeat);
+      toast("프로 AI를 불러오지 못해 초고수로 시작해요");
+      return;
+    }
+    var settled = false;
+    function seatsStillReady() {
+      return aiHumanSeatColor(G.seats, me.nick) === humanColor &&
+        (!G.seats[aiSeat] || G.seats[aiSeat] === AI_NICK);
+    }
+    function startFallback() {
+      if (settled || prepToken !== aiThinkSeq) return;
+      settled = true;
+      worker.terminate();
+      if (aiWorker === worker) { aiWorker = null; aiWorkerKind = null; }
+      if (!seatsStillReady()) return;
+      beginAiGameNow("master", humanColor, aiSeat);
+      toast("프로 AI를 불러오지 못해 초고수로 시작해요");
+    }
+    worker.onmessage = function (event) {
+      var data = event.data || {};
+      if (data.type === "error") { startFallback(); return; }
+      if (data.type !== "ready" || settled || prepToken !== aiThinkSeq) return;
+      settled = true;
+      if (!seatsStillReady()) { cancelAiSearch(); return; }
+      beginAiGameNow(level, humanColor, aiSeat);
+    };
+    worker.onerror = startFallback;
+    worker.postMessage({ type: "init" });
+    toast("프로 AI 준비 중...");
   }
   function aiTick() {
     if (!omokAI.on || G.over || !G.started || aiPending) return;
@@ -3183,34 +3245,57 @@
       }
       function runOnMainThread() {
         try {
-          finish(window.OmokAI.bestMove(G.board, omokAI.color, omokAI.level, aiSearchOptions()));
+          var fallbackLevel = omokAI.level === "god" ? "master" : omokAI.level;
+          finish(window.OmokAI.bestMove(G.board, omokAI.color, fallbackLevel, aiSearchOptions()));
         } catch (e) {
           finish(null);
         }
       }
-      var worker = ensureAiWorker();
+      function isLegalMove(mv) {
+        return Array.isArray(mv) && mv.length === 2 &&
+          Renju.checkMove(G.board, mv[0], mv[1], omokAI.color).legal;
+      }
+      var worker = ensureAiWorker(omokAI.level);
       if (!worker) { runOnMainThread(); return; }
+      function handleWorkerFailure() {
+        worker.terminate();
+        if (aiWorker === worker) { aiWorker = null; aiWorkerKind = null; }
+        if (omokAI.level === "god") {
+          omokAI.level = "master";
+          toast("프로 AI 오류로 초고수로 전환했어요");
+          updateTurnUI();
+          renderPresenceUI();
+        }
+        runOnMainThread();
+      }
       worker.onmessage = function (event) {
         var data = event.data || {};
         if (data.id !== token) return;
-        if (data.error) {
-          worker.terminate(); aiWorker = null;
-          runOnMainThread();
+        if (data.error || !isLegalMove(data.move)) {
+          handleWorkerFailure();
           return;
         }
         finish(data.move);
       };
-      worker.onerror = function () {
-        worker.terminate(); aiWorker = null;
-        runOnMainThread();
-      };
-      worker.postMessage({
-        id: token,
-        board: G.board,
-        color: omokAI.color,
-        level: omokAI.level,
-        options: aiSearchOptions()
-      });
+      worker.onerror = handleWorkerFailure;
+      if (omokAI.level === "god") {
+        worker.postMessage({
+          type: "search",
+          id: token,
+          board: G.board,
+          history: G.history || [],
+          color: omokAI.color,
+          options: rapfiSearchOptions()
+        });
+      } else {
+        worker.postMessage({
+          id: token,
+          board: G.board,
+          color: omokAI.color,
+          level: omokAI.level,
+          options: aiSearchOptions()
+        });
+      }
     });
   }
   function onCenterBtn() {
@@ -3273,7 +3358,7 @@
     var swapBtn = $("swap-btn");
     if (swapBtn) swapBtn.addEventListener("click", function () { requestSeatSwap("omok"); });
     $("ai-btn").addEventListener("click", function () { $("center-btn").classList.add("hidden"); $("ai-btn").classList.add("hidden"); $("ai-levels").classList.remove("hidden"); });
-    $("ai-cancel").addEventListener("click", function () { $("ai-levels").classList.add("hidden"); updateCenterButton(); });
+    $("ai-cancel").addEventListener("click", function () { cancelAiSearch(); $("ai-levels").classList.add("hidden"); updateCenterButton(); });
     var lvb = document.querySelectorAll(".lvbtn[data-ai]");
     for (var li = 0; li < lvb.length; li++) lvb[li].addEventListener("click", function () { startAiGame(this.getAttribute("data-ai")); });
     $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else if (omokAI.on) startAiGame(omokAI.level); else requestBegin(); });
