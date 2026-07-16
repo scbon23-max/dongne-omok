@@ -2669,7 +2669,7 @@
     ctx.imageSmoothingEnabled = true;
     if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
     GAP = (BOARD_SIZE - 2 * MARGIN) / (SIZE - 1);
-    RADIUS = GAP * 0.49;
+    RADIUS = GAP * 0.485;
   }
   function px(i) { return MARGIN + i * GAP; }
   function localAssetUrl(path) {
@@ -2738,19 +2738,28 @@
         ctx.beginPath(); ctx.arc(px(preview.c), px(preview.r), RADIUS + 3, 0, Math.PI * 2); ctx.stroke();
       }
     }
-    if (G.lastMove) {
-      ctx.strokeStyle = "#F3612A"; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(px(G.lastMove.c), px(G.lastMove.r), RADIUS * 0.82, 0, Math.PI * 2); ctx.stroke();
-    }
+    if (G.lastMove) drawLastMoveMarker(G.lastMove);
     var cnt = stoneCount();
     if (cnt === lastStoneCount + 1 && isOmokFamily(curGame)) playStone();
     lastStoneCount = cnt;
   }
   function setStoneShadow(color) {
-    ctx.shadowColor = color === WHITE ? "rgba(42,29,16,.31)" : "rgba(42,29,16,.28)";
-    ctx.shadowBlur = RADIUS * 0.28 * boardPixelRatio;
-    ctx.shadowOffsetX = RADIUS * 0.1 * boardPixelRatio;
-    ctx.shadowOffsetY = RADIUS * 0.18 * boardPixelRatio;
+    ctx.shadowColor = color === WHITE ? "rgba(42,29,16,.19)" : "rgba(42,29,16,.16)";
+    ctx.shadowBlur = RADIUS * 0.16 * boardPixelRatio;
+    ctx.shadowOffsetX = RADIUS * 0.035 * boardPixelRatio;
+    ctx.shadowOffsetY = RADIUS * 0.08 * boardPixelRatio;
+  }
+  function drawLastMoveMarker(move) {
+    var color = G.board[move.r] && G.board[move.r][move.c];
+    if (color !== BLACK && color !== WHITE) return;
+    ctx.save();
+    ctx.shadowColor = "transparent";
+    ctx.strokeStyle = color === BLACK ? "#FFB347" : "#D94A2F";
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.arc(px(move.c), px(move.r), RADIUS - 2.25, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
   function drawStone(x, y, color) {
     var img = color === BLACK ? stoneImages.black : stoneImages.white;
