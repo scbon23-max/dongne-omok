@@ -3,7 +3,7 @@
 
   var SIZE = Renju.SIZE, BLACK = Renju.BLACK, WHITE = Renju.WHITE;
   var TERR_KOMI = 1.5;
-  var APP_BUILD = "20260716-ai-promoted-v1";
+  var APP_BUILD = "20260716-ai-undo-v1";
   var APP_REFRESH_KEY = "dongne_games_app_refresh";
 
   var G = {
@@ -1322,15 +1322,13 @@
   function sendUndoRequest() {
     if (G.over) { toast("대국이 끝났어요"); return; }
     if (!G.history || !G.history.length) { toast("무를 수가 없어요"); return; }
-    if (Date.now() < undoCooldownUntil) { toast("무르기는 10초 뒤에 다시 쓸 수 있어요"); return; }
-    if (!netMode) { performUndo(); startUndoCooldown(); return; }
     if (G.seats.black === AI_NICK || G.seats.white === AI_NICK) {
       cancelAiSearch();
-      if (G.history && G.history.length) performUndo();
-      if (!G.over && colorName(G.turn) === "white" && G.history && G.history.length) performUndo();
-      startUndoCooldown();
+      performUndo(true);
       return;
     }
+    if (Date.now() < undoCooldownUntil) { toast("무르기는 10초 뒤에 다시 쓸 수 있어요"); return; }
+    if (!netMode) { performUndo(); startUndoCooldown(); return; }
     var lastColor = (G.turn === BLACK) ? WHITE : BLACK;
     var lastMover = G.seats[colorName(lastColor)];
     var opponent = G.seats[colorName(G.turn)];
@@ -1345,7 +1343,7 @@
     $("undo-text").textContent = from + "님이 한 수 무르기를 요청했어요.";
     $("undo-modal").classList.remove("hidden");
   }
-  function performUndo() {
+  function performUndo(resumeAi) {
     if (netMode && !amHost) return;
     if (G.over || !G.history || !G.history.length) return;
     var last = G.history.pop();
@@ -1357,6 +1355,7 @@
     G.rev++;
     broadcastState();
     updateTurnUI(); render();
+    if (resumeAi && omokAI.on && G.started && !G.over) aiTick();
   }
 
   // ---------- 무승부 ----------
