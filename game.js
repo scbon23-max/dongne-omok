@@ -2240,6 +2240,22 @@
     if (canNext) $("season-next").addEventListener("click", function () { rankSeasonIdx++; renderSeason(); });
   }
   var ELO_START = 1000, ELO_K = 32, RANK_MIN_GAMES = 5;
+  function ratingDeltaMap(games, season) {
+    var chron = (games || []).filter(function (g) { return !season || gameInSeason(g, season); })
+      .slice().sort(function (a, b) { return new Date(a.created_at) - new Date(b.created_at); });
+    var map = {}, deltas = {};
+    function ent(n) { if (!map[n]) map[n] = { elo: ELO_START }; return map[n]; }
+    chron.forEach(function (g) {
+      if (!g.black || !g.white || g.black === g.white) return;
+      var b = ent(g.black), w = ent(g.white);
+      var eb = 1 / (1 + Math.pow(10, (w.elo - b.elo) / 400));
+      var sb = g.winner === "draw" ? 0.5 : (g.winner === "black" ? 1 : 0);
+      var delta = Math.round(ELO_K * (sb - eb));
+      if (g.id != null) deltas[g.id] = { black: delta, white: -delta };
+      b.elo += delta; w.elo -= delta;
+    });
+    return deltas;
+  }
   function aggregate(games) {
     var chron = games.slice().sort(function (a, b) { return new Date(a.created_at) - new Date(b.created_at); });
     var map = {};
@@ -2247,17 +2263,18 @@
     chron.forEach(function (g) {
       if (!g.black || !g.white || g.black === g.white) return;
       var b = ent(g.black), w = ent(g.white);
-      var eb = 1 / (1 + Math.pow(10, (w.elo - b.elo) / 400)), ew = 1 - eb;
-      var sb = g.winner === "draw" ? 0.5 : (g.winner === "black" ? 1 : 0), sw = 1 - sb;
+      var eb = 1 / (1 + Math.pow(10, (w.elo - b.elo) / 400));
+      var sb = g.winner === "draw" ? 0.5 : (g.winner === "black" ? 1 : 0);
+      var delta = Math.round(ELO_K * (sb - eb));
       if (g.winner === "draw") { b.d++; w.d++; }
       else if (g.winner === "black") { b.w++; w.l++; }
       else if (g.winner === "white") { w.w++; b.l++; }
-      b.elo += ELO_K * (sb - eb); w.elo += ELO_K * (sw - ew);
+      b.elo += delta; w.elo -= delta;
     });
     return Object.keys(map).map(function (k) {
       var s = map[k]; s.games = s.w + s.l + s.d;
       s.rate = s.games ? Math.round(s.w / s.games * 100) : 0;
-      s.score = Math.round(s.elo);
+      s.score = s.elo;
       return s;
     });
   }
@@ -2308,7 +2325,7 @@
           actual += player.performance === opponent.performance ? 0.5 : (player.performance > opponent.performance ? 1 : 0);
           expected += 1 / (1 + Math.pow(10, (opponent.elo - player.elo) / 400));
         });
-        deltas[player.row.nick] = ELO_K * ((actual - expected) / (before.length - 1));
+        deltas[player.row.nick] = Math.round(ELO_K * ((actual - expected) / (before.length - 1)));
       });
       rows.forEach(function (row) {
         var stat = ent(row.nick);
@@ -2323,7 +2340,7 @@
     return Object.keys(map).map(function (nick) {
       var stat = map[nick];
       stat.rate = stat.maxPoints ? Math.min(100, Math.round(stat.points / stat.maxPoints * 100)) : 0;
-      stat.score = Math.round(stat.elo);
+      stat.score = stat.elo;
       return stat;
     });
   }
@@ -2436,6 +2453,7 @@
     var box = $("rank-detail");
     box.classList.remove("hidden");
     $("rank-title").textContent = nick + " 전적" + (s ? " · " + s.label : "");
+    var deltaMap = ratingDeltaMap(src, s);
     var moveSet = await movesetFor(games);
     if (tok !== detailToken) return;
     var html = '<button class="btn-flat rank-back">← 목록</button>' + (me.isAdmin ? '<button class="rank-edit-btn">편집</button>' : '');
@@ -2454,8 +2472,11 @@
           var ri = replayList.length; replayList.push(g);
           rbtn = '<button class="replay-btn" data-replay="' + ri + '">복기</button>';
         }
+        var pointDelta = deltaMap[g.id] ? deltaMap[g.id][myColor] : null;
+        var pointCls = pointDelta > 0 ? "up" : pointDelta < 0 ? "down" : "same";
+        var pointHtml = pointDelta == null ? "" : '<span class="d-points ' + pointCls + '">' + (pointDelta > 0 ? "+" : "") + pointDelta + '점</span>';
         var delbtn = me.isAdmin ? '<button class="del-game-btn" data-del="' + g.id + '">✕</button>' : "";
-        html += '<div class="drow"><span class="' + rcls + '">' + result + '</span><span class="d-color">' + colorTag + '</span><span class="d-vs">vs</span><span class="d-opp" data-opp="' + esc(opp) + '">' + esc(opp) + '</span><span class="d-date">' + fmtDate(g.created_at) + '</span>' + rbtn + delbtn + '</div>';
+        html += '<div class="drow"><span class="' + rcls + '">' + result + '</span><span class="d-color">' + colorTag + '</span><span class="d-vs">vs</span><span class="d-opp" data-opp="' + esc(opp) + '">' + esc(opp) + '</span>' + pointHtml + '<span class="d-date">' + fmtDate(g.created_at) + '</span>' + rbtn + delbtn + '</div>';
       });
       html += '</div>';
     }
