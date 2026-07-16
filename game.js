@@ -3,7 +3,7 @@
 
   var SIZE = Renju.SIZE, BLACK = Renju.BLACK, WHITE = Renju.WHITE;
   var TERR_KOMI = 1.5;
-  var APP_BUILD = "20260716-ai-paint";
+  var APP_BUILD = "20260716-ai-promoted-v1";
   var APP_REFRESH_KEY = "dongne_games_app_refresh";
 
   var G = {
@@ -420,6 +420,7 @@
   }
   // ---------- 방 입장/나가기 ----------
   function resetRoomGameState() {
+    cancelAiSearch();
     G.board = Renju.emptyBoard(); G.turn = BLACK; G.lastMove = null; G.over = false; G.winner = 0; G.draw = false;
     G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = [];
     G.recorded = false; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.winChatText = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
@@ -1287,6 +1288,7 @@
   }
 
   function endGame() {
+    cancelAiSearch();
     G.started = false;
     G.resultAt = new Date().toISOString();
     G.resultInfo = null;
@@ -1323,7 +1325,7 @@
     if (Date.now() < undoCooldownUntil) { toast("무르기는 10초 뒤에 다시 쓸 수 있어요"); return; }
     if (!netMode) { performUndo(); startUndoCooldown(); return; }
     if (G.seats.black === AI_NICK || G.seats.white === AI_NICK) {
-      aiPending = false;
+      cancelAiSearch();
       if (G.history && G.history.length) performUndo();
       if (!G.over && colorName(G.turn) === "white" && G.history && G.history.length) performUndo();
       startUndoCooldown();
@@ -1596,6 +1598,7 @@
     startHostTimer(); updateTurnUI(); render(); updateCenterButton();
   }
   function resetToWaiting() {
+    cancelAiSearch();
     G.board = Renju.emptyBoard();
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
@@ -3076,6 +3079,32 @@
   var AI_NICK = "AI";
   var AI_THINK_DELAY_MS = 1000;
   var aiThinkSeq = 0;
+  var aiWorker = null;
+  function cancelAiSearch() {
+    aiThinkSeq++;
+    aiPending = false;
+    if (aiWorker) {
+      aiWorker.terminate();
+      aiWorker = null;
+    }
+  }
+  function ensureAiWorker() {
+    if (aiWorker) return aiWorker;
+    if (!window.Worker) return null;
+    try {
+      aiWorker = new Worker("omok-ai-worker.js?v=ai-promoted-v1-20260716");
+    } catch (e) {
+      aiWorker = null;
+    }
+    return aiWorker;
+  }
+  function aiSearchOptions() {
+    var remaining = G.moveDeadline ? Math.max(0, G.moveDeadline - Date.now()) : 0;
+    var maxDepth = !G.timerSec ? 7 : (G.timerSec >= 120 ? 8 : (G.timerSec >= 60 ? 7 : 6));
+    var options = { maxDepth: maxDepth };
+    if (G.timerSec && remaining) options.softTimeMs = Math.max(500, remaining - 1200);
+    return options;
+  }
   function afterBoardPaint(fn) {
     if (window.requestAnimationFrame && (typeof document === "undefined" || !document.hidden)) {
       window.requestAnimationFrame(function () { setTimeout(fn, 0); });
@@ -3087,6 +3116,7 @@
   function seatDisplay(nick) { return nick === AI_NICK ? aiLevelName(omokAI.level) : nick; }
   function startOmokSolo() {
     if (netMode && roster.length > 1) { toast("혼자 연습은 방에 나 혼자 있을 때만 돼요"); return; }
+    cancelAiSearch();
     omokSolo = true; omokAI.on = false;
     G.seats = { black: me.nick, white: me.nick };
     beginGame(me.nick);
@@ -3095,6 +3125,7 @@
   }
   function startAiGame(level, humanColor) {
     if (!window.OmokAI) { toast("AI를 불러오지 못했어요"); return; }
+    cancelAiSearch();
     humanColor = (humanColor === "white") ? "white" : "black";
     omokSolo = false; omokAI.on = true; omokAI.level = level; aiPending = false;
     omokAI.human = humanColor;
@@ -3115,17 +3146,54 @@
     var hlen = G.history ? G.history.length : 0;
     afterBoardPaint(function () {
       if (token !== aiThinkSeq || !omokAI.on || G.over || !G.started || G.turn !== omokAI.color) { aiPending = false; return; }
-      var mv = window.OmokAI.bestMove(G.board, omokAI.color, omokAI.level);
-      var wait = Math.max(0, AI_THINK_DELAY_MS - (Date.now() - startedAt));
-      function applyAiMove() {
+      var finished = false;
+      function finish(mv) {
+        if (finished) return;
+        finished = true;
+        var wait = Math.max(0, AI_THINK_DELAY_MS - (Date.now() - startedAt));
+        if (wait > 0) setTimeout(function () { applyAiMove(mv); }, wait);
+        else applyAiMove(mv);
+      }
+      function applyAiMove(mv) {
         aiPending = false;
-        if (token !== aiThinkSeq || !omokAI.on || G.over || !G.started || G.turn !== omokAI.color) return;
-        if (G.gameSeq !== gameSeq || (G.history ? G.history.length : 0) !== hlen) return;
+        if (token !== aiThinkSeq || !omokAI.on || G.over || !G.started) return;
+        if (G.turn !== omokAI.color || G.gameSeq !== gameSeq || (G.history ? G.history.length : 0) !== hlen) {
+          aiTick();
+          return;
+        }
         if (mv) hostApplyMove(AI_NICK, mv[0], mv[1]);
       }
-      if (wait > 0) setTimeout(applyAiMove, wait);
-      else applyAiMove();
-    }, 0);
+      function runOnMainThread() {
+        try {
+          finish(window.OmokAI.bestMove(G.board, omokAI.color, omokAI.level, aiSearchOptions()));
+        } catch (e) {
+          finish(null);
+        }
+      }
+      var worker = ensureAiWorker();
+      if (!worker) { runOnMainThread(); return; }
+      worker.onmessage = function (event) {
+        var data = event.data || {};
+        if (data.id !== token) return;
+        if (data.error) {
+          worker.terminate(); aiWorker = null;
+          runOnMainThread();
+          return;
+        }
+        finish(data.move);
+      };
+      worker.onerror = function () {
+        worker.terminate(); aiWorker = null;
+        runOnMainThread();
+      };
+      worker.postMessage({
+        id: token,
+        board: G.board,
+        color: omokAI.color,
+        level: omokAI.level,
+        options: aiSearchOptions()
+      });
+    });
   }
   function onCenterBtn() {
     var b = $("center-btn");
