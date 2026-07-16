@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260716-ai-undo-v2">
+<meta name="app-build" content="20260716-cache-coherent-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -44,7 +44,47 @@
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://scbon23-max.github.io/dongne-omok/">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="styles.css?v=catchmind-reaction-smooth-v1-20260716">
+<script>
+(function () {
+  var meta = document.querySelector('meta[name="app-build"]');
+  var shellBuild = meta && meta.content ? meta.content : "dev";
+  var modifiedAt = Date.parse(document.lastModified);
+  var revision = isNaN(modifiedAt) ? (document.lastModified || "unknown") : String(modifiedAt);
+  var build = shellBuild + "-" + revision;
+  var refreshKey = "dongne_games_app_refresh";
+
+  function assetUrl(path) {
+    return path + (path.indexOf("?") === -1 ? "?" : "&") + "v=" + encodeURIComponent(build);
+  }
+
+  function refresh() {
+    var now = Date.now(), last = 0, url = null;
+    try {
+      url = new URL(window.location.href);
+      last = Number(url.searchParams.get("app_refresh")) || 0;
+    } catch (e) {}
+    try {
+      last = Math.max(last, Number(sessionStorage.getItem(refreshKey)) || 0);
+    } catch (e) {}
+    if (now - last < 15000) return false;
+    try { sessionStorage.setItem(refreshKey, String(now)); } catch (e) {}
+    if (url) {
+      url.searchParams.set("app_refresh", String(now));
+      window.location.replace(url.toString());
+    } else {
+      window.location.reload();
+    }
+    return true;
+  }
+
+  window.AppShell = { build: build, assetUrl: assetUrl, refresh: refresh };
+  var style = document.createElement("link");
+  style.rel = "stylesheet";
+  style.href = assetUrl("styles.css");
+  style.onerror = function () { refresh(); };
+  document.head.appendChild(style);
+})();
+</script>
 </head>
 <body>
 
@@ -533,18 +573,41 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js"></script>
-<script src="sb.js"></script>
-<script src="db.js?v=catchmind-chat-layout-20260715"></script>
-<script src="renju.js"></script>
-<script src="omok-ai.js?v=legacy-master-20260716"></script>
-<script src="omok-ai-v2.js?v=ai-promoted-v1-20260716"></script>
-<script src="net.js"></script>
-<script src="alkkagi.js"></script>
-<script src="game-catalog.js?v=catchmind-chat-layout-20260715"></script>
-<script src="catchmind-words.js?v=catchmind-curated-v2-20260716"></script>
-<script src="catchmind.js?v=catchmind-shared-reactions-v1-20260716"></script>
-<script src="game.js?v=catchmind-correct-lock-ai-promoted-v1-20260716"></script>
+<script>
+(function () {
+  var shell = window.AppShell;
+  var files = [
+    { src: "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2", external: true },
+    { src: "config.js" },
+    { src: "sb.js" },
+    { src: "db.js" },
+    { src: "renju.js" },
+    { src: "omok-ai.js" },
+    { src: "omok-ai-v2.js" },
+    { src: "net.js" },
+    { src: "alkkagi.js" },
+    { src: "game-catalog.js" },
+    { src: "catchmind-words.js" },
+    { src: "catchmind.js" },
+    { src: "game.js" }
+  ];
+
+  function loadNext(index) {
+    if (index >= files.length) return;
+    var file = files[index];
+    var script = document.createElement("script");
+    script.async = false;
+    script.src = file.external ? file.src : shell.assetUrl(file.src);
+    script.onload = function () { loadNext(index + 1); };
+    script.onerror = function () {
+      if (window.console && console.error) console.error("App asset failed to load", file.src);
+      shell.refresh();
+    };
+    document.body.appendChild(script);
+  }
+
+  loadNext(0);
+})();
+</script>
 </body>
 </html>

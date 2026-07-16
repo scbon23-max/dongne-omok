@@ -3,7 +3,6 @@
 
   var SIZE = Renju.SIZE, BLACK = Renju.BLACK, WHITE = Renju.WHITE;
   var TERR_KOMI = 1.5;
-  var APP_BUILD = "20260716-ai-undo-v2";
   var APP_REFRESH_KEY = "dongne_games_app_refresh";
 
   var G = {
@@ -435,21 +434,26 @@
   }
 
   function refreshAppShell() {
-    var now = Date.now(), last = 0, alreadyRequested = false;
-    try {
-      alreadyRequested = new URL(window.location.href).searchParams.get("app") === APP_BUILD;
-      last = Number(sessionStorage.getItem(APP_REFRESH_KEY)) || 0;
-      if (now - last >= 15000) sessionStorage.setItem(APP_REFRESH_KEY, String(now));
-    } catch (e) {}
-    if (alreadyRequested || now - last < 15000) {
-      toast("화면 업데이트를 불러오지 못했어요. 브라우저를 새로고침해 주세요.", 5000);
+    if (window.AppShell && window.AppShell.refresh) {
+      if (!window.AppShell.refresh()) toast("화면 구성 파일을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.", 5000);
       return;
     }
+    var now = Date.now(), last = 0, url = null;
+    try {
+      url = new URL(window.location.href);
+      last = Number(url.searchParams.get("app_refresh")) || 0;
+    } catch (e) {}
+    try { last = Math.max(last, Number(sessionStorage.getItem(APP_REFRESH_KEY)) || 0); } catch (e) {}
+    if (now - last < 15000) {
+      toast("화면 구성 파일을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.", 5000);
+      return;
+    }
+    try { sessionStorage.setItem(APP_REFRESH_KEY, String(now)); } catch (e) {}
     toast("최신 게임 화면을 불러오는 중이에요", 1600);
     setTimeout(function () {
       try {
-        var url = new URL(window.location.href);
-        url.searchParams.set("app", APP_BUILD);
+        url = url || new URL(window.location.href);
+        url.searchParams.set("app_refresh", String(now));
         window.location.replace(url.toString());
       } catch (e) {
         window.location.reload();
@@ -458,10 +462,18 @@
   }
 
   function roomEntryTarget(game) {
-    var shell = document.querySelector('meta[name="app-build"]');
     var def = gameDef(game), family = gameFamily(game);
     var ui = gameUi(family), ctrl = gameController(game);
-    if (!shell || shell.content !== APP_BUILD || !def || !$("lobby") || !ui || !ui.screenId || !$(ui.screenId) || (def.controller && !ctrl)) {
+    if (!def || !$("lobby") || !ui || !ui.screenId || !$(ui.screenId) || (def.controller && !ctrl)) {
+      if (window.console && console.error) {
+        console.error("Room entry dependencies are incomplete", {
+          game: game,
+          definition: !!def,
+          lobby: !!$("lobby"),
+          screen: !!(ui && ui.screenId && $(ui.screenId)),
+          controller: !!ctrl
+        });
+      }
       refreshAppShell();
       return null;
     }
@@ -3409,5 +3421,6 @@
     _applyState: applyState, _snapshot: snapshot, _overlay: pushOverlay, _replay: openReplay,
     get amHost() { return amHost; }, get roster() { return roster; }, get netMode() { return netMode; }
   };
-  document.addEventListener("DOMContentLoaded", bind);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
+  else bind();
 })();
