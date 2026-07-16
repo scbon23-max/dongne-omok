@@ -2395,7 +2395,7 @@
     var d = new Date(iso);
     var hh = ("0" + d.getHours()).slice(-2);
     var mm = ("0" + d.getMinutes()).slice(-2);
-    return (d.getMonth() + 1) + "/" + d.getDate() + " " + hh + ":" + mm;
+    return '<span>' + (d.getMonth() + 1) + "/" + d.getDate() + '</span><span>' + hh + ":" + mm + '</span>';
   }
   var detailToken = 0;
   async function movesetFor(games) {
