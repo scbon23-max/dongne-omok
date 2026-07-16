@@ -806,6 +806,17 @@ window.CatchMind = (function () {
     return !!(state.phase === "drawing" && nick && has(state.guessers, nick) && state.correct[nick]);
   }
 
+  function validReactionMessage(msg) {
+    var nick = safeNick(msg && msg.nick);
+    return !!(state.phase === "drawing"
+      && msg.matchId === state.matchId
+      && msg.roundIndex === state.roundIndex
+      && nick
+      && nick !== state.drawer
+      && has(state.guessers, nick)
+      && has(activeNicks(), nick));
+  }
+
   function sendReaction(emoji) {
     var mine = me().nick;
     if (!api || !canReact(mine)) return;
@@ -863,7 +874,7 @@ window.CatchMind = (function () {
     else if (msg.t === "cm_bg") applyCanvasCommand(msg, "cm_bg");
     else if (msg.t === "cm_react") {
       var reactNick = safeNick(msg.nick);
-      if (validRoundMessage(msg) && reactNick !== me().nick && canReact(reactNick)) showReaction(msg.emoji, reactNick);
+      if (validReactionMessage(msg) && reactNick !== me().nick) showReaction(msg.emoji, reactNick);
     }
     return true;
   }
@@ -1565,6 +1576,7 @@ window.CatchMind = (function () {
       applyState: applyState,
       applyStrokeDelta: applyStrokeDelta,
       allGuessersCorrect: allGuessersCorrect,
+      validReactionMessage: validReactionMessage,
       canChat: canChat,
       onMessage: onMessage,
       onPresence: onPresence,

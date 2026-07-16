@@ -303,6 +303,29 @@ test("correct guessers cannot chat during the active round", () => {
   assert.equal(api.canChat("B"), true);
 });
 
+test("remote reactions are accepted from round guessers", () => {
+  const api = loadCatchMind();
+  api.setState(api.sanitizeSnapshot(baseSnapshot({ correct: {} })));
+  api.setApi({
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }]; }
+  });
+
+  assert.equal(api.validReactionMessage({
+    t: "cm_react",
+    nick: "B",
+    emoji: "🤣",
+    matchId: "match-a",
+    roundIndex: 0
+  }), true);
+  assert.equal(api.validReactionMessage({
+    t: "cm_react",
+    nick: "A",
+    emoji: "🤣",
+    matchId: "match-a",
+    roundIndex: 0
+  }), false);
+});
+
 test("participant count excludes active spectators during a match", () => {
   const api = loadCatchMind();
   api.setState(api.sanitizeSnapshot(baseSnapshot({
