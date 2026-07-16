@@ -97,9 +97,13 @@ body {
 #catch-board { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; background: #fff; touch-action: none; }
 .catch-stage { position: absolute; z-index: 8; left: 0; right: 0; top: 40px; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 18px; background: rgba(14,42,58,.72); text-align: center; }
 .catch-stage.hidden { display: none; }
+.catch-stage.side { left: auto; width: min(48%, 188px); bottom: auto; min-height: 168px; top: calc(40px + (100% - 40px) / 2); transform: translateY(-50%); border-radius: 10px 0 0 10px; padding: 12px 10px; background: rgba(14,42,58,.84); box-shadow: -4px 0 14px rgba(0,0,0,.24); }
 .catch-stage-title { color: #fff; font-size: 24px; font-weight: 900; }
 .catch-stage-sub { max-width: 280px; color: #cfe0e7; font-size: 13px; line-height: 1.5; font-weight: 700; }
+.catch-stage.side .catch-stage-title { max-width: 100%; overflow-wrap: anywhere; font-size: 17px; line-height: 1.25; }
+.catch-stage.side .catch-stage-sub { max-width: 100%; font-size: 11.5px; line-height: 1.4; }
 .catch-start-btn { position: static; transform: none; margin-top: 4px; padding: 12px 24px; font-size: 17px; }
+.catch-stage.side .catch-start-btn { width: 100%; padding: 10px 8px; font-size: 14px; }
 .catch-start-btn:active { transform: scale(.97); }
 .catch-start-btn:disabled { opacity: .45; cursor: default; }
 .catch-feed { position: absolute; z-index: 6; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; }
