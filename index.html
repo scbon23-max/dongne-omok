@@ -44,7 +44,7 @@
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://scbon23-max.github.io/dongne-omok/">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="styles.css?v=catchmind-side-overlay-v1-20260716">
+<link rel="stylesheet" href="styles.css?v=catchmind-reaction-devil-v1-20260716">
 </head>
 <body>
 
@@ -247,6 +247,7 @@
       </div>
     </div>
     <canvas id="catch-board" width="720" height="720" aria-label="캐치마인드 그림판"></canvas>
+    <div id="catch-reaction-layer" class="catch-reaction-layer" aria-hidden="true"></div>
     <div id="catch-chat-overlay" class="chat-overlay catch-chat-overlay"></div>
     <div id="catch-feed" class="catch-feed" aria-live="polite"></div>
     <div id="catch-stage" class="catch-stage">
@@ -269,6 +270,20 @@
 
   <div id="catch-input-row" class="catch-input-row">
     <input id="catch-chat-input" class="chat-input" type="text" maxlength="40" placeholder="정답 또는 채팅 입력" autocomplete="off">
+  </div>
+  <div id="catch-emoji-row" class="catch-emoji-row hidden" aria-label="정답자 리액션">
+    <button type="button" data-catch-emoji="🤣">🤣</button>
+    <button type="button" data-catch-emoji="😲">😲</button>
+    <button type="button" data-catch-emoji="🫣">🫣</button>
+    <button type="button" data-catch-emoji="😜">😜</button>
+    <button type="button" data-catch-emoji="😭">😭</button>
+    <button type="button" data-catch-emoji="🤯">🤯</button>
+    <button type="button" data-catch-emoji="❓">❓</button>
+    <button type="button" data-catch-emoji="🙏">🙏</button>
+    <button type="button" data-catch-emoji="👍">👍</button>
+    <button type="button" data-catch-emoji="⏳">⏳</button>
+    <button type="button" data-catch-emoji="😈">😈</button>
+    <button type="button" data-catch-emoji="❤️">❤️</button>
   </div>
 </section>
 
@@ -528,7 +543,7 @@
 <script src="alkkagi.js"></script>
 <script src="game-catalog.js?v=catchmind-chat-layout-20260715"></script>
 <script src="catchmind-words.js?v=catchmind-curated-v2-20260716"></script>
-<script src="catchmind.js?v=catchmind-side-overlay-v1-20260716"></script>
+<script src="catchmind.js?v=catchmind-reaction-devil-v1-20260716"></script>
 <script src="game.js?v=catchmind-correct-lock-v1-20260716"></script>
 </body>
 </html>

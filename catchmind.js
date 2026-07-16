@@ -18,6 +18,11 @@ window.CatchMind = (function () {
   var MAX_SCORE = 1000000;
   var MAX_FEED_LINES = 5;
   var FEED_KINDS = ["guess", "correct", "answer", "system"];
+  var REACTION_EMOJIS = ["🤣", "😲", "🫣", "😜", "😭", "🤯", "❓", "🙏", "👍", "⏳", "❤️", "😈"];
+  var MAX_ACTIVE_REACTIONS = 6;
+  var REACTION_USER_COOLDOWN_MS = 700;
+  var REACTION_OUTPUT_GAP_MS = 180;
+  var MAX_REACTION_QUEUE = 12;
   var RECORD_STATUSES = ["idle", "pending", "saved", "failed", "skipped"];
   var SAVE_RETRY_DELAYS = [1000, 3000, 7000];
   var FALLBACK_WORDS = [
@@ -45,6 +50,12 @@ window.CatchMind = (function () {
   var selectedColorSlot = 0;
   var paletteTarget = "pen";
   var selectedColor = PEN_COLORS[0];
+  var reactionSeq = 0;
+  var reactionQueue = [];
+  var reactionPumpTimer = null;
+  var reactionLastOutputAt = 0;
+  var reactionLastBy = Object.create(null);
+  var reactionScope = "";
   var lastStrokeSend = 0;
   var pendingStrokeTimer = null;
   var strokeSentCount = 0;
@@ -99,6 +110,10 @@ window.CatchMind = (function () {
     return clamp(Math.floor(parsed), min, max);
   }
   function safeText(value, max) { return String(value == null ? "" : value).slice(0, max); }
+  function safeReactionEmoji(value) {
+    value = String(value == null ? "" : value);
+    return has(REACTION_EMOJIS, value) ? value : "";
+  }
   function safeColor(value) {
     var color = String(value == null ? "" : value).trim().toLowerCase();
     return /^#[0-9a-f]{6}$/.test(color) ? color : null;
@@ -698,6 +713,114 @@ window.CatchMind = (function () {
     broadcastState();
   }
 
+  function reactionScopeKey() {
+    return state.phase + ":" + state.matchId + ":" + state.roundIndex;
+  }
+
+  function clearReactionEffects() {
+    reactionQueue = [];
+    if (reactionPumpTimer) {
+      clearTimeout(reactionPumpTimer);
+      reactionPumpTimer = null;
+    }
+    reactionLastBy = Object.create(null);
+    var layer = $("catch-reaction-layer");
+    if (layer) layer.innerHTML = "";
+  }
+
+  function syncReactionScope() {
+    var scope = state.phase === "drawing" ? reactionScopeKey() : "";
+    if (reactionScope === scope) return;
+    reactionScope = scope;
+    clearReactionEffects();
+  }
+
+  function activeReactionCount(layer) {
+    return layer ? layer.querySelectorAll(".catch-reaction-pop").length : 0;
+  }
+
+  function renderReaction(emoji) {
+    emoji = safeReactionEmoji(emoji);
+    var layer = $("catch-reaction-layer");
+    if (!emoji || !layer) return;
+    var node = document.createElement("span");
+    var drift = Math.round((Math.random() * 58) - 29);
+    var bottom = 12 + Math.round(Math.random() * 12);
+    var left = 10 + Math.round(Math.random() * 76);
+    var size = 28 + Math.round(Math.random() * 9);
+    var spin = Math.round((Math.random() * 18) - 9);
+    node.className = "catch-reaction-pop";
+    node.textContent = emoji;
+    node.style.left = left + "%";
+    node.style.bottom = bottom + "%";
+    node.style.fontSize = size + "px";
+    node.style.setProperty("--reaction-drift", drift + "px");
+    node.style.setProperty("--reaction-spin", spin + "deg");
+    node.style.animationDelay = ((reactionSeq++ % 4) * 45) + "ms";
+    layer.appendChild(node);
+    setTimeout(function () {
+      if (node.parentNode) node.parentNode.removeChild(node);
+      scheduleReactionPump();
+    }, 2300);
+  }
+
+  function pumpReactionQueue() {
+    reactionPumpTimer = null;
+    if (state.phase !== "drawing") {
+      clearReactionEffects();
+      return;
+    }
+    var layer = $("catch-reaction-layer");
+    if (!layer || !reactionQueue.length) return;
+    if (activeReactionCount(layer) >= MAX_ACTIVE_REACTIONS) {
+      reactionPumpTimer = setTimeout(pumpReactionQueue, REACTION_OUTPUT_GAP_MS);
+      return;
+    }
+    renderReaction(reactionQueue.shift());
+    reactionLastOutputAt = Date.now();
+    if (reactionQueue.length) scheduleReactionPump();
+  }
+
+  function scheduleReactionPump() {
+    if (reactionPumpTimer || !reactionQueue.length) return;
+    var wait = Math.max(0, REACTION_OUTPUT_GAP_MS - (Date.now() - reactionLastOutputAt));
+    reactionPumpTimer = setTimeout(pumpReactionQueue, wait);
+  }
+
+  function showReaction(emoji, nick) {
+    emoji = safeReactionEmoji(emoji);
+    nick = safeNick(nick);
+    if (!emoji || state.phase !== "drawing") return false;
+    syncReactionScope();
+    var now = Date.now();
+    if (nick && reactionLastBy[nick] && now - reactionLastBy[nick] < REACTION_USER_COOLDOWN_MS) return false;
+    if (reactionQueue.length >= MAX_REACTION_QUEUE) return false;
+    if (nick) reactionLastBy[nick] = now;
+    reactionQueue.push(emoji);
+    scheduleReactionPump();
+    return true;
+  }
+
+  function canReact(nick) {
+    nick = safeNick(nick);
+    return !!(state.phase === "drawing" && nick && has(state.guessers, nick) && state.correct[nick]);
+  }
+
+  function sendReaction(emoji) {
+    var mine = me().nick;
+    if (!api || !canReact(mine)) return;
+    emoji = safeReactionEmoji(emoji);
+    if (!emoji) return;
+    if (!showReaction(emoji, mine)) return;
+    api.send({
+      t: "cm_react",
+      nick: mine,
+      emoji: emoji,
+      matchId: state.matchId,
+      roundIndex: state.roundIndex
+    });
+  }
+
   function onMessage(msg) {
     if (!msg || typeof msg.t !== "string") return false;
     if (msg.t === "hello") {
@@ -738,6 +861,10 @@ window.CatchMind = (function () {
     else if (msg.t === "cm_undo") applyCanvasCommand(msg, "cm_undo");
     else if (msg.t === "cm_clear") applyCanvasCommand(msg, "cm_clear");
     else if (msg.t === "cm_bg") applyCanvasCommand(msg, "cm_bg");
+    else if (msg.t === "cm_react") {
+      var reactNick = safeNick(msg.nick);
+      if (validRoundMessage(msg) && reactNick !== me().nick && canReact(reactNick)) showReaction(msg.emoji, reactNick);
+    }
     return true;
   }
 
@@ -923,10 +1050,11 @@ window.CatchMind = (function () {
     var isDrawer = (state.phase === "drawing" && state.drawer === mine) || isPractice;
     var isGuesser = state.phase === "drawing" && has(state.guessers, mine) && !state.correct[mine];
     var isCorrectGuesser = state.phase === "drawing" && !!state.correct[mine];
-    var tools = $("catch-tools"), inputRow = $("catch-input-row"), input = $("catch-chat-input");
+    var tools = $("catch-tools"), inputRow = $("catch-input-row"), input = $("catch-chat-input"), emojiRow = $("catch-emoji-row");
     if (tools) tools.classList.toggle("hidden", !isDrawer);
     if (!isDrawer) setPaletteOpen(false);
-    if (inputRow) inputRow.classList.toggle("hidden", isDrawer);
+    if (inputRow) inputRow.classList.toggle("hidden", isDrawer || isCorrectGuesser);
+    if (emojiRow) emojiRow.classList.toggle("hidden", !isCorrectGuesser);
     if (input) {
       input.disabled = isCorrectGuesser;
       if (isCorrectGuesser) input.value = "";
@@ -941,6 +1069,7 @@ window.CatchMind = (function () {
 
   function render() {
     if (!api) return;
+    syncReactionScope();
     renderHeader();
     renderScores();
     renderWord();
@@ -1270,6 +1399,10 @@ window.CatchMind = (function () {
     $("catch-practice-btn").addEventListener("click", startPractice);
     $("catch-chat-input").addEventListener("keydown", function (event) {
       if (event.key === "Enter" && !event.isComposing) sendInput();
+    });
+    var emojiButtons = document.querySelectorAll("[data-catch-emoji]");
+    for (var e = 0; e < emojiButtons.length; e++) emojiButtons[e].addEventListener("click", function () {
+      sendReaction(this.getAttribute("data-catch-emoji"));
     });
     $("catch-leave-btn").addEventListener("click", function () { if (api) api.leaveRoom(); });
     $("catch-people-btn").addEventListener("click", function () { if (api) api.openPlayers(); });
