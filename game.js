@@ -75,7 +75,7 @@
   }
   function activeController() { return gameController(curRoomGame || curGame); }
   function canSeeGame(id) {
-    return id !== "catchmind" || (me.isAdmin && me.nick === ADMIN);
+    return !!(window.GameCatalog ? GameCatalog.get(id) : id);
   }
   function visibleGameIds(ids) {
     return ids.filter(canSeeGame);
@@ -877,6 +877,7 @@
     if (!window.Db || !curRoomId) return;
     var g = activeFamily();
     var panel = gameUi(g).chatLogId;
+    if (!panel) return;
     Db.getChatHistory(chatRoomOf(curGame), 200).then(function (msgs) {
       if (msgs.length) oldestChatTs = msgs[0].created_at;
       if (msgs.length < 200) noMoreChat = true;
@@ -2739,13 +2740,15 @@
     (window.GameCatalog ? GameCatalog.families() : ["omok", "alk"]).forEach(function (family) {
       addChatTo(family, "__sys", text);
     });
+    if (activeFamily() === "catchmind") pushOverlay("catchmind", "__sys", text);
   }
   function pushOverlay(game, nick, text) {
     var family = gameFamily(game);
     var ov = $(gameUi(family).chatOverlayId); if (!ov) return;
     var line = document.createElement("div");
-    line.className = "ov-line";
-    line.innerHTML = '<span class="ov-nick" style="color:' + nickColor(nick) + '">' + esc(nick) + '</span>' + esc(text);
+    var isSystem = nick === "__sys";
+    line.className = "ov-line" + (isSystem ? " system" : "");
+    line.innerHTML = isSystem ? esc(text) : '<span class="ov-nick" style="color:' + nickColor(nick) + '">' + esc(nick) + '</span>' + esc(text);
     ov.appendChild(line);
     var maxLines = family === "catchmind" ? 5 : 3;
     while (ov.children.length > maxLines) ov.removeChild(ov.children[0]);
@@ -3047,7 +3050,6 @@
   var AI_NICK = "AI";
   var AI_THINK_DELAY_MS = 1000;
   var aiThinkSeq = 0;
-  function aiLevelName(lv) { return lv === "easy" ? "초보" : lv === "medium" ? "중수" : lv === "master" ? "초고수" : "고수"; }
   function afterBoardPaint(fn) {
     if (window.requestAnimationFrame && (typeof document === "undefined" || !document.hidden)) {
       window.requestAnimationFrame(function () { setTimeout(fn, 0); });
@@ -3055,6 +3057,7 @@
       setTimeout(fn, 16);
     }
   }
+  function aiLevelName(lv) { return lv === "easy" ? "초보" : lv === "medium" ? "중수" : lv === "master" ? "초고수" : "고수"; }
   function seatDisplay(nick) { return nick === AI_NICK ? aiLevelName(omokAI.level) : nick; }
   function startOmokSolo() {
     if (netMode && roster.length > 1) { toast("혼자 연습은 방에 나 혼자 있을 때만 돼요"); return; }
