@@ -110,6 +110,25 @@ test("custom drawing colors allow safe hex values only", () => {
   assert.equal(clean.strokes[1].color, "#17252f");
 });
 
+test("canvas background fill syncs as a draw command", () => {
+  const api = loadCatchMind();
+  api.setState(api.sanitizeSnapshot(baseSnapshot({ drawSeq: 0, strokes: [], canvasBg: "#ffffff" })));
+  api.setApi({
+    isHost() { return false; },
+    host() { return "A"; },
+    me() { return { nick: "B", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }]; },
+    send() {},
+    roomChanged() {},
+    toast() {}
+  });
+
+  api.onMessage({ t: "cm_bg", nick: "A", matchId: "match-a", roundIndex: 0, seq: 1, color: "#eab308" });
+
+  assert.equal(api.getState().canvasBg, "#eab308");
+  assert.equal(api.getState().drawSeq, 1);
+});
+
 test("the drawing feed keeps the newest five messages", () => {
   const api = loadCatchMind();
   const clean = api.sanitizeSnapshot(baseSnapshot({

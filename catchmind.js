@@ -5,7 +5,7 @@ window.CatchMind = (function () {
   var REVEAL_MS = 3000;
   var DRAW_SEND_MS = 60;
   var CANVAS_BG = "#ffffff";
-  var PEN_COLORS = ["#17252f", "#d23b3b", "#2474b5"];
+  var PEN_COLORS = ["#17252f", "#d23b3b"];
   var PALETTE_COLORS = [
     "#17252f", "#6b7280", "#d23b3b", "#f97316", "#eab308", "#22c55e",
     "#14b8a6", "#38bdf8", "#2474b5", "#8b5cf6", "#ec4899", "#7c4a2d"
@@ -43,6 +43,7 @@ window.CatchMind = (function () {
   var currentStroke = null;
   var selectedTool = "pen";
   var selectedColorSlot = 0;
+  var paletteTarget = "pen";
   var selectedColor = PEN_COLORS[0];
   var lastStrokeSend = 0;
   var pendingStrokeTimer = null;
@@ -70,6 +71,7 @@ window.CatchMind = (function () {
       stats: Object.create(null),
       correct: Object.create(null),
       strokes: [],
+      canvasBg: CANVAS_BG,
       drawSeq: 0,
       feed: [],
       revealWord: null,
@@ -193,6 +195,7 @@ window.CatchMind = (function () {
       stats: state.stats,
       correct: state.correct,
       strokes: state.strokes,
+      canvasBg: state.canvasBg,
       drawSeq: state.drawSeq,
       feed: state.feed,
       revealWord: state.revealWord,
@@ -270,6 +273,7 @@ window.CatchMind = (function () {
       stats: safeStats(next.stats, queue),
       correct: safeCorrect(next.correct, guessers),
       strokes: sanitizeStrokes(next.strokes),
+      canvasBg: safeColor(next.canvasBg) || CANVAS_BG,
       drawSeq: safeInteger(next.drawSeq, 0, Number.MAX_SAFE_INTEGER, 0),
       feed: safeFeed(next.feed),
       revealWord: next.revealWord == null ? null : safeText(next.revealWord, 40),
@@ -285,6 +289,7 @@ window.CatchMind = (function () {
     if (!authorityChanged && clean.rev === state.rev) {
       if (!sameRound || clean.drawSeq <= state.drawSeq) return false;
       state.strokes = clean.strokes;
+      state.canvasBg = clean.canvasBg;
       state.drawSeq = clean.drawSeq;
       redraw();
       return true;
@@ -304,6 +309,7 @@ window.CatchMind = (function () {
       stats: clean.stats,
       correct: clean.correct,
       strokes: keepNewerCanvas ? state.strokes : clean.strokes,
+      canvasBg: keepNewerCanvas ? state.canvasBg : clean.canvasBg,
       drawSeq: keepNewerCanvas ? state.drawSeq : clean.drawSeq,
       feed: clean.feed,
       revealWord: clean.revealWord,
@@ -429,6 +435,7 @@ window.CatchMind = (function () {
     state.drawer = me().nick;
     state.guessers = [];
     state.strokes = [];
+    state.canvasBg = CANVAS_BG;
     state.drawSeq = 0;
     state.feed = [{ who: "", text: "혼자 그림을 연습하는 중이에요", kind: "system" }];
     state.recordStatus = "idle";
@@ -457,6 +464,7 @@ window.CatchMind = (function () {
     state.guessers = guessers;
     state.correct = {};
     state.strokes = [];
+    state.canvasBg = CANVAS_BG;
     state.drawSeq = 0;
     state.feed = [];
     state.revealWord = null;
@@ -657,6 +665,7 @@ window.CatchMind = (function () {
     if (seq !== state.drawSeq + 1) { requestCanvasRecovery(); return; }
     if (type === "cm_undo") state.strokes.pop();
     else if (type === "cm_clear") state.strokes = [];
+    else if (type === "cm_bg") state.canvasBg = safeColor(msg.color) || state.canvasBg || CANVAS_BG;
     state.drawSeq = seq;
     redraw();
   }
@@ -671,6 +680,7 @@ window.CatchMind = (function () {
       matchId: state.matchId,
       roundIndex: state.roundIndex,
       drawSeq: state.drawSeq,
+      canvasBg: state.canvasBg,
       strokes: state.strokes
     });
   }
@@ -681,6 +691,7 @@ window.CatchMind = (function () {
     var seq = safeInteger(msg.drawSeq, 0, Number.MAX_SAFE_INTEGER, null);
     if (seq == null || seq < state.drawSeq || !Array.isArray(msg.strokes)) return;
     state.strokes = sanitizeStrokes(msg.strokes);
+    state.canvasBg = safeColor(msg.canvasBg) || CANVAS_BG;
     state.drawSeq = seq;
     lastCanvasRequestAt = Date.now();
     redraw();
@@ -726,6 +737,7 @@ window.CatchMind = (function () {
     else if (msg.t === "cm_draw") applyDrawMessage(msg);
     else if (msg.t === "cm_undo") applyCanvasCommand(msg, "cm_undo");
     else if (msg.t === "cm_clear") applyCanvasCommand(msg, "cm_clear");
+    else if (msg.t === "cm_bg") applyCanvasCommand(msg, "cm_bg");
     return true;
   }
 
@@ -961,7 +973,7 @@ window.CatchMind = (function () {
 
   function redraw() {
     if (!ctx || !canvas) return;
-    ctx.fillStyle = CANVAS_BG;
+    ctx.fillStyle = state.canvasBg || CANVAS_BG;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     state.strokes.forEach(drawOne);
   }
@@ -1014,7 +1026,7 @@ window.CatchMind = (function () {
     event.preventDefault();
     drawing = true;
     if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
-    var color = selectedTool === "eraser" ? CANVAS_BG : selectedColor;
+    var color = selectedTool === "eraser" ? (state.canvasBg || CANVAS_BG) : selectedColor;
     currentStroke = {
       id: me().nick + "-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 10000).toString(36),
       color: color,
@@ -1082,21 +1094,26 @@ window.CatchMind = (function () {
     var eraser = document.querySelector('[data-catch-tool="eraser"]');
     var undo = $("catch-undo-btn");
     var clear = $("catch-clear-btn");
+    var bg = $("catch-bg-btn");
     var firstColor = document.querySelector("[data-catch-color]");
     if (pen) { pen.classList.add("catch-tool-icon"); pen.textContent = "✏️"; pen.setAttribute("aria-label", "펜"); }
     if (eraser) { eraser.classList.add("catch-tool-icon"); eraser.textContent = "🧽"; eraser.setAttribute("aria-label", "지우개"); }
     if (clear) { clear.textContent = "🗑️"; clear.setAttribute("aria-label", "그림 모두 지우기"); }
+    if (bg) { bg.textContent = "▣"; bg.setAttribute("aria-label", "배경색"); }
     if (undo) { undo.textContent = "↶"; undo.setAttribute("aria-label", "마지막 선 되돌리기"); }
     if (clear && firstColor) tools.insertBefore(clear, firstColor);
+    if (bg && firstColor) tools.insertBefore(bg, firstColor);
   }
 
   function setPaletteOpen(open) {
     var palette = $("catch-palette"), button = $("catch-palette-btn");
     if (palette) palette.classList.toggle("hidden", !open);
     if (button) {
-      button.classList.toggle("active", !!open);
+      button.classList.toggle("active", !!open && paletteTarget !== "bg");
       button.setAttribute("aria-expanded", String(!!open));
     }
+    var bg = $("catch-bg-btn");
+    if (bg) bg.classList.toggle("active", !!open && paletteTarget === "bg");
   }
 
   function buildPaletteUi() {
@@ -1131,13 +1148,20 @@ window.CatchMind = (function () {
   function selectColorSlot(slot) {
     selectedColorSlot = slot == null || slot === "" ? 0 : safeInteger(slot, 0, PEN_COLORS.length - 1, 0);
     selectedColor = PEN_COLORS[selectedColorSlot] || PEN_COLORS[0];
+    paletteTarget = "pen";
     selectedTool = "pen";
     syncToolButtons();
   }
 
-  function replaceSelectedColor(color) {
+  function applyPaletteColor(color) {
     color = safeColor(color);
     if (!color) return;
+    if (paletteTarget === "bg") {
+      setCanvasBackground(color);
+      setPaletteOpen(false);
+      syncToolButtons();
+      return;
+    }
     PEN_COLORS[selectedColorSlot] = color;
     selectedColor = color;
     selectedTool = "pen";
@@ -1199,6 +1223,25 @@ window.CatchMind = (function () {
     });
   }
 
+  function setCanvasBackground(color) {
+    color = safeColor(color);
+    if (!color || !canDraw() || drawing) return;
+    if (state.canvasBg === color) return;
+    state.canvasBg = color;
+    canvasLimitNotified = false;
+    state.drawSeq++;
+    redraw();
+    if (state.phase === "practice") return;
+    api.send({
+      t: "cm_bg",
+      nick: me().nick,
+      matchId: state.matchId,
+      roundIndex: state.roundIndex,
+      seq: state.drawSeq,
+      color: color
+    });
+  }
+
   function bind() {
     if (bound) return;
     bound = true;
@@ -1230,13 +1273,21 @@ window.CatchMind = (function () {
     for (var j = 0; j < colorButtons.length; j++) colorButtons[j].addEventListener("click", function () {
       selectColorSlot(this.getAttribute("data-catch-color-slot"));
     });
+    $("catch-bg-btn").addEventListener("click", function () {
+      paletteTarget = "bg";
+      selectedTool = "pen";
+      syncToolButtons();
+      var palette = $("catch-palette");
+      setPaletteOpen(!palette || palette.classList.contains("hidden"));
+    });
     $("catch-palette-btn").addEventListener("click", function () {
+      paletteTarget = "pen";
       var palette = $("catch-palette");
       setPaletteOpen(!palette || palette.classList.contains("hidden"));
     });
     var paletteButtons = document.querySelectorAll("[data-catch-palette-color]");
     for (var k = 0; k < paletteButtons.length; k++) paletteButtons[k].addEventListener("click", function () {
-      replaceSelectedColor(this.getAttribute("data-catch-palette-color"));
+      applyPaletteColor(this.getAttribute("data-catch-palette-color"));
     });
     $("catch-undo-btn").addEventListener("click", function () {
       sendCanvasCommand("cm_undo");
