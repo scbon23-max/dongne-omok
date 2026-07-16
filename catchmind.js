@@ -1000,7 +1000,7 @@ window.CatchMind = (function () {
     var stage = $("catch-stage"), title = $("catch-stage-title"), sub = $("catch-stage-sub"), start = $("catch-start-btn"), practice = $("catch-practice-btn");
     if (!stage || !title || !sub || !start || !practice) return;
     var mine = me().nick;
-    var waitingDuringRound = state.phase === "drawing" && (!has(state.queue, mine) || !!state.correct[mine]);
+    var waitingDuringRound = state.phase === "drawing" && !has(state.queue, mine);
     var show = (state.phase !== "drawing" && state.phase !== "practice") || waitingDuringRound;
     stage.classList.toggle("hidden", !show);
     stage.classList.toggle("side", waitingDuringRound || state.phase === "finished");
@@ -1008,8 +1008,8 @@ window.CatchMind = (function () {
     var canStart = api && api.isHost() && activePeople().length >= 2;
     var canPractice = api && activePeople().length <= 1;
     if (waitingDuringRound) {
-      title.textContent = state.correct[mine] ? "정답 완료" : "대기 중";
-      sub.textContent = state.correct[mine] ? "다음 라운드까지 그림을 지켜봐요" : "이번 판은 진행 중이에요. 다음 게임부터 참여해요";
+      title.textContent = "대기 중";
+      sub.textContent = "이번 판은 진행 중이에요. 다음 게임부터 참여해요";
       sub.classList.remove("hidden");
       start.classList.add("hidden");
       practice.classList.add("hidden");
