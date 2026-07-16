@@ -1064,9 +1064,9 @@ window.CatchMind = (function () {
     var undo = $("catch-undo-btn");
     var clear = $("catch-clear-btn");
     var firstColor = document.querySelector("[data-catch-color]");
-    if (pen) { pen.classList.add("catch-tool-icon"); pen.textContent = "✎"; pen.setAttribute("aria-label", "펜"); }
-    if (eraser) { eraser.classList.add("catch-tool-icon"); eraser.textContent = "⌫"; eraser.setAttribute("aria-label", "지우개"); }
-    if (clear) { clear.textContent = "×"; clear.setAttribute("aria-label", "그림 모두 지우기"); }
+    if (pen) { pen.classList.add("catch-tool-icon"); pen.textContent = "✏️"; pen.setAttribute("aria-label", "펜"); }
+    if (eraser) { eraser.classList.add("catch-tool-icon"); eraser.textContent = "🧽"; eraser.setAttribute("aria-label", "지우개"); }
+    if (clear) { clear.textContent = "🗑️"; clear.setAttribute("aria-label", "그림 모두 지우기"); }
     if (undo) { undo.textContent = "↶"; undo.setAttribute("aria-label", "마지막 선 되돌리기"); }
     if (clear && firstColor) tools.insertBefore(clear, firstColor);
   }

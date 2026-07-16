@@ -44,7 +44,7 @@
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://scbon23-max.github.io/dongne-omok/">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="styles.css?v=catchmind-keyboard-v1-20260716">
+<link rel="stylesheet" href="styles.css?v=catchmind-layout-v1-20260716">
 </head>
 <body>
 
@@ -234,6 +234,12 @@
 
   <div id="catch-score-strip" class="catch-score-strip hidden"></div>
 
+  <div class="action-row slim catch-action-row">
+    <button id="catch-rank-btn" class="btn-flat">🏅 랭킹</button>
+    <button id="catch-leave-btn" class="btn-flat">나가기</button>
+    <button id="catch-menu-btn" class="btn-flat menu-dots">⋯</button>
+  </div>
+
   <div class="catch-board-wrap">
     <div class="catch-wordbar"><span>제시어</span><strong id="catch-word">준비 중</strong></div>
     <canvas id="catch-board" width="720" height="720" aria-label="캐치마인드 그림판"></canvas>
@@ -257,17 +263,9 @@
     <button id="catch-clear-btn" class="catch-tool catch-tool-icon" type="button" aria-label="그림 모두 지우기">⌫</button>
   </div>
 
-  <div class="action-row slim catch-action-row">
-    <button id="catch-rank-btn" class="btn-flat">🏅 랭킹</button>
-    <button id="catch-leave-btn" class="btn-flat">나가기</button>
-    <button id="catch-menu-btn" class="btn-flat menu-dots">⋯</button>
-  </div>
-
   <div id="catch-input-row" class="catch-input-row">
     <input id="catch-chat-input" class="chat-input" type="text" maxlength="40" placeholder="정답 또는 채팅 입력" autocomplete="off">
   </div>
-
-  <div class="room-strip" id="room-strip-catchmind"></div>
 </section>
 
 <!-- 방 만들기 모달 -->
@@ -526,7 +524,7 @@
 <script src="alkkagi.js"></script>
 <script src="game-catalog.js?v=catchmind-chat-layout-20260715"></script>
 <script src="catchmind-words.js?v=catchmind-curated-v2-20260716"></script>
-<script src="catchmind.js?v=catchmind-palette-v2-20260716"></script>
+<script src="catchmind.js?v=catchmind-layout-v1-20260716"></script>
 <script src="game.js?v=ai-paint-20260716"></script>
 </body>
 </html>
