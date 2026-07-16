@@ -3,7 +3,7 @@
 
   var SIZE = Renju.SIZE, BLACK = Renju.BLACK, WHITE = Renju.WHITE;
   var TERR_KOMI = 1.5;
-  var APP_BUILD = "20260716-ai-undo-v1";
+  var APP_BUILD = "20260716-ai-undo-v2";
   var APP_REFRESH_KEY = "dongne_games_app_refresh";
 
   var G = {
