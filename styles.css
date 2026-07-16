@@ -83,8 +83,10 @@ body {
 .catch-score-strip::-webkit-scrollbar { display: none; }
 .catch-score-strip > span { flex: 0 0 auto; max-width: 136px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: rgba(22,56,74,.72); border: 1px solid rgba(207,224,231,.18); border-radius: 10px; padding: 7px 10px; }
 .catch-score-strip > span.drawer { background: var(--orange); border-color: var(--orange); color: #fff; }
+.catch-score-strip > span.spectator { opacity: .52; background: rgba(22,56,74,.36); border-color: rgba(207,224,231,.1); color: #8fa6b2; }
 .catch-score-strip b { color: #eaf2f6; font-weight: 900; }
 .catch-score-strip > span.drawer b { color: #fff; }
+.catch-score-strip > span.spectator b { color: #9fb2bd; font-weight: 800; }
 .catch-board-wrap { order: 3; width: 100%; max-width: 420px; margin: 0 auto; position: relative; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,.35); background: #fff; }
 .catch-wordbar { min-height: 40px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 0 12px; background: #f5f0e8; border-bottom: 1px solid #ddd3c7; color: #73808a; font-size: 13px; }
 .catch-word-main { min-width: 0; display: flex; align-items: center; justify-content: flex-start; gap: 8px; }

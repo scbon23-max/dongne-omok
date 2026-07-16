@@ -776,6 +776,12 @@ window.CatchMind = (function () {
     });
   }
 
+  function participantNicks() {
+    var live = activeNicks();
+    var source = state.queue.length ? state.queue : live;
+    return source.filter(function (nick) { return has(live, nick); });
+  }
+
   function renderHeader() {
     var label = $("catch-round-label");
     if (label) {
@@ -785,7 +791,7 @@ window.CatchMind = (function () {
       else label.textContent = "게임 대기 중";
     }
     var peopleCount = $("catch-online-num");
-    if (peopleCount) peopleCount.textContent = activePeople().length;
+    if (peopleCount) peopleCount.textContent = participantNicks().length;
     renderTimer();
   }
 
@@ -803,16 +809,23 @@ window.CatchMind = (function () {
 
   function renderScores() {
     var box = $("catch-score-strip"); if (!box) return;
-    if (!state.queue.length || state.phase === "practice") {
+    var livePeople = activePeople().slice().sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); });
+    if (!livePeople.length) {
       box.textContent = "";
       box.classList.add("hidden");
       return;
     }
     box.classList.remove("hidden");
-    var ordered = scoreOrder();
+    var liveNicks = livePeople.map(function (p) { return p.nick; });
+    var participantSet = Object.create(null);
+    participantNicks().forEach(function (nick) { participantSet[nick] = true; });
+    var ordered = scoreOrder().filter(function (nick) { return has(liveNicks, nick); });
+    livePeople.forEach(function (person) { if (!has(ordered, person.nick)) ordered.push(person.nick); });
     box.innerHTML = ordered.map(function (nick) {
-      var cls = nick === state.drawer ? ' class="drawer"' : "";
-      return '<span' + cls + '><b>' + esc(nick) + '</b> ' + (state.scores[nick] || 0) + '점</span>';
+      var isParticipant = !!participantSet[nick];
+      var cls = (nick === state.drawer ? " drawer" : "") + (isParticipant ? "" : " spectator");
+      var score = isParticipant && state.queue.length ? " " + (state.scores[nick] || 0) + "점" : "";
+      return '<span class="' + cls.trim() + '"><b>' + esc(nick) + '</b>' + score + '</span>';
     }).join("");
   }
 
@@ -1363,6 +1376,7 @@ window.CatchMind = (function () {
       persistResults: persistResults,
       clearSaveRetry: clearSaveRetry,
       snapshot: snapshot,
+      participantNicks: participantNicks,
       getState: function () { return state; },
       setState: function (next) { state = next; },
       setApi: function (next) { api = next; },

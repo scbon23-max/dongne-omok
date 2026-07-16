@@ -284,6 +284,26 @@ test("correct guessers cannot chat during the active round", () => {
   assert.equal(api.canChat("B"), true);
 });
 
+test("participant count excludes active spectators during a match", () => {
+  const api = loadCatchMind();
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    queue: ["A", "B", "C"],
+    drawer: "A",
+    guessers: ["B", "C"],
+    scores: { A: 0, B: 0, C: 0 },
+    stats: {
+      A: { points: 0, maxPoints: 6, correct: 0, drawCorrect: 0 },
+      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 },
+      C: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+    }
+  })));
+  api.setApi({
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }, { nick: "D" }]; }
+  });
+
+  assert.deepEqual(Array.from(api.participantNicks()), ["A", "B", "C"]);
+});
+
 test("ranking saves retry before reporting success", async () => {
   const api = loadCatchMind({
     setTimeout(callback) { queueMicrotask(callback); return 1; },
