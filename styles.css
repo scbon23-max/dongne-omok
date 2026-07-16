@@ -121,12 +121,12 @@ body {
 .catch-chat-overlay .ov-line { --overlay-opacity: 1; }
 .catch-chat-overlay .ov-line.show { opacity: var(--overlay-opacity); }
 .catch-reaction-layer { position: absolute; inset: 40px 0 0; z-index: 10; pointer-events: none; overflow: hidden; }
-.catch-reaction-pop { position: absolute; display: block; filter: drop-shadow(0 3px 5px rgba(0,0,0,.26)); animation: catchReactionFloat 2.15s cubic-bezier(.18,.78,.28,1) forwards; will-change: transform, opacity; }
+.catch-reaction-pop { position: absolute; display: block; opacity: 0; transform: translate3d(-50%, 10px, 0) scale(.82); filter: drop-shadow(0 3px 5px rgba(0,0,0,.26)); animation: catchReactionFloat 2.15s cubic-bezier(.2,.72,.3,1) both; will-change: transform, opacity; }
 @keyframes catchReactionFloat {
-  0% { opacity: 0; transform: translate3d(-50%, 18px, 0) scale(.62) rotate(0deg); }
-  12% { opacity: .72; transform: translate3d(calc(-50% + var(--reaction-drift) * .16), 0, 0) scale(1.08) rotate(calc(var(--reaction-spin) * .2)); }
-  58% { opacity: .58; transform: translate3d(calc(-50% + var(--reaction-drift) * .72), -72px, 0) scale(1) rotate(calc(var(--reaction-spin) * .7)); }
-  100% { opacity: 0; transform: translate3d(calc(-50% + var(--reaction-drift)), -128px, 0) scale(.86) rotate(var(--reaction-spin)); }
+  0% { opacity: 0; transform: translate3d(-50%, 10px, 0) scale(.82) rotate(0deg); }
+  16% { opacity: .68; transform: translate3d(calc(-50% + var(--reaction-drift) * .12), -10px, 0) scale(1) rotate(calc(var(--reaction-spin) * .18)); }
+  62% { opacity: .5; transform: translate3d(calc(-50% + var(--reaction-drift) * .68), -76px, 0) scale(.96) rotate(calc(var(--reaction-spin) * .68)); }
+  100% { opacity: 0; transform: translate3d(calc(-50% + var(--reaction-drift)), -130px, 0) scale(.84) rotate(var(--reaction-spin)); }
 }
 .catch-tools { order: 4; width: 100%; max-width: min(420px, calc(100vw - 24px)); min-height: 42px; margin: 7px auto 0; display: flex; align-items: center; justify-content: flex-start; gap: 5px; padding: 0 2px; }
 .catch-tool, .catch-color { height: 38px; border: 2px solid transparent; border-radius: 9px; background: var(--navy-2); color: #cfe0e7; font-size: 12px; font-weight: 800; cursor: pointer; }
