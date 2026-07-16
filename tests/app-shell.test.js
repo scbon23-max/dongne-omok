@@ -109,7 +109,9 @@ test("the Omok board uses a HiDPI backing store with logical input coordinates",
   assert.match(game, /ctx\.drawImage\(img, sourceX, sourceY, sourceWidth, sourceHeight, x - size \/ 2/);
   assert.match(game, /if \(G\.lastMove\) drawLastMoveMarker\(G\.lastMove\)/);
   assert.match(game, /color === BLACK \? "#FFB347" : "#D94A2F"/);
-  assert.match(game, /radius - width \/ 2 - \(inset \|\| 0\)/);
+  assert.match(game, /function strokeBoundaryCircle[\s\S]*target\.arc\(x, y, radius, 0, Math\.PI \* 2\)/);
+  assert.match(game, /strokeBoundaryCircle\(ctx, px\(move\.c\), px\(move\.r\), RADIUS,[^;]*, 2\)/);
+  assert.doesNotMatch(game, /strokeInsideCircle/);
   assert.match(game, /drawStoneShadow\(px\(sc\), px\(sr\), G\.board\[sr\]\[sc\]\)[\s\S]*drawStone\(px\(c\), px\(r\), G\.board\[r\]\[c\]\)/);
   assert.doesNotMatch(game, /ctx\.arc\([^;]*RADIUS \+/);
 });
