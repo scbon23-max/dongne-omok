@@ -1,7 +1,7 @@
 window.CatchMind = (function () {
   "use strict";
 
-  var ROUND_MS = 60000;
+  var ROUND_MS = 120000;
   var REVEAL_MS = 3000;
   var DRAW_SEND_MS = 60;
   var CANVAS_BG = "#ffffff";
@@ -1314,7 +1314,7 @@ window.CatchMind = (function () {
       title: "캐치마인드 규칙",
       html: '<p class="rule-intro">한 사람씩 제시어를 보고 그림을 그리고, 나머지 사람은 제한시간 안에 정답을 맞힙니다.</p>'
         + '<p class="rule-foot" style="text-align:left;line-height:1.8">'
-        + '· 방에 있는 사람이 한 번씩 <b>60초</b> 동안 그림을 그립니다.<br>'
+        + '· 방에 있는 사람이 한 번씩 <b>120초</b> 동안 그림을 그립니다.<br>'
         + '· 정답을 맞히면 <b>+10점</b>, 내 그림을 한 사람이 맞힐 때마다 출제자도 <b>+3점</b>을 얻습니다.<br>'
         + '· 모두 맞히거나 시간이 끝나면 다음 사람 차례로 넘어갑니다.<br>'
         + '· 한 바퀴가 끝나면 결과가 시즌 랭킹에 반영됩니다.<br>'
