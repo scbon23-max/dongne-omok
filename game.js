@@ -3084,8 +3084,7 @@
     beginGame(me.nick);
   }
   var omokSolo = false;
-  var omokAI = { on: false, level: null, color: WHITE, human: "black" };
-  var aiHumanColor = "black";
+  var omokAI = { on: false, level: null, color: WHITE };
   var aiPending = false;
   var AI_NICK = "AI";
   var AI_THINK_DELAY_MS = 1000;
@@ -3125,6 +3124,12 @@
   }
   function aiLevelName(lv) { return lv === "easy" ? "초보" : lv === "medium" ? "중수" : lv === "master" ? "초고수" : "고수"; }
   function seatDisplay(nick) { return nick === AI_NICK ? aiLevelName(omokAI.level) : nick; }
+  function aiHumanSeatColor(seats, nick) {
+    if (!seats) return null;
+    if (seats.black === nick) return "black";
+    if (seats.white === nick) return "white";
+    return null;
+  }
   function startOmokSolo() {
     if (netMode && roster.length > 1) { toast("혼자 연습은 방에 나 혼자 있을 때만 돼요"); return; }
     cancelAiSearch();
@@ -3134,14 +3139,16 @@
     renderPresenceUI();
     toast("혼자 연습 — 흑·백 번갈아 둬보세요");
   }
-  function startAiGame(level, humanColor) {
+  function startAiGame(level) {
     if (!window.OmokAI) { toast("AI를 불러오지 못했어요"); return; }
+    var humanColor = aiHumanSeatColor(G.seats, me.nick);
+    if (!humanColor) { toast("먼저 흑이나 백 자리에 앉아주세요"); return; }
+    var aiSeat = (humanColor === "white") ? "black" : "white";
+    if (G.seats[aiSeat] && G.seats[aiSeat] !== AI_NICK) { toast("반대 자리가 비어 있어야 AI와 둘 수 있어요"); return; }
     cancelAiSearch();
-    humanColor = (humanColor === "white") ? "white" : "black";
     omokSolo = false; omokAI.on = true; omokAI.level = level; aiPending = false;
-    omokAI.human = humanColor;
-    omokAI.color = (humanColor === "white") ? BLACK : WHITE;
-    G.seats = (humanColor === "white") ? { black: AI_NICK, white: me.nick } : { black: me.nick, white: AI_NICK };
+    omokAI.color = (aiSeat === "black") ? BLACK : WHITE;
+    G.seats[aiSeat] = AI_NICK;
     beginGame(me.nick);
     renderPresenceUI();
     broadcastRoomOpen();
@@ -3267,14 +3274,9 @@
     if (swapBtn) swapBtn.addEventListener("click", function () { requestSeatSwap("omok"); });
     $("ai-btn").addEventListener("click", function () { $("center-btn").classList.add("hidden"); $("ai-btn").classList.add("hidden"); $("ai-levels").classList.remove("hidden"); });
     $("ai-cancel").addEventListener("click", function () { $("ai-levels").classList.add("hidden"); updateCenterButton(); });
-    var cbtns = document.querySelectorAll(".colorbtn[data-color]");
-    for (var ci = 0; ci < cbtns.length; ci++) cbtns[ci].addEventListener("click", function () {
-      aiHumanColor = this.getAttribute("data-color");
-      for (var k = 0; k < cbtns.length; k++) cbtns[k].classList.toggle("active", cbtns[k] === this);
-    });
     var lvb = document.querySelectorAll(".lvbtn[data-ai]");
-    for (var li = 0; li < lvb.length; li++) lvb[li].addEventListener("click", function () { startAiGame(this.getAttribute("data-ai"), aiHumanColor); });
-    $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else if (omokAI.on) startAiGame(omokAI.level, omokAI.human); else requestBegin(); });
+    for (var li = 0; li < lvb.length; li++) lvb[li].addEventListener("click", function () { startAiGame(this.getAttribute("data-ai")); });
+    $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else if (omokAI.on) startAiGame(omokAI.level); else requestBegin(); });
     $("omok-win-rank").addEventListener("click", function () { openRank("omok"); });
     $("timer-box").addEventListener("click", function () {
       if (canSetTimer()) { syncTimerChips(); syncPauseButton(); openModal("settings-modal"); }
