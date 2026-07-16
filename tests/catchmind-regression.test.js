@@ -273,6 +273,17 @@ test("a round only finishes after every guesser is correct", () => {
   assert.equal(api.allGuessersCorrect(), true);
 });
 
+test("correct guessers cannot chat during the active round", () => {
+  const api = loadCatchMind();
+  api.setState(api.sanitizeSnapshot(baseSnapshot({ correct: { B: true } })));
+
+  assert.equal(api.canChat("B"), false);
+  assert.equal(api.canChat("C"), true);
+
+  api.setState(api.sanitizeSnapshot(baseSnapshot({ phase: "reveal", correct: { B: true } })));
+  assert.equal(api.canChat("B"), true);
+});
+
 test("ranking saves retry before reporting success", async () => {
   const api = loadCatchMind({
     setTimeout(callback) { queueMicrotask(callback); return 1; },

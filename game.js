@@ -1175,7 +1175,10 @@
       case "seat": if (amHost) hostApplySeat(msg.by, msg.nick, msg.seat); break;
       case "set_timer": if (amHost && (msg.by === ADMIN || msg.by === hostNick)) setTimer(msg.sec); break;
       case "toggle_pause": if (amHost && (msg.by === ADMIN || msg.by === hostNick)) setManualPause(!!msg.paused); break;
-      case "chat": if (msg.nick !== me.nick) addChatTo(gameFamily(msg.game || "omok"), msg.nick, msg.text, true); break;
+      case "chat":
+        var chatGame = gameFamily(msg.game || "omok"), chatCtrl = gameController(chatGame);
+        if (msg.nick !== me.nick && (!chatCtrl || !chatCtrl.canChat || chatCtrl.canChat(msg.nick))) addChatTo(chatGame, msg.nick, msg.text, true);
+        break;
       case "undo_req": if (msg.to === me.nick) showUndoModal(msg.from, msg.gseq, msg.hlen); break;
       case "undo_res":
         $("undo-modal").classList.add("hidden");
@@ -2774,6 +2777,8 @@
   function sendChatText(game, text) {
     game = gameFamily(game);
     var v = String(text || "").trim().slice(0, 80); if (!v) return false;
+    var ctrl = gameController(game);
+    if (ctrl && ctrl.canChat && !ctrl.canChat(me.nick)) return false;
     if (netMode) {
       addChatTo(game, me.nick, v, true);
       Net.send({ t: "chat", game: game, nick: me.nick, text: v });

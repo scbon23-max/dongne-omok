@@ -784,6 +784,8 @@ window.CatchMind = (function () {
       else if (state.phase === "finished") label.textContent = "게임 종료";
       else label.textContent = "게임 대기 중";
     }
+    var peopleCount = $("catch-online-num");
+    if (peopleCount) peopleCount.textContent = activePeople().length;
     renderTimer();
   }
 
@@ -809,7 +811,8 @@ window.CatchMind = (function () {
     box.classList.remove("hidden");
     var ordered = scoreOrder();
     box.innerHTML = ordered.map(function (nick) {
-      return '<span><b>' + esc(nick) + '</b> ' + (state.scores[nick] || 0) + '점</span>';
+      var cls = nick === state.drawer ? ' class="drawer"' : "";
+      return '<span' + cls + '><b>' + esc(nick) + '</b> ' + (state.scores[nick] || 0) + '점</span>';
     }).join("");
   }
 
@@ -883,14 +886,17 @@ window.CatchMind = (function () {
     var isPractice = state.phase === "practice" && state.drawer === mine;
     var isDrawer = (state.phase === "drawing" && state.drawer === mine) || isPractice;
     var isGuesser = state.phase === "drawing" && has(state.guessers, mine) && !state.correct[mine];
+    var isCorrectGuesser = state.phase === "drawing" && !!state.correct[mine];
     var tools = $("catch-tools"), inputRow = $("catch-input-row"), input = $("catch-chat-input");
     if (tools) tools.classList.toggle("hidden", !isDrawer);
     if (!isDrawer) setPaletteOpen(false);
     if (inputRow) inputRow.classList.toggle("hidden", isDrawer);
     if (input) {
+      input.disabled = isCorrectGuesser;
+      if (isCorrectGuesser) input.value = "";
       if (isPractice) input.placeholder = "연습 중 · 채팅 입력";
       else if (isGuesser) input.placeholder = "정답 또는 채팅 입력";
-      else if (state.phase === "drawing" && state.correct[mine]) input.placeholder = "정답 완료 · 채팅 입력";
+      else if (isCorrectGuesser) input.placeholder = "정답 완료 · 다음 라운드까지 대기";
       else if (state.phase === "drawing" && !has(state.queue, mine)) input.placeholder = "다음 게임부터 참여 · 채팅 입력";
       else input.placeholder = "채팅 입력";
     }
@@ -1149,6 +1155,7 @@ window.CatchMind = (function () {
     var input = $("catch-chat-input"); if (!input) return;
     var text = input.value.trim().slice(0, 40); if (!text) return;
     var mine = me().nick;
+    if (state.phase === "drawing" && state.correct[mine]) { input.value = ""; return; }
     if (state.phase === "drawing" && has(state.guessers, mine) && !state.correct[mine]) {
       api.send({ t: "cm_guess", nick: mine, text: text, matchId: state.matchId, roundIndex: state.roundIndex });
     } else {
@@ -1288,6 +1295,11 @@ window.CatchMind = (function () {
     return (state.phase === "drawing" || state.phase === "reveal") && has(state.queue, me().nick);
   }
 
+  function canChat(nick) {
+    nick = safeNick(nick);
+    return !(state.phase === "drawing" && nick && state.correct[nick]);
+  }
+
   function renderPlayers(box, hint) {
     if (!box || !api) return;
     if (hint) {
@@ -1330,6 +1342,7 @@ window.CatchMind = (function () {
     onPresence: onPresence,
     roomMeta: roomMeta,
     isBusy: isBusy,
+    canChat: canChat,
     renderPlayers: renderPlayers,
     render: render,
     rules: rules,
@@ -1344,6 +1357,7 @@ window.CatchMind = (function () {
       applyState: applyState,
       applyStrokeDelta: applyStrokeDelta,
       allGuessersCorrect: allGuessersCorrect,
+      canChat: canChat,
       onMessage: onMessage,
       onPresence: onPresence,
       persistResults: persistResults,
