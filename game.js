@@ -39,6 +39,7 @@
   var hostNick = null, amHost = false, wasHost = false, netMode = false, connected = false;
 
   var canvas, ctx, MARGIN = 20, GAP, RADIUS;
+  var stoneImages = { black: null, white: null, ready: false };
   var hostTimerId = null, dispTimerId = null;
   var GRACE_MS = 60000;
   var graceTimers = { black: null, white: null };
@@ -2631,8 +2632,28 @@
   function layoutBoard() {
     canvas = $("board"); ctx = canvas.getContext("2d");
     GAP = (canvas.width - 2 * MARGIN) / (SIZE - 1); RADIUS = GAP * 0.44;
+    loadStoneImages();
   }
   function px(i) { return MARGIN + i * GAP; }
+  function localAssetUrl(path) {
+    return window.AppShell && AppShell.assetUrl ? AppShell.assetUrl(path) : path;
+  }
+  function loadStoneImages() {
+    if (stoneImages.black && stoneImages.white) return;
+    function load(kind, path) {
+      var img = new Image();
+      img.onload = function () {
+        stoneImages.ready = !!(stoneImages.black && stoneImages.black.complete && stoneImages.black.naturalWidth &&
+          stoneImages.white && stoneImages.white.complete && stoneImages.white.naturalWidth);
+        render();
+      };
+      img.onerror = function () { stoneImages[kind] = null; };
+      img.src = localAssetUrl(path);
+      stoneImages[kind] = img;
+    }
+    load("black", "assets/stone-black.png");
+    load("white", "assets/stone-white.png");
+  }
   function render() {
     if (!ctx) return;
     var W = canvas.width;
@@ -2674,10 +2695,28 @@
     if (cnt === lastStoneCount + 1 && isOmokFamily(curGame)) playStone();
     lastStoneCount = cnt;
   }
+  function setStoneShadow() {
+    ctx.shadowColor = "rgba(42,29,16,.28)";
+    ctx.shadowBlur = RADIUS * 0.28;
+    ctx.shadowOffsetX = RADIUS * 0.1;
+    ctx.shadowOffsetY = RADIUS * 0.18;
+  }
   function drawStone(x, y, color) {
+    var img = color === BLACK ? stoneImages.black : stoneImages.white;
+    if (img && img.complete && img.naturalWidth) {
+      var size = RADIUS * 2.44;
+      ctx.save();
+      setStoneShadow();
+      ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+      ctx.restore();
+      return;
+    }
+    ctx.save();
+    setStoneShadow();
     ctx.beginPath(); ctx.arc(x, y, RADIUS, 0, Math.PI * 2);
-    if (color === BLACK) { ctx.fillStyle = "#1A1A1A"; ctx.fill(); ctx.strokeStyle = "#000"; ctx.lineWidth = 1; ctx.stroke(); }
-    else { ctx.fillStyle = "#F7F7F2"; ctx.fill(); ctx.strokeStyle = "#B9B4A6"; ctx.lineWidth = 1; ctx.stroke(); }
+    if (color === BLACK) { ctx.fillStyle = "#1A1A1A"; ctx.fill(); ctx.shadowColor = "transparent"; ctx.strokeStyle = "#000"; ctx.lineWidth = 1; ctx.stroke(); }
+    else { ctx.fillStyle = "#F7F7F2"; ctx.fill(); ctx.shadowColor = "transparent"; ctx.strokeStyle = "#B9B4A6"; ctx.lineWidth = 1; ctx.stroke(); }
+    ctx.restore();
   }
   function onBoardTap(ev) {
     if (G.over) return;
