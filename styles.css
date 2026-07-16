@@ -338,7 +338,6 @@ body:not(.is-admin) .admin-only { display: none; }
 .ai-levels-title { color: #8fa6b2; font-size: 12px; font-weight: 900; }
 .ai-level-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .lvbtn { min-width: 0; height: 48px; background: var(--navy-2); color: #eaf2f6; border: 2px solid transparent; border-radius: 11px; padding: 0 8px; font-size: 15px; font-weight: 900; cursor: pointer; text-align: center; white-space: nowrap; }
-.lvbtn.master { border-color: var(--orange); color: #fff; }
 .lvbtn.pro { grid-column: 1 / -1; background: #163746; border-color: #e7b34f; color: #fff; }
 .lvbtn:active { transform: scale(.97); }
 .lvbtn:hover { border-color: rgba(47,184,158,.45); }
@@ -442,12 +441,13 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 /* 토스트 */
 .toast { position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%) translateY(20px); background: rgba(0,0,0,.86); color: #fff; padding: 11px 18px; border-radius: 12px; font-size: 13.5px; font-weight: 600; opacity: 0; pointer-events: none; transition: .2s; z-index: 60; max-width: 90vw; text-align: center; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.pro-load-progress { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); width: min(340px, calc(100vw - 32px)); padding: 12px 14px; border: 1px solid #355564; border-radius: 8px; background: rgba(14,42,58,.97); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.42); z-index: 70; pointer-events: none; }
+.pro-load-progress { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); width: min(350px, calc(100vw - 28px)); padding: 14px 15px 15px; border: 1px solid rgba(255,255,255,.42); border-radius: 12px; background: var(--orange); color: #fff; box-shadow: 0 10px 28px rgba(66,20,4,.42), inset 0 1px 0 rgba(255,255,255,.18); z-index: 70; pointer-events: none; }
 .pro-load-progress.hidden { display: none; }
-.pro-load-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; font-size: 13px; font-weight: 800; }
-.pro-load-top strong { color: #f0bd58; font-size: 14px; }
-.pro-load-track { width: 100%; height: 7px; overflow: hidden; border-radius: 4px; background: #294653; }
-.pro-load-track > span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--teal); transition: width .14s linear; }
+.pro-load-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 13.5px; font-weight: 900; }
+.pro-load-top > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pro-load-top strong { flex: 0 0 auto; min-width: 48px; padding: 4px 8px; border: 1px solid rgba(255,255,255,.28); border-radius: 7px; background: rgba(14,42,58,.22); color: #fff; font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
+.pro-load-track { width: 100%; height: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,.24); border-radius: 5px; background: rgba(14,42,58,.3); }
+.pro-load-track > span { display: block; width: 0; height: 100%; border-radius: inherit; background: #fff; transition: width .14s linear; }
 
 /* ── 로비 ── */
 .lobby-screen { background: var(--navy); padding: 8px 12px 10px; height: 100dvh; overflow: hidden; }

@@ -38,3 +38,9 @@ test("the AI difficulty panel no longer offers a second stone choice", () => {
   assert.match(game, /startAiGame\(this\.getAttribute\("data-ai"\)\)/);
   assert.match(game, /startAiGame\(omokAI\.level\)/);
 });
+
+test("Master uses the same neutral difficulty button style as the standard levels", () => {
+  assert.match(index, /<button class="lvbtn" data-ai="master">초고수<\/button>/);
+  assert.doesNotMatch(index, /class="lvbtn master"/);
+  assert.doesNotMatch(styles, /\.lvbtn\.master/);
+});

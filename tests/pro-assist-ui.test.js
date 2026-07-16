@@ -8,6 +8,7 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
+const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 
 function between(start, end) {
   const from = game.indexOf(start);
@@ -41,4 +42,14 @@ test("Pro download progress remains separate from timed toasts until ready", () 
   assert.match(game, /if \(data\.type === "progress"\) \{\s*showProLoadProgress\(data\.percent, data\.phase\)/);
   assert.match(game, /finishProLoadProgress\(\);\s*beginAiGameNow/);
   assert.doesNotMatch(game, /toast\("프로 AI 준비 중\.\.\."\)/);
+});
+
+test("Pro download progress uses the orange status treatment", () => {
+  const from = styles.indexOf(".pro-load-progress {");
+  const to = styles.indexOf("/* ── 로비 ── */", from);
+  assert.ok(from >= 0 && to > from, "missing Pro download progress styles");
+  const progressStyles = styles.slice(from, to);
+  assert.match(progressStyles, /background: var\(--orange\)/);
+  assert.match(progressStyles, /\.pro-load-track > span[^}]*background: #fff/);
+  assert.doesNotMatch(progressStyles, /background: var\(--teal\)/);
 });
