@@ -178,6 +178,7 @@
       <div id="win-result-list" class="win-result-list hidden"></div>
       <div class="win-actions">
         <button id="omok-again">대국 신청</button>
+        <button id="omok-instant-replay" class="review" type="button">복기</button>
         <button id="omok-win-rank" class="secondary">랭킹 보기</button>
       </div>
     </div>
@@ -187,6 +188,20 @@
         <button id="draw-ask-yes">동의</button>
         <button id="draw-ask-no" style="background:var(--navy-2);color:#fff">거절</button>
       </div>
+    </div>
+  </div>
+
+  <div id="instant-replay-controls" class="instant-replay-controls hidden" aria-label="방금 대국 복기 조작">
+    <div class="instant-replay-head">
+      <strong>방금 대국 복기</strong>
+      <span id="instant-replay-count" aria-live="polite">0 / 0수</span>
+    </div>
+    <div class="instant-replay-actions">
+      <button id="instant-replay-first" type="button" aria-label="처음으로" title="처음으로">⏮</button>
+      <button id="instant-replay-prev" type="button" aria-label="이전 수" title="이전 수">◀</button>
+      <button id="instant-replay-next" type="button" aria-label="다음 수" title="다음 수">▶</button>
+      <button id="instant-replay-last" type="button" aria-label="마지막으로" title="마지막으로">⏭</button>
+      <button id="instant-replay-close" class="instant-replay-close" type="button" aria-label="복기 종료" title="복기 종료">✕</button>
     </div>
   </div>
 

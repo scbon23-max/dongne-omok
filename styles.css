@@ -189,8 +189,10 @@ body {
 .score-delta.up { color: var(--teal-light); }
 .score-delta.down { color: #FF8A8A; }
 .score-delta.same { color: #9fb2bd; }
-.win-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.win-actions { width: min(100%, 340px); display: flex; gap: 8px; flex-wrap: nowrap; justify-content: center; }
 .win-flag button { background: var(--orange); color: #fff; border: none; border-radius: 12px; padding: 11px 20px; font-size: 15px; font-weight: 800; }
+.win-actions button { flex: 1 1 0; min-width: 0; padding-left: 10px; padding-right: 10px; }
+.win-flag button.review { background: var(--teal); color: var(--navy); }
 .win-flag button.secondary { background: var(--navy-2); color: #eaf2f6; }
 
 /* 하단 게임 전환 탭 */
@@ -309,6 +311,18 @@ body:not(.is-admin) .admin-only { display: none; }
 
 /* ---------- 액션 ---------- */
 .action-row { display: flex; gap: 7px; margin: 7px auto 0; width: 100%; max-width: 420px; position: relative; }
+.instant-replay-controls { width: 100%; max-width: 420px; margin: 7px auto 0; padding: 9px 10px 10px; border: 1px solid var(--navy-3); border-radius: 8px; background: var(--navy-2); box-shadow: 0 4px 12px rgba(0,0,0,.24); }
+.instant-replay-controls.hidden { display: none; }
+.instant-replay-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.instant-replay-head strong { min-width: 0; color: #eaf2f6; font-size: 13px; font-weight: 900; }
+.instant-replay-head span { flex: 0 0 auto; color: var(--teal-light); font-size: 12px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.instant-replay-actions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.instant-replay-actions button { width: 100%; height: 38px; border: 1px solid #31576a; border-radius: 7px; background: var(--navy); color: #eaf2f6; font-size: 16px; line-height: 1; cursor: pointer; }
+.instant-replay-actions button:active:not(:disabled) { background: var(--navy-3); transform: scale(.97); }
+.instant-replay-actions button:disabled { opacity: .36; cursor: default; }
+.instant-replay-actions button.instant-replay-close { border-color: rgba(243,97,42,.7); color: #ffb28f; }
+#game.instant-replay-active > .action-row.slim { display: none; }
+#game.instant-replay-active .chat-overlay { display: none; }
 .pro-hint-row { width: 100%; max-width: 420px; min-height: 38px; margin: 8px auto 0; }
 .pro-hint-row.hidden { display: none; }
 .pro-hint-btn { width: 100%; height: 38px; border: 1px solid var(--teal); border-radius: 8px; background: #163746; color: #f3fbfa; font-size: 13px; font-weight: 800; cursor: pointer; }

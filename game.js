@@ -60,6 +60,7 @@
   var oldestChatTs = null, loadingOlder = false, noMoreChat = false;
   var sessionChat = [];
   var preview = null;
+  var instantReplay = null;
 
   function $(id) { return document.getElementById(id); }
   function colorName(c) { return c === BLACK ? "black" : "white"; }
@@ -424,6 +425,7 @@
   // ---------- 방 입장/나가기 ----------
   function resetRoomGameState() {
     cancelAiSearch();
+    discardInstantReplay();
     G.board = Renju.emptyBoard(); G.turn = BLACK; G.lastMove = null; G.over = false; G.winner = 0; G.draw = false;
     G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = [];
     G.recorded = false; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.winChatText = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
@@ -571,6 +573,7 @@
     leaveRoomToLobby();
   }
   function leaveRoomToLobby() {
+    discardInstantReplay();
     var leavingController = activeController();
     if (leavingController && leavingController.leave) leavingController.leave();
     var forfeited = vacateSeatIfActive();
@@ -1241,6 +1244,7 @@
     G.timerSec = s.timerSec;
     G.moveDeadline = (typeof s.moveRemainMs === "number") ? (Date.now() + s.moveRemainMs) : s.moveDeadline;
     G.rev = s.rev || 0; G.gameSeq = s.gameSeq || 0;
+    if (instantReplay && instantReplay.gameSeq !== G.gameSeq) discardInstantReplay();
     G.history = s.history || [];
     G.started = !!s.started; G.lastPlayers = s.lastPlayers || null; G.resultAt = s.resultAt || null; G.resultInfo = s.resultInfo || null; G.winChatText = s.winChatText || null;
     G.manualPaused = !!s.manualPaused;
@@ -1597,6 +1601,7 @@
     if (netMode && !amHost) return;
     if (!(G.seats.black && G.seats.white)) { if (by === me.nick) toast("흑·백 두 자리가 다 차야 시작해요"); return; }
     if (netMode && by !== G.seats.black && by !== G.seats.white && by !== ADMIN) return;
+    discardInstantReplay();
     clearProHint(true);
     omokAI.on = (G.seats.white === AI_NICK || G.seats.black === AI_NICK);
     G.board = Renju.emptyBoard();
@@ -1617,6 +1622,7 @@
   }
   function resetToWaiting() {
     cancelAiSearch();
+    discardInstantReplay();
     G.board = Renju.emptyBoard();
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
@@ -1696,6 +1702,73 @@
     resetToWaiting();
   }
 
+  function copyInstantReplayMoves(moves) {
+    var copy = [];
+    for (var i = 0; i < (moves || []).length; i++) {
+      var move = moves[i];
+      if (!move || move.r < 0 || move.r >= SIZE || move.c < 0 || move.c >= SIZE) continue;
+      if (move.color !== BLACK && move.color !== WHITE) continue;
+      copy.push({ r: move.r, c: move.c, color: move.color });
+    }
+    return copy;
+  }
+  function instantReplayPosition() {
+    if (!instantReplay) return { board: G.board, lastMove: G.lastMove };
+    var board = Renju.emptyBoard(), lastMove = null;
+    var limit = Math.max(0, Math.min(instantReplay.moves.length, instantReplay.index));
+    for (var i = 0; i < limit; i++) {
+      var move = instantReplay.moves[i];
+      board[move.r][move.c] = move.color;
+      lastMove = { r: move.r, c: move.c };
+    }
+    return { board: board, lastMove: lastMove };
+  }
+  function discardInstantReplay() {
+    instantReplay = null;
+    var controls = $("instant-replay-controls");
+    if (controls) controls.classList.add("hidden");
+    var screen = $("game");
+    if (screen) screen.classList.remove("instant-replay-active");
+  }
+  function updateInstantReplayUI() {
+    if (!instantReplay) return;
+    var index = instantReplay.index, total = instantReplay.moves.length;
+    var count = $("instant-replay-count");
+    if (count) count.textContent = index + " / " + total + "수";
+    var first = $("instant-replay-first"), prev = $("instant-replay-prev");
+    var next = $("instant-replay-next"), last = $("instant-replay-last");
+    if (first) first.disabled = index === 0;
+    if (prev) prev.disabled = index === 0;
+    if (next) next.disabled = index === total;
+    if (last) last.disabled = index === total;
+  }
+  function setInstantReplayIndex(index) {
+    if (!instantReplay) return;
+    instantReplay.index = Math.max(0, Math.min(instantReplay.moves.length, index));
+    updateInstantReplayUI();
+    render();
+  }
+  function startInstantReplay() {
+    if (!G.over) return;
+    var moves = copyInstantReplayMoves(G.history);
+    if (!moves.length) { toast("복기할 수순이 없어요"); return; }
+    instantReplay = { gameSeq: G.gameSeq, moves: moves, index: 0 };
+    $("omok-win").classList.add("hidden");
+    $("instant-replay-controls").classList.remove("hidden");
+    $("game").classList.add("instant-replay-active");
+    updateInstantReplayUI();
+    render();
+  }
+  function closeInstantReplay() {
+    if (!instantReplay) return;
+    discardInstantReplay();
+    render();
+    if (G.over) {
+      renderWinResult();
+      $("omok-win").classList.remove("hidden");
+    }
+  }
+
   function showWin() {
     if (!isOmokFamily(curGame)) return;
     var t;
@@ -1705,6 +1778,8 @@
       t = nm ? (nm + "님 승리!") : ((G.winner === BLACK ? "흑" : "백") + " 승리!");
     }
     $("omok-wintext").textContent = t;
+    var replayButton = $("omok-instant-replay");
+    if (replayButton) replayButton.classList.toggle("hidden", !G.history || !G.history.length);
     renderWinResult();
     $("omok-win").classList.remove("hidden");
     winShownSeq = G.gameSeq;
@@ -2633,7 +2708,7 @@
       strokeBoundaryCircle(ctx, x, y, rad, "rgba(0,0,0,.45)", 0.8);
       if (k === replayIdx - 1) last = { x: x, y: y, rad: rad };
     }
-    if (last) strokeBoundaryCircle(ctx, last.x, last.y, last.rad, "#D23B3B", 2);
+    if (last) strokeBoundaryCircle(ctx, last.x, last.y, last.rad, "#D94A2F", 2);
     if ($("replay-move")) $("replay-move").textContent = replayIdx + " / " + replayMoves.length + "수";
   }
 
@@ -2705,6 +2780,7 @@
   function render() {
     if (!ctx) return;
     var W = BOARD_SIZE;
+    var position = instantReplayPosition(), board = position.board;
     ctx.clearRect(0, 0, W, W);
     ctx.fillStyle = "#D8AA63"; ctx.fillRect(0, 0, W, W);
     ctx.strokeStyle = "#9A7B45"; ctx.lineWidth = 1.4; ctx.beginPath();
@@ -2715,8 +2791,8 @@
     ctx.stroke();
     var stars = [3, 7, 11]; ctx.fillStyle = "#6E5327";
     for (var a = 0; a < 3; a++) for (var b = 0; b < 3; b++) { ctx.beginPath(); ctx.arc(px(stars[a]), px(stars[b]), 3.2, 0, Math.PI * 2); ctx.fill(); }
-    if (!G.over && G.turn === BLACK) {
-      var pts = Renju.forbiddenPoints(G.board);
+    if (!instantReplay && !G.over && G.turn === BLACK) {
+      var pts = Renju.forbiddenPoints(board);
       ctx.strokeStyle = "#D23B3B"; ctx.lineWidth = 2.4;
       for (var p = 0; p < pts.length; p++) {
         var x = px(pts[p].c), y = px(pts[p].r), d = RADIUS * 0.55;
@@ -2724,10 +2800,10 @@
       }
     }
     // Shadows are painted first so every neighboring stone remains above them.
-    for (var sr = 0; sr < SIZE; sr++) for (var sc = 0; sc < SIZE; sc++) if (G.board[sr][sc]) drawStoneShadow(px(sc), px(sr), G.board[sr][sc]);
-    for (var r = 0; r < SIZE; r++) for (var c = 0; c < SIZE; c++) if (G.board[r][c]) drawStone(px(c), px(r), G.board[r][c]);
-    if (proHint && proHintContext && proHintContext.position === proHintPositionKey() &&
-        G.board[proHint.r] && G.board[proHint.r][proHint.c] === 0) {
+    for (var sr = 0; sr < SIZE; sr++) for (var sc = 0; sc < SIZE; sc++) if (board[sr][sc]) drawStoneShadow(px(sc), px(sr), board[sr][sc]);
+    for (var r = 0; r < SIZE; r++) for (var c = 0; c < SIZE; c++) if (board[r][c]) drawStone(px(c), px(r), board[r][c]);
+    if (!instantReplay && proHint && proHintContext && proHintContext.position === proHintPositionKey() &&
+        board[proHint.r] && board[proHint.r][proHint.c] === 0) {
       var hintX = px(proHint.c), hintY = px(proHint.r);
       ctx.save();
       ctx.fillStyle = "rgba(47,184,158,.22)";
@@ -2739,8 +2815,8 @@
       ctx.beginPath(); ctx.arc(hintX, hintY, 4, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
-    if (preview) {
-      var badPrev = G.over || G.board[preview.r][preview.c] !== 0 || (netMode && G.seats[colorName(G.turn)] !== me.nick);
+    if (!instantReplay && preview) {
+      var badPrev = G.over || board[preview.r][preview.c] !== 0 || (netMode && G.seats[colorName(G.turn)] !== me.nick);
       if (badPrev) { preview = null; if ($("confirm-bar")) $("confirm-bar").classList.add("hidden"); }
       else {
         ctx.globalAlpha = 0.42;
@@ -2749,7 +2825,7 @@
         strokeBoundaryCircle(ctx, px(preview.c), px(preview.r), RADIUS, "#2FB89E", 2.2);
       }
     }
-    if (G.lastMove) drawLastMoveMarker(G.lastMove);
+    if (position.lastMove) drawLastMoveMarker(position.lastMove, board);
     var cnt = stoneCount();
     if (cnt === lastStoneCount + 1 && isOmokFamily(curGame)) playStone();
     lastStoneCount = cnt;
@@ -2769,10 +2845,11 @@
     ctx.fill();
     ctx.restore();
   }
-  function drawLastMoveMarker(move) {
-    var color = G.board[move.r] && G.board[move.r][move.c];
+  function drawLastMoveMarker(move, board) {
+    board = board || G.board;
+    var color = board[move.r] && board[move.r][move.c];
     if (color !== BLACK && color !== WHITE) return;
-    strokeBoundaryCircle(ctx, px(move.c), px(move.r), RADIUS, color === BLACK ? "#FFB347" : "#D94A2F", 2);
+    strokeBoundaryCircle(ctx, px(move.c), px(move.r), RADIUS, "#D94A2F", 2);
   }
   function drawStone(x, y, color) {
     var img = color === BLACK ? stoneImages.black : stoneImages.white;
@@ -3678,6 +3755,7 @@
     var lvb = document.querySelectorAll(".lvbtn[data-ai]");
     for (var li = 0; li < lvb.length; li++) lvb[li].addEventListener("click", function () { startAiGame(this.getAttribute("data-ai")); });
     $("omok-again").addEventListener("click", function () { if (omokSolo) startOmokSolo(); else if (omokAI.on) startAiGame(omokAI.level); else requestBegin(); });
+    $("omok-instant-replay").addEventListener("click", startInstantReplay);
     $("omok-win-rank").addEventListener("click", function () { openRank("omok"); });
     $("timer-box").addEventListener("click", function () {
       if (canSetTimer()) { syncTimerChips(); syncPauseButton(); openModal("settings-modal"); }
@@ -3760,6 +3838,11 @@
     $("alk-leave-room-btn").addEventListener("click", requestLeaveRoom);
     $("leaveroom-yes").addEventListener("click", function () { $("leaveroom-modal").classList.add("hidden"); leaveRoomToLobby(); });
     $("leaveroom-no").addEventListener("click", function () { $("leaveroom-modal").classList.add("hidden"); });
+    $("instant-replay-first").addEventListener("click", function () { setInstantReplayIndex(0); });
+    $("instant-replay-prev").addEventListener("click", function () { if (instantReplay) setInstantReplayIndex(instantReplay.index - 1); });
+    $("instant-replay-next").addEventListener("click", function () { if (instantReplay) setInstantReplayIndex(instantReplay.index + 1); });
+    $("instant-replay-last").addEventListener("click", function () { if (instantReplay) setInstantReplayIndex(instantReplay.moves.length); });
+    $("instant-replay-close").addEventListener("click", closeInstantReplay);
     $("replay-first").addEventListener("click", function () { replayIdx = 0; renderReplay(); });
     $("replay-prev").addEventListener("click", function () { if (replayIdx > 0) { replayIdx--; renderReplay(); } });
     $("replay-next").addEventListener("click", function () { if (replayIdx < replayMoves.length) { replayIdx++; renderReplay(); } });

@@ -107,11 +107,12 @@ test("the Omok board uses a HiDPI backing store with logical input coordinates",
   assert.match(game, /var STONE_SOURCE_INSET = 0\.09/);
   assert.match(game, /RADIUS = GAP \* 0\.5/);
   assert.match(game, /ctx\.drawImage\(img, sourceX, sourceY, sourceWidth, sourceHeight, x - size \/ 2/);
-  assert.match(game, /if \(G\.lastMove\) drawLastMoveMarker\(G\.lastMove\)/);
-  assert.match(game, /color === BLACK \? "#FFB347" : "#D94A2F"/);
+  assert.match(game, /if \(position\.lastMove\) drawLastMoveMarker\(position\.lastMove, board\)/);
+  assert.match(game, /strokeBoundaryCircle\(ctx, px\(move\.c\), px\(move\.r\), RADIUS, "#D94A2F", 2\)/);
+  assert.doesNotMatch(game, /#FFB347/);
   assert.match(game, /function strokeBoundaryCircle[\s\S]*target\.arc\(x, y, radius, 0, Math\.PI \* 2\)/);
   assert.match(game, /strokeBoundaryCircle\(ctx, px\(move\.c\), px\(move\.r\), RADIUS,[^;]*, 2\)/);
   assert.doesNotMatch(game, /strokeInsideCircle/);
-  assert.match(game, /drawStoneShadow\(px\(sc\), px\(sr\), G\.board\[sr\]\[sc\]\)[\s\S]*drawStone\(px\(c\), px\(r\), G\.board\[r\]\[c\]\)/);
+  assert.match(game, /drawStoneShadow\(px\(sc\), px\(sr\), board\[sr\]\[sc\]\)[\s\S]*drawStone\(px\(c\), px\(r\), board\[r\]\[c\]\)/);
   assert.doesNotMatch(game, /ctx\.arc\([^;]*RADIUS \+/);
 });
