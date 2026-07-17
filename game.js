@@ -38,6 +38,7 @@
   var me = { nick: "", isAdmin: false };
   var roster = [];
   var hostNick = null, amHost = false, wasHost = false, netMode = false, connected = false;
+  var activityLoginLogged = false, activityLogoutLogged = false, activityRoomLeaves = {};
 
   var canvas, ctx, MARGIN = 28, GAP, RADIUS;
   var BOARD_SIZE = 450, boardPixelRatio = 1, boardResizeId = null, boardResizeBound = false;
@@ -170,6 +171,45 @@
     return "여기엔 둘 수 없어요.";
   }
 
+  function recordActivity(type, details) {
+    if (!me.nick || !window.Db || !Db.recordActivity) return Promise.resolve(null);
+    return Promise.resolve(Db.recordActivity(me.nick, type, details)).catch(function () { return null; });
+  }
+  function logLoginOnce() {
+    if (activityLoginLogged) return;
+    activityLoginLogged = true;
+    recordActivity("login");
+  }
+  function currentRoomActivity() {
+    if (!curRoomId) return null;
+    return {
+      roomId: curRoomId,
+      roomName: curRoomTitle || curRoomId,
+      game: curRoomGame || curGame || "",
+      visitKey: curRoomId + ":" + (myJoinTs || 0)
+    };
+  }
+  function logRoomLeave(info) {
+    if (!info || !info.roomId) return Promise.resolve(null);
+    var key = info.visitKey || (info.roomId + ":" + (myJoinTs || 0));
+    if (activityRoomLeaves[key]) return Promise.resolve(null);
+    activityRoomLeaves[key] = true;
+    return recordActivity("room_leave", info);
+  }
+  async function logoutAndReload() {
+    if (activityLogoutLogged) return;
+    activityLogoutLogged = true;
+    var button = $("logout-btn");
+    if (button) button.disabled = true;
+    var roomInfo = currentRoomActivity();
+    var finish = roomInfo
+      ? logRoomLeave(roomInfo).then(function () { return recordActivity("logout"); })
+      : recordActivity("logout");
+    try { await withTimeout(finish, 1800); } catch (e) {}
+    clearAuth();
+    location.reload();
+  }
+
   // ---------- 로그인/입장 ----------
   async function enter() {
     initAudio();
@@ -265,6 +305,7 @@
     if (!lobbyConnected) { lobbyConnected = true; appConnect(); startRoomKeeper(); }
     renderRoomList();
     updateOnlineCounts(); renderLobbyOnline();
+    logLoginOnce();
   }
   var curGame = null, curRoomGame = null, omokStarted = false, alkStarted = false;
   var A = { seats: { black: null, white: null }, turn: "b", started: false, over: false, winner: null, seq: 0, gameSeq: 0, recorded: false, paused: false, winChatText: null };
@@ -412,8 +453,9 @@
     var r = rooms[id]; if (!r) return;
     if (inActiveGame()) { toast("게임 중엔 다른 방으로 이동할 수 없어요"); return; }
     var wasAlone = !netMode || roster.length <= 1, wasHostHere = amHost, leavingId = curRoomId;
+    var leavingActivity = currentRoomActivity();
     if (wasHostHere && wasAlone && lobbyMode && leavingId) Net.sendLobby({ t: "room_close", id: leavingId });
-    enterRoom(r.id, r.game, r.name);
+    if (enterRoom(r.id, r.game, r.name)) logRoomLeave(leavingActivity);
   }
   function vacateSeatIfActive() {
     var seatedOmok = netMode && isOmokFamily(curGame) && G.started && !G.over && (G.seats.black === me.nick || G.seats.white === me.nick);
@@ -553,7 +595,10 @@
     if (!canSeeGame(game)) { toast("아직 테스트 중인 게임이에요"); return; }
     var id = "rm" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e4).toString(36);
     roomCreatedTs = Date.now();
-    enterRoom(id, game, (name && name.trim()) || (me.nick + "님의 방"));
+    var title = (name && name.trim()) || (me.nick + "님의 방");
+    if (enterRoom(id, game, title)) {
+      recordActivity("room_create", { roomId: id, roomName: title, game: game });
+    }
   }
   function requestLeaveRoom() {
     var ctrl = activeController();
@@ -574,6 +619,8 @@
   }
   function leaveRoomToLobby() {
     discardInstantReplay();
+    var leavingActivity = currentRoomActivity();
+    logRoomLeave(leavingActivity);
     var leavingController = activeController();
     if (leavingController && leavingController.leave) leavingController.leave();
     var forfeited = vacateSeatIfActive();
@@ -2149,6 +2196,7 @@
 
   // ---------- 관리자 ----------
   async function openAdmin() {
+    if (!me.isAdmin) return;
     $("admin-modal").classList.remove("hidden");
     await renderAdminList();
     renderAllowlist();
@@ -2208,6 +2256,99 @@
     armed = null; clearTimeout(armTimer);
     if (act === "reset") { Db.clearPassword(nick).then(function () { toast(nick + " 비번 초기화됨"); renderAdminList(); }); }
     else if (act === "del") { Db.deleteAccount(nick).then(function () { toast(nick + " 삭제됨"); renderAdminList(); }); }
+  }
+
+  var activityLogs = [], activityFilter = "all";
+  function activityCategory(type) {
+    return type === "login" || type === "logout" ? "access" : "room";
+  }
+  function activityPad(value) { return String(value).padStart(2, "0"); }
+  function activityDayInfo(value) {
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return { key: "unknown", label: "날짜 없음" };
+    var now = new Date();
+    var yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    var key = date.getFullYear() + "-" + activityPad(date.getMonth() + 1) + "-" + activityPad(date.getDate());
+    var sameToday = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+    var sameYesterday = date.getFullYear() === yesterday.getFullYear() && date.getMonth() === yesterday.getMonth() && date.getDate() === yesterday.getDate();
+    var label = (date.getFullYear() !== now.getFullYear() ? date.getFullYear() + "년 " : "") + (date.getMonth() + 1) + "월 " + date.getDate() + "일";
+    if (sameToday) label = "오늘 · " + label;
+    else if (sameYesterday) label = "어제 · " + label;
+    return { key: key, label: label };
+  }
+  function activityTime(value) {
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return "—";
+    return activityPad(date.getHours()) + ":" + activityPad(date.getMinutes());
+  }
+  function activityVerb(type) {
+    return type === "login" ? "로그인"
+      : type === "logout" ? "로그아웃"
+      : type === "room_create" ? "방 생성"
+      : "방에서 나감";
+  }
+  function activityIcon(type) {
+    return type === "login" ? "↳"
+      : type === "logout" ? "↰"
+      : type === "room_create" ? "+"
+      : "↗";
+  }
+  function activityDetail(log) {
+    if (activityCategory(log.type) !== "room") return "";
+    var parts = [];
+    if (log.game) parts.push(gameName(log.game));
+    if (log.roomName) parts.push(log.roomName);
+    return parts.join(" · ");
+  }
+  function renderActivityLogs() {
+    var box = $("activity-log-list"); if (!box) return;
+    var rows = activityLogs.filter(function (log) {
+      return activityFilter === "all" || activityCategory(log.type) === activityFilter;
+    });
+    if (!rows.length) {
+      box.innerHTML = '<p class="activity-log-empty">표시할 기록이 없어요.</p>';
+      return;
+    }
+    var html = "", previousDay = null;
+    rows.forEach(function (log) {
+      var day = activityDayInfo(log.createdAt);
+      if (day.key !== previousDay) {
+        html += '<div class="activity-log-date">' + esc(day.label) + '</div>';
+        previousDay = day.key;
+      }
+      var category = activityCategory(log.type);
+      var detail = activityDetail(log);
+      html += '<div class="activity-log-row">'
+        + '<span class="activity-log-icon ' + (category === "room" ? "room" : "") + '" aria-hidden="true">' + activityIcon(log.type) + '</span>'
+        + '<div class="activity-log-copy"><p class="activity-log-main"><b>' + esc(log.nick) + '</b>님이 ' + activityVerb(log.type) + '</p>'
+        + (detail ? '<p class="activity-log-detail">' + esc(detail) + '</p>' : "")
+        + '</div><time class="activity-log-time">' + activityTime(log.createdAt) + '</time></div>';
+    });
+    box.innerHTML = html;
+  }
+  function setActivityFilter(filter) {
+    activityFilter = filter === "access" || filter === "room" ? filter : "all";
+    var buttons = document.querySelectorAll("#activity-log-filters [data-activity-filter]");
+    for (var i = 0; i < buttons.length; i++) {
+      var active = buttons[i].getAttribute("data-activity-filter") === activityFilter;
+      buttons[i].classList.toggle("active", active);
+      buttons[i].setAttribute("aria-pressed", active ? "true" : "false");
+    }
+    renderActivityLogs();
+  }
+  async function openActivityLog() {
+    if (!me.isAdmin) return;
+    activityLogs = [];
+    activityFilter = "all";
+    openModal("activity-log-modal");
+    setActivityFilter("all");
+    $("activity-log-list").innerHTML = '<p class="players-hint">기록을 불러오는 중…</p>';
+    try {
+      activityLogs = window.Db && Db.getActivityLogs ? await withTimeout(Db.getActivityLogs(200), 8000) : [];
+      renderActivityLogs();
+    } catch (e) {
+      $("activity-log-list").innerHTML = '<p class="activity-log-empty">기록을 불러오지 못했어요.</p>';
+    }
   }
 
   // ---------- 랭킹 ----------
@@ -3928,7 +4069,14 @@
       if (netMode) Net.send({ t: "undo_res", accept: false, from: me.nick });
     });
     $("admin-btn").addEventListener("click", function () { $("menu-modal").classList.add("hidden"); openAdmin(); });
-    $("logout-btn").addEventListener("click", function () { clearAuth(); location.reload(); });
+    $("activity-log-btn").addEventListener("click", function () { $("menu-modal").classList.add("hidden"); openActivityLog(); });
+    $("logout-btn").addEventListener("click", logoutAndReload);
+    var activityFilterButtons = document.querySelectorAll("#activity-log-filters [data-activity-filter]");
+    for (var af = 0; af < activityFilterButtons.length; af++) {
+      activityFilterButtons[af].addEventListener("click", function () {
+        setActivityFilter(this.getAttribute("data-activity-filter"));
+      });
+    }
 
     var closers = document.querySelectorAll("[data-close]");
     for (var i = 0; i < closers.length; i++) closers[i].addEventListener("click", function (e) { var m = e.target.closest(".modal-overlay"); if (m) { if (m.id === "begin-modal") beginReqCtx = null; if (m.id === "swap-modal") swapReqCtx = null; m.classList.add("hidden"); } });

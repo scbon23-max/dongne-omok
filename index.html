@@ -366,6 +366,7 @@
       <button id="menu-rules-btn" class="menu-item">📖 규칙</button>
       <button id="menu-sound-btn" class="menu-item">🔊 소리 켜짐</button>
       <button id="admin-btn" class="menu-item admin-only">관리자</button>
+      <button id="activity-log-btn" class="menu-item admin-only">기록</button>
       <button id="logout-btn" class="menu-item logout">로그아웃</button>
     </div>
     <div class="modal-body menu-body hidden" id="menu-rules">
@@ -435,6 +436,27 @@
           <button id="allow-add-btn" class="pbtn">추가</button>
         </div>
         <div id="allow-list"></div>
+      </div>
+    </div>
+    <button class="btn-primary modal-ok" data-close>닫기</button>
+  </div>
+</div>
+
+<!-- 관리자 활동 기록 모달 -->
+<div id="activity-log-modal" class="modal-overlay hidden admin-only">
+  <div class="modal activity-log-modal">
+    <div class="modal-head">
+      <h2>기록 <span class="host-badge">관리자 전용</span></h2>
+      <button class="modal-close" data-close>✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="activity-log-filters" class="radio-row activity-log-filters" aria-label="기록 종류">
+        <button class="radio-chip active" data-activity-filter="all">전체</button>
+        <button class="radio-chip" data-activity-filter="access">접속</button>
+        <button class="radio-chip" data-activity-filter="room">방</button>
+      </div>
+      <div id="activity-log-list" class="activity-log-list" aria-live="polite">
+        <p class="players-hint">기록을 불러오는 중…</p>
       </div>
     </div>
     <button class="btn-primary modal-ok" data-close>닫기</button>

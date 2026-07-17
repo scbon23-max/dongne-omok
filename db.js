@@ -2,6 +2,9 @@ window.Db = (function () {
   "use strict";
   var sb = window.SB;
   var ADMIN = "구나";
+  var ACTIVITY_ROOM = "__admin_activity_v1__";
+  var ACTIVITY_PREFIX = "@activity:";
+  var ACTIVITY_TYPES = { login: true, logout: true, room_create: true, room_leave: true };
 
   async function sha256(str) {
     var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
@@ -137,6 +140,56 @@ window.Db = (function () {
   async function addChatMsg(room, nick, text) {
     if (sb) return sb.from("chat").insert({ room: room, nick: nick, text: text });
   }
+  function activityText(value, limit) {
+    return String(value || "").trim().slice(0, limit);
+  }
+  async function recordActivity(nick, type, details) {
+    if (!sb || !ACTIVITY_TYPES[type]) return;
+    nick = activityText(nick, 40);
+    if (!nick) return;
+    details = details || {};
+    var payload = { v: 1, type: type };
+    if (type === "room_create" || type === "room_leave") {
+      var roomId = activityText(details.roomId, 80);
+      var roomName = activityText(details.roomName, 80);
+      var game = activityText(details.game, 30);
+      if (roomId) payload.roomId = roomId;
+      if (roomName) payload.roomName = roomName;
+      if (game) payload.game = game;
+    }
+    return sb.from("chat").insert({
+      room: ACTIVITY_ROOM,
+      nick: nick,
+      text: ACTIVITY_PREFIX + JSON.stringify(payload)
+    });
+  }
+  async function getActivityLogs(limit) {
+    if (!sb) return [];
+    limit = Math.max(1, Math.min(500, Number(limit) || 200));
+    var r = await sb.from("chat").select("nick,text,created_at")
+      .eq("room", ACTIVITY_ROOM)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (r.error || !r.data) return [];
+    return r.data.map(function (row) {
+      var text = String(row && row.text || "");
+      if (text.indexOf(ACTIVITY_PREFIX) !== 0) return null;
+      try {
+        var payload = JSON.parse(text.slice(ACTIVITY_PREFIX.length));
+        if (!payload || payload.v !== 1 || !ACTIVITY_TYPES[payload.type]) return null;
+        return {
+          nick: activityText(row.nick, 40),
+          type: payload.type,
+          roomId: activityText(payload.roomId, 80),
+          roomName: activityText(payload.roomName, 80),
+          game: activityText(payload.game, 30),
+          createdAt: row.created_at || null
+        };
+      } catch (e) {
+        return null;
+      }
+    }).filter(function (item) { return !!item && !!item.nick; });
+  }
   async function getAllowlist() {
     if (!sb) return [];
     var r = await sb.from("allowlist").select("nickname").order("nickname");
@@ -161,6 +214,7 @@ window.Db = (function () {
     recordGame: recordGame, recordAlkGame: recordAlkGame, recordCatchmindMatch: recordCatchmindMatch, getGames: getGames, getGamesByType: getGamesByType,
     getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves, deleteGame: deleteGame,
     addChatMsg: addChatMsg, getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,
+    recordActivity: recordActivity, getActivityLogs: getActivityLogs,
     getAllowlist: getAllowlist, addAllowed: addAllowed, removeAllowed: removeAllowed
   };
 })();
