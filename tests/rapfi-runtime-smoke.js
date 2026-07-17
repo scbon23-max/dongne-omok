@@ -22,11 +22,12 @@ var scenario = process.argv[4] || "opening";
   module.sendCommand("INFO max_depth " + maxDepth);
   if (timeMs) {
     module.sendCommand("INFO timeout_turn " + timeMs);
-    module.sendCommand("INFO timeout_match " + timeMs);
-    module.sendCommand("INFO time_left " + timeMs);
+    module.sendCommand("INFO timeout_match 0");
+    module.sendCommand("INFO time_left 2147483647");
   } else {
     module.sendCommand("INFO timeout_match 0");
     module.sendCommand("INFO timeout_turn 0");
+    module.sendCommand("INFO time_left 2147483647");
   }
 
   var startedAt = Date.now();

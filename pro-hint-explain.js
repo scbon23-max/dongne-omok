@@ -180,7 +180,77 @@
     };
   }
 
-  var api = { explain: explain };
+  function purposeText(category) {
+    if (category === "win") return "바로 오목을 완성합니다";
+    if (category === "counterattack") return "급한 위협을 막으면서 공격권을 잡습니다";
+    if (category === "block") return "상대의 즉시 승리점을 막습니다";
+    if (category === "double-threat") return "두 갈래 승리점을 만듭니다";
+    if (category === "forcing") return "상대의 즉시 대응을 강제합니다";
+    if (category === "prevention") return "상대의 큰 공격 자리를 먼저 차지합니다";
+    return "여러 방향의 연결과 다음 선택지를 넓힙니다";
+  }
+
+  function normalizeLineMove(move) {
+    if (Array.isArray(move)) return { r: Number(move[0]), c: Number(move[1]) };
+    return move ? { r: Number(move.r), c: Number(move.c) } : null;
+  }
+
+  function explainLine(board, line, color, renju) {
+    renju = renju || global.Renju;
+    if (!renju || !Array.isArray(board) || !Array.isArray(line) || !line.length ||
+        (color !== renju.BLACK && color !== renju.WHITE)) return null;
+
+    var position = copyBoard(board);
+    var side = color, steps = [];
+    for (var i = 0; i < line.length; i++) {
+      var move = normalizeLineMove(line[i]);
+      if (!move || !Number.isInteger(move.r) || !Number.isInteger(move.c) ||
+          !inside(renju.SIZE, move.r, move.c) || position[move.r][move.c] !== 0) break;
+      var result = renju.checkMove(position, move.r, move.c, side);
+      if (!result.legal) break;
+      var explanation = explain(position, move.r, move.c, side, renju);
+      if (!explanation) break;
+      steps.push({
+        number: i + 1,
+        r: move.r,
+        c: move.c,
+        color: side,
+        category: explanation.category,
+        purpose: purposeText(explanation.category),
+        coordinate: explanation.coordinate,
+        reasons: explanation.reasons
+      });
+      position[move.r][move.c] = side;
+      if (result.win) break;
+      side = otherColor(side, renju);
+    }
+    if (!steps.length) return null;
+
+    var summary = "1수로 " + steps[0].purpose;
+    if (steps.length >= 3) {
+      summary += ". 2수의 최선 응수 뒤 3수로 " + steps[2].purpose;
+    } else if (steps.length >= 2) {
+      summary += ". 2수는 프로가 예상한 상대의 최선 응수입니다";
+    }
+    summary += ".";
+
+    var reasons = [];
+    if (steps[0].reasons.length) reasons.push("1수: " + steps[0].reasons[0]);
+    if (steps.length >= 3 && steps[2].reasons.length) {
+      reasons.push("3수: " + steps[2].reasons[0]);
+    }
+    if (!reasons.length) {
+      reasons.push("상대가 표시된 최선 응수와 다르게 두면 이후 예상 수순도 달라집니다.");
+    }
+
+    return {
+      summary: summary,
+      reasons: reasons.slice(0, 2),
+      steps: steps
+    };
+  }
+
+  var api = { explain: explain, explainLine: explainLine };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.ProHintExplain = api;
 })(typeof window !== "undefined" ? window : this);

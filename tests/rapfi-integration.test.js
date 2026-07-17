@@ -15,13 +15,15 @@ test("the Pro difficulty routes only its moves through Rapfi", () => {
   assert.match(index, /class="lvbtn pro" data-ai="god">프로<\/button>/);
   assert.match(styles, /\.lvbtn\.pro \{[^}]*grid-column: 1 \/ -1/);
   assert.match(game, /level === "god" \? "rapfi" : "classic"/);
-  assert.match(game, /rapfi-worker\.js\?v=rapfi-3aedf3a-pro-v2-20260717/);
+  assert.match(game, /rapfi-worker\.js\?v=rapfi-3aedf3a-pv-v1-20260717/);
   assert.match(game, /if \(omokAI\.level === "god"\) \{[\s\S]*?omokAI\.level = "master";[\s\S]*?G\.aiLevel = "master";/);
   assert.match(game, /finishWithFallback\(\)/);
   assert.doesNotMatch(game, /OmokAI\.bestMove\(G\.board/);
   assert.match(game, /프로 AI 오류로 초고수로 전환했어요/);
   assert.match(game, /history: G\.history \|\| \[\]/);
   assert.match(game, /lv === "god" \? "프로"/);
+  assert.match(game, /var PRO_UNLIMITED_DEPTH = 21/);
+  assert.match(game, /maxDepth: PRO_UNLIMITED_DEPTH/);
   assert.match(game, /showProLoadProgress\(0, "download"\);\s*worker\.postMessage\(\{ type: "init" \}\);/);
   assert.match(game, /if \(data\.type === "progress"\) \{\s*showProLoadProgress\(data\.percent, data\.phase\)/);
   assert.match(game, /"ai-cancel"\)\.addEventListener\("click", function \(\) \{ cancelAiSearch\(\)/);
@@ -29,7 +31,7 @@ test("the Pro difficulty routes only its moves through Rapfi", () => {
 
 test("every Pro game explains the timer-strength relationship in room chat", () => {
   assert.match(game, /if \(level === "god"\) \{[\s\S]*?현재 설정: " \+ timerLabel/);
-  assert.match(game, /addChatTo\("omok", "__sys", "프로는 30초→1분→2분 순으로 시간이 길수록 더 깊게 분석해 난이도가 올라갑니다\. 무한은 깊이 12 완주 방식입니다\./);
+  assert.match(game, /addChatTo\("omok", "__sys", "프로는 30초→1분→2분 순으로 시간이 길수록 더 깊게 분석해 난이도가 올라갑니다\. 무한은 깊이 21 완주 방식입니다\./);
 });
 
 test("the pinned Rapfi artifacts and redistribution notices are present", () => {

@@ -85,3 +85,57 @@ test("a quiet center move gets a positional explanation without inventing tactic
   assert.match(explanation.reasons.join(" "), /여러 공격|중앙/);
   assert.deepEqual(board, before);
 });
+
+test("a principal variation explains the first plan and the continuation after best reply", () => {
+  const board = boardWith([
+    [7, 2, Renju.BLACK],
+    [7, 3, Renju.WHITE],
+    [7, 4, Renju.WHITE],
+    [7, 5, Renju.WHITE],
+    [7, 6, Renju.WHITE]
+  ]);
+  const before = board.map((row) => row.slice());
+  const explanation = ProHintExplain.explainLine(board, [
+    [7, 7],
+    [6, 5],
+    [6, 6],
+    [8, 6],
+    [8, 7]
+  ], Renju.BLACK, Renju);
+
+  assert.equal(explanation.steps.length, 5);
+  assert.deepEqual(explanation.steps.map((step) => step.color), [
+    Renju.BLACK,
+    Renju.WHITE,
+    Renju.BLACK,
+    Renju.WHITE,
+    Renju.BLACK
+  ]);
+  assert.equal(explanation.steps[0].category, "block");
+  assert.match(explanation.summary, /1수.*즉시 승리점.*2수의 최선 응수 뒤 3수/);
+  assert.match(explanation.reasons[0], /^1수: .*상대.*바로 오목/);
+  assert.match(explanation.reasons[1], /^3수:/);
+  assert.deepEqual(board, before);
+});
+
+test("a variation stops at a win or invalid repeated move", () => {
+  const winningBoard = boardWith([
+    [7, 3, Renju.WHITE],
+    [7, 4, Renju.WHITE],
+    [7, 5, Renju.WHITE],
+    [7, 6, Renju.WHITE]
+  ]);
+  const win = ProHintExplain.explainLine(winningBoard, [
+    [7, 7],
+    [0, 0]
+  ], Renju.WHITE, Renju);
+  assert.equal(win.steps.length, 1);
+  assert.equal(win.steps[0].category, "win");
+
+  const repeat = ProHintExplain.explainLine(Renju.emptyBoard(), [
+    [7, 7],
+    [7, 8],
+    [7, 7]
+  ], Renju.BLACK, Renju);
+  assert.equal(repeat.steps.length, 2);
+});

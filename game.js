@@ -2926,6 +2926,28 @@
     load("black", "assets/stone-black.png");
     load("white", "assets/stone-white.png");
   }
+  function drawProHintVariation() {
+    for (var i = 0; i < proHintVariation.length; i++) {
+      var step = proHintVariation[i];
+      var x = px(step.c), y = px(step.r);
+      ctx.save();
+      ctx.globalAlpha = i === 0 ? 0.9 : 0.76;
+      drawStone(x, y, step.color);
+      ctx.restore();
+      if (i === 0) strokeBoundaryCircle(ctx, x, y, RADIUS, "#F3612A", 1.8);
+      ctx.save();
+      ctx.shadowColor = "transparent";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "900 " + Math.max(12, RADIUS * 0.92) + "px sans-serif";
+      ctx.lineWidth = Math.max(2, RADIUS * 0.16);
+      ctx.strokeStyle = step.color === BLACK ? "rgba(0,0,0,.72)" : "rgba(255,255,255,.76)";
+      ctx.fillStyle = step.color === BLACK ? "#FFFFFF" : "#173747";
+      ctx.strokeText(String(step.number), x, y + 0.5);
+      ctx.fillText(String(step.number), x, y + 0.5);
+      ctx.restore();
+    }
+  }
   function render() {
     if (!ctx) return;
     var W = BOARD_SIZE;
@@ -2951,7 +2973,9 @@
     // Shadows are painted first so every neighboring stone remains above them.
     for (var sr = 0; sr < SIZE; sr++) for (var sc = 0; sc < SIZE; sc++) if (board[sr][sc]) drawStoneShadow(px(sc), px(sr), board[sr][sc]);
     for (var r = 0; r < SIZE; r++) for (var c = 0; c < SIZE; c++) if (board[r][c]) drawStone(px(c), px(r), board[r][c]);
-    if (!instantReplay && hasCurrentProHint()) {
+    if (!instantReplay && hasCurrentProHintVariation()) {
+      drawProHintVariation();
+    } else if (!instantReplay && hasCurrentProHint()) {
       var hintX = px(proHint.c), hintY = px(proHint.r);
       ctx.save();
       ctx.fillStyle = "rgba(47,184,158,.22)";
@@ -3036,6 +3060,8 @@
     if (G.board[r][c] !== 0) { toast("이미 돌이 있어요"); return; }
     var chk = Renju.checkMove(G.board, r, c, G.turn);
     if (!chk.legal) { toast(reasonText(chk.reason)); return; }
+    if (proHintPending) clearProHint(true);
+    else if (proHintLineVisible) hideProHintExplanation();
     preview = { r: r, c: c };
     $("confirm-bar").classList.remove("hidden");
     render();
@@ -3465,6 +3491,7 @@
   var AI_NICK = "AI";
   var AI_THINK_DELAY_MS = 1000;
   var AI_MOVE_DEADLINE_MARGIN_MS = 900;
+  var PRO_UNLIMITED_DEPTH = 21;
   var aiThinkSeq = 0;
   var aiWorker = null;
   var aiWorkerKind = null;
@@ -3474,6 +3501,10 @@
   var proHintToken = 0;
   var proHintWorker = null;
   var proHintContext = null;
+  var proHintSeed = null;
+  var proHintVariation = [];
+  var proHintLineVisible = false;
+  var PRO_HINT_PV_LIMIT = 5;
 
   function isGunaAdmin() {
     return me.isAdmin === true && me.nick === ADMIN;
@@ -3501,64 +3532,120 @@
       proHintContext.color === G.turn &&
       G.board[proHint.r] && G.board[proHint.r][proHint.c] === 0);
   }
+  function normalizeProHintAnalysis(board, analysis, color) {
+    if (!analysis || !Array.isArray(analysis.pv) || !analysis.pv.length) return null;
+    var position = board.map(function (row) { return row.slice(); });
+    var pv = [], side = color;
+    for (var i = 0; i < analysis.pv.length && pv.length < PRO_HINT_PV_LIMIT; i++) {
+      var raw = analysis.pv[i];
+      var r = Array.isArray(raw) ? Number(raw[0]) : Number(raw && raw.r);
+      var c = Array.isArray(raw) ? Number(raw[1]) : Number(raw && raw.c);
+      if (!Number.isInteger(r) || !Number.isInteger(c) ||
+          r < 0 || r >= SIZE || c < 0 || c >= SIZE || position[r][c] !== 0) break;
+      var result = Renju.checkMove(position, r, c, side);
+      if (!result.legal) break;
+      pv.push([r, c]);
+      position[r][c] = side;
+      if (result.win) break;
+      side = side === BLACK ? WHITE : BLACK;
+    }
+    if (!pv.length) return null;
+    return {
+      depth: Number(analysis.depth) || 0,
+      selectiveDepth: Number(analysis.selectiveDepth) || 0,
+      evaluation: String(analysis.evaluation || ""),
+      timeMs: Number(analysis.timeMs) || 0,
+      pv: pv
+    };
+  }
+  function hasCurrentProHintVariation() {
+    return proHintLineVisible && hasCurrentProHint() && proHintVariation.length > 0;
+  }
   function hideProHintExplanation() {
-    var overlay = $("pro-hint-explain-modal");
-    if (overlay) overlay.classList.add("hidden");
+    proHintLineVisible = false;
+    proHintVariation = [];
+    var panel = $("pro-hint-analysis");
+    if (panel) {
+      panel.classList.remove("thinking");
+      panel.classList.add("hidden");
+    }
   }
   function ensureProHintExplanation() {
     if (!isGunaAdmin()) return null;
-    var overlay = $("pro-hint-explain-modal");
-    if (overlay) return overlay;
-    overlay = document.createElement("div");
-    overlay.id = "pro-hint-explain-modal";
-    overlay.className = "modal-overlay hidden";
-    overlay.innerHTML = '<div class="modal pro-hint-explain-modal" role="dialog" aria-modal="true" aria-labelledby="pro-hint-explain-title">'
-      + '<div class="modal-head pro-hint-explain-head"><div><p class="pro-hint-explain-kicker">프로 추천 해설</p>'
-      + '<h2 id="pro-hint-explain-title">이 자리를 두는 이유</h2></div>'
-      + '<button class="modal-close" type="button" data-pro-hint-explain-close aria-label="닫기">✕</button></div>'
-      + '<p id="pro-hint-explain-position" class="pro-hint-explain-position"></p>'
-      + '<p id="pro-hint-explain-summary" class="pro-hint-explain-summary"></p>'
-      + '<ul id="pro-hint-explain-reasons" class="pro-hint-explain-reasons"></ul>'
-      + '<p class="pro-hint-explain-note">추천수가 만드는 실제 위협과 차단 효과를 현재 판에서 다시 계산한 해설입니다.</p>'
-      + '<button class="btn-primary modal-ok" type="button" data-pro-hint-explain-close>닫기</button></div>';
-    overlay.addEventListener("click", function (event) {
-      if (event.target === overlay ||
-          (event.target.closest && event.target.closest("[data-pro-hint-explain-close]"))) {
-        hideProHintExplanation();
-      }
+    var panel = $("pro-hint-analysis");
+    if (panel) return panel;
+    panel = document.createElement("section");
+    panel.id = "pro-hint-analysis";
+    panel.className = "pro-hint-analysis hidden";
+    panel.setAttribute("aria-live", "polite");
+    panel.innerHTML = '<div class="pro-hint-analysis-head"><div>'
+      + '<p class="pro-hint-analysis-kicker">프로 예상 수순</p>'
+      + '<strong id="pro-hint-analysis-meta"></strong></div>'
+      + '<button class="pro-hint-analysis-close" type="button" aria-label="예상 수순 닫기" title="예상 수순 닫기">✕</button></div>'
+      + '<p id="pro-hint-analysis-summary" class="pro-hint-analysis-summary"></p>'
+      + '<ul id="pro-hint-analysis-reasons" class="pro-hint-analysis-reasons"></ul>'
+      + '<p class="pro-hint-analysis-note">상대가 다른 수를 두면 이후 예상 수순도 달라집니다.</p>';
+    panel.querySelector(".pro-hint-analysis-close").addEventListener("click", function () {
+      if (proHintPending) clearProHint(true);
+      else hideProHintExplanation();
+      render();
     });
-    overlay.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") hideProHintExplanation();
-    });
-    document.body.appendChild(overlay);
-    return overlay;
+    var boardWrap = document.querySelector("#game .board-wrap");
+    if (!boardWrap || !boardWrap.parentNode) return null;
+    boardWrap.parentNode.insertBefore(panel, boardWrap.nextSibling);
+    return panel;
+  }
+  function showProHintThinking() {
+    var panel = ensureProHintExplanation();
+    if (!panel) return;
+    panel.classList.add("thinking");
+    $("pro-hint-analysis-meta").textContent = "최선 수와 예상 수순 계산 중";
+    $("pro-hint-analysis-summary").textContent = "현재 판을 깊게 읽고 있습니다.";
+    $("pro-hint-analysis-reasons").innerHTML = "";
+    panel.classList.remove("hidden");
   }
   function showProHintExplanation() {
     if (!isGunaAdmin() || !proHintSessionActive() || !hasCurrentProHint()) return;
-    if (!window.ProHintExplain || !window.ProHintExplain.explain) {
+    if (!window.ProHintExplain || !window.ProHintExplain.explainLine) {
       toast("프로 추천 해설을 불러오지 못했어요");
       return;
     }
-    var explanation = window.ProHintExplain.explain(G.board, proHint.r, proHint.c, proHintContext.color, Renju);
+    var analysis = proHintContext.analysis || { pv: [[proHint.r, proHint.c]] };
+    var explanation = window.ProHintExplain.explainLine(
+      G.board, analysis.pv, proHintContext.color, Renju
+    );
     if (!explanation) {
       toast("현재 판에서는 추천 이유를 계산하지 못했어요");
       return;
     }
-    var overlay = ensureProHintExplanation();
-    if (!overlay) return;
-    $("pro-hint-explain-position").textContent =
-      (proHintContext.color === BLACK ? "흑" : "백") + " 추천 · " + explanation.coordinate;
-    $("pro-hint-explain-summary").textContent = explanation.summary;
-    var list = $("pro-hint-explain-reasons");
+    var panel = ensureProHintExplanation();
+    if (!panel) return;
+    panel.classList.remove("thinking");
+    proHintVariation = explanation.steps.slice(0, PRO_HINT_PV_LIMIT);
+    proHintLineVisible = true;
+    var meta = [(proHintContext.color === BLACK ? "흑" : "백") + " 차례"];
+    meta.push(proHintVariation.length > 1 ? "최선 응수 기준" : "추천수 분석");
+    if (analysis.depth) meta.push("깊이 " + analysis.depth);
+    meta.push(proHintVariation.length + "수");
+    $("pro-hint-analysis-meta").textContent = meta.join(" · ");
+    $("pro-hint-analysis-summary").textContent = explanation.summary;
+    var list = $("pro-hint-analysis-reasons");
     list.innerHTML = "";
     explanation.reasons.forEach(function (reason) {
       var item = document.createElement("li");
       item.textContent = reason;
       list.appendChild(item);
     });
-    overlay.classList.remove("hidden");
-    var close = overlay.querySelector(".modal-close");
-    if (close) close.focus();
+    panel.classList.remove("hidden");
+    render();
+  }
+  function toggleProHintExplanation() {
+    if (hasCurrentProHintVariation()) {
+      hideProHintExplanation();
+      render();
+      return;
+    }
+    showProHintExplanation();
   }
   function clearProHint(terminateWorker) {
     proHintToken++;
@@ -3570,9 +3657,15 @@
     proHintPending = false;
     proHint = null;
     proHintContext = null;
+    proHintSeed = null;
     hideProHintExplanation();
   }
   function syncProHintState() {
+    if (proHintSeed &&
+        (proHintSeed.position !== proHintPositionKey() || proHintSeed.color !== G.turn ||
+         !proHintSessionActive())) {
+      proHintSeed = null;
+    }
     if (proHintContext && (proHintContext.position !== proHintPositionKey() || !proHintSessionActive())) {
       clearProHint(true);
     }
@@ -3586,13 +3679,53 @@
     proHintPending = false;
     proHint = null;
     proHintContext = null;
+    hideProHintExplanation();
     toast("프로 추천수를 불러오지 못했어요", 2600);
+  }
+  function useProHintSeed() {
+    if (!proHintSeed || proHintSeed.position !== proHintPositionKey() ||
+        proHintSeed.color !== G.turn) return false;
+    var analysis = normalizeProHintAnalysis(G.board, proHintSeed.analysis, G.turn);
+    proHintSeed = null;
+    if (!analysis) return false;
+    proHint = { r: analysis.pv[0][0], c: analysis.pv[0][1] };
+    proHintContext = {
+      position: proHintPositionKey(),
+      color: G.turn,
+      analysis: analysis
+    };
+    preview = null;
+    if ($("confirm-bar")) $("confirm-bar").classList.add("hidden");
+    render();
+    toast("프로라면 표시된 자리에 둡니다", 2800);
+    return true;
+  }
+  function rememberProHintContinuation(aiMove, analysis) {
+    proHintSeed = null;
+    if (!Array.isArray(aiMove) || !analysis || !Array.isArray(analysis.pv) ||
+        analysis.pv.length < 2 || !proHintSessionActive() || G.turn === omokAI.color) return;
+    var first = analysis.pv[0];
+    if (!Array.isArray(first) || first[0] !== aiMove[0] || first[1] !== aiMove[1]) return;
+    var continuation = normalizeProHintAnalysis(G.board, {
+      depth: analysis.depth,
+      selectiveDepth: analysis.selectiveDepth,
+      evaluation: analysis.evaluation,
+      timeMs: analysis.timeMs,
+      pv: analysis.pv.slice(1)
+    }, G.turn);
+    if (!continuation) return;
+    proHintSeed = {
+      position: proHintPositionKey(),
+      color: G.turn,
+      analysis: continuation
+    };
   }
   function requestProHint() {
     if (!isGunaAdmin()) return;
     if (!proHintSessionActive()) return;
     if (!canRequestProHint()) { toast(G.paused ? "일시정지 중이에요" : "내 차례에만 추천수를 볼 수 있어요"); return; }
     if (proHintPending) { toast("프로 추천수 분석 중..."); return; }
+    if (useProHintSeed()) return;
 
     clearProHint(true);
     preview = null;
@@ -3608,8 +3741,9 @@
     proHintPending = true;
     proHintWorker = worker;
     proHintContext = { position: proHintPositionKey(), color: color };
+    showProHintThinking();
     render();
-    toast("프로 추천수 분석 중...", 1800);
+    toast("프로 추천수 분석 중...");
 
     worker.onmessage = function (event) {
       if (token !== proHintToken) return;
@@ -3628,6 +3762,13 @@
       proHintWorker = null;
       proHintPending = false;
       proHint = { r: move[0], c: move[1] };
+      var rawAnalysis = data.stats && data.stats.analysis;
+      var analysis = normalizeProHintAnalysis(G.board, rawAnalysis, color);
+      if (!analysis || analysis.pv[0][0] !== move[0] || analysis.pv[0][1] !== move[1]) {
+        analysis = { depth: 0, selectiveDepth: 0, evaluation: "", timeMs: 0, pv: [[move[0], move[1]]] };
+      }
+      proHintContext.analysis = analysis;
+      hideProHintExplanation();
       render();
       toast("프로라면 표시된 자리에 둡니다", 2800);
     };
@@ -3638,7 +3779,7 @@
       board: board,
       history: history,
       color: color,
-      options: rapfiSearchOptions()
+      options: rapfiHintSearchOptions()
     });
   }
   function clearAiMoveGuard() {
@@ -3672,7 +3813,7 @@
     if (!window.Worker) return null;
     try {
       aiWorker = new Worker(kind === "rapfi"
-        ? "rapfi-worker.js?v=rapfi-3aedf3a-pro-v2-20260717"
+        ? "rapfi-worker.js?v=rapfi-3aedf3a-pv-v1-20260717"
         : "omok-ai-worker.js?v=ai-hard-liveness-v1-20260717");
       aiWorkerKind = kind;
     } catch (e) {
@@ -3746,6 +3887,19 @@
     return {
       timerSec: G.timerSec || 0,
       deadlineMs: G.moveDeadline || 0,
+      maxDepth: PRO_UNLIMITED_DEPTH
+    };
+  }
+  function rapfiHintSearchOptions() {
+    if (!G.timerSec || !G.moveDeadline) return rapfiSearchOptions();
+    var now = Date.now();
+    var remaining = Math.max(0, G.moveDeadline - now);
+    var desired = Math.min(8000, Math.max(1200, G.timerSec * 80));
+    var reserve = Math.max(5000, Math.min(15000, G.timerSec * 1000 * 0.2));
+    var budget = Math.max(250, Math.min(desired, remaining - reserve));
+    return {
+      timerSec: G.timerSec,
+      deadlineMs: now + budget + 1200,
       maxDepth: 12
     };
   }
@@ -3792,7 +3946,7 @@
     toast(nm + "와 대국 — 당신은 " + (humanColor === "white" ? "백(후공)" : "흑(선공)"));
     if (level === "god") {
       var timerLabel = !G.timerSec ? "무한" : G.timerSec === 60 ? "1분" : G.timerSec === 120 ? "2분" : G.timerSec + "초";
-      addChatTo("omok", "__sys", "프로는 30초→1분→2분 순으로 시간이 길수록 더 깊게 분석해 난이도가 올라갑니다. 무한은 깊이 12 완주 방식입니다. 현재 설정: " + timerLabel);
+      addChatTo("omok", "__sys", "프로는 30초→1분→2분 순으로 시간이 길수록 더 깊게 분석해 난이도가 올라갑니다. 무한은 깊이 21 완주 방식입니다. 현재 설정: " + timerLabel);
     }
   }
   function startAiGame(level) {
@@ -3855,25 +4009,28 @@
     afterBoardPaint(function () {
       if (token !== aiThinkSeq || !omokAI.on || G.over || !G.started || G.turn !== omokAI.color) { aiPending = false; return; }
       var finished = false;
-      function finish(mv) {
+      function finish(mv, analysis) {
         if (finished) return;
         finished = true;
         clearAiMoveGuard();
         var wait = Math.max(0, AI_THINK_DELAY_MS - (Date.now() - startedAt));
-        if (wait > 0) setTimeout(function () { applyAiMove(mv); }, wait);
-        else applyAiMove(mv);
+        if (wait > 0) setTimeout(function () { applyAiMove(mv, analysis); }, wait);
+        else applyAiMove(mv, analysis);
       }
-      function applyAiMove(mv) {
+      function applyAiMove(mv, analysis) {
         aiPending = false;
         if (token !== aiThinkSeq || !omokAI.on || G.over || !G.started) return;
         if (G.turn !== omokAI.color || G.gameSeq !== gameSeq || (G.history ? G.history.length : 0) !== hlen) {
           aiTick();
           return;
         }
-        if (mv) hostApplyMove(AI_NICK, mv[0], mv[1]);
+        if (mv) {
+          hostApplyMove(AI_NICK, mv[0], mv[1]);
+          if (analysis) rememberProHintContinuation(mv, analysis);
+        }
       }
       function finishWithFallback() {
-        finish(fallbackAiMove(G.board, omokAI.color));
+        finish(fallbackAiMove(G.board, omokAI.color), null);
       }
       function isLegalMove(mv) {
         return Array.isArray(mv) && mv.length === 2 &&
@@ -3904,7 +4061,7 @@
           handleWorkerFailure();
           return;
         }
-        finish(data.move);
+        finish(data.move, data.stats && data.stats.analysis);
       };
       worker.onerror = handleWorkerFailure;
       if (omokAI.level !== "god" && G.timerSec && G.moveDeadline) {
@@ -3946,7 +4103,7 @@
   }
   function onSeatChipTap(color) {
     if (G.seats[color] === AI_NICK && isGunaAdmin() && proHintSessionActive()) {
-      if (hasCurrentProHint()) showProHintExplanation();
+      if (hasCurrentProHint()) toggleProHintExplanation();
       else requestProHint();
       return;
     }

@@ -28,10 +28,42 @@ function keepLine(list, line) {
   if (list.length > 12) list.shift();
 }
 
+function parsePvMoves(text) {
+  var moves = [];
+  var pattern = /\b([A-O])(\d{1,2})\b/g;
+  var match;
+  while ((match = pattern.exec(String(text || "").toUpperCase()))) {
+    var c = match[1].charCodeAt(0) - 65;
+    var r = Number(match[2]) - 1;
+    if (r >= 0 && r < self.Renju.SIZE && c >= 0 && c < self.Renju.SIZE) {
+      moves.push([r, c]);
+    }
+  }
+  return moves;
+}
+
+function parseAnalysisLine(text) {
+  var match = /^MESSAGE Depth\s+(\d+)-(\d+)\s+\|\s+Eval\s+([^|]+?)\s+\|\s+Time\s+(\d+)ms(?:\s+\|\s+(.*))?$/.exec(text);
+  if (!match) return null;
+  var pv = parsePvMoves(match[5]);
+  if (!pv.length) return null;
+  return {
+    depth: Number(match[1]),
+    selectiveDepth: Number(match[2]),
+    evaluation: String(match[3]).trim(),
+    timeMs: Number(match[4]),
+    pv: pv
+  };
+}
+
 function receiveStdout(line) {
   if (!activeSearch) return;
   var text = String(line || "").trim();
   keepLine(activeSearch.output, text);
+  var analysis = parseAnalysisLine(text);
+  if (analysis && (!activeSearch.analysis || analysis.depth >= activeSearch.analysis.depth)) {
+    activeSearch.analysis = analysis;
+  }
   var match = /^(\d{1,2}),(\d{1,2})$/.exec(text);
   if (match) activeSearch.move = [Number(match[2]), Number(match[1])];
 }
@@ -103,6 +135,27 @@ function ensureRapfi() {
 
 function otherColor(color) {
   return color === self.Renju.BLACK ? self.Renju.WHITE : self.Renju.BLACK;
+}
+
+function validatePrincipalVariation(board, pv, color) {
+  if (!Array.isArray(pv) || !pv.length) return [];
+  var copy = board.map(function (row) { return row.slice(); });
+  var valid = [], side = color;
+  for (var i = 0; i < pv.length; i++) {
+    var move = pv[i];
+    if (!Array.isArray(move) || move.length !== 2) break;
+    var r = Number(move[0]), c = Number(move[1]);
+    if (!Number.isInteger(r) || !Number.isInteger(c) ||
+        r < 0 || r >= self.Renju.SIZE || c < 0 || c >= self.Renju.SIZE ||
+        copy[r][c] !== 0) break;
+    var result = self.Renju.checkMove(copy, r, c, side);
+    if (!result.legal) break;
+    valid.push([r, c]);
+    copy[r][c] = side;
+    if (result.win) break;
+    side = otherColor(side);
+  }
+  return valid;
 }
 
 function boardStoneCount(board) {
@@ -196,15 +249,16 @@ function configureSearch(module, options) {
     var budget = Math.max(250, Math.floor(deadline - Date.now() - 1200));
     module.sendCommand("INFO max_depth 99");
     module.sendCommand("INFO timeout_turn " + budget);
-    module.sendCommand("INFO timeout_match " + budget);
-    module.sendCommand("INFO time_left " + budget);
+    module.sendCommand("INFO timeout_match 0");
+    module.sendCommand("INFO time_left 2147483647");
     return budget;
   }
 
-  var maxDepth = Math.max(8, Math.min(16, Number(options.maxDepth) || 12));
+  var maxDepth = Math.max(8, Math.min(21, Number(options.maxDepth) || 12));
   module.sendCommand("INFO max_depth " + maxDepth);
   module.sendCommand("INFO timeout_match 0");
   module.sendCommand("INFO timeout_turn 0");
+  module.sendCommand("INFO time_left 2147483647");
   return 0;
 }
 
@@ -213,7 +267,7 @@ function search(data) {
     var command = boardCommand(data);
     var budget = configureSearch(module, data.options);
     var startedAt = Date.now();
-    var state = { move: null, output: [], errors: [] };
+    var state = { move: null, analysis: null, output: [], errors: [] };
     activeSearch = state;
     try {
       module.sendCommand(command);
@@ -226,6 +280,22 @@ function search(data) {
     }
     var legal = self.Renju.checkMove(data.board, state.move[0], state.move[1], data.color);
     if (!legal.legal) throw new Error("Rapfi returned an incompatible move: " + legal.reason);
+    var analysis = state.analysis;
+    if (analysis) {
+      var validPv = validatePrincipalVariation(data.board, analysis.pv, data.color);
+      if (!validPv.length ||
+          validPv[0][0] !== state.move[0] || validPv[0][1] !== state.move[1]) {
+        analysis = null;
+      } else {
+        analysis = {
+          depth: analysis.depth,
+          selectiveDepth: analysis.selectiveDepth,
+          evaluation: analysis.evaluation,
+          timeMs: analysis.timeMs,
+          pv: validPv
+        };
+      }
+    }
     self.postMessage({
       id: data.id,
       move: state.move,
@@ -234,6 +304,7 @@ function search(data) {
         revision: RAPFI_REVISION.slice(0, 8),
         searchMs: Date.now() - startedAt,
         budgetMs: budget,
+        analysis: analysis,
         output: state.output
       }
     });
