@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const root = path.join(__dirname, "..");
 const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
@@ -17,24 +18,56 @@ function between(start, end) {
   return game.slice(from, to);
 }
 
-test("Pro recommendation control is created only for the named admin", () => {
+test("Pro recommendation has no dedicated control and uses the AI seat", () => {
   assert.doesNotMatch(index, /pro-hint-(?:row|btn)/);
+  assert.doesNotMatch(styles, /\.pro-hint-(?:row|btn)/);
   assert.match(game, /return me\.isAdmin === true && me\.nick === ADMIN;/);
+  assert.doesNotMatch(game, /ensureProHintControl|updateProHintControl/);
 
-  const control = between("function ensureProHintControl()", "function updateProHintControl()");
-  assert.match(control, /if \(!isGunaAdmin\(\)\)/);
-  assert.match(control, /document\.createElement\("button"\)/);
-  assert.match(control, /button\.addEventListener\("click", requestProHint\)/);
+  const seatTap = between("function onSeatChipTap(color)", "function bind()");
+  assert.match(seatTap, /G\.seats\[color\] === AI_NICK/);
+  assert.match(seatTap, /isGunaAdmin\(\)/);
+  assert.match(seatTap, /proHintSessionActive\(\)/);
+  assert.match(seatTap, /requestProHint\(\)/);
+  assert.match(game, /"chip-black"\)\.addEventListener\("click", function \(\) \{ onSeatChipTap\("black"\)/);
+  assert.match(game, /"chip-white"\)\.addEventListener\("click", function \(\) \{ onSeatChipTap\("white"\)/);
 });
 
 test("Pro recommendation analysis stays local and evaluates the human side", () => {
-  const request = between("function requestProHint()", "function cancelAiSearch()");
+  const request = between("function requestProHint()", "function clearAiMoveGuard()");
   assert.match(request, /if \(!isGunaAdmin\(\)\) return;/);
+  assert.match(request, /if \(proHintPending\)/);
   assert.match(request, /var color = G\.turn;/);
   assert.match(request, /ensureAiWorker\("god"\)/);
   assert.match(request, /type: "search"/);
   assert.doesNotMatch(request, /Net\.send|broadcastState|addChatTo|Db\./);
   assert.match(game, /proHintContext\.position === proHintPositionKey\(\)/);
+});
+
+test("only the admin's active Pro AI seat tap requests a recommendation", () => {
+  const seatTap = between("function onSeatChipTap(color)", "function bind()");
+
+  function run(admin, active) {
+    const calls = { hint: 0, seat: 0 };
+    const context = {
+      G: { seats: { black: "구나", white: "AI" }, started: true, over: false },
+      AI_NICK: "AI",
+      me: { nick: "구나" },
+      netMode: true,
+      isGunaAdmin: () => admin,
+      proHintSessionActive: () => active,
+      requestProHint: () => { calls.hint++; },
+      requestSeat: () => { calls.seat++; },
+      $: () => ({ classList: { remove() {} } })
+    };
+    vm.runInNewContext(`${seatTap}; this.tap = onSeatChipTap;`, context);
+    context.tap("white");
+    return calls;
+  }
+
+  assert.deepEqual(run(true, true), { hint: 1, seat: 0 });
+  assert.deepEqual(run(false, true), { hint: 0, seat: 0 });
+  assert.deepEqual(run(true, false), { hint: 0, seat: 0 });
 });
 
 test("Pro download progress remains separate from timed toasts until ready", () => {

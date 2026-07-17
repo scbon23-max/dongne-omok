@@ -324,11 +324,6 @@ body:not(.is-admin) .admin-only { display: none; }
 .instant-replay-actions button.instant-replay-close { border-color: rgba(243,97,42,.7); color: #ffb28f; }
 #game.instant-replay-active > .action-row.slim { display: none; }
 #game.instant-replay-active .chat-overlay { display: none; }
-.pro-hint-row { width: 100%; max-width: 420px; min-height: 38px; margin: 8px auto 0; }
-.pro-hint-row.hidden { display: none; }
-.pro-hint-btn { width: 100%; height: 38px; border: 1px solid var(--teal); border-radius: 8px; background: #163746; color: #f3fbfa; font-size: 13px; font-weight: 800; cursor: pointer; }
-.pro-hint-btn:active:not(:disabled) { background: #1d4a5b; }
-.pro-hint-btn:disabled { border-color: #43606c; color: #91a5ae; cursor: default; }
 .confirm-bar { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); z-index: 5; display: flex; gap: 8px; }
 .confirm-bar.hidden { display: none; }
 .cbtn { border: none; border-radius: 11px; padding: 13px; font-size: 15px; font-weight: 800; cursor: pointer; }

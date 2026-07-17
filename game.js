@@ -262,7 +262,6 @@
     hideGameScreens();
     $("lobby").classList.remove("hidden");
     document.body.classList.toggle("is-admin", me.isAdmin);
-    updateProHintControl();
     if (!lobbyConnected) { lobbyConnected = true; appConnect(); startRoomKeeper(); }
     renderRoomList();
     updateOnlineCounts(); renderLobbyOnline();
@@ -1950,7 +1949,6 @@
     btn.textContent = G.manualPaused ? "재개" : "일시정지";
     btn.classList.toggle("active", !!G.manualPaused);
     btn.disabled = !G.started || G.over;
-    updateProHintControl();
   }
   function canSetTimer() { return !netMode || amHost || me.isAdmin; }
   function requestSetTimer(sec) {
@@ -3336,7 +3334,6 @@
   var proHintToken = 0;
   var proHintWorker = null;
   var proHintContext = null;
-  var proHintProgress = null;
 
   function isGunaAdmin() {
     return me.isAdmin === true && me.nick === ADMIN;
@@ -3358,47 +3355,6 @@
     return proHintSessionActive() && !G.paused && G.turn !== omokAI.color &&
       G.seats[colorName(G.turn)] === me.nick;
   }
-  function ensureProHintControl() {
-    var row = $("pro-hint-row");
-    if (!isGunaAdmin()) {
-      if (row) row.remove();
-      return null;
-    }
-    if (row) return row;
-    var actionRow = document.querySelector("#game > .action-row.slim");
-    if (!actionRow || !actionRow.parentNode) return null;
-    row = document.createElement("div");
-    row.id = "pro-hint-row";
-    row.className = "pro-hint-row hidden";
-    var button = document.createElement("button");
-    button.id = "pro-hint-btn";
-    button.className = "pro-hint-btn";
-    button.type = "button";
-    button.textContent = "프로 추천수 보기";
-    button.addEventListener("click", requestProHint);
-    row.appendChild(button);
-    actionRow.parentNode.insertBefore(row, actionRow);
-    return row;
-  }
-  function updateProHintControl() {
-    var row = ensureProHintControl();
-    if (!row) return;
-    var button = $("pro-hint-btn");
-    var active = proHintSessionActive();
-    row.classList.toggle("hidden", !active);
-    if (!active || !button) return;
-    var available = canRequestProHint();
-    button.disabled = proHintPending || !available;
-    if (proHintPending) {
-      button.textContent = proHintProgress == null ? "프로 추천수 분석 중..." : "프로 준비 중 " + proHintProgress + "%";
-    } else if (G.paused) {
-      button.textContent = "대국 일시정지";
-    } else if (!available) {
-      button.textContent = "프로 차례 진행 중";
-    } else {
-      button.textContent = proHint ? "프로 추천수 다시 보기" : "프로 추천수 보기";
-    }
-  }
   function clearProHint(terminateWorker) {
     proHintToken++;
     if (terminateWorker && proHintWorker) {
@@ -3409,14 +3365,11 @@
     proHintPending = false;
     proHint = null;
     proHintContext = null;
-    proHintProgress = null;
-    updateProHintControl();
   }
   function syncProHintState() {
     if (proHintContext && (proHintContext.position !== proHintPositionKey() || !proHintSessionActive())) {
       clearProHint(true);
     }
-    updateProHintControl();
   }
   function failProHint(token, worker) {
     if (token !== proHintToken) return;
@@ -3427,14 +3380,13 @@
     proHintPending = false;
     proHint = null;
     proHintContext = null;
-    proHintProgress = null;
-    updateProHintControl();
     toast("프로 추천수를 불러오지 못했어요", 2600);
   }
   function requestProHint() {
     if (!isGunaAdmin()) return;
     if (!proHintSessionActive()) return;
     if (!canRequestProHint()) { toast(G.paused ? "일시정지 중이에요" : "내 차례에만 추천수를 볼 수 있어요"); return; }
+    if (proHintPending) { toast("프로 추천수 분석 중..."); return; }
 
     clearProHint(true);
     preview = null;
@@ -3450,16 +3402,13 @@
     proHintPending = true;
     proHintWorker = worker;
     proHintContext = { position: proHintPositionKey(), color: color };
-    proHintProgress = null;
-    updateProHintControl();
     render();
+    toast("프로 추천수 분석 중...", 1800);
 
     worker.onmessage = function (event) {
       if (token !== proHintToken) return;
       var data = event.data || {};
       if (data.type === "progress") {
-        proHintProgress = Math.max(0, Math.min(100, Math.floor(Number(data.percent) || 0)));
-        updateProHintControl();
         return;
       }
       if (data.id !== requestId) return;
@@ -3472,9 +3421,7 @@
       worker.onerror = null;
       proHintWorker = null;
       proHintPending = false;
-      proHintProgress = null;
       proHint = { r: move[0], c: move[1] };
-      updateProHintControl();
       render();
       toast("프로라면 표시된 자리에 둡니다", 2800);
     };
@@ -3790,6 +3737,10 @@
     if (b && b.dataset.act === "solo") startOmokSolo(); else requestBegin();
   }
   function onSeatChipTap(color) {
+    if (G.seats[color] === AI_NICK && isGunaAdmin() && proHintSessionActive()) {
+      requestProHint();
+      return;
+    }
     if (!netMode) return;
     var occ = G.seats[color];
     if (occ === me.nick) {
