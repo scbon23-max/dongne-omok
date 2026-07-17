@@ -25,8 +25,8 @@ window.CatchMind = (function () {
   var MAX_REACTION_QUEUE = 12;
   var CATCH_BGM_SRC = "assets/catchmind-bgm.mp3";
   var CATCH_BGM_VOLUME = 0.09;
-  var DRAW_SFX_VOLUME = 0.2;
-  var DRAW_SFX_COOLDOWN_MS = 85;
+  var CLEAR_SFX_SRC = "assets/catchmind-clear.mp3";
+  var CLEAR_SFX_VOLUME = 0.28;
   var RECORD_STATUSES = ["idle", "pending", "saved", "failed", "skipped"];
   var SAVE_RETRY_DELAYS = [1000, 3000, 7000];
   var FALLBACK_WORDS = [
@@ -62,9 +62,7 @@ window.CatchMind = (function () {
   var reactionScope = "";
   var bgmEl = null;
   var bgmPlayPending = false;
-  var sfxCtx = null;
-  var scratchBuffer = null;
-  var lastDrawSfxAt = 0;
+  var clearSfxEl = null;
   var lastStrokeSend = 0;
   var pendingStrokeTimer = null;
   var strokeSentCount = 0;
@@ -688,7 +686,10 @@ window.CatchMind = (function () {
     if (seq == null || seq <= state.drawSeq || !validRoundMessage(msg)) return;
     if (seq !== state.drawSeq + 1) { requestCanvasRecovery(); return; }
     if (type === "cm_undo") state.strokes.pop();
-    else if (type === "cm_clear") state.strokes = [];
+    else if (type === "cm_clear") {
+      state.strokes = [];
+      playClearSfx();
+    }
     else if (type === "cm_bg") state.canvasBg = safeColor(msg.color) || state.canvasBg || CANVAS_BG;
     state.drawSeq = seq;
     redraw();
@@ -932,70 +933,30 @@ window.CatchMind = (function () {
     }
   }
 
-  function ensureSfxContext() {
-    if (typeof window === "undefined") return null;
-    var AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextCtor) return null;
+  function ensureClearSfx() {
+    if (clearSfxEl) return clearSfxEl;
+    if (typeof Audio === "undefined") return null;
     try {
-      if (!sfxCtx) sfxCtx = new AudioContextCtor();
-      if (sfxCtx.state === "suspended" && sfxCtx.resume) sfxCtx.resume();
-      return sfxCtx;
+      clearSfxEl = new Audio(CLEAR_SFX_SRC);
+      clearSfxEl.preload = "auto";
+      clearSfxEl.volume = CLEAR_SFX_VOLUME;
+      clearSfxEl.setAttribute("playsinline", "");
+      return clearSfxEl;
     } catch (e) {
       return null;
     }
   }
 
-  function getScratchBuffer(ctx) {
-    if (scratchBuffer && scratchBuffer.sampleRate === ctx.sampleRate) return scratchBuffer;
-    var length = Math.max(1, Math.floor(ctx.sampleRate * 0.12));
-    scratchBuffer = ctx.createBuffer(1, length, ctx.sampleRate);
-    var data = scratchBuffer.getChannelData(0);
-    for (var i = 0; i < length; i++) {
-      var fade = Math.pow(1 - i / length, 2.2);
-      data[i] = (Math.random() * 2 - 1) * fade;
-    }
-    return scratchBuffer;
-  }
-
-  function playDrawSfx(tool) {
+  function playClearSfx() {
     if (isSoundMuted()) return;
-    var nowMs = Date.now();
-    if (nowMs - lastDrawSfxAt < DRAW_SFX_COOLDOWN_MS) return;
-    lastDrawSfxAt = nowMs;
-    var ctx = ensureSfxContext();
-    if (!ctx) return;
+    var el = ensureClearSfx();
+    if (!el) return;
     try {
-      var now = ctx.currentTime;
-      var duration = tool === "eraser" ? 0.16 : 0.105;
-      var noise = ctx.createBufferSource();
-      var filter = ctx.createBiquadFilter();
-      var gain = ctx.createGain();
-      noise.buffer = getScratchBuffer(ctx);
-      filter.type = tool === "eraser" ? "bandpass" : "highpass";
-      filter.frequency.setValueAtTime(tool === "eraser" ? 720 : 1800, now);
-      filter.Q.value = tool === "eraser" ? 0.8 : 0.55;
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.linearRampToValueAtTime(DRAW_SFX_VOLUME * (tool === "eraser" ? 0.7 : 1), now + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-      noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(ctx.destination);
-      noise.start(now);
-      noise.stop(now + duration);
-      if (tool !== "eraser") {
-        var tap = ctx.createOscillator();
-        var tapGain = ctx.createGain();
-        tap.type = "triangle";
-        tap.frequency.setValueAtTime(880, now);
-        tap.frequency.exponentialRampToValueAtTime(520, now + 0.035);
-        tapGain.gain.setValueAtTime(0.0001, now);
-        tapGain.gain.linearRampToValueAtTime(DRAW_SFX_VOLUME * 0.28, now + 0.006);
-        tapGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
-        tap.connect(tapGain);
-        tapGain.connect(ctx.destination);
-        tap.start(now);
-        tap.stop(now + 0.06);
-      }
+      el.pause();
+      el.currentTime = 0;
+      el.volume = CLEAR_SFX_VOLUME;
+      var play = el.play();
+      if (play && play.catch) play.catch(function () {});
     } catch (e) {}
   }
 
@@ -1312,7 +1273,6 @@ window.CatchMind = (function () {
       notifyCanvasLimit();
       return;
     }
-    playDrawSfx(selectedTool);
     sendCurrentStroke(true);
   }
 
@@ -1482,6 +1442,7 @@ window.CatchMind = (function () {
     } else if (type === "cm_clear") {
       if (!state.strokes.length) return;
       state.strokes = [];
+      playClearSfx();
     } else return;
     canvasLimitNotified = false;
     state.drawSeq++;
