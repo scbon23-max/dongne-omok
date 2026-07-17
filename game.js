@@ -3491,6 +3491,9 @@
   var AI_NICK = "AI";
   var AI_THINK_DELAY_MS = 1000;
   var AI_MOVE_DEADLINE_MARGIN_MS = 900;
+  var PRO_DEPTH_30_SECONDS = 15;
+  var PRO_DEPTH_60_SECONDS = 17;
+  var PRO_DEPTH_120_SECONDS = 19;
   var PRO_UNLIMITED_DEPTH = 21;
   var aiThinkSeq = 0;
   var aiWorker = null;
@@ -3813,7 +3816,7 @@
     if (!window.Worker) return null;
     try {
       aiWorker = new Worker(kind === "rapfi"
-        ? "rapfi-worker.js?v=rapfi-3aedf3a-pv-v1-20260717"
+        ? "rapfi-worker.js?v=rapfi-3aedf3a-depth-v1-20260717"
         : "omok-ai-worker.js?v=ai-hard-liveness-v1-20260717");
       aiWorkerKind = kind;
     } catch (e) {
@@ -3883,11 +3886,18 @@
     }
     return emergencyAiMove(board, color);
   }
+  function proSearchDepth() {
+    if (!G.timerSec) return PRO_UNLIMITED_DEPTH;
+    if (G.timerSec >= 120) return PRO_DEPTH_120_SECONDS;
+    if (G.timerSec >= 60) return PRO_DEPTH_60_SECONDS;
+    return PRO_DEPTH_30_SECONDS;
+  }
   function rapfiSearchOptions() {
     return {
       timerSec: G.timerSec || 0,
       deadlineMs: G.moveDeadline || 0,
-      maxDepth: PRO_UNLIMITED_DEPTH
+      maxDepth: proSearchDepth(),
+      depthTarget: true
     };
   }
   function rapfiHintSearchOptions() {
@@ -3946,7 +3956,7 @@
     toast(nm + "와 대국 — 당신은 " + (humanColor === "white" ? "백(후공)" : "흑(선공)"));
     if (level === "god") {
       var timerLabel = !G.timerSec ? "무한" : G.timerSec === 60 ? "1분" : G.timerSec === 120 ? "2분" : G.timerSec + "초";
-      addChatTo("omok", "__sys", "프로는 30초→1분→2분 순으로 시간이 길수록 더 깊게 분석해 난이도가 올라갑니다. 무한은 깊이 21 완주 방식입니다. 현재 설정: " + timerLabel);
+      addChatTo("omok", "__sys", "프로는 설정 시간이 길수록 목표 분석 깊이가 올라갑니다. 30초는 깊이 15, 1분은 17, 2분은 19, 무한은 21이며 목표 깊이를 완주하면 바로 둡니다. 현재 설정: " + timerLabel);
     }
   }
   function startAiGame(level) {

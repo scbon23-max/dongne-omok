@@ -150,17 +150,33 @@ test("Rapfi download status reports bundle progress through engine initializatio
   assert.equal(messages[1].totalBytes, 21098292);
 });
 
-test("timed searches use the current deadline and unlimited searches end on depth", () => {
+test("timed searches can stop on a completed target depth before their deadline", () => {
   const commands = [];
   const module = { sendCommand(command) { commands.push(command); } };
   const budget = context.configureSearch(module, {
     timerSec: 30,
-    deadlineMs: Date.now() + 30000
+    deadlineMs: Date.now() + 30000,
+    maxDepth: 15,
+    depthTarget: true
   });
   assert.ok(budget >= 28000 && budget <= 28900);
   assert.deepEqual(commands.slice(0, 4), [
-    "INFO max_depth 99",
+    "INFO max_depth 15",
     "INFO timeout_turn " + budget,
+    "INFO timeout_match 0",
+    "INFO time_left 2147483647"
+  ]);
+
+  commands.length = 0;
+  const hintBudget = context.configureSearch(module, {
+    timerSec: 30,
+    deadlineMs: Date.now() + 5000,
+    maxDepth: 12
+  });
+  assert.ok(hintBudget >= 3800 && hintBudget <= 3900);
+  assert.deepEqual(commands.slice(0, 4), [
+    "INFO max_depth 99",
+    "INFO timeout_turn " + hintBudget,
     "INFO timeout_match 0",
     "INFO time_left 2147483647"
   ]);

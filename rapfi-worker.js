@@ -247,7 +247,10 @@ function configureSearch(module, options) {
   var deadline = Number(options.deadlineMs) || 0;
   if (deadline > 0 && Number(options.timerSec) > 0) {
     var budget = Math.max(250, Math.floor(deadline - Date.now() - 1200));
-    module.sendCommand("INFO max_depth 99");
+    var timedMaxDepth = options.depthTarget
+      ? Math.max(8, Math.min(21, Number(options.maxDepth) || 15))
+      : 99;
+    module.sendCommand("INFO max_depth " + timedMaxDepth);
     module.sendCommand("INFO timeout_turn " + budget);
     module.sendCommand("INFO timeout_match 0");
     module.sendCommand("INFO time_left 2147483647");
