@@ -20,9 +20,14 @@ function between(start, end) {
 
 test("Pro recommendation has no dedicated control and uses the AI seat", () => {
   assert.doesNotMatch(index, /pro-hint-(?:row|btn)/);
+  assert.doesNotMatch(index, /pro-hint-explain-modal/);
   assert.doesNotMatch(styles, /\.pro-hint-(?:row|btn)/);
   assert.match(game, /return me\.isAdmin === true && me\.nick === ADMIN;/);
   assert.doesNotMatch(game, /ensureProHintControl|updateProHintControl/);
+  assert.ok(
+    index.indexOf('{ src: "pro-hint-explain.js" }') < index.indexOf('{ src: "game.js" }'),
+    "the local explanation helper must load before game.js"
+  );
 
   const seatTap = between("function onSeatChipTap(color)", "function bind()");
   assert.match(seatTap, /G\.seats\[color\] === AI_NICK/);
@@ -44,11 +49,19 @@ test("Pro recommendation analysis stays local and evaluates the human side", () 
   assert.match(game, /proHintContext\.position === proHintPositionKey\(\)/);
 });
 
-test("only the admin's active Pro AI seat tap requests a recommendation", () => {
+test("Pro explanation is computed and displayed locally", () => {
+  const explanation = between("function hasCurrentProHint()", "function clearProHint");
+  assert.match(explanation, /if \(!isGunaAdmin\(\) \|\| !proHintSessionActive\(\) \|\| !hasCurrentProHint\(\)\) return;/);
+  assert.match(explanation, /window\.ProHintExplain\.explain\(G\.board/);
+  assert.match(explanation, /document\.createElement\("li"\)/);
+  assert.doesNotMatch(explanation, /Net\.send|broadcastState|addChatTo|Db\./);
+});
+
+test("only the admin's active Pro AI seat tap requests or explains a recommendation", () => {
   const seatTap = between("function onSeatChipTap(color)", "function bind()");
 
-  function run(admin, active) {
-    const calls = { hint: 0, seat: 0 };
+  function run(admin, active, hasHint) {
+    const calls = { hint: 0, explanation: 0, seat: 0 };
     const context = {
       G: { seats: { black: "구나", white: "AI" }, started: true, over: false },
       AI_NICK: "AI",
@@ -56,7 +69,9 @@ test("only the admin's active Pro AI seat tap requests a recommendation", () => 
       netMode: true,
       isGunaAdmin: () => admin,
       proHintSessionActive: () => active,
+      hasCurrentProHint: () => hasHint,
       requestProHint: () => { calls.hint++; },
+      showProHintExplanation: () => { calls.explanation++; },
       requestSeat: () => { calls.seat++; },
       $: () => ({ classList: { remove() {} } })
     };
@@ -65,9 +80,10 @@ test("only the admin's active Pro AI seat tap requests a recommendation", () => 
     return calls;
   }
 
-  assert.deepEqual(run(true, true), { hint: 1, seat: 0 });
-  assert.deepEqual(run(false, true), { hint: 0, seat: 0 });
-  assert.deepEqual(run(true, false), { hint: 0, seat: 0 });
+  assert.deepEqual(run(true, true, false), { hint: 1, explanation: 0, seat: 0 });
+  assert.deepEqual(run(true, true, true), { hint: 0, explanation: 1, seat: 0 });
+  assert.deepEqual(run(false, true, true), { hint: 0, explanation: 0, seat: 0 });
+  assert.deepEqual(run(true, false, true), { hint: 0, explanation: 0, seat: 0 });
 });
 
 test("Pro download progress remains separate from timed toasts until ready", () => {

@@ -2810,8 +2810,7 @@
     // Shadows are painted first so every neighboring stone remains above them.
     for (var sr = 0; sr < SIZE; sr++) for (var sc = 0; sc < SIZE; sc++) if (board[sr][sc]) drawStoneShadow(px(sc), px(sr), board[sr][sc]);
     for (var r = 0; r < SIZE; r++) for (var c = 0; c < SIZE; c++) if (board[r][c]) drawStone(px(c), px(r), board[r][c]);
-    if (!instantReplay && proHint && proHintContext && proHintContext.position === proHintPositionKey() &&
-        board[proHint.r] && board[proHint.r][proHint.c] === 0) {
+    if (!instantReplay && hasCurrentProHint()) {
       var hintX = px(proHint.c), hintY = px(proHint.r);
       ctx.save();
       ctx.fillStyle = "rgba(47,184,158,.22)";
@@ -3355,6 +3354,71 @@
     return proHintSessionActive() && !G.paused && G.turn !== omokAI.color &&
       G.seats[colorName(G.turn)] === me.nick;
   }
+  function hasCurrentProHint() {
+    return !!(proHint && proHintContext &&
+      proHintContext.position === proHintPositionKey() &&
+      proHintContext.color === G.turn &&
+      G.board[proHint.r] && G.board[proHint.r][proHint.c] === 0);
+  }
+  function hideProHintExplanation() {
+    var overlay = $("pro-hint-explain-modal");
+    if (overlay) overlay.classList.add("hidden");
+  }
+  function ensureProHintExplanation() {
+    if (!isGunaAdmin()) return null;
+    var overlay = $("pro-hint-explain-modal");
+    if (overlay) return overlay;
+    overlay = document.createElement("div");
+    overlay.id = "pro-hint-explain-modal";
+    overlay.className = "modal-overlay hidden";
+    overlay.innerHTML = '<div class="modal pro-hint-explain-modal" role="dialog" aria-modal="true" aria-labelledby="pro-hint-explain-title">'
+      + '<div class="modal-head pro-hint-explain-head"><div><p class="pro-hint-explain-kicker">프로 추천 해설</p>'
+      + '<h2 id="pro-hint-explain-title">이 자리를 두는 이유</h2></div>'
+      + '<button class="modal-close" type="button" data-pro-hint-explain-close aria-label="닫기">✕</button></div>'
+      + '<p id="pro-hint-explain-position" class="pro-hint-explain-position"></p>'
+      + '<p id="pro-hint-explain-summary" class="pro-hint-explain-summary"></p>'
+      + '<ul id="pro-hint-explain-reasons" class="pro-hint-explain-reasons"></ul>'
+      + '<p class="pro-hint-explain-note">추천수가 만드는 실제 위협과 차단 효과를 현재 판에서 다시 계산한 해설입니다.</p>'
+      + '<button class="btn-primary modal-ok" type="button" data-pro-hint-explain-close>닫기</button></div>';
+    overlay.addEventListener("click", function (event) {
+      if (event.target === overlay ||
+          (event.target.closest && event.target.closest("[data-pro-hint-explain-close]"))) {
+        hideProHintExplanation();
+      }
+    });
+    overlay.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") hideProHintExplanation();
+    });
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+  function showProHintExplanation() {
+    if (!isGunaAdmin() || !proHintSessionActive() || !hasCurrentProHint()) return;
+    if (!window.ProHintExplain || !window.ProHintExplain.explain) {
+      toast("프로 추천 해설을 불러오지 못했어요");
+      return;
+    }
+    var explanation = window.ProHintExplain.explain(G.board, proHint.r, proHint.c, proHintContext.color, Renju);
+    if (!explanation) {
+      toast("현재 판에서는 추천 이유를 계산하지 못했어요");
+      return;
+    }
+    var overlay = ensureProHintExplanation();
+    if (!overlay) return;
+    $("pro-hint-explain-position").textContent =
+      (proHintContext.color === BLACK ? "흑" : "백") + " 추천 · " + explanation.coordinate;
+    $("pro-hint-explain-summary").textContent = explanation.summary;
+    var list = $("pro-hint-explain-reasons");
+    list.innerHTML = "";
+    explanation.reasons.forEach(function (reason) {
+      var item = document.createElement("li");
+      item.textContent = reason;
+      list.appendChild(item);
+    });
+    overlay.classList.remove("hidden");
+    var close = overlay.querySelector(".modal-close");
+    if (close) close.focus();
+  }
   function clearProHint(terminateWorker) {
     proHintToken++;
     if (terminateWorker && proHintWorker) {
@@ -3365,6 +3429,7 @@
     proHintPending = false;
     proHint = null;
     proHintContext = null;
+    hideProHintExplanation();
   }
   function syncProHintState() {
     if (proHintContext && (proHintContext.position !== proHintPositionKey() || !proHintSessionActive())) {
@@ -3738,7 +3803,8 @@
   }
   function onSeatChipTap(color) {
     if (G.seats[color] === AI_NICK && isGunaAdmin() && proHintSessionActive()) {
-      requestProHint();
+      if (hasCurrentProHint()) showProHintExplanation();
+      else requestProHint();
       return;
     }
     if (!netMode) return;

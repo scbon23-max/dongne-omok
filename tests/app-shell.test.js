@@ -24,6 +24,7 @@ test("the app shell versions every local runtime asset from one build", () => {
     "sb.js",
     "db.js",
     "renju.js",
+    "pro-hint-explain.js",
     "omok-ai.js",
     "omok-ai-v2.js",
     "net.js",
@@ -77,9 +78,10 @@ test("the app shell loads local scripts sequentially with the same revision", ()
   assert.equal(styles[0].href, "styles.css?v=" + encodeURIComponent(version));
   assert.equal(scripts[0].src, "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2");
 
-  while (scripts.length < 13) scripts[scripts.length - 1].onload();
+  while (scripts.length < 14) scripts[scripts.length - 1].onload();
   assert.equal(scripts[1].src, "config.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[12].src, "game.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[5].src, "pro-hint-explain.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[13].src, "game.js?v=" + encodeURIComponent(version));
 });
 
 test("room entry is not blocked by an HTML and JavaScript build label mismatch", () => {
