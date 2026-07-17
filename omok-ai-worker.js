@@ -1,7 +1,7 @@
 "use strict";
 
 self.window = self;
-importScripts("renju.js", "omok-ai.js", "omok-ai-v2.js?v=ai-promoted-v1-20260716");
+importScripts("renju.js", "omok-ai.js", "omok-ai-v2.js?v=ai-hard-liveness-v1-20260717");
 
 self.onmessage = function (event) {
   var data = event.data || {};

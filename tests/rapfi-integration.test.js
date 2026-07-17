@@ -16,7 +16,9 @@ test("the Pro difficulty routes only its moves through Rapfi", () => {
   assert.match(styles, /\.lvbtn\.pro \{[^}]*grid-column: 1 \/ -1/);
   assert.match(game, /level === "god" \? "rapfi" : "classic"/);
   assert.match(game, /rapfi-worker\.js\?v=rapfi-3aedf3a-pro-v2-20260717/);
-  assert.match(game, /fallbackLevel = omokAI\.level === "god" \? "master"/);
+  assert.match(game, /if \(omokAI\.level === "god"\) \{[\s\S]*?omokAI\.level = "master";[\s\S]*?G\.aiLevel = "master";/);
+  assert.match(game, /finishWithFallback\(\)/);
+  assert.doesNotMatch(game, /OmokAI\.bestMove\(G\.board/);
   assert.match(game, /프로 AI 오류로 초고수로 전환했어요/);
   assert.match(game, /history: G\.history \|\| \[\]/);
   assert.match(game, /lv === "god" \? "프로"/);

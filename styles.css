@@ -189,9 +189,10 @@ body {
 .score-delta.up { color: var(--teal-light); }
 .score-delta.down { color: #FF8A8A; }
 .score-delta.same { color: #9fb2bd; }
-.win-actions { width: min(100%, 340px); display: flex; gap: 8px; flex-wrap: nowrap; justify-content: center; }
+.win-actions { width: min(100%, 340px); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .win-flag button { background: var(--orange); color: #fff; border: none; border-radius: 12px; padding: 11px 20px; font-size: 15px; font-weight: 800; }
-.win-actions button { flex: 1 1 0; min-width: 0; padding-left: 10px; padding-right: 10px; }
+.win-actions button { min-width: 0; padding-left: 10px; padding-right: 10px; }
+.win-actions #omok-again { grid-column: 1 / -1; }
 .win-flag button.review { background: var(--teal); color: var(--navy); }
 .win-flag button.secondary { background: var(--navy-2); color: #eaf2f6; }
 

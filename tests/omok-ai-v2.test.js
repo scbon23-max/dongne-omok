@@ -94,8 +94,7 @@ function sameBoard(a, b) {
   ]);
   var expectedRoutes = [
     ["easy", "medium"],
-    ["medium", "hard"],
-    ["hard", "master"]
+    ["medium", "hard"]
   ];
 
   expectedRoutes.forEach(function (route) {
@@ -103,6 +102,12 @@ function sameBoard(a, b) {
     assert.deepStrictEqual(OmokAI.bestMove(board, WHITE, route[0]), [7, 7]);
     assert.deepStrictEqual(legacyCalls, [route[1]]);
   });
+
+  legacyCalls.length = 0;
+  assert.deepStrictEqual(OmokAI.bestMove(board, WHITE, "hard", { maxDepth: 8 }), [7, 7]);
+  assert.deepStrictEqual(legacyCalls, []);
+  assert.ok(OmokAI.getLastStats());
+  assert.ok(OmokAI.getLastStats().depth <= 4);
 
   legacyCalls.length = 0;
   assert.deepStrictEqual(master(board, WHITE), [7, 7]);

@@ -18,6 +18,7 @@
     rev: 0,
     gameSeq: 0,
     history: [],
+    aiLevel: null,
     recorded: false,
     started: false,
     lastPlayers: null,
@@ -350,7 +351,7 @@
       summary = meta && meta.summary ? meta.summary : null;
       black = null; white = null;
     }
-    var aiLevel = (black === AI_NICK || white === AI_NICK) ? omokAI.level : null;
+    var aiLevel = (black === AI_NICK || white === AI_NICK) ? G.aiLevel : null;
     var shownBlack = (black === AI_NICK && aiLevel) ? aiLevelName(aiLevel) : black;
     var shownWhite = (white === AI_NICK && aiLevel) ? aiLevelName(aiLevel) : white;
     return { id: curRoomId, game: curRoomGame, name: curRoomTitle, host: me.nick, status: st, summary: summary, black: shownBlack || null, white: shownWhite || null, aiLevel: aiLevel, count: (netMode ? Math.max(displayRoster.length, roster.length, 1) : 1), ts: roomCreatedTs };
@@ -427,7 +428,7 @@
     cancelAiSearch();
     discardInstantReplay();
     G.board = Renju.emptyBoard(); G.turn = BLACK; G.lastMove = null; G.over = false; G.winner = 0; G.draw = false;
-    G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = [];
+    G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = []; G.aiLevel = null;
     G.recorded = false; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.winChatText = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
     A.seats = { black: null, white: null }; A.turn = "b"; A.started = false; A.over = false; A.winner = null;
     A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; A.winChatText = null; alkSolo = false; omokSolo = false; omokAI.on = false; aiPending = false;
@@ -1091,7 +1092,10 @@
     else if (ctrl && ctrl.render) ctrl.render();
     if (amHost && curRoomId) broadcastRoomOpen();
   }
-  function rosterHas(nick) { if (omokAI.on && nick === AI_NICK) return true; return roster.some(function (m) { return m.nick === nick; }); }
+  function rosterHas(nick) {
+    if (nick === AI_NICK && (G.seats.black === AI_NICK || G.seats.white === AI_NICK)) return true;
+    return roster.some(function (m) { return m.nick === nick; });
+  }
 
   function clearAllGrace() {
     ["black", "white"].forEach(function (col) {
@@ -1231,7 +1235,7 @@
       board: G.board, turn: G.turn, lastMove: G.lastMove, over: G.over, winner: G.winner, draw: G.draw,
       seats: G.seats, timerSec: G.timerSec, moveDeadline: G.moveDeadline,
       moveRemainMs: G.moveDeadline ? Math.max(0, G.moveDeadline - Date.now()) : null,
-      rev: G.rev, gameSeq: G.gameSeq, history: G.history,
+      rev: G.rev, gameSeq: G.gameSeq, history: G.history, aiLevel: G.aiLevel,
       started: G.started, lastPlayers: G.lastPlayers, resultAt: G.resultAt, resultInfo: G.resultInfo, winChatText: G.winChatText, manualPaused: G.manualPaused, paused: G.paused, pausedRemainMs: G.pausedRemainMs,
       drawAsk: G.drawAsk, drawAskDone: G.drawAskDone
     };
@@ -1241,6 +1245,9 @@
     if (!s || (typeof s.rev === "number" && s.rev < G.rev)) return;
     G.board = s.board; G.turn = s.turn; G.lastMove = s.lastMove;
     G.over = s.over; G.winner = s.winner; G.draw = !!s.draw; G.seats = s.seats;
+    var hasAiSeat = G.seats && (G.seats.black === AI_NICK || G.seats.white === AI_NICK);
+    G.aiLevel = hasAiSeat ? normalizeAiLevel(s.aiLevel) : null;
+    if (G.aiLevel) omokAI.level = G.aiLevel;
     G.timerSec = s.timerSec;
     G.moveDeadline = (typeof s.moveRemainMs === "number") ? (Date.now() + s.moveRemainMs) : s.moveDeadline;
     G.rev = s.rev || 0; G.gameSeq = s.gameSeq || 0;
@@ -1604,6 +1611,7 @@
     discardInstantReplay();
     clearProHint(true);
     omokAI.on = (G.seats.white === AI_NICK || G.seats.black === AI_NICK);
+    G.aiLevel = omokAI.on ? normalizeAiLevel(G.aiLevel || omokAI.level) : null;
     G.board = Renju.emptyBoard();
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
@@ -1623,6 +1631,7 @@
   function resetToWaiting() {
     cancelAiSearch();
     discardInstantReplay();
+    if (G.seats.black !== AI_NICK && G.seats.white !== AI_NICK) G.aiLevel = null;
     G.board = Renju.emptyBoard();
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
@@ -1885,7 +1894,8 @@
       if (netMode && !amHost) return;
       if (!G.started || G.over || G.paused || !G.timerSec || !G.moveDeadline) return;
       if (Date.now() >= G.moveDeadline) {
-        clearProHint(true);
+        if (omokAI.on && G.turn === omokAI.color) cancelAiSearch();
+        else clearProHint(true);
         G.turn = (G.turn === BLACK) ? WHITE : BLACK;
         G.moveDeadline = Date.now() + G.timerSec * 1000;
         G.rev++;
@@ -1995,7 +2005,7 @@
   }
   function chipNameHtml(nick, game) {
     if (!nick) return "탭해서 앉기";
-    if (nick === AI_NICK) return esc(aiLevelName(omokAI.level));
+    if (nick === AI_NICK) return esc(aiLevelName(G.aiLevel));
     var sc = scoreMap[game] && scoreMap[game][nick];
     return esc(nick) + (sc != null ? ' <span class="chip-score">' + sc + '</span>' : '');
   }
@@ -2122,7 +2132,7 @@
     if (G.seats.white === nick) G.seats.white = null;
     if (seat === "black") G.seats.black = nick;
     else if (seat === "white") G.seats.white = nick;
-    if (G.seats.black !== AI_NICK && G.seats.white !== AI_NICK) omokAI.on = false;
+    if (G.seats.black !== AI_NICK && G.seats.white !== AI_NICK) { omokAI.on = false; G.aiLevel = null; }
     hostAfterSeatChange(oldSeats, isAdminReq ? "admin" : "self");
   }
   function hostAfterSeatChange(oldSeats, cause) {
@@ -3316,9 +3326,11 @@
   var aiPending = false;
   var AI_NICK = "AI";
   var AI_THINK_DELAY_MS = 1000;
+  var AI_MOVE_DEADLINE_MARGIN_MS = 900;
   var aiThinkSeq = 0;
   var aiWorker = null;
   var aiWorkerKind = null;
+  var aiMoveGuardId = null;
   var proHint = null;
   var proHintPending = false;
   var proHintToken = 0;
@@ -3476,9 +3488,16 @@
       options: rapfiSearchOptions()
     });
   }
+  function clearAiMoveGuard() {
+    if (aiMoveGuardId != null) {
+      clearTimeout(aiMoveGuardId);
+      aiMoveGuardId = null;
+    }
+  }
   function cancelAiSearch() {
     aiThinkSeq++;
     aiPending = false;
+    clearAiMoveGuard();
     clearProHint(false);
     hideProLoadProgress();
     if (aiWorker) {
@@ -3499,7 +3518,7 @@
     try {
       aiWorker = new Worker(kind === "rapfi"
         ? "rapfi-worker.js?v=rapfi-3aedf3a-pro-v2-20260717"
-        : "omok-ai-worker.js?v=ai-promoted-v1-20260716");
+        : "omok-ai-worker.js?v=ai-hard-liveness-v1-20260717");
       aiWorkerKind = kind;
     } catch (e) {
       aiWorker = null;
@@ -3513,6 +3532,60 @@
     var options = { maxDepth: maxDepth };
     if (G.timerSec && remaining) options.softTimeMs = Math.max(500, remaining - 1200);
     return options;
+  }
+  function emergencyAiMove(board, color) {
+    var opponent = color === BLACK ? WHITE : BLACK;
+    var legalMoves = [];
+    var bestMove = null;
+    var bestScore = -Infinity;
+    for (var r = 0; r < SIZE; r++) {
+      for (var c = 0; c < SIZE; c++) {
+        if (board[r][c] !== 0) continue;
+        var result = Renju.checkMove(board, r, c, color);
+        if (!result.legal) continue;
+        if (result.win) return [r, c];
+        legalMoves.push([r, c]);
+      }
+    }
+    for (var i = 0; i < legalMoves.length; i++) {
+      var move = legalMoves[i];
+      var threat = Renju.checkMove(board, move[0], move[1], opponent);
+      if (threat.legal && threat.win) return move;
+    }
+    for (var j = 0; j < legalMoves.length; j++) {
+      var candidate = legalMoves[j];
+      var neighbors = 0;
+      for (var dr = -2; dr <= 2; dr++) {
+        for (var dc = -2; dc <= 2; dc++) {
+          if (!dr && !dc) continue;
+          var nr = candidate[0] + dr, nc = candidate[1] + dc;
+          if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] !== 0) {
+            neighbors += (Math.abs(dr) <= 1 && Math.abs(dc) <= 1) ? 3 : 1;
+          }
+        }
+      }
+      var centerDistance = Math.abs(candidate[0] - 7) + Math.abs(candidate[1] - 7);
+      var score = neighbors * 100 - centerDistance;
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = candidate;
+      }
+    }
+    return bestMove;
+  }
+  function fallbackAiMove(board, color) {
+    var move = null;
+    try {
+      if (window.OmokAI && window.OmokAI.bestMoveLegacy) {
+        var copy = board.map(function (row) { return row.slice(); });
+        move = window.OmokAI.bestMoveLegacy(copy, color, "hard");
+      }
+    } catch (e) {}
+    if (Array.isArray(move) && move.length === 2 &&
+        Renju.checkMove(board, move[0], move[1], color).legal) {
+      return move;
+    }
+    return emergencyAiMove(board, color);
   }
   function rapfiSearchOptions() {
     return {
@@ -3528,8 +3601,14 @@
       setTimeout(fn, 16);
     }
   }
-  function aiLevelName(lv) { return lv === "easy" ? "초보" : lv === "medium" ? "중수" : lv === "master" ? "초고수" : lv === "god" ? "프로" : "고수"; }
-  function seatDisplay(nick) { return nick === AI_NICK ? aiLevelName(omokAI.level) : nick; }
+  function normalizeAiLevel(level) {
+    return ["easy", "medium", "hard", "master", "god"].indexOf(level) >= 0 ? level : null;
+  }
+  function aiLevelName(lv) {
+    return lv === "easy" ? "초보" : lv === "medium" ? "중수" : lv === "hard" ? "고수" :
+      lv === "master" ? "초고수" : lv === "god" ? "프로" : "AI";
+  }
+  function seatDisplay(nick) { return nick === AI_NICK ? aiLevelName(G.aiLevel) : nick; }
   function aiHumanSeatColor(seats, nick) {
     if (!seats) return null;
     if (seats.black === nick) return "black";
@@ -3547,6 +3626,7 @@
   }
   function beginAiGameNow(level, humanColor, aiSeat) {
     omokSolo = false; omokAI.on = true; omokAI.level = level; aiPending = false;
+    G.aiLevel = normalizeAiLevel(level);
     omokAI.color = (aiSeat === "black") ? BLACK : WHITE;
     G.seats[aiSeat] = AI_NICK;
     beginGame(me.nick);
@@ -3623,6 +3703,7 @@
       function finish(mv) {
         if (finished) return;
         finished = true;
+        clearAiMoveGuard();
         var wait = Math.max(0, AI_THINK_DELAY_MS - (Date.now() - startedAt));
         if (wait > 0) setTimeout(function () { applyAiMove(mv); }, wait);
         else applyAiMove(mv);
@@ -3636,30 +3717,30 @@
         }
         if (mv) hostApplyMove(AI_NICK, mv[0], mv[1]);
       }
-      function runOnMainThread() {
-        try {
-          var fallbackLevel = omokAI.level === "god" ? "master" : omokAI.level;
-          finish(window.OmokAI.bestMove(G.board, omokAI.color, fallbackLevel, aiSearchOptions()));
-        } catch (e) {
-          finish(null);
-        }
+      function finishWithFallback() {
+        finish(fallbackAiMove(G.board, omokAI.color));
       }
       function isLegalMove(mv) {
         return Array.isArray(mv) && mv.length === 2 &&
           Renju.checkMove(G.board, mv[0], mv[1], omokAI.color).legal;
       }
       var worker = ensureAiWorker(omokAI.level);
-      if (!worker) { runOnMainThread(); return; }
+      if (!worker) { finishWithFallback(); return; }
       function handleWorkerFailure() {
+        if (finished) return;
         worker.terminate();
         if (aiWorker === worker) { aiWorker = null; aiWorkerKind = null; }
         if (omokAI.level === "god") {
           omokAI.level = "master";
+          G.aiLevel = "master";
           toast("프로 AI 오류로 초고수로 전환했어요");
+          G.rev++;
+          broadcastState();
           updateTurnUI();
           renderPresenceUI();
+          broadcastRoomOpen();
         }
-        runOnMainThread();
+        finishWithFallback();
       }
       worker.onmessage = function (event) {
         var data = event.data || {};
@@ -3671,6 +3752,19 @@
         finish(data.move);
       };
       worker.onerror = handleWorkerFailure;
+      if (omokAI.level !== "god" && G.timerSec && G.moveDeadline) {
+        var guardDelay = Math.max(0, G.moveDeadline - Date.now() - AI_MOVE_DEADLINE_MARGIN_MS);
+        clearAiMoveGuard();
+        aiMoveGuardId = setTimeout(function () {
+          aiMoveGuardId = null;
+          if (finished || token !== aiThinkSeq || !omokAI.on || G.over || !G.started ||
+              G.turn !== omokAI.color || G.gameSeq !== gameSeq ||
+              (G.history ? G.history.length : 0) !== hlen) return;
+          worker.terminate();
+          if (aiWorker === worker) { aiWorker = null; aiWorkerKind = null; }
+          finishWithFallback();
+        }, guardDelay);
+      }
       if (omokAI.level === "god") {
         worker.postMessage({
           type: "search",

@@ -21,6 +21,8 @@ function between(source, start, end) {
 test("the Omok result overlay offers an in-place replay control", () => {
   assert.match(index, /id="omok-again"[\s\S]*id="omok-instant-replay"[^>]*>복기<[\s\S]*id="omok-win-rank"/);
   assert.match(index, /id="instant-replay-controls"[\s\S]*id="instant-replay-first"[\s\S]*id="instant-replay-prev"[\s\S]*id="instant-replay-next"[\s\S]*id="instant-replay-last"[\s\S]*id="instant-replay-close"/);
+  assert.match(styles, /\.win-actions \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.win-actions #omok-again \{[^}]*grid-column: 1 \/ -1/);
   assert.match(styles, /\.instant-replay-actions \{[^}]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
 });
 

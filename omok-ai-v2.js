@@ -564,12 +564,28 @@
   var legacyBestMove = legacy.bestMove;
   var promotedLegacyLevel = {
     easy: "medium",
-    medium: "hard",
-    hard: "master"
+    medium: "hard"
   };
+
+  function hardSearchOptions(options) {
+    options = options || {};
+    var limited = {};
+    for (var key in options) {
+      if (options.hasOwnProperty(key)) limited[key] = options[key];
+    }
+    var requestedDepth = Number(limited.maxDepth);
+    limited.maxDepth = requestedDepth > 0
+      ? Math.max(2, Math.min(4, requestedDepth))
+      : 4;
+    return limited;
+  }
+
   global.OmokAI = {
-    version: "2.1",
+    version: "2.2",
     bestMove: function (board, color, level, options) {
+      if (level === "hard") {
+        return bestMoveMaster(board, color, hardSearchOptions(options));
+      }
       if (level !== "master") {
         lastStats = null;
         return legacyBestMove(board, color, promotedLegacyLevel[level] || "medium");
