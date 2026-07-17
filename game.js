@@ -3654,6 +3654,8 @@
     clearProHint(false);
     hideProLoadProgress();
     if (aiWorker) {
+      aiWorker.onmessage = null;
+      aiWorker.onerror = null;
       aiWorker.terminate();
       aiWorker = null;
       aiWorkerKind = null;
@@ -3880,7 +3882,7 @@
       var worker = ensureAiWorker(omokAI.level);
       if (!worker) { finishWithFallback(); return; }
       function handleWorkerFailure() {
-        if (finished) return;
+        if (finished || token !== aiThinkSeq) return;
         worker.terminate();
         if (aiWorker === worker) { aiWorker = null; aiWorkerKind = null; }
         if (omokAI.level === "god") {
@@ -3897,7 +3899,7 @@
       }
       worker.onmessage = function (event) {
         var data = event.data || {};
-        if (data.id !== token) return;
+        if (data.id !== token || token !== aiThinkSeq) return;
         if (data.error || !isLegalMove(data.move)) {
           handleWorkerFailure();
           return;

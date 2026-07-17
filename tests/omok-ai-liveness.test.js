@@ -170,3 +170,64 @@ test("a silent worker is terminated and replaced with a legal move at the turn d
   assert.equal(context.aiPending, false);
   assert.equal(context.aiWorker, null);
 });
+
+test("a cancelled Pro search cannot downgrade the current game from a late worker error", () => {
+  const tickSource = between(game, "function aiTick()", "function onCenterBtn");
+  const worker = {
+    terminated: false,
+    postMessage(message) { this.message = message; },
+    terminate() { this.terminated = true; }
+  };
+  const notices = [];
+  const context = {
+    G: {
+      board: Renju.emptyBoard(),
+      turn: Renju.WHITE,
+      over: false,
+      started: true,
+      timerSec: 30,
+      moveDeadline: 30000,
+      gameSeq: 9,
+      history: [],
+      aiLevel: "god",
+      rev: 1
+    },
+    omokAI: { on: true, level: "god", color: Renju.WHITE },
+    aiPending: false,
+    aiThinkSeq: 0,
+    aiWorker: worker,
+    aiWorkerKind: "rapfi",
+    aiMoveGuardId: null,
+    AI_THINK_DELAY_MS: 0,
+    AI_MOVE_DEADLINE_MARGIN_MS: 900,
+    Renju,
+    Date: { now: () => 1000 },
+    Math,
+    setTimeout(fn) { fn(); return 1; },
+    clearTimeout() {},
+    clearAiMoveGuard() {},
+    afterBoardPaint(fn) { fn(); },
+    fallbackAiMove() { return [7, 7]; },
+    ensureAiWorker() { return worker; },
+    aiSearchOptions() { return {}; },
+    rapfiSearchOptions() { return {}; },
+    hostApplyMove() {},
+    AI_NICK: "AI",
+    toast(message) { notices.push(message); },
+    broadcastState() {},
+    updateTurnUI() {},
+    renderPresenceUI() {},
+    broadcastRoomOpen() {}
+  };
+
+  vm.runInNewContext(`${tickSource}; this.runAiTick = aiTick;`, context);
+  context.runAiTick();
+  assert.equal(worker.message.type, "search");
+
+  context.aiThinkSeq++;
+  worker.onmessage({ data: { id: 1, move: null, error: "worker terminated" } });
+
+  assert.equal(context.omokAI.level, "god");
+  assert.equal(context.G.aiLevel, "god");
+  assert.deepEqual(notices, []);
+});
