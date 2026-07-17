@@ -23,6 +23,10 @@ window.CatchMind = (function () {
   var REACTION_USER_COOLDOWN_MS = 700;
   var REACTION_OUTPUT_GAP_MS = 180;
   var MAX_REACTION_QUEUE = 12;
+  var CATCH_BGM_SRC = "assets/catchmind-bgm.mp3";
+  var CATCH_BGM_VOLUME = 0.09;
+  var DRAW_SFX_VOLUME = 0.2;
+  var DRAW_SFX_COOLDOWN_MS = 85;
   var RECORD_STATUSES = ["idle", "pending", "saved", "failed", "skipped"];
   var SAVE_RETRY_DELAYS = [1000, 3000, 7000];
   var FALLBACK_WORDS = [
@@ -56,6 +60,11 @@ window.CatchMind = (function () {
   var reactionLastOutputAt = 0;
   var reactionLastBy = Object.create(null);
   var reactionScope = "";
+  var bgmEl = null;
+  var bgmPlayPending = false;
+  var sfxCtx = null;
+  var scratchBuffer = null;
+  var lastDrawSfxAt = 0;
   var lastStrokeSend = 0;
   var pendingStrokeTimer = null;
   var strokeSentCount = 0;
@@ -879,6 +888,117 @@ window.CatchMind = (function () {
     return true;
   }
 
+  function isSoundMuted() {
+    try { return localStorage.getItem("omok_mute") === "1"; }
+    catch (e) { return false; }
+  }
+
+  function ensureBgm() {
+    if (bgmEl) return bgmEl;
+    if (typeof document === "undefined" || !document.createElement) return null;
+    bgmEl = document.createElement("audio");
+    bgmEl.src = CATCH_BGM_SRC;
+    bgmEl.loop = true;
+    bgmEl.preload = "auto";
+    bgmEl.volume = CATCH_BGM_VOLUME;
+    bgmEl.setAttribute("playsinline", "");
+    bgmEl.setAttribute("webkit-playsinline", "");
+    bgmEl.style.display = "none";
+    if (document.body) document.body.appendChild(bgmEl);
+    return bgmEl;
+  }
+
+  function stopBgm(reset) {
+    bgmPlayPending = false;
+    if (!bgmEl) return;
+    try {
+      bgmEl.pause();
+      if (reset) bgmEl.currentTime = 0;
+    } catch (e) {}
+  }
+
+  function syncBgm() {
+    if (!api || isSoundMuted()) { stopBgm(false); return; }
+    var el = ensureBgm();
+    if (!el || !el.paused || bgmPlayPending) return;
+    bgmPlayPending = true;
+    el.volume = CATCH_BGM_VOLUME;
+    var play = el.play();
+    if (play && play.then) {
+      play.then(function () { bgmPlayPending = false; })
+        .catch(function () { bgmPlayPending = false; });
+    } else {
+      bgmPlayPending = false;
+    }
+  }
+
+  function ensureSfxContext() {
+    if (typeof window === "undefined") return null;
+    var AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) return null;
+    try {
+      if (!sfxCtx) sfxCtx = new AudioContextCtor();
+      if (sfxCtx.state === "suspended" && sfxCtx.resume) sfxCtx.resume();
+      return sfxCtx;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function getScratchBuffer(ctx) {
+    if (scratchBuffer && scratchBuffer.sampleRate === ctx.sampleRate) return scratchBuffer;
+    var length = Math.max(1, Math.floor(ctx.sampleRate * 0.12));
+    scratchBuffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    var data = scratchBuffer.getChannelData(0);
+    for (var i = 0; i < length; i++) {
+      var fade = Math.pow(1 - i / length, 2.2);
+      data[i] = (Math.random() * 2 - 1) * fade;
+    }
+    return scratchBuffer;
+  }
+
+  function playDrawSfx(tool) {
+    if (isSoundMuted()) return;
+    var nowMs = Date.now();
+    if (nowMs - lastDrawSfxAt < DRAW_SFX_COOLDOWN_MS) return;
+    lastDrawSfxAt = nowMs;
+    var ctx = ensureSfxContext();
+    if (!ctx) return;
+    try {
+      var now = ctx.currentTime;
+      var duration = tool === "eraser" ? 0.16 : 0.105;
+      var noise = ctx.createBufferSource();
+      var filter = ctx.createBiquadFilter();
+      var gain = ctx.createGain();
+      noise.buffer = getScratchBuffer(ctx);
+      filter.type = tool === "eraser" ? "bandpass" : "highpass";
+      filter.frequency.setValueAtTime(tool === "eraser" ? 720 : 1800, now);
+      filter.Q.value = tool === "eraser" ? 0.8 : 0.55;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(DRAW_SFX_VOLUME * (tool === "eraser" ? 0.7 : 1), now + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      noise.start(now);
+      noise.stop(now + duration);
+      if (tool !== "eraser") {
+        var tap = ctx.createOscillator();
+        var tapGain = ctx.createGain();
+        tap.type = "triangle";
+        tap.frequency.setValueAtTime(880, now);
+        tap.frequency.exponentialRampToValueAtTime(520, now + 0.035);
+        tapGain.gain.setValueAtTime(0.0001, now);
+        tapGain.gain.linearRampToValueAtTime(DRAW_SFX_VOLUME * 0.28, now + 0.006);
+        tapGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
+        tap.connect(tapGain);
+        tapGain.connect(ctx.destination);
+        tap.start(now);
+        tap.stop(now + 0.06);
+      }
+    } catch (e) {}
+  }
+
   function onPresence(_list, options) {
     if (!api) return;
     if (state.phase === "practice" && activePeople().length > 1) {
@@ -913,6 +1033,7 @@ window.CatchMind = (function () {
 
   function tick() {
     if (!api) return;
+    syncBgm();
     renderTimer();
     if (!api.isHost()) return;
     var now = Date.now();
@@ -1191,6 +1312,7 @@ window.CatchMind = (function () {
       notifyCanvasLimit();
       return;
     }
+    playDrawSfx(selectedTool);
     sendCurrentStroke(true);
   }
 
@@ -1472,9 +1594,11 @@ window.CatchMind = (function () {
     if (tickId) clearInterval(tickId);
     tickId = setInterval(tick, 250);
     render();
+    syncBgm();
   }
 
   function leave() {
+    stopBgm(true);
     if (tickId) { clearInterval(tickId); tickId = null; }
     if (pendingStrokeTimer) { clearTimeout(pendingStrokeTimer); pendingStrokeTimer = null; }
     clearSaveRetry();
