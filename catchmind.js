@@ -34,6 +34,8 @@ window.CatchMind = (function () {
   var CATCH_BGM_VOLUME = 0.09;
   var START_SFX_SRC = "assets/catchmind-start.mp3";
   var START_SFX_VOLUME = 1;
+  var COUNTDOWN_SFX_SRC = "assets/catchmind-countdown.wav";
+  var COUNTDOWN_SFX_VOLUME = 1;
   var CLEAR_SFX_SRC = "assets/catchmind-clear.mp3";
   var CLEAR_SFX_VOLUME = 1;
   var FINISH_SFX_SRC = "assets/catchmind-finish.wav";
@@ -76,6 +78,8 @@ window.CatchMind = (function () {
   var startSfxEl = null;
   var startSfxPlayPending = false;
   var lastStartSfxMatchId = null;
+  var countdownSfxEl = null;
+  var lastCountdownCue = "";
   var clearSfxEl = null;
   var finishSfxEl = null;
   var lastFinishSfxMatchId = null;
@@ -1338,9 +1342,61 @@ window.CatchMind = (function () {
     playStartSfx();
   }
 
+  function ensureCountdownSfx() {
+    if (countdownSfxEl) return countdownSfxEl;
+    if (typeof Audio === "undefined") return null;
+    try {
+      countdownSfxEl = new Audio(COUNTDOWN_SFX_SRC);
+      countdownSfxEl.preload = "auto";
+      countdownSfxEl.volume = COUNTDOWN_SFX_VOLUME;
+      countdownSfxEl.setAttribute("playsinline", "");
+      return countdownSfxEl;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function stopCountdownSfx() {
+    if (!countdownSfxEl) return;
+    try {
+      countdownSfxEl.pause();
+      countdownSfxEl.currentTime = 0;
+    } catch (e) {}
+  }
+
+  function playCountdownSfx() {
+    var el = ensureCountdownSfx();
+    if (!el) return;
+    try {
+      el.pause();
+      el.currentTime = 0;
+      el.volume = COUNTDOWN_SFX_VOLUME;
+      var play = el.play();
+      if (play && play.catch) play.catch(function () {});
+    } catch (e) {}
+  }
+
+  function syncCountdownSfx() {
+    if (!api || isSoundMuted()) {
+      lastCountdownCue = "";
+      stopCountdownSfx();
+      return;
+    }
+    if (state.phase !== "countdown" || state.pauseKind || !state.deadline) {
+      lastCountdownCue = "";
+      return;
+    }
+    var count = clamp(Math.ceil((state.deadline - Date.now()) / 1000), 1, 3);
+    var cue = [state.matchId || "", state.roundIndex, state.deadline, count].join(":");
+    if (cue === lastCountdownCue) return;
+    lastCountdownCue = cue;
+    playCountdownSfx();
+  }
+
   function syncAudio() {
     syncBgm();
     syncStartSfx();
+    syncCountdownSfx();
   }
 
   function ensureClearSfx() {
@@ -2455,6 +2511,9 @@ window.CatchMind = (function () {
     lastStartSfxMatchId = null;
     stopStartSfx(true);
     ensureStartSfx();
+    lastCountdownCue = "";
+    stopCountdownSfx();
+    ensureCountdownSfx();
     if (finishSfxEl) {
       try { finishSfxEl.pause(); finishSfxEl.currentTime = 0; } catch (e) {}
     }
@@ -2470,6 +2529,8 @@ window.CatchMind = (function () {
     stopBgm(true);
     stopStartSfx(true);
     lastStartSfxMatchId = null;
+    lastCountdownCue = "";
+    stopCountdownSfx();
     resetResultPopup();
     if (finishSfxEl) {
       try { finishSfxEl.pause(); finishSfxEl.currentTime = 0; } catch (e) {}
@@ -2628,6 +2689,8 @@ window.CatchMind = (function () {
         bgmVolume: CATCH_BGM_VOLUME,
         startSrc: START_SFX_SRC,
         startVolume: START_SFX_VOLUME,
+        countdownSrc: COUNTDOWN_SFX_SRC,
+        countdownVolume: COUNTDOWN_SFX_VOLUME,
         clearSrc: CLEAR_SFX_SRC,
         clearVolume: CLEAR_SFX_VOLUME
       },

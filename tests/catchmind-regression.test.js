@@ -26,6 +26,7 @@ function loadCatchMind(options) {
   };
   if (options.Audio) context.Audio = options.Audio;
   if (options.localStorage) context.localStorage = options.localStorage;
+  if (options.Date) context.Date = options.Date;
   vm.createContext(context);
   vm.runInContext(source, context, { filename: "catchmind.js" });
   return context.window.CatchMind._test;
@@ -261,6 +262,76 @@ test("waiting music yields to looping match music and resumes after play", async
   assert.equal(api.audioConfig.startVolume, 1);
   assert.equal(api.audioConfig.clearSrc, "assets/catchmind-clear.mp3");
   assert.equal(api.audioConfig.clearVolume, 1);
+});
+
+test("the countdown sound plays once for each visible 3 2 1 step", async () => {
+  function media(src) {
+    return {
+      src,
+      paused: true,
+      currentTime: 0,
+      volume: 0,
+      playCount: 0,
+      setAttribute() {},
+      play() {
+        this.paused = false;
+        this.playCount++;
+        return Promise.resolve();
+      },
+      pause() {
+        this.paused = true;
+      }
+    };
+  }
+
+  let now = 1000;
+  const tracks = Object.create(null);
+  function FakeAudio(src) {
+    tracks[src] = tracks[src] || media(src);
+    return tracks[src];
+  }
+  const api = loadCatchMind({
+    Audio: FakeAudio,
+    Date: { now() { return now; } },
+    localStorage: { getItem() { return "0"; } }
+  });
+  api.setApi({
+    isHost() { return false; },
+    host() { return "A"; },
+    me() { return { nick: "B", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }]; }
+  });
+
+  const state = api.freshState();
+  state.phase = "countdown";
+  state.matchId = "match-countdown";
+  state.roundIndex = 0;
+  state.deadline = 4000;
+  api.setState(state);
+
+  api.syncAudio();
+  await Promise.resolve();
+  const countdown = tracks["assets/catchmind-countdown.wav"];
+  assert.ok(countdown);
+  assert.equal(countdown.volume, 1);
+  assert.equal(countdown.playCount, 1);
+
+  api.syncAudio();
+  assert.equal(countdown.playCount, 1);
+  now = 2001;
+  api.syncAudio();
+  assert.equal(countdown.playCount, 2);
+  now = 3001;
+  api.syncAudio();
+  assert.equal(countdown.playCount, 3);
+  api.syncAudio();
+  assert.equal(countdown.playCount, 3);
+
+  state.pauseKind = "drawer";
+  api.syncAudio();
+  assert.equal(countdown.playCount, 3);
+  assert.equal(api.audioConfig.countdownSrc, "assets/catchmind-countdown.wav");
+  assert.equal(api.audioConfig.countdownVolume, 1);
 });
 
 test("canvas background fill syncs as a draw command", () => {

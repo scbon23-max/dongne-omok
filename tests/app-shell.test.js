@@ -118,6 +118,14 @@ test("CatchMind ships the balanced looping match audio asset", () => {
   assert.match(catchmind, /if \(!isMatchPlaying\(\)\) { stopStartSfx\(true\); return; }/);
 });
 
+test("CatchMind ships the per-second countdown sound asset", () => {
+  const asset = path.join(root, "assets", "catchmind-countdown.wav");
+  assert.equal(fs.existsSync(asset), true);
+  assert.ok(fs.statSync(asset).size > 50000);
+  assert.match(catchmind, /COUNTDOWN_SFX_SRC = "assets\/catchmind-countdown\.wav"/);
+  assert.match(catchmind, /var count = clamp\(Math\.ceil\(\(state\.deadline - Date\.now\(\)\) \/ 1000\), 1, 3\)/);
+});
+
 test("the Omok board uses a HiDPI backing store with logical input coordinates", () => {
   assert.match(game, /var BOARD_SIZE = 450/);
   assert.match(game, /Math\.min\(3, Number\(window\.devicePixelRatio\) \|\| 1\)/);
