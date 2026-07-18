@@ -139,6 +139,12 @@ test("CatchMind countdown ships its simple bright progress treatment", () => {
   assert.doesNotMatch(styles, /\.catch-stage\.countdown::before/);
 });
 
+test("CatchMind prevents iPad drawing gestures from selecting the page", () => {
+  assert.match(styles, /\.game-screen\.catch-screen,\s*\.game-screen\.catch-screen \*\s*\{[^}]*-webkit-user-select:\s*none;[^}]*user-select:\s*none;[^}]*-webkit-touch-callout:\s*none;/);
+  assert.match(styles, /\.game-screen\.catch-screen input,\s*\.game-screen\.catch-screen textarea\s*\{[^}]*-webkit-user-select:\s*text;[^}]*user-select:\s*text;/);
+  assert.match(styles, /#catch-board\s*\{[^}]*touch-action:\s*none;[^}]*-webkit-user-drag:\s*none;/);
+});
+
 test("room host election skips members who switched to spectating", () => {
   assert.match(game, /var eligible = list\.filter\(function \(member\) \{ return member\.hostEligible !== false; \}\)/);
   assert.match(game, /setHostEligible: function \(eligible\)[\s\S]{0,500}Net\.track\(myMetaObj\(null\)\)/);
