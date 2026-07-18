@@ -28,8 +28,8 @@ function loadDb(existingRows, selectError) {
 }
 
 const results = [
-  { nick: "A", points: 10, maxPoints: 10, correct: 1, drawCorrect: 0 },
-  { nick: "B", points: 3, maxPoints: 10, correct: 0, drawCorrect: 1 }
+  { nick: "A", score: 9, points: 10, maxPoints: 10, correct: 1, drawCorrect: 0 },
+  { nick: "B", score: 2, points: 3, maxPoints: 10, correct: 0, drawCorrect: 1 }
 ];
 
 test("catchmind retry inserts only missing player records", async () => {
@@ -39,7 +39,7 @@ test("catchmind retry inserts only missing player records", async () => {
   assert.equal(loaded.inserted.length, 1);
   assert.equal(loaded.inserted[0].length, 1);
   assert.equal(loaded.inserted[0][0].black, "B");
-  assert.match(loaded.inserted[0][0].white, /^cm:match-1:/);
+  assert.equal(loaded.inserted[0][0].white, "cm:match-1:3:10:0:1:2");
 });
 
 test("catchmind retry is a no-op when every player is already saved", async () => {
@@ -60,4 +60,13 @@ test("catchmind does not insert when duplicate lookup fails", async () => {
 
   assert.equal(loaded.inserted.length, 0);
   assert.equal(response.error, lookupError);
+});
+
+test("catchmind records without a match score remain backward compatible", async () => {
+  const loaded = loadDb([]);
+  await loaded.db.recordCatchmindMatch("match-old", [
+    { nick: "A", points: 10, maxPoints: 10, correct: 1, drawCorrect: 0 }
+  ]);
+
+  assert.equal(loaded.inserted[0][0].white, "cm:match-old:10:10:1:0:10");
 });

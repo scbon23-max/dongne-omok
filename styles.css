@@ -634,6 +634,20 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .rule-svg { width: 96px; height: 96px; flex-shrink: 0; }
 .rule-desc { font-size: 12.5px; line-height: 1.5; color: #444; }
 .rule-foot { font-size: 12.5px; color: #666; margin-top: 12px; text-align: center; }
+.cm-rules { color: #334b57; }
+.cm-rules .rule-intro { margin: 0; color: var(--navy); }
+.cm-rule-section { padding-top: 13px; margin-top: 13px; border-top: 1px solid #e3e9ec; }
+.cm-rule-section h3 { margin: 0 0 8px; color: var(--navy); font-size: 14px; font-weight: 800; }
+.cm-rule-section p { margin: 0; font-size: 12.5px; line-height: 1.65; }
+.cm-rule-list { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0 0 0 18px; }
+.cm-rule-list li { padding-left: 1px; color: #455e69; font-size: 12.5px; line-height: 1.55; }
+.cm-rule-score-table { width: 100%; margin-top: 10px; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.cm-rule-score-table th, .cm-rule-score-table td { padding: 7px 5px; border-bottom: 1px solid #e5eaed; text-align: center; }
+.cm-rule-score-table th { background: #edf3f5; color: #617984; font-size: 11px; font-weight: 700; }
+.cm-rule-score-table th:first-child, .cm-rule-score-table td:first-child { width: 44%; text-align: left; padding-left: 9px; }
+.cm-rule-score-table td b { color: var(--orange-dark); font-weight: 800; }
+.cm-rule-example { margin-top: 10px !important; padding: 8px 9px; border-left: 3px solid var(--orange); background: #f4f7f8; color: #39525e; }
+.cm-rule-muted { margin-top: 8px !important; color: #718791; }
 
 /* 설정 */
 .setting-group { margin-bottom: 18px; }

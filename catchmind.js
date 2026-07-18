@@ -4,6 +4,11 @@ window.CatchMind = (function () {
   var ROUND_MS = 90000;
   var ROUND_COUNTDOWN_MS = 3000;
   var DRAWER_GRACE_MS = 15000;
+  var GUESS_SCORE_MAX = 10;
+  var GUESS_SCORE_MIN = 5;
+  var GUESS_SCORE_STEP_MS = 15000;
+  var GUESS_RANK_POINTS = 10;
+  var DRAWER_RANK_POINTS = 3;
   var SECRET_RECOVERY_MS = 3000;
   var REVEAL_MS = 3000;
   var DRAW_SEND_MS = 60;
@@ -300,6 +305,17 @@ window.CatchMind = (function () {
     if (state.scores[nick] == null) state.scores[nick] = 0;
     if (!state.stats[nick]) state.stats[nick] = { points: 0, maxPoints: 0, correct: 0, drawCorrect: 0, fastestMs: null };
     return state.stats[nick];
+  }
+
+  function guessScoreForElapsed(elapsedMs) {
+    var elapsed = clamp(Number(elapsedMs) || 0, 0, ROUND_MS);
+    return clamp(GUESS_SCORE_MAX - Math.floor(elapsed / GUESS_SCORE_STEP_MS), GUESS_SCORE_MIN, GUESS_SCORE_MAX);
+  }
+
+  function drawerScoreForGuess(guessScore) {
+    if (guessScore >= 9) return 3;
+    if (guessScore >= 7) return 2;
+    return 1;
   }
 
   function snapshot() {
@@ -667,8 +683,8 @@ window.CatchMind = (function () {
     state.phase = "drawing";
     state.deadline = Date.now() + ROUND_MS;
     state.wordLength = Array.from(secretWord).length;
-    state.guessers.forEach(function (nick) { initStats(nick).maxPoints += 10; });
-    initStats(state.drawer).maxPoints += state.guessers.length * 3;
+    state.guessers.forEach(function (nick) { initStats(nick).maxPoints += GUESS_RANK_POINTS; });
+    initStats(state.drawer).maxPoints += state.guessers.length * DRAWER_RANK_POINTS;
     addFeed("", state.drawer + "님이 그림을 시작했어요", "system");
     state.rev++;
     broadcastState();
@@ -811,17 +827,20 @@ window.CatchMind = (function () {
     if (normalize(text) === normalize(secretWord)) {
       var guesserStats = initStats(nick);
       var elapsedMs = clamp(ROUND_MS - Math.max(0, state.deadline - now), 0, ROUND_MS);
+      var guessScore = guessScoreForElapsed(elapsedMs);
+      var drawerScore = drawerScoreForGuess(guessScore);
       state.correct[nick] = true;
-      state.scores[nick] = (state.scores[nick] || 0) + 10;
-      guesserStats.points += 10;
+      state.scores[nick] = (state.scores[nick] || 0) + guessScore;
+      // Season performance stays success-based so old and new match records remain comparable.
+      guesserStats.points += GUESS_RANK_POINTS;
       guesserStats.correct++;
       if (guesserStats.fastestMs == null || elapsedMs < guesserStats.fastestMs) guesserStats.fastestMs = elapsedMs;
       if (state.stats[state.drawer]) {
-        state.scores[state.drawer] = (state.scores[state.drawer] || 0) + 3;
-        state.stats[state.drawer].points += 3;
+        state.scores[state.drawer] = (state.scores[state.drawer] || 0) + drawerScore;
+        state.stats[state.drawer].points += DRAWER_RANK_POINTS;
         state.stats[state.drawer].drawCorrect++;
       }
-      addFeed("", nick + "님 정답! +10", "correct");
+      addFeed("", nick + "님 정답! +" + guessScore, "correct");
       commit();
       if (allGuessersCorrect()) hostEndRound("모두 맞혔어요");
     } else {
@@ -2677,15 +2696,43 @@ window.CatchMind = (function () {
   function rules() {
     return {
       title: "캐치마인드 규칙",
-      html: '<p class="rule-intro">한 사람씩 제시어를 보고 그림을 그리고, 나머지 사람은 제한시간 안에 정답을 맞힙니다.</p>'
-        + '<p class="rule-foot" style="text-align:left;line-height:1.8">'
-        + '· 차례가 되면 3초 뒤 시작하며, 한 사람씩 <b>90초</b> 동안 그림을 그립니다.<br>'
-        + '· 출제자가 연결을 잃으면 최대 15초 동안 게임이 멈추고, 돌아오면 이어서 진행합니다.<br>'
-        + '· 정답을 맞히면 <b>+10점</b>, 내 그림을 한 사람이 맞힐 때마다 출제자도 <b>+3점</b>을 얻습니다.<br>'
-        + '· 게임 중 참가자 채팅과 관전자 채팅은 분리되며, 정답자는 다음 턴 전까지 관전자 채팅에 합류합니다.<br>'
-        + '· 모두 맞히거나 시간이 끝나면 다음 사람 차례로 넘어갑니다.<br>'
-        + '· 한 바퀴가 끝나면 결과가 시즌 랭킹에 반영됩니다.<br>'
-        + '· 시즌 랭킹은 인원수 차이를 줄이기 위해 획득점수를 가능한 최대점수로 나눈 활약도를 사용합니다.</p>'
+      html: '<div class="cm-rules">'
+        + '<p class="rule-intro">한 사람씩 제시어를 보고 그림을 그려요. 나머지 참가자는 그림을 보고 정답을 맞히며, <b>게임이 끝났을 때 경기 점수가 가장 높은 사람이 1등</b>입니다.</p>'
+        + '<section class="cm-rule-section"><h3>1. 게임 진행</h3>'
+        + '<ul class="cm-rule-list">'
+        + '<li>내 차례가 되면 준비 화면에서 <b>3초</b>를 센 뒤 그림을 시작해요.</li>'
+        + '<li>그림을 그릴 수 있는 시간은 한 사람당 <b>90초</b>예요.</li>'
+        + '<li>참가자가 모두 맞히거나 90초가 지나면 다음 사람 차례로 넘어가요.</li>'
+        + '<li>모든 참가자가 한 번씩 그림을 그리면 게임이 끝나요.</li>'
+        + '</ul></section>'
+        + '<section class="cm-rule-section"><h3>2. 경기 점수</h3>'
+        + '<p>정답은 <b>빨리 맞힐수록 높은 점수</b>를 받아요. 출제자도 그림을 빨리 알아본 사람이 많을수록 더 높은 점수를 얻어요.</p>'
+        + '<table class="cm-rule-score-table" aria-label="캐치마인드 시간별 경기 점수">'
+        + '<thead><tr><th>정답한 시간</th><th>정답자</th><th>출제자</th></tr></thead>'
+        + '<tbody>'
+        + '<tr><td>0~14초</td><td><b>10점</b></td><td><b>3점</b></td></tr>'
+        + '<tr><td>15~29초</td><td><b>9점</b></td><td><b>3점</b></td></tr>'
+        + '<tr><td>30~44초</td><td><b>8점</b></td><td><b>2점</b></td></tr>'
+        + '<tr><td>45~59초</td><td><b>7점</b></td><td><b>2점</b></td></tr>'
+        + '<tr><td>60~74초</td><td><b>6점</b></td><td><b>1점</b></td></tr>'
+        + '<tr><td>75~90초</td><td><b>5점</b></td><td><b>1점</b></td></tr>'
+        + '</tbody></table>'
+        + '<p class="cm-rule-example"><b>예시</b> · 그림 시작 38초 뒤에 맞히면 정답자는 8점, 출제자는 2점을 받아요.</p>'
+        + '<p class="cm-rule-muted">틀린 답을 입력해도 점수는 깎이지 않아요.</p></section>'
+        + '<section class="cm-rule-section"><h3>3. 시즌 랭킹은 따로 계산해요</h3>'
+        + '<p><b>경기 점수</b>는 이번 게임의 승부를 정하고, <b>시즌 활약도</b>는 서로 다른 인원수의 게임도 공정하게 비교하기 위해 따로 계산해요.</p>'
+        + '<ul class="cm-rule-list">'
+        + '<li>정답에 성공하면 활약도 계산용 <b>10점</b>을 기록해요.</li>'
+        + '<li>내 그림을 한 사람이 맞힐 때마다 활약도 계산용 <b>3점</b>을 기록해요.</li>'
+        + '<li>기록한 점수를 이번 게임에서 얻을 수 있었던 최대점수로 나눈 값이 <b>활약도</b>예요.</li>'
+        + '</ul>'
+        + '<p class="cm-rule-muted">따라서 빠른 정답은 이번 경기의 승리에 유리하고, 시즌 랭킹은 꾸준히 정답을 맞히고 이해하기 좋은 그림을 그릴수록 유리해요.</p></section>'
+        + '<section class="cm-rule-section"><h3>4. 알아두기</h3>'
+        + '<ul class="cm-rule-list">'
+        + '<li>관전자는 정답을 입력할 수 없고 관전자끼리 채팅할 수 있어요.</li>'
+        + '<li>정답을 맞힌 참가자는 다음 턴 전까지 관전자 채팅에 함께 참여해요.</li>'
+        + '<li>출제자의 연결이 끊기면 게임이 최대 <b>15초</b> 멈춰요. 돌아오면 이어서 진행하고, 돌아오지 않으면 다음 차례로 넘어가요.</li>'
+        + '</ul></section></div>'
     };
   }
 
@@ -2733,6 +2780,9 @@ window.CatchMind = (function () {
       onPresence: onPresence,
       persistResults: persistResults,
       clearSaveRetry: clearSaveRetry,
+      guessScoreForElapsed: guessScoreForElapsed,
+      drawerScoreForGuess: drawerScoreForGuess,
+      rules: rules,
       snapshot: snapshot,
       participantNicks: participantNicks,
       desiredParticipantNicks: desiredParticipantNicks,

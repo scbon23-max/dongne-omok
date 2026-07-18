@@ -2413,8 +2413,8 @@
     var list = $("rank-info-list"); if (!list) return;
     if (shownRankGame() === "catchmind") {
       list.innerHTML = '<li>모두 <b>1000점</b>에서 시작해요.</li>'
-        + '<li>게임 안에서는 정답을 맞히면 <b>+10점</b>, 내 그림을 한 사람이 맞힐 때마다 <b>+3점</b>을 받아요.</li>'
-        + '<li>방 인원 차이를 줄이기 위해 <b>획득점수 ÷ 가능한 최대점수</b>인 활약도로 한 판의 성과를 계산해요.</li>'
+        + '<li>경기 점수는 정답 속도에 따라 <b>10점부터 5점</b>, 출제자는 정답자 한 명당 <b>3점부터 1점</b>을 받아요.</li>'
+        + '<li>시즌 랭킹은 속도 점수와 분리해 <b>정답·그림 성공점수 ÷ 가능한 최대점수</b>인 활약도로 한 판의 성과를 계산해요.</li>'
         + '<li>같이 플레이한 사람들의 활약도를 서로 비교해 레이팅이 오르거나 내려가요. 높은 점수의 상대보다 잘하면 더 많이 올라요.</li>'
         + '<li>이번 시즌에 <b>5회 이상</b> 참여하면 정식 순위에 올라가요. 5회가 안 되면 "배치 중"으로 표시돼요.</li>'
         + '<li>시즌은 <b>3개월마다</b> 새로 시작되고, 레이팅도 다시 1000점부터 시작해요.</li>';
@@ -2567,10 +2567,13 @@
     if (parts[0] !== "cm" || parts.length < 6) return null;
     var points = Number(parts[2]), maxPoints = Number(parts[3]);
     if (!isFinite(points) || !isFinite(maxPoints) || maxPoints <= 0) return null;
+    var score = Number(parts[6]);
+    if (!isFinite(score)) score = points;
     return {
       id: g.id,
       nick: g.black,
       matchId: parts[1],
+      score: Math.max(0, score),
       points: Math.max(0, points),
       maxPoints: maxPoints,
       correct: Math.max(0, Number(parts[4]) || 0),
@@ -2681,7 +2684,7 @@
     var virtualRows = clean.map(function (row) {
       return {
         black: row.nick,
-        white: ["cm", safeId, row.points, row.maxPoints, row.correct, row.drawCorrect].join(":"),
+        white: ["cm", safeId, row.points, row.maxPoints, row.correct, row.drawCorrect, row.score].join(":"),
         winner: "draw",
         game: "catchmind",
         created_at: resultIso
@@ -2809,7 +2812,7 @@
       records.forEach(function (row) {
         var performance = Math.min(100, Math.round(row.points / row.maxPoints * 100));
         html += '<div class="drow cm-detail-row"><span class="cm-rank-perf">활약도 ' + performance + '%</span>'
-          + '<span class="cm-rank-detail">' + row.points + '점 · 정답 ' + row.correct + ' · 그림 성공 ' + row.drawCorrect + '</span>'
+          + '<span class="cm-rank-detail">' + row.score + '점 · 정답 ' + row.correct + ' · 그림 성공 ' + row.drawCorrect + '</span>'
           + '<span class="d-date">' + fmtDate(row.createdAt) + '</span></div>';
       });
       html += '</div>';

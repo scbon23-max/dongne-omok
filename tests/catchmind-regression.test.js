@@ -1069,6 +1069,73 @@ test("a correct guess records the player's fastest real answer time", () => {
   assert.equal(api.formatHighlightSeconds(api.getState().stats.B.fastestMs), "5초");
 });
 
+test("match points reward speed in clear 15-second tiers", () => {
+  const api = loadCatchMind();
+
+  assert.equal(api.guessScoreForElapsed(0), 10);
+  assert.equal(api.guessScoreForElapsed(14999), 10);
+  assert.equal(api.guessScoreForElapsed(15000), 9);
+  assert.equal(api.guessScoreForElapsed(44999), 8);
+  assert.equal(api.guessScoreForElapsed(45000), 7);
+  assert.equal(api.guessScoreForElapsed(74999), 6);
+  assert.equal(api.guessScoreForElapsed(75000), 5);
+  assert.equal(api.guessScoreForElapsed(api.limits.roundMs), 5);
+  assert.equal(api.drawerScoreForGuess(10), 3);
+  assert.equal(api.drawerScoreForGuess(8), 2);
+  assert.equal(api.drawerScoreForGuess(5), 1);
+});
+
+test("rules explain match scoring and season performance separately", () => {
+  const content = loadCatchMind().rules();
+
+  assert.equal(content.title, "캐치마인드 규칙");
+  assert.match(content.html, /0~14초[\s\S]*10점[\s\S]*3점/);
+  assert.match(content.html, /75~90초[\s\S]*5점[\s\S]*1점/);
+  assert.match(content.html, /38초 뒤에 맞히면 정답자는 8점, 출제자는 2점/);
+  assert.match(content.html, /경기 점수[\s\S]*시즌 활약도/);
+  assert.match(content.html, /틀린 답을 입력해도 점수는 깎이지 않아요/);
+});
+
+test("speed affects match score without changing season performance points", () => {
+  const api = loadCatchMind();
+  const now = Date.now();
+  const state = api.freshState();
+  state.phase = "drawing";
+  state.matchId = "match-speed";
+  state.queue = ["A", "B", "C"];
+  state.drawer = "A";
+  state.guessers = ["B", "C"];
+  state.deadline = now + api.limits.roundMs - 50000;
+  state.scores = { A: 0, B: 0, C: 0 };
+  state.stats = {
+    A: { points: 0, maxPoints: 6, correct: 0, drawCorrect: 0, fastestMs: null },
+    B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0, fastestMs: null },
+    C: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0, fastestMs: null }
+  };
+  api.setState(state);
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }]; },
+    send() {},
+    roomChanged() {},
+    toast() {}
+  });
+  api.setSecretWord("사과");
+
+  api.hostGuess({ nick: "B", text: "사과", matchId: "match-speed", roundIndex: 0 });
+
+  const scored = api.getState();
+  assert.equal(scored.scores.B, 7);
+  assert.equal(scored.scores.A, 2);
+  assert.equal(scored.stats.B.points, 10);
+  assert.equal(scored.stats.A.points, 3);
+  assert.equal(scored.stats.B.correct, 1);
+  assert.equal(scored.stats.A.drawCorrect, 1);
+  assert.match(scored.feed.find(item => item.kind === "correct").text, /\+7$/);
+});
+
 test("finished matches open a reusable result popup with every player's rating change", async () => {
   const backdrop = fakeElement();
   backdrop.classList.add("hidden");
@@ -1583,7 +1650,8 @@ test("a returning guesser keeps the same game role without disturbing others", (
 
   assert.equal(api.getState().phase, "drawing");
   assert.equal(api.getState().correct.C, true);
-  assert.equal(api.getState().scores.C, 10);
+  assert.equal(api.getState().scores.C, 8);
+  assert.equal(api.getState().stats.C.points, 10);
 });
 
 test("spectator preferences produce the exact participant queue at match start", () => {

@@ -87,9 +87,11 @@ window.Db = (function () {
       var maxPoints = Math.max(1, Math.round(Number(r.maxPoints) || 1));
       var correct = Math.max(0, Math.round(Number(r.correct) || 0));
       var drawCorrect = Math.max(0, Math.round(Number(r.drawCorrect) || 0));
+      var rawScore = Number(r.score);
+      var score = isFinite(rawScore) ? Math.max(0, Math.round(rawScore)) : points;
       return {
         black: String(r.nick || "").slice(0, 40),
-        white: ["cm", safeId, points, maxPoints, correct, drawCorrect].join(":"),
+        white: ["cm", safeId, points, maxPoints, correct, drawCorrect, score].join(":"),
         winner: "draw",
         game: "catchmind"
       };

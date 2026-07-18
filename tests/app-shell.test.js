@@ -107,6 +107,8 @@ test("the CatchMind result dialog is wired to the shared season rating calculati
   assert.match(game, /resultSummary: function \(matchId, results\)/);
   assert.match(game, /function buildCatchmindResultSummary\(matchId, results\)/);
   assert.match(game, /aggregateCatchmind\(priorGames\.concat\(virtualRows\)\)/);
+  assert.match(game, /if \(!isFinite\(score\)\) score = points/);
+  assert.match(game, /row\.points, row\.maxPoints, row\.correct, row\.drawCorrect, row\.score/);
 });
 
 test("CatchMind ships the balanced looping match audio asset", () => {
