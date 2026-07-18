@@ -146,17 +146,20 @@
         }
       },
       sendChat: function (text) { sendChatText(activeFamily(), text); },
-      relayChat: function (nick, text) {
+      relayChat: function (nick, text, overlaySide) {
         nick = String(nick || "").slice(0, 40);
         text = String(text || "").trim().slice(0, 80);
         if (!nick || !text) return;
-        addChatTo("catchmind", nick, text, true);
+        overlaySide = overlaySide === "right" ? "right" : "";
+        addChatTo("catchmind", nick, text, true, overlaySide);
         if (netMode) {
-          Net.send({ t: "chat", game: "catchmind", nick: nick, text: text, relayBy: me.nick });
+          Net.send({ t: "chat", game: "catchmind", nick: nick, text: text, relayBy: me.nick, overlaySide: overlaySide });
           if (window.Db) Db.addChatMsg(chatRoomOf("catchmind"), nick, text);
         }
       },
-      showChat: function (nick, text) { addChatTo("catchmind", nick, text, true); },
+      showChat: function (nick, text, overlaySide) {
+        addChatTo("catchmind", nick, text, true, overlaySide === "right" ? "right" : "");
+      },
       toast: toast,
       openRank: function () { openRank(curRoomGame || curGame); },
       openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
@@ -1259,7 +1262,9 @@
       case "chat":
         var chatGame = gameFamily(msg.game || "omok"), chatCtrl = gameController(chatGame);
         if (msg.nick !== me.nick && msg.relayBy !== me.nick
-            && (!chatCtrl || !chatCtrl.canChat || chatCtrl.canChat(msg.nick))) addChatTo(chatGame, msg.nick, msg.text, true);
+            && (!chatCtrl || !chatCtrl.canChat || chatCtrl.canChat(msg.nick))) {
+          addChatTo(chatGame, msg.nick, msg.text, true, msg.overlaySide === "right" ? "right" : "");
+        }
         break;
       case "undo_req": if (msg.to === me.nick) showUndoModal(msg.from, msg.gseq, msg.hlen); break;
       case "undo_res":
@@ -3142,14 +3147,14 @@
     var nick = winner === "b" ? A.seats.black : A.seats.white;
     return (nick || (winner === "b" ? "흑" : "백")) + "님 승리!";
   }
-  function addChatTo(game, who, text, live) {
+  function addChatTo(game, who, text, live, overlaySide) {
     game = gameFamily(game);
     var log = $(gameUi(game).chatLogId);
     if (log) { log.appendChild(makeChatLine(who, text)); log.scrollTop = log.scrollHeight; }
     sessionChat.push({ game: game, who: who, text: text });
     if (sessionChat.length > 300) sessionChat.shift();
     if (live && who !== "__sys") {
-      pushOverlay(game, who, text);
+      pushOverlay(game, who, text, overlaySide);
       if (game !== activeFamily()) bumpUnread(game);
     }
   }
@@ -3159,12 +3164,13 @@
     });
     if (activeFamily() === "catchmind") pushOverlay("catchmind", "__sys", text);
   }
-  function pushOverlay(game, nick, text) {
+  function pushOverlay(game, nick, text, overlaySide) {
     var family = gameFamily(game);
     var ov = $(gameUi(family).chatOverlayId); if (!ov) return;
     var line = document.createElement("div");
     var isSystem = nick === "__sys";
-    line.className = "ov-line" + (isSystem ? " system" : "");
+    var isRight = family === "catchmind" && overlaySide === "right";
+    line.className = "ov-line" + (isSystem ? " system" : "") + (isRight ? " right" : "");
     line.innerHTML = isSystem ? esc(text) : '<span class="ov-nick" style="color:' + nickColor(nick) + '">' + esc(nick) + '</span>' + esc(text);
     ov.appendChild(line);
     var maxLines = family === "catchmind" ? 5 : 3;

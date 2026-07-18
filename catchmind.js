@@ -764,7 +764,7 @@ window.CatchMind = (function () {
       });
       return;
     }
-    if (api.relayChat) api.relayChat(nick, text);
+    if (api.relayChat) api.relayChat(nick, text, "right");
     if (nick !== me().nick) {
       api.send({
         t: "cm_chat_ack",
@@ -1154,7 +1154,7 @@ window.CatchMind = (function () {
     else if (msg.t === "cm_chat_ack") {
       if (api && api.showChat && msg.from === api.host() && msg.to === me().nick && msg.nick === me().nick
           && msg.matchId === state.matchId && msg.roundIndex === state.roundIndex) {
-        api.showChat(me().nick, safeText(msg.text, 40));
+        api.showChat(me().nick, safeText(msg.text, 40), "right");
       }
     }
     else if (msg.t === "cm_draw") applyDrawMessage(msg);

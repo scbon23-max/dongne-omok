@@ -609,7 +609,7 @@ test("spectators cannot submit the exact answer but can still chat", () => {
     me() { return { nick: "A", isAdmin: false }; },
     roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "S" }]; },
     send(message) { sent.push(message); },
-    relayChat(nick, text) { relayed.push({ nick, text }); },
+    relayChat(nick, text, overlaySide) { relayed.push({ nick, text, overlaySide }); },
     roomChanged() {},
     toast() {}
   });
@@ -630,8 +630,45 @@ test("spectators cannot submit the exact answer but can still chat", () => {
   assert.ok(sent.some(message => message.t === "cm_notice" && message.to === "S"));
 
   api.hostSpectatorInput({ nick: "S", text: "멋진 그림", matchId: "match-a", roundIndex: 0 });
-  assert.deepEqual(relayed, [{ nick: "S", text: "멋진 그림" }]);
+  assert.deepEqual(relayed, [{ nick: "S", text: "멋진 그림", overlaySide: "right" }]);
   assert.ok(sent.some(message => message.t === "cm_chat_ack" && message.to === "S"));
+});
+
+test("a spectator sees their acknowledged chat on the right overlay", () => {
+  const api = loadCatchMind();
+  const shown = [];
+  api.setApi({
+    isHost() { return false; },
+    host() { return "A"; },
+    me() { return { nick: "S", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "S" }]; },
+    send() {},
+    showChat(nick, text, overlaySide) { shown.push({ nick, text, overlaySide }); },
+    roomChanged() {},
+    toast() {}
+  });
+  api.applyState(baseSnapshot({
+    queue: ["A", "B"],
+    drawer: "A",
+    guessers: ["B"],
+    scores: { A: 0, B: 0 },
+    stats: {
+      A: { points: 0, maxPoints: 3, correct: 0, drawCorrect: 0 },
+      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+    }
+  }));
+
+  api.onMessage({
+    t: "cm_chat_ack",
+    from: "A",
+    to: "S",
+    nick: "S",
+    text: "멋진 그림",
+    matchId: "match-a",
+    roundIndex: 0
+  });
+
+  assert.deepEqual(shown, [{ nick: "S", text: "멋진 그림", overlaySide: "right" }]);
 });
 
 test("drawing widths distinguish normal pen, thick pen, and eraser", () => {
