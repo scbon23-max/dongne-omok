@@ -235,7 +235,7 @@ test("waiting music yields to looping match music and resumes after play", async
   api.syncAudio();
   await Promise.resolve();
   assert.equal(bgm.src, "assets/catchmind-bgm.mp3");
-  assert.equal(bgm.volume, 0.09);
+  assert.equal(bgm.volume, 0.04);
   assert.equal(bgm.playCount, 1);
 
   bgm.currentTime = 18;
@@ -289,7 +289,7 @@ test("waiting music yields to looping match music and resumes after play", async
   assert.equal(api.audioConfig.clearVolume, 1);
 });
 
-test("the countdown sound plays once for each visible 3 2 1 step", async () => {
+test("the countdown sound plays once for each visible 5 4 3 2 1 step", async () => {
   function media(src) {
     return {
       src,
@@ -331,7 +331,7 @@ test("the countdown sound plays once for each visible 3 2 1 step", async () => {
   state.phase = "countdown";
   state.matchId = "match-countdown";
   state.roundIndex = 0;
-  state.deadline = 4000;
+  state.deadline = 6000;
   api.setState(state);
 
   api.syncAudio();
@@ -349,12 +349,18 @@ test("the countdown sound plays once for each visible 3 2 1 step", async () => {
   now = 3001;
   api.syncAudio();
   assert.equal(countdown.playCount, 3);
+  now = 4001;
   api.syncAudio();
-  assert.equal(countdown.playCount, 3);
+  assert.equal(countdown.playCount, 4);
+  now = 5001;
+  api.syncAudio();
+  assert.equal(countdown.playCount, 5);
+  api.syncAudio();
+  assert.equal(countdown.playCount, 5);
 
   state.pauseKind = "drawer";
   api.syncAudio();
-  assert.equal(countdown.playCount, 3);
+  assert.equal(countdown.playCount, 5);
   assert.equal(api.audioConfig.countdownSrc, "assets/catchmind-countdown.wav");
   assert.equal(api.audioConfig.countdownVolume, 1);
 });
@@ -905,7 +911,7 @@ test("countdown stage uses the simple CatchMind progress design", () => {
   const actions = fakeElement();
   const start = fakeElement();
   const practice = fakeElement();
-  steps.children = [fakeElement(), fakeElement(), fakeElement()];
+  steps.children = [fakeElement(), fakeElement(), fakeElement(), fakeElement(), fakeElement()];
   kicker.classList.add("hidden");
   copy.classList.add("hidden");
   steps.classList.add("hidden");
@@ -931,7 +937,7 @@ test("countdown stage uses the simple CatchMind progress design", () => {
   state.queue = ["A", "B", "C"];
   state.drawer = "B";
   state.guessers = ["A", "C"];
-  state.deadline = 4000;
+  state.deadline = 6000;
   api.setState(state);
 
   api.renderStage();
@@ -943,7 +949,7 @@ test("countdown stage uses the simple CatchMind progress design", () => {
   assert.equal(steps.classList.contains("hidden"), false);
   assert.equal(kicker.textContent, "이번 출제자");
   assert.equal(title.textContent, "B님의 그림 차례");
-  assert.equal(sub.textContent, "3");
+  assert.equal(sub.textContent, "5");
   assert.equal(copy.textContent, "그림을 준비해주세요");
   assert.equal(steps.children[0].classList.contains("active"), true);
 
@@ -954,7 +960,41 @@ test("countdown stage uses the simple CatchMind progress design", () => {
   assert.equal(copy.textContent, "곧 그림이 시작돼요");
   assert.equal(steps.children[0].classList.contains("passed"), true);
   assert.equal(steps.children[1].classList.contains("passed"), true);
-  assert.equal(steps.children[2].classList.contains("active"), true);
+  assert.equal(steps.children[2].classList.contains("passed"), true);
+  assert.equal(steps.children[3].classList.contains("passed"), true);
+  assert.equal(steps.children[4].classList.contains("active"), true);
+});
+
+test("only the current drawer sees the word during the countdown", () => {
+  const word = fakeElement();
+  const api = loadCatchMind({ elements: { "catch-word": word } });
+  const sharedApi = {
+    isHost() { return true; },
+    host() { return "A"; },
+    roster() { return [{ nick: "A" }, { nick: "B" }]; },
+    send() {},
+    roomChanged() {}
+  };
+  const state = api.freshState();
+  state.phase = "countdown";
+  state.matchId = "match-preview";
+  state.queue = ["A", "B"];
+  state.drawer = "B";
+  state.guessers = ["A"];
+  api.setState(state);
+  api.setSecretWord("고양이");
+
+  api.setApi(Object.assign({}, sharedApi, {
+    me() { return { nick: "A", isAdmin: false }; }
+  }));
+  api.renderWord();
+  assert.equal(word.textContent, "준비 중");
+
+  api.setApi(Object.assign({}, sharedApi, {
+    me() { return { nick: "B", isAdmin: false }; }
+  }));
+  api.renderWord();
+  assert.equal(word.textContent, "고양이");
 });
 
 test("waiting and finished stages share the light CatchMind status hierarchy", () => {
@@ -1434,7 +1474,7 @@ test("prototype-like nicknames do not count as already correct", () => {
   assert.equal(api.allGuessersCorrect(), false);
 });
 
-test("a match uses a three-second ready phase and a ninety-second drawing phase", () => {
+test("a match uses a five-second ready phase, previews the word to the drawer, and draws for ninety seconds", () => {
   const api = loadCatchMind();
   const sent = [];
   api.setApi({
@@ -1451,14 +1491,18 @@ test("a match uses a three-second ready phase and a ninety-second drawing phase"
   api.hostStartMatch();
   assert.equal(api.getState().phase, "countdown");
   assert.ok(api.getState().deadline - beforeCountdown <= api.limits.countdownMs + 100);
-  assert.equal(sent.some(message => message.t === "cm_secret"), false);
+  assert.equal(api.limits.countdownMs, 5000);
+  const preview = sent.find(message => message.t === "cm_secret");
+  assert.ok(preview);
+  assert.equal(preview.to, "A");
+  assert.equal(Object.prototype.hasOwnProperty.call(api.snapshot(), "word"), false);
 
   const beforeDrawing = Date.now();
   api.hostBeginDrawing();
   assert.equal(api.getState().phase, "drawing");
   assert.ok(api.getState().deadline - beforeDrawing >= api.limits.roundMs - 100);
   assert.ok(api.getState().deadline - beforeDrawing <= api.limits.roundMs + 100);
-  assert.equal(sent.filter(message => message.t === "cm_secret").length, 1);
+  assert.equal(sent.filter(message => message.t === "cm_secret").length, 2);
 });
 
 test("the drawer gets a fifteen-second reconnect pause and resumes the same round", () => {

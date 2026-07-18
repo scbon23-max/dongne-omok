@@ -2,7 +2,7 @@ window.CatchMind = (function () {
   "use strict";
 
   var ROUND_MS = 90000;
-  var ROUND_COUNTDOWN_MS = 3000;
+  var ROUND_COUNTDOWN_MS = 5000;
   var DRAWER_GRACE_MS = 15000;
   var GUESS_SCORE_MAX = 10;
   var GUESS_SCORE_MIN = 5;
@@ -40,7 +40,7 @@ window.CatchMind = (function () {
   var GALLERY_PAGE_SIZE = 40;
   var GALLERY_FAVORITE_LIMIT = 20;
   var CATCH_BGM_SRC = "assets/catchmind-bgm.mp3";
-  var CATCH_BGM_VOLUME = 0.09;
+  var CATCH_BGM_VOLUME = 0.04;
   var START_SFX_SRC = "assets/catchmind-start.mp3";
   var START_SFX_VOLUME = 1;
   var COUNTDOWN_SFX_SRC = "assets/catchmind-countdown.wav";
@@ -678,11 +678,13 @@ window.CatchMind = (function () {
     addFeed("", state.drawer + "님이 그릴 차례예요", "system");
     state.rev++;
     broadcastState();
+    sendSecretToDrawer();
     render();
   }
 
   function sendSecretToDrawer() {
-    if (!api || !api.isHost() || state.phase !== "drawing" || !secretWord || !state.drawer) return;
+    if (!api || !api.isHost() || (state.phase !== "countdown" && state.phase !== "drawing")
+        || !secretWord || !state.drawer) return;
     api.send({
       t: "cm_secret",
       from: me().nick,
@@ -737,7 +739,7 @@ window.CatchMind = (function () {
     state.deadline = Date.now() + Math.max(250, remain);
     addFeed("", state.drawer + "님이 돌아와 게임을 이어가요", "system");
     commit();
-    if (state.phase === "drawing") sendSecretToDrawer();
+    if (state.phase === "countdown" || state.phase === "drawing") sendSecretToDrawer();
   }
 
   function hostRequestSecretRecovery() {
@@ -1247,7 +1249,8 @@ window.CatchMind = (function () {
       var helloNick = safeNick(msg.nick);
       if (api && api.isHost() && helloNick && helloNick !== me().nick && has(activeNicks(), helloNick)) {
         broadcastState();
-        if (state.phase === "drawing" && !state.pauseKind && secretWord && helloNick === state.drawer) {
+        if ((state.phase === "countdown" || state.phase === "drawing")
+            && !state.pauseKind && secretWord && helloNick === state.drawer) {
           api.send({
             t: "cm_secret",
             from: me().nick,
@@ -1467,7 +1470,7 @@ window.CatchMind = (function () {
       lastCountdownCue = "";
       return;
     }
-    var count = clamp(Math.ceil((state.deadline - Date.now()) / 1000), 1, 3);
+    var count = clamp(Math.ceil((state.deadline - Date.now()) / 1000), 1, Math.ceil(ROUND_COUNTDOWN_MS / 1000));
     var cue = [state.matchId || "", state.roundIndex, state.deadline, count].join(":");
     if (cue === lastCountdownCue) return;
     lastCountdownCue = cue;
@@ -1580,8 +1583,11 @@ window.CatchMind = (function () {
     if (isHost && becameHost && state.phase === "finished" && (!state.resultRatings || !state.resultRatings.length)) {
       resultLoadMatchId = null;
     }
-    if (isHost && state.phase === "drawing" && !state.pauseKind && has(activeNicks(), state.drawer)) {
+    if (isHost && (state.phase === "countdown" || state.phase === "drawing")
+        && !state.pauseKind && has(activeNicks(), state.drawer)) {
       sendSecretToDrawer();
+    }
+    if (isHost && state.phase === "drawing" && !state.pauseKind && has(activeNicks(), state.drawer)) {
       requestCanvasSync(false);
     }
     if (!isHost && (lostHost || stateHost !== api.host())) requestStateSync(true);
@@ -1953,6 +1959,7 @@ window.CatchMind = (function () {
   function renderWord() {
     var box = $("catch-word"); if (!box) return;
     if (state.phase === "practice") box.textContent = "연습모드";
+    else if (state.phase === "countdown") box.textContent = state.drawer === me().nick && secretWord ? secretWord : "준비 중";
     else if (state.phase === "drawing") box.textContent = state.drawer === me().nick && secretWord ? secretWord : maskWord(state.wordLength);
     else if (state.phase === "reveal") box.textContent = state.revealWord || "문제 취소";
     else if (state.phase === "finished") box.textContent = "게임 종료";
@@ -2059,14 +2066,15 @@ window.CatchMind = (function () {
       start.classList.add("hidden");
       practice.classList.add("hidden");
     } else if (state.phase === "countdown") {
-      var count = state.deadline ? clamp(Math.ceil((state.deadline - Date.now()) / 1000), 1, 3) : 1;
+      var countdownSeconds = Math.ceil(ROUND_COUNTDOWN_MS / 1000);
+      var count = state.deadline ? clamp(Math.ceil((state.deadline - Date.now()) / 1000), 1, countdownSeconds) : countdownSeconds;
       kicker.textContent = "이번 출제자";
       title.textContent = state.drawer + "님의 그림 차례";
       sub.textContent = count + "";
       sub.classList.remove("hidden");
       if (countdownCopy) countdownCopy.textContent = count === 1 ? "곧 그림이 시작돼요" : "그림을 준비해주세요";
       if (countdownSteps && countdownSteps.children) {
-        var activeStep = 3 - count;
+        var activeStep = countdownSeconds - count;
         for (var stepIndex = 0; stepIndex < countdownSteps.children.length; stepIndex++) {
           countdownSteps.children[stepIndex].classList.toggle("passed", stepIndex < activeStep);
           countdownSteps.children[stepIndex].classList.toggle("active", stepIndex === activeStep);
@@ -3092,6 +3100,7 @@ window.CatchMind = (function () {
       renderScores: renderScores,
       renderLobbyRoles: renderLobbyRoles,
       renderStage: renderStage,
+      renderWord: renderWord,
       renderFeed: renderFeed,
       renderControls: renderControls,
       renderChatOverlayPosition: renderChatOverlayPosition,

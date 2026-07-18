@@ -126,7 +126,8 @@ test("CatchMind ships the per-second countdown sound asset", () => {
   assert.equal(fs.existsSync(asset), true);
   assert.ok(fs.statSync(asset).size > 50000);
   assert.match(catchmind, /COUNTDOWN_SFX_SRC = "assets\/catchmind-countdown\.wav"/);
-  assert.match(catchmind, /var count = clamp\(Math\.ceil\(\(state\.deadline - Date\.now\(\)\) \/ 1000\), 1, 3\)/);
+  assert.match(catchmind, /ROUND_COUNTDOWN_MS = 5000/);
+  assert.match(catchmind, /var count = clamp\(Math\.ceil\(\(state\.deadline - Date\.now\(\)\) \/ 1000\), 1, Math\.ceil\(ROUND_COUNTDOWN_MS \/ 1000\)\)/);
 });
 
 test("CatchMind countdown ships its simple bright progress treatment", () => {
