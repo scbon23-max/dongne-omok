@@ -865,6 +865,39 @@ test("away members remain visible while active participant counts exclude them",
   assert.match(spectatorList.innerHTML, /자리비움/);
 });
 
+test("ready participants show a check in the waiting list", () => {
+  const roleBox = fakeElement();
+  const participantRow = fakeElement();
+  const spectatorRow = fakeElement();
+  const participantList = fakeElement();
+  const spectatorList = fakeElement();
+  const api = loadCatchMind({
+    elements: {
+      "catch-lobby-roles": roleBox,
+      "catch-lobby-participant-row": participantRow,
+      "catch-lobby-spectator-row": spectatorRow,
+      "catch-lobby-participants": participantList,
+      "catch-lobby-spectators": spectatorList,
+      "catch-lobby-participant-count": fakeElement(),
+      "catch-lobby-spectator-count": fakeElement()
+    }
+  });
+  api.setApi({
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "S" }]; }
+  });
+  const waiting = api.freshState();
+  waiting.ready = ["B"];
+  waiting.spectators = ["S"];
+  api.setState(waiting);
+
+  api.renderLobbyRoles();
+
+  assert.match(participantList.innerHTML, /<b>B<\/b>.*aria-label="레디">✓/);
+  assert.doesNotMatch(spectatorList.innerHTML, /aria-label="레디"/);
+});
+
 test("the player strip follows game order before spectators", () => {
   const strip = fakeElement();
   const api = loadCatchMind({

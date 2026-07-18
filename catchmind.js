@@ -2075,7 +2075,7 @@ window.CatchMind = (function () {
         var cls = "catch-lobby-name" + (spectator ? " spectator" : "") + mine + (away ? " away" : "");
         var awayBadge = away ? '<span class="catch-lobby-away">자리비움</span>' : "";
         var readyBadge = !spectator && !away && api && person.nick !== api.host() && has(state.ready || [], person.nick)
-          ? '<span class="catch-lobby-ready">레디</span>'
+          ? '<span class="catch-lobby-ready" title="레디" aria-label="레디">✓</span>'
           : "";
         return '<span class="' + cls + '"><b>' + esc(person.nick) + '</b>' + crown + readyBadge + awayBadge + '</span>';
       }).join("");
