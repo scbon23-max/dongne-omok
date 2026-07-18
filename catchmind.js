@@ -2074,10 +2074,8 @@ window.CatchMind = (function () {
     } else {
       kicker.textContent = "READY TO DRAW";
       title.textContent = "그릴 준비 됐나요?";
-      sub.textContent = participantCount
-        ? participantCount + "명의 참가자가 모였어요. 시작하면 첫 번째 제시어가 공개됩니다."
-        : "참가할 사람을 기다리고 있어요.";
-      sub.classList.remove("hidden");
+      sub.textContent = "";
+      sub.classList.add("hidden");
       if (hostReady && hostReadyText) {
         var hostNick = api && api.host ? api.host() : "";
         if (canPractice) hostReadyText.textContent = "혼자라면 연습모드로 그림을 테스트할 수 있어요";

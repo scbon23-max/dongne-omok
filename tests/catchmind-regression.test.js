@@ -937,7 +937,8 @@ test("waiting and finished stages share the light CatchMind status hierarchy", (
   assert.equal(kicker.classList.contains("hidden"), false);
   assert.equal(marks.classList.contains("hidden"), false);
   assert.equal(title.textContent, "그릴 준비 됐나요?");
-  assert.equal(sub.textContent, "1명의 참가자가 모였어요. 시작하면 첫 번째 제시어가 공개됩니다.");
+  assert.equal(sub.textContent, "");
+  assert.equal(sub.classList.contains("hidden"), true);
   assert.equal(hostReady.classList.contains("hidden"), false);
   assert.equal(hostReadyText.textContent, "혼자라면 연습모드로 그림을 테스트할 수 있어요");
   assert.equal(start.classList.contains("hidden"), true);
