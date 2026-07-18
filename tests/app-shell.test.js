@@ -9,6 +9,7 @@ const vm = require("node:vm");
 const root = path.join(__dirname, "..");
 const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
+const catchmind = fs.readFileSync(path.join(root, "catchmind.js"), "utf8");
 const inlineScripts = Array.from(index.matchAll(/<script>([\s\S]*?)<\/script>/g), (match) => match[1]);
 const shellSource = inlineScripts.find((source) => source.includes("window.AppShell ="));
 const loaderSource = inlineScripts.find((source) => source.includes("var files = ["));
@@ -105,6 +106,15 @@ test("the CatchMind result dialog is wired to the shared season rating calculati
   assert.match(game, /resultSummary: function \(matchId, results\)/);
   assert.match(game, /function buildCatchmindResultSummary\(matchId, results\)/);
   assert.match(game, /aggregateCatchmind\(priorGames\.concat\(virtualRows\)\)/);
+});
+
+test("CatchMind ships the balanced match-start audio asset", () => {
+  const asset = path.join(root, "assets", "catchmind-start.mp3");
+  assert.equal(fs.existsSync(asset), true);
+  assert.ok(fs.statSync(asset).size > 100000);
+  assert.match(catchmind, /START_SFX_SRC = "assets\/catchmind-start\.mp3"/);
+  assert.match(catchmind, /START_SFX_VOLUME = 1/);
+  assert.match(catchmind, /state\.phase === "countdown" && state\.roundIndex === 0/);
 });
 
 test("the Omok board uses a HiDPI backing store with logical input coordinates", () => {

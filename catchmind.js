@@ -32,8 +32,10 @@ window.CatchMind = (function () {
   var MAX_REACTION_QUEUE = 12;
   var CATCH_BGM_SRC = "assets/catchmind-bgm.mp3";
   var CATCH_BGM_VOLUME = 0.09;
+  var START_SFX_SRC = "assets/catchmind-start.mp3";
+  var START_SFX_VOLUME = 1;
   var CLEAR_SFX_SRC = "assets/catchmind-clear.mp3";
-  var CLEAR_SFX_VOLUME = 0.28;
+  var CLEAR_SFX_VOLUME = 1;
   var FINISH_SFX_SRC = "assets/catchmind-finish.wav";
   var FINISH_SFX_VOLUME = 0.38;
   var RECORD_STATUSES = ["idle", "pending", "saved", "failed", "skipped"];
@@ -71,6 +73,9 @@ window.CatchMind = (function () {
   var reactionScope = "";
   var bgmEl = null;
   var bgmPlayPending = false;
+  var startSfxEl = null;
+  var startSfxPlayPending = false;
+  var lastStartSfxMatchId = null;
   var clearSfxEl = null;
   var finishSfxEl = null;
   var lastFinishSfxMatchId = null;
@@ -1252,9 +1257,12 @@ window.CatchMind = (function () {
     } catch (e) {}
   }
 
+  function isMatchPlaying() {
+    return state.phase === "countdown" || state.phase === "drawing" || state.phase === "reveal";
+  }
+
   function syncBgm() {
-    var active = state.phase === "countdown" || state.phase === "drawing" || state.phase === "reveal";
-    if (!api || !active || isSoundMuted()) { stopBgm(false); return; }
+    if (!api || isMatchPlaying() || isSoundMuted()) { stopBgm(false); return; }
     var el = ensureBgm();
     if (!el || !el.paused || bgmPlayPending) return;
     bgmPlayPending = true;
@@ -1266,6 +1274,69 @@ window.CatchMind = (function () {
     } else {
       bgmPlayPending = false;
     }
+  }
+
+  function ensureStartSfx() {
+    if (startSfxEl) return startSfxEl;
+    if (typeof Audio === "undefined") return null;
+    try {
+      startSfxEl = new Audio(START_SFX_SRC);
+      startSfxEl.preload = "auto";
+      startSfxEl.volume = START_SFX_VOLUME;
+      startSfxEl.setAttribute("playsinline", "");
+      return startSfxEl;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function stopStartSfx(reset) {
+    startSfxPlayPending = false;
+    if (!startSfxEl) return;
+    try {
+      startSfxEl.pause();
+      if (reset) startSfxEl.currentTime = 0;
+    } catch (e) {}
+  }
+
+  function playStartSfx() {
+    var matchId = state.matchId;
+    if (!matchId || lastStartSfxMatchId === matchId || startSfxPlayPending) return;
+    lastStartSfxMatchId = matchId;
+    stopBgm(false);
+    if (isSoundMuted()) return;
+    var el = ensureStartSfx();
+    if (!el) return;
+    try {
+      el.pause();
+      el.currentTime = 0;
+      el.volume = START_SFX_VOLUME;
+      startSfxPlayPending = true;
+      var play = el.play();
+      if (play && play.then) {
+        play.then(function () { startSfxPlayPending = false; })
+          .catch(function () {
+            startSfxPlayPending = false;
+            if (lastStartSfxMatchId === matchId) lastStartSfxMatchId = null;
+          });
+      } else {
+        startSfxPlayPending = false;
+      }
+    } catch (e) {
+      startSfxPlayPending = false;
+      if (lastStartSfxMatchId === matchId) lastStartSfxMatchId = null;
+    }
+  }
+
+  function syncStartSfx() {
+    if (!api || isSoundMuted()) { stopStartSfx(false); return; }
+    if (!isMatchPlaying()) { stopStartSfx(true); return; }
+    if (state.phase === "countdown" && state.roundIndex === 0) playStartSfx();
+  }
+
+  function syncAudio() {
+    syncBgm();
+    syncStartSfx();
   }
 
   function ensureClearSfx() {
@@ -1313,6 +1384,7 @@ window.CatchMind = (function () {
     if (!state.matchId || lastFinishSfxMatchId === state.matchId) return;
     lastFinishSfxMatchId = state.matchId;
     stopBgm(false);
+    stopStartSfx(true);
     if (isSoundMuted()) return;
     var el = ensureFinishSfx();
     if (!el) return;
@@ -1378,7 +1450,7 @@ window.CatchMind = (function () {
 
   function tick() {
     if (!api) return;
-    syncBgm();
+    syncAudio();
     renderTimer();
     renderStage();
     if (!api.isHost()) return;
@@ -1929,7 +2001,7 @@ window.CatchMind = (function () {
 
   function render() {
     if (!api) return;
-    syncBgm();
+    syncAudio();
     syncReactionScope();
     renderHeader();
     renderScores();
@@ -2376,6 +2448,9 @@ window.CatchMind = (function () {
     lastSyncRequestAt = 0;
     lastCanvasRequestAt = 0;
     resetResultPopup();
+    lastStartSfxMatchId = null;
+    stopStartSfx(true);
+    ensureStartSfx();
     if (finishSfxEl) {
       try { finishSfxEl.pause(); finishSfxEl.currentTime = 0; } catch (e) {}
     }
@@ -2385,11 +2460,12 @@ window.CatchMind = (function () {
     if (tickId) clearInterval(tickId);
     tickId = setInterval(tick, 250);
     render();
-    syncBgm();
   }
 
   function leave() {
     stopBgm(true);
+    stopStartSfx(true);
+    lastStartSfxMatchId = null;
     resetResultPopup();
     if (finishSfxEl) {
       try { finishSfxEl.pause(); finishSfxEl.currentTime = 0; } catch (e) {}
@@ -2540,6 +2616,17 @@ window.CatchMind = (function () {
       syncResultPopup: syncResultPopup,
       openResultPopup: openResultPopup,
       closeResultPopup: closeResultPopup,
+      syncAudio: syncAudio,
+      stopBgm: stopBgm,
+      stopStartSfx: stopStartSfx,
+      audioConfig: {
+        bgmSrc: CATCH_BGM_SRC,
+        bgmVolume: CATCH_BGM_VOLUME,
+        startSrc: START_SFX_SRC,
+        startVolume: START_SFX_VOLUME,
+        clearSrc: CLEAR_SFX_SRC,
+        clearVolume: CLEAR_SFX_VOLUME
+      },
       paletteColors: PALETTE_COLORS.slice(),
       getState: function () { return state; },
       setState: function (next) { state = next; },

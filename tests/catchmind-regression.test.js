@@ -10,15 +10,22 @@ function loadCatchMind(options) {
   options = options || {};
   const source = fs.readFileSync(path.join(__dirname, "..", "catchmind.js"), "utf8");
   const elements = options.elements || {};
+  const document = Object.assign({
+    getElementById(id) { return elements[id] || null; },
+    querySelectorAll() { return []; }
+  }, options.document || {});
+  const windowObject = Object.assign({ __CATCHMIND_TEST__: true, CATCHMIND_WORDS: ["사과"] }, options.window || {});
   const context = {
-    window: { __CATCHMIND_TEST__: true, CATCHMIND_WORDS: ["사과"] },
-    document: { getElementById(id) { return elements[id] || null; }, querySelectorAll() { return []; } },
+    window: windowObject,
+    document,
     console,
     setTimeout: options.setTimeout || setTimeout,
     clearTimeout: options.clearTimeout || clearTimeout,
     setInterval,
     clearInterval
   };
+  if (options.Audio) context.Audio = options.Audio;
+  if (options.localStorage) context.localStorage = options.localStorage;
   vm.createContext(context);
   vm.runInContext(source, context, { filename: "catchmind.js" });
   return context.window.CatchMind._test;
@@ -144,6 +151,107 @@ test("the drawing palette has three diverse rows including white", () => {
   assert.equal(new Set(colors).size, 18);
   assert.equal(colors.includes("#ffffff"), true);
   assert.equal(colors.every(color => /^#[0-9a-f]{6}$/.test(color)), true);
+});
+
+test("waiting music pauses for one match-start sound and resumes after play", async () => {
+  function media(src) {
+    return {
+      src: src || "",
+      paused: true,
+      currentTime: 0,
+      volume: 0,
+      loop: false,
+      preload: "",
+      style: {},
+      playCount: 0,
+      pauseCount: 0,
+      setAttribute() {},
+      play() {
+        this.paused = false;
+        this.playCount++;
+        return Promise.resolve();
+      },
+      pause() {
+        this.paused = true;
+        this.pauseCount++;
+      }
+    };
+  }
+
+  const bgm = media();
+  const start = media();
+  const created = [];
+  function FakeAudio(src) {
+    start.src = src;
+    created.push(src);
+    return start;
+  }
+  const api = loadCatchMind({
+    Audio: FakeAudio,
+    localStorage: { getItem() { return "0"; } },
+    document: {
+      createElement(tag) {
+        assert.equal(tag, "audio");
+        return bgm;
+      },
+      body: { appendChild() {} }
+    }
+  });
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }]; }
+  });
+
+  const state = api.freshState();
+  api.setState(state);
+  api.syncAudio();
+  await Promise.resolve();
+  assert.equal(bgm.src, "assets/catchmind-bgm.mp3");
+  assert.equal(bgm.volume, 0.09);
+  assert.equal(bgm.playCount, 1);
+
+  bgm.currentTime = 18;
+  state.phase = "countdown";
+  state.matchId = "match-one";
+  state.roundIndex = 0;
+  api.syncAudio();
+  await Promise.resolve();
+  assert.equal(bgm.paused, true);
+  assert.equal(bgm.currentTime, 18);
+  assert.equal(created.length, 1);
+  assert.equal(start.src, "assets/catchmind-start.mp3");
+  assert.equal(start.volume, 1);
+  assert.equal(start.playCount, 1);
+
+  state.phase = "drawing";
+  api.syncAudio();
+  state.phase = "reveal";
+  api.syncAudio();
+  state.phase = "countdown";
+  state.roundIndex = 1;
+  api.syncAudio();
+  assert.equal(start.playCount, 1);
+  assert.equal(bgm.playCount, 1);
+
+  state.phase = "finished";
+  api.syncAudio();
+  await Promise.resolve();
+  assert.equal(start.paused, true);
+  assert.equal(start.currentTime, 0);
+  assert.equal(bgm.playCount, 2);
+  assert.equal(bgm.currentTime, 18);
+
+  state.phase = "countdown";
+  state.matchId = "match-two";
+  state.roundIndex = 0;
+  api.syncAudio();
+  await Promise.resolve();
+  assert.equal(start.playCount, 2);
+  assert.equal(api.audioConfig.startVolume, 1);
+  assert.equal(api.audioConfig.clearSrc, "assets/catchmind-clear.mp3");
+  assert.equal(api.audioConfig.clearVolume, 1);
 });
 
 test("canvas background fill syncs as a draw command", () => {
