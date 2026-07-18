@@ -35,6 +35,10 @@ window.CatchMind = (function () {
   var REACTION_USER_COOLDOWN_MS = 700;
   var REACTION_OUTPUT_GAP_MS = 180;
   var MAX_REACTION_QUEUE = 12;
+  var GALLERY_IMAGE_SIZE = 480;
+  var GALLERY_IMAGE_QUALITY = 0.72;
+  var GALLERY_PAGE_SIZE = 40;
+  var GALLERY_FAVORITE_LIMIT = 20;
   var CATCH_BGM_SRC = "assets/catchmind-bgm.mp3";
   var CATCH_BGM_VOLUME = 0.09;
   var START_SFX_SRC = "assets/catchmind-start.mp3";
@@ -104,6 +108,15 @@ window.CatchMind = (function () {
   var resultLoadToken = 0;
   var resultPopupShownMatchId = null;
   var lastChatViewScope = "";
+  var galleryMode = "recent";
+  var galleryRows = [];
+  var galleryOffset = 0;
+  var galleryHasMore = false;
+  var galleryFavoriteCount = 0;
+  var galleryLoading = false;
+  var galleryError = "";
+  var galleryRequestToken = 0;
+  var gallerySavedRounds = Object.create(null);
 
   function freshState() {
     return {
@@ -187,6 +200,14 @@ window.CatchMind = (function () {
     if (!has(state.queue, nick)) return "lounge";
     if ((state.phase === "drawing" || state.phase === "reveal") && state.correct[nick]) return "lounge";
     return "players";
+  }
+  function canViewChatGroup(nick, group) {
+    var ownGroup = chatGroupFor(nick);
+    return group === "all" || ownGroup === "all" || ownGroup === group
+      || (ownGroup === "lounge" && group === "players");
+  }
+  function chatOverlaySide(group) {
+    return state.phase === "countdown" || group === "lounge" ? "right" : "";
   }
   function normalize(value) { return String(value || "").toLowerCase().replace(/[\s\-_.!,?]/g, ""); }
   function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
@@ -775,6 +796,7 @@ window.CatchMind = (function () {
 
   function hostEndRound(reason) {
     if (!api || !api.isHost() || (state.phase !== "countdown" && state.phase !== "drawing")) return;
+    var galleryDraft = galleryDraftFromRound();
     state.phase = "reveal";
     state.deadline = null;
     state.nextAt = Date.now() + REVEAL_MS;
@@ -785,6 +807,7 @@ window.CatchMind = (function () {
     if (reason) addFeed("", reason, "system");
     if (secretWord) addFeed("", "정답은 " + secretWord, "answer");
     commit();
+    if (galleryDraft) saveGalleryDraft(galleryDraft);
   }
 
   function hostFinishMatch() {
@@ -869,9 +892,7 @@ window.CatchMind = (function () {
       });
       return;
     }
-    if (chatGroupFor(me().nick) === group && api.showChat) {
-      api.showChat(nick, text, group === "lounge" ? "right" : "");
-    }
+    if (canViewChatGroup(me().nick, group) && api.showChat) api.showChat(nick, text, chatOverlaySide(group));
     api.send({
       t: "cm_group_chat",
       from: me().nick,
@@ -888,8 +909,8 @@ window.CatchMind = (function () {
     if (msg.matchId !== state.matchId || msg.roundIndex !== state.roundIndex) return;
     var nick = safeNick(msg.nick), text = safeText(msg.text, 40).trim();
     var group = msg.group === "players" || msg.group === "lounge" ? msg.group : "";
-    if (!nick || !text || !group || chatGroupFor(me().nick) !== group) return;
-    if (api.showChat) api.showChat(nick, text, group === "lounge" ? "right" : "");
+    if (!nick || !text || !group || !canViewChatGroup(me().nick, group)) return;
+    if (api.showChat) api.showChat(nick, text, chatOverlaySide(group));
   }
 
   function hostSetSpectatorPreference(nick, spectating) {
@@ -1940,9 +1961,8 @@ window.CatchMind = (function () {
 
   function renderFeed() {
     var box = $("catch-feed"); if (!box) return;
-    var group = chatGroupFor(me().nick);
     var visible = state.feed.filter(function (item) {
-      return group === "all" || item.channel === "all" || item.channel === group;
+      return canViewChatGroup(me().nick, item.channel);
     });
     box.innerHTML = visible.map(function (item, index) {
       var kind = FEED_KINDS.indexOf(item.kind) >= 0 ? item.kind : "guess";
@@ -2123,12 +2143,12 @@ window.CatchMind = (function () {
     var mine = me().nick;
     var group = chatGroupFor(mine);
     var scope = isGroupedChatPhase()
-      ? String(state.matchId || "") + ":" + state.roundIndex + ":" + group
+      ? String(state.matchId || "") + ":" + state.roundIndex + ":" + (state.phase === "countdown" ? "countdown" : group)
       : state.phase + ":all";
     if (lastChatViewScope && lastChatViewScope !== scope) overlay.innerHTML = "";
     lastChatViewScope = scope;
-    overlay.classList.toggle("hidden", state.phase === "countdown");
-    var right = state.phase === "idle" || state.phase === "finished" || group === "lounge";
+    overlay.classList.remove("hidden");
+    var right = state.phase === "countdown" || state.phase === "idle" || state.phase === "finished" || group === "lounge";
     overlay.classList.toggle("right", right);
   }
 
@@ -2172,24 +2192,30 @@ window.CatchMind = (function () {
     };
   }
 
-  function drawOne(stroke) {
-    if (!ctx || !stroke || !stroke.points || !stroke.points.length) return;
+  function drawStroke(targetCtx, width, height, stroke) {
+    if (!targetCtx || !stroke || !stroke.points || !stroke.points.length) return;
     var points = stroke.points;
-    ctx.strokeStyle = stroke.color;
-    ctx.fillStyle = stroke.color;
-    ctx.lineWidth = stroke.width;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+    var lineWidth = stroke.width * Math.min(width, height) / 720;
+    targetCtx.strokeStyle = stroke.color;
+    targetCtx.fillStyle = stroke.color;
+    targetCtx.lineWidth = lineWidth;
+    targetCtx.lineCap = "round";
+    targetCtx.lineJoin = "round";
     if (points.length === 1) {
-      ctx.beginPath();
-      ctx.arc(points[0].x * canvas.width, points[0].y * canvas.height, stroke.width / 2, 0, Math.PI * 2);
-      ctx.fill();
+      targetCtx.beginPath();
+      targetCtx.arc(points[0].x * width, points[0].y * height, lineWidth / 2, 0, Math.PI * 2);
+      targetCtx.fill();
       return;
     }
-    ctx.beginPath();
-    ctx.moveTo(points[0].x * canvas.width, points[0].y * canvas.height);
-    for (var i = 1; i < points.length; i++) ctx.lineTo(points[i].x * canvas.width, points[i].y * canvas.height);
-    ctx.stroke();
+    targetCtx.beginPath();
+    targetCtx.moveTo(points[0].x * width, points[0].y * height);
+    for (var i = 1; i < points.length; i++) targetCtx.lineTo(points[i].x * width, points[i].y * height);
+    targetCtx.stroke();
+  }
+
+  function drawOne(stroke) {
+    if (!ctx || !canvas) return;
+    drawStroke(ctx, canvas.width, canvas.height, stroke);
   }
 
   function redraw() {
@@ -2197,6 +2223,249 @@ window.CatchMind = (function () {
     ctx.fillStyle = state.canvasBg || CANVAS_BG;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     state.strokes.forEach(drawOne);
+  }
+
+  function galleryDraftFromRound() {
+    if (state.phase !== "drawing" || !secretWord || !state.matchId || !state.drawer) return null;
+    var strokes = sanitizeStrokes(state.strokes);
+    var background = safeColor(state.canvasBg) || CANVAS_BG;
+    if (!strokes.length && background === CANVAS_BG) return null;
+    return {
+      matchId: safeText(state.matchId, 80),
+      roundIndex: safeInteger(state.roundIndex, 0, MAX_PLAYERS - 1, 0),
+      drawer: safeNick(state.drawer),
+      word: safeText(secretWord, 10),
+      canvasBg: background,
+      strokes: strokes
+    };
+  }
+
+  function galleryBlob(draft) {
+    return new Promise(function (resolve, reject) {
+      if (!document.createElement) { reject(new Error("canvas unavailable")); return; }
+      var output = document.createElement("canvas");
+      output.width = GALLERY_IMAGE_SIZE;
+      output.height = GALLERY_IMAGE_SIZE;
+      var outputCtx = output.getContext && output.getContext("2d");
+      if (!outputCtx || !output.toBlob) { reject(new Error("image export unavailable")); return; }
+      outputCtx.fillStyle = draft.canvasBg || CANVAS_BG;
+      outputCtx.fillRect(0, 0, output.width, output.height);
+      draft.strokes.forEach(function (stroke) {
+        drawStroke(outputCtx, output.width, output.height, stroke);
+      });
+      output.toBlob(function (blob) {
+        if (blob) resolve(blob);
+        else reject(new Error("image export failed"));
+      }, "image/webp", GALLERY_IMAGE_QUALITY);
+    });
+  }
+
+  async function blobBase64(blob) {
+    var bytes = new Uint8Array(await blob.arrayBuffer());
+    var binary = "";
+    for (var i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+    }
+    return window.btoa(binary);
+  }
+
+  async function saveGalleryDraft(draft) {
+    if (!api || !api.saveDrawing || !draft) return;
+    var galleryApi = api;
+    var key = draft.matchId + ":" + draft.roundIndex;
+    if (gallerySavedRounds[key]) return;
+    gallerySavedRounds[key] = true;
+    try {
+      var blob = await galleryBlob(draft);
+      var result = await galleryApi.saveDrawing({
+        matchId: draft.matchId,
+        roundIndex: draft.roundIndex,
+        drawer: draft.drawer,
+        word: draft.word,
+        mimeType: blob.type || "image/webp",
+        byteSize: blob.size || 0,
+        imageBase64: await blobBase64(blob)
+      });
+      if (!result || !result.ok) throw new Error(result && (result.msg || result.reason) || "save failed");
+    } catch (error) {
+      delete gallerySavedRounds[key];
+      if (window.console && console.warn) console.warn("CatchMind gallery save failed:", error);
+    }
+  }
+
+  function galleryTime(value) {
+    var time = new Date(value || 0);
+    if (isNaN(time.getTime())) return "";
+    var now = new Date();
+    if (time.toDateString() === now.toDateString()) {
+      return String(time.getHours()).padStart(2, "0") + ":" + String(time.getMinutes()).padStart(2, "0");
+    }
+    return (time.getMonth() + 1) + "." + time.getDate();
+  }
+
+  function renderGallery() {
+    var grid = $("catch-gallery-grid");
+    var status = $("catch-gallery-status");
+    var more = $("catch-gallery-more");
+    var count = $("catch-gallery-favorite-count");
+    var recentTab = $("catch-gallery-recent-tab");
+    var favoriteTab = $("catch-gallery-favorite-tab");
+    if (!grid || !status) return;
+    if (count) count.textContent = galleryFavoriteCount + "/" + GALLERY_FAVORITE_LIMIT;
+    if (recentTab) {
+      recentTab.classList.toggle("active", galleryMode === "recent");
+      recentTab.setAttribute("aria-selected", String(galleryMode === "recent"));
+    }
+    if (favoriteTab) {
+      favoriteTab.classList.toggle("active", galleryMode === "favorites");
+      favoriteTab.setAttribute("aria-selected", String(galleryMode === "favorites"));
+    }
+    if (galleryLoading && !galleryRows.length) {
+      status.textContent = "그림을 불러오는 중이에요";
+      grid.innerHTML = "";
+    } else if (galleryError) {
+      status.textContent = galleryError;
+      grid.innerHTML = '<div class="cm-gallery-empty">갤러리를 열 수 없어요.<br>잠시 뒤 다시 시도해주세요.</div>';
+    } else {
+      status.textContent = galleryMode === "favorites"
+        ? "내가 저장한 그림 " + galleryFavoriteCount + "장"
+        : "최근 그림은 최대 1,000장까지 보관돼요";
+      grid.innerHTML = galleryRows.length ? galleryRows.map(function (row) {
+        var id = safeInteger(row.id, 1, 2147483647, 0);
+        var url = esc(row.imageUrl || "");
+        var word = esc(row.word || "제시어 없음");
+        var drawer = esc(row.drawer || "알 수 없음");
+        var favorite = !!row.favorite;
+        return '<article class="cm-gallery-item" data-gallery-row="' + id + '">'
+          + '<div class="cm-gallery-media">'
+          + '<button class="cm-gallery-thumb" type="button" data-gallery-open="' + id + '" aria-label="' + word + ' 그림 크게 보기">'
+          + '<img src="' + url + '" alt="' + word + ' 그림" loading="lazy"></button>'
+          + '<button class="cm-gallery-favorite' + (favorite ? ' active' : '') + '" type="button" data-gallery-favorite="' + id + '" aria-label="' + (favorite ? "즐겨찾기 해제" : "즐겨찾기") + '">' + (favorite ? "★" : "☆") + '</button>'
+          + '</div><div class="cm-gallery-copy"><strong>' + word + '</strong><span>' + drawer + ' · ' + esc(galleryTime(row.createdAt)) + '</span></div>'
+          + '</article>';
+      }).join("") : '<div class="cm-gallery-empty">' + (galleryMode === "favorites"
+        ? "즐겨찾기한 그림이 아직 없어요.<br>마음에 드는 그림의 별을 눌러보세요."
+        : "아직 저장된 그림이 없어요.<br>게임에서 완성한 그림이 여기에 모여요.") + '</div>';
+    }
+    if (more) {
+      more.classList.toggle("hidden", !galleryHasMore);
+      more.disabled = galleryLoading;
+      more.textContent = galleryLoading ? "불러오는 중…" : "더 보기";
+    }
+  }
+
+  async function loadGallery(reset) {
+    if (!api || !api.loadGallery || galleryLoading) return;
+    if (reset) {
+      galleryRows = [];
+      galleryOffset = 0;
+      galleryHasMore = false;
+      galleryError = "";
+    }
+    galleryLoading = true;
+    var token = ++galleryRequestToken;
+    renderGallery();
+    try {
+      var result = await api.loadGallery(galleryMode, galleryOffset, GALLERY_PAGE_SIZE);
+      if (token !== galleryRequestToken) return;
+      if (!result || !result.ok) throw new Error(result && (result.msg || result.reason) || "load failed");
+      var rows = Array.isArray(result.rows) ? result.rows : [];
+      galleryRows = reset ? rows : galleryRows.concat(rows);
+      galleryOffset = galleryRows.length;
+      galleryHasMore = !!result.hasMore;
+      galleryFavoriteCount = safeInteger(result.favoriteCount, 0, GALLERY_FAVORITE_LIMIT, 0);
+    } catch (error) {
+      if (token === galleryRequestToken) {
+        galleryRows = [];
+        galleryHasMore = false;
+        galleryError = "갤러리를 불러오지 못했어요. 잠시 뒤 다시 열어주세요.";
+      }
+    } finally {
+      if (token === galleryRequestToken) {
+        galleryLoading = false;
+        renderGallery();
+      }
+    }
+  }
+
+  function openGallery() {
+    var backdrop = $("catch-gallery-backdrop");
+    if (!backdrop) return;
+    closeGalleryPreview();
+    backdrop.classList.remove("hidden");
+    backdrop.setAttribute("aria-hidden", "false");
+    loadGallery(true);
+  }
+
+  function closeGallery() {
+    var backdrop = $("catch-gallery-backdrop");
+    if (!backdrop) return;
+    galleryRequestToken++;
+    galleryLoading = false;
+    backdrop.classList.add("hidden");
+    backdrop.setAttribute("aria-hidden", "true");
+    closeGalleryPreview();
+  }
+
+  function setGalleryMode(mode) {
+    mode = mode === "favorites" ? "favorites" : "recent";
+    if (galleryMode === mode && galleryRows.length) return;
+    galleryMode = mode;
+    loadGallery(true);
+  }
+
+  function galleryRow(id) {
+    id = Number(id);
+    for (var i = 0; i < galleryRows.length; i++) {
+      if (Number(galleryRows[i].id) === id) return galleryRows[i];
+    }
+    return null;
+  }
+
+  function openGalleryPreview(id) {
+    var row = galleryRow(id);
+    var preview = $("catch-gallery-preview");
+    if (!row || !preview) return;
+    $("catch-gallery-preview-image").src = row.imageUrl || "";
+    $("catch-gallery-preview-image").alt = (row.word || "제시어 없음") + " 그림";
+    $("catch-gallery-preview-word").textContent = row.word || "제시어 없음";
+    $("catch-gallery-preview-meta").textContent = (row.drawer || "알 수 없음") + " · " + galleryTime(row.createdAt);
+    preview.classList.remove("hidden");
+    preview.setAttribute("aria-hidden", "false");
+  }
+
+  function closeGalleryPreview() {
+    var preview = $("catch-gallery-preview");
+    if (!preview) return;
+    preview.classList.add("hidden");
+    preview.setAttribute("aria-hidden", "true");
+    var image = $("catch-gallery-preview-image");
+    if (image) image.removeAttribute("src");
+  }
+
+  async function toggleGalleryFavorite(id, button) {
+    var row = galleryRow(id);
+    if (!row || !api || !api.toggleGalleryFavorite) return;
+    var next = !row.favorite;
+    if (next && galleryFavoriteCount >= GALLERY_FAVORITE_LIMIT) {
+      api.toast("즐겨찾기는 계정당 20개까지 저장할 수 있어요");
+      return;
+    }
+    if (button) button.disabled = true;
+    try {
+      var result = await api.toggleGalleryFavorite(row.id, next);
+      if (!result || !result.ok) {
+        if (result && result.reason === "favorite_limit") api.toast("즐겨찾기는 계정당 20개까지 저장할 수 있어요");
+        else api.toast("즐겨찾기를 변경하지 못했어요");
+        return;
+      }
+      galleryFavoriteCount = safeInteger(result.favoriteCount, 0, GALLERY_FAVORITE_LIMIT, galleryFavoriteCount);
+      if (galleryMode === "favorites" && !next) galleryRows = galleryRows.filter(function (item) { return Number(item.id) !== Number(row.id); });
+      else row.favorite = next;
+      renderGallery();
+    } finally {
+      if (button && button.isConnected) button.disabled = false;
+    }
   }
 
   function sendCurrentStroke(force) {
@@ -2541,6 +2810,32 @@ window.CatchMind = (function () {
     $("catch-role-btn").addEventListener("click", toggleRolePreference);
     $("catch-people-btn").addEventListener("click", function () { if (api) api.openPlayers(); });
     $("catch-rank-btn").addEventListener("click", function () { if (api) api.openRank(); });
+    var galleryButton = $("catch-gallery-btn");
+    var galleryClose = $("catch-gallery-close");
+    var galleryBackdrop = $("catch-gallery-backdrop");
+    var galleryGrid = $("catch-gallery-grid");
+    if (galleryButton) galleryButton.addEventListener("click", openGallery);
+    if (galleryClose) galleryClose.addEventListener("click", closeGallery);
+    if (galleryBackdrop) galleryBackdrop.addEventListener("click", function (event) {
+      if (event.target === galleryBackdrop) closeGallery();
+    });
+    var galleryRecentTab = $("catch-gallery-recent-tab");
+    var galleryFavoriteTab = $("catch-gallery-favorite-tab");
+    var galleryMore = $("catch-gallery-more");
+    var galleryPreviewClose = $("catch-gallery-preview-close");
+    if (galleryRecentTab) galleryRecentTab.addEventListener("click", function () { setGalleryMode("recent"); });
+    if (galleryFavoriteTab) galleryFavoriteTab.addEventListener("click", function () { setGalleryMode("favorites"); });
+    if (galleryMore) galleryMore.addEventListener("click", function () { loadGallery(false); });
+    if (galleryPreviewClose) galleryPreviewClose.addEventListener("click", closeGalleryPreview);
+    if (galleryGrid) galleryGrid.addEventListener("click", function (event) {
+      var favoriteButton = event.target.closest && event.target.closest("[data-gallery-favorite]");
+      if (favoriteButton) {
+        toggleGalleryFavorite(favoriteButton.getAttribute("data-gallery-favorite"), favoriteButton);
+        return;
+      }
+      var openButton = event.target.closest && event.target.closest("[data-gallery-open]");
+      if (openButton) openGalleryPreview(openButton.getAttribute("data-gallery-open"));
+    });
     $("catch-menu-btn").addEventListener("click", function () { if (api) api.openMenu(); });
 
     var toolButtons = document.querySelectorAll("[data-catch-tool]");
@@ -2590,6 +2885,7 @@ window.CatchMind = (function () {
     lastSyncRequestAt = 0;
     lastCanvasRequestAt = 0;
     lastChatViewScope = "";
+    gallerySavedRounds = Object.create(null);
     resetResultPopup();
     lastStartSfxMatchId = null;
     stopStartSfx(true);
@@ -2615,6 +2911,7 @@ window.CatchMind = (function () {
     lastCountdownCue = "";
     stopCountdownSfx();
     resetResultPopup();
+    closeGallery();
     if (finishSfxEl) {
       try { finishSfxEl.pause(); finishSfxEl.currentTime = 0; } catch (e) {}
     }
@@ -2788,6 +3085,10 @@ window.CatchMind = (function () {
       waitingParticipantPeople: waitingParticipantPeople,
       waitingSpectatorPeople: waitingSpectatorPeople,
       chatGroupFor: chatGroupFor,
+      canViewChatGroup: canViewChatGroup,
+      chatOverlaySide: chatOverlaySide,
+      galleryDraftFromRound: galleryDraftFromRound,
+      galleryTime: galleryTime,
       renderScores: renderScores,
       renderLobbyRoles: renderLobbyRoles,
       renderStage: renderStage,

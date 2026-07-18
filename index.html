@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260718-catchmind-room-flow-v1">
+<meta name="app-build" content="20260718-catchmind-gallery-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -283,6 +283,7 @@
 
   <div class="action-row slim catch-action-row">
     <button id="catch-rank-btn" class="btn-flat">🏅 랭킹</button>
+    <button id="catch-gallery-btn" class="btn-flat">▧ 갤러리</button>
     <button id="catch-role-btn" class="btn-flat catch-role-btn" type="button" aria-pressed="false">관전하기</button>
     <button id="catch-leave-btn" class="btn-flat">나가기</button>
     <button id="catch-menu-btn" class="btn-flat menu-dots">⋯</button>
@@ -431,6 +432,39 @@
       <button id="catch-result-rank" class="cm-result-rank-btn" type="button">🏅 랭킹 보기</button>
       <button id="catch-result-confirm" class="cm-result-confirm" type="button">확인</button>
     </footer>
+  </section>
+</div>
+
+<!-- 캐치마인드 그림 갤러리 -->
+<div id="catch-gallery-backdrop" class="cm-gallery-backdrop hidden" aria-hidden="true">
+  <section class="cm-gallery-dialog" role="dialog" aria-modal="true" aria-labelledby="catch-gallery-title">
+    <header class="cm-gallery-head">
+      <div>
+        <span>캐치마인드</span>
+        <h2 id="catch-gallery-title">그림 갤러리</h2>
+      </div>
+      <button id="catch-gallery-close" class="cm-gallery-close" type="button" aria-label="갤러리 닫기">✕</button>
+    </header>
+
+    <div class="cm-gallery-tabs" role="tablist" aria-label="갤러리 보기">
+      <button id="catch-gallery-recent-tab" class="active" type="button" role="tab" aria-selected="true">최근 그림</button>
+      <button id="catch-gallery-favorite-tab" type="button" role="tab" aria-selected="false">내 즐겨찾기 <span id="catch-gallery-favorite-count">0/20</span></button>
+    </div>
+
+    <div id="catch-gallery-status" class="cm-gallery-status" aria-live="polite">그림을 불러오는 중이에요</div>
+    <div id="catch-gallery-scroll" class="cm-gallery-scroll">
+      <div id="catch-gallery-grid" class="cm-gallery-grid"></div>
+      <button id="catch-gallery-more" class="cm-gallery-more hidden" type="button">더 보기</button>
+    </div>
+
+    <div id="catch-gallery-preview" class="cm-gallery-preview hidden" aria-hidden="true">
+      <button id="catch-gallery-preview-close" type="button" aria-label="확대 그림 닫기">✕</button>
+      <img id="catch-gallery-preview-image" alt="">
+      <div>
+        <strong id="catch-gallery-preview-word"></strong>
+        <span id="catch-gallery-preview-meta"></span>
+      </div>
+    </div>
   </section>
 </div>
 

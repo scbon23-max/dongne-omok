@@ -144,6 +144,31 @@ test("custom drawing colors allow safe hex values only", () => {
   assert.equal(clean.strokes[1].color, "#17252f");
 });
 
+test("gallery captures only completed drawing rounds with visible content", () => {
+  const api = loadCatchMind();
+  api.setState(baseSnapshot({
+    phase: "drawing",
+    matchId: "match-gallery",
+    roundIndex: 1,
+    drawer: "B",
+    canvasBg: "#ffffff",
+    strokes: [{ id: "line", color: "#22c55e", width: 8, points: [{ x: 0.2, y: 0.3 }] }]
+  }));
+  api.setSecretWord("사과");
+
+  const draft = api.galleryDraftFromRound();
+  assert.equal(draft.matchId, "match-gallery");
+  assert.equal(draft.roundIndex, 1);
+  assert.equal(draft.drawer, "B");
+  assert.equal(draft.word, "사과");
+  assert.equal(draft.strokes.length, 1);
+
+  api.setState(baseSnapshot({ phase: "drawing", canvasBg: "#ffffff", strokes: [] }));
+  assert.equal(api.galleryDraftFromRound(), null);
+  api.setState(baseSnapshot({ phase: "practice", canvasBg: "#d23b3b", strokes: [] }));
+  assert.equal(api.galleryDraftFromRound(), null);
+});
+
 test("the drawing palette has three diverse rows including white", () => {
   const api = loadCatchMind();
   const colors = Array.from(api.paletteColors);
@@ -334,7 +359,7 @@ test("the countdown sound plays once for each visible 3 2 1 step", async () => {
   assert.equal(api.audioConfig.countdownVolume, 1);
 });
 
-test("the chat overlay stays behind the countdown and returns for play", () => {
+test("countdown chat stays on the right and clears before drawing chat", () => {
   const overlay = fakeElement();
   const api = loadCatchMind({ elements: { "catch-chat-overlay": overlay } });
   api.setApi({
@@ -349,13 +374,15 @@ test("the chat overlay stays behind the countdown and returns for play", () => {
   state.queue = ["A", "B"];
   api.setState(state);
   api.renderChatOverlayPosition();
-  assert.equal(overlay.classList.contains("hidden"), true);
-  assert.equal(overlay.classList.contains("right"), false);
+  assert.equal(overlay.classList.contains("hidden"), false);
+  assert.equal(overlay.classList.contains("right"), true);
 
+  overlay.innerHTML = "카운트다운 채팅";
   state.phase = "drawing";
   api.renderChatOverlayPosition();
   assert.equal(overlay.classList.contains("hidden"), false);
   assert.equal(overlay.classList.contains("right"), false);
+  assert.equal(overlay.innerHTML, "");
 
   overlay.innerHTML = "이전 참가자 채팅";
   state.correct.B = true;
@@ -399,7 +426,7 @@ test("the drawing feed keeps the newest five messages", () => {
   assert.equal(clean.feed[4].text, "6");
 });
 
-test("participant guesses stay out of the spectator and solved-player feed", () => {
+test("spectators and solved players can read the participant feed", () => {
   const feed = fakeElement();
   const api = loadCatchMind({
     elements: {
@@ -419,7 +446,7 @@ test("participant guesses stay out of the spectator and solved-player feed", () 
     roster() { return roster; }
   });
   api.renderFeed();
-  assert.doesNotMatch(feed.innerHTML, /비밀 추측/);
+  assert.match(feed.innerHTML, /비밀 추측/);
   assert.match(feed.innerHTML, /게임 안내/);
 
   api.setApi({
@@ -428,7 +455,7 @@ test("participant guesses stay out of the spectator and solved-player feed", () 
   });
   api.getState().correct.B = true;
   api.renderFeed();
-  assert.doesNotMatch(feed.innerHTML, /비밀 추측/);
+  assert.match(feed.innerHTML, /비밀 추측/);
 
   api.setApi({
     me() { return { nick: "C", isAdmin: false }; },
@@ -598,6 +625,9 @@ test("match chat separates active players from spectators and solved players", (
   assert.equal(api.chatGroupFor("B"), "lounge");
   assert.equal(api.chatGroupFor("C"), "players");
   assert.equal(api.chatGroupFor("S"), "lounge");
+  assert.equal(api.canViewChatGroup("S", "players"), true);
+  assert.equal(api.canViewChatGroup("B", "players"), true);
+  assert.equal(api.canViewChatGroup("C", "lounge"), false);
   assert.equal(api.canChat("B"), false);
   assert.equal(api.canChat("C"), false);
   assert.equal(api.canChat("S"), false);
@@ -610,6 +640,64 @@ test("match chat separates active players from spectators and solved players", (
 
   api.setState(api.freshState());
   assert.equal(api.canChat("B"), true);
+});
+
+test("participants and spectators can chat on the right during countdown", () => {
+  const sent = [];
+  const shownForHost = [];
+  const hostApi = loadCatchMind();
+  const state = hostApi.freshState();
+  state.phase = "countdown";
+  state.matchId = "match-countdown-chat";
+  state.queue = ["A", "B"];
+  state.spectators = ["S"];
+  state.drawer = "A";
+  state.guessers = ["B"];
+  hostApi.setState(state);
+  hostApi.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "S" }]; },
+    showChat(nick, text, side) { shownForHost.push({ nick, text, side }); },
+    send(message) { sent.push(message); }
+  });
+
+  hostApi.hostMatchChatInput({
+    nick: "B",
+    text: "곧 시작!",
+    matchId: "match-countdown-chat",
+    roundIndex: 0
+  });
+  hostApi.hostMatchChatInput({
+    nick: "S",
+    text: "구경 중",
+    matchId: "match-countdown-chat",
+    roundIndex: 0
+  });
+
+  assert.deepEqual(shownForHost, [{ nick: "B", text: "곧 시작!", side: "right" }]);
+  assert.equal(sent.length, 2);
+  assert.equal(sent[0].group, "players");
+  assert.equal(sent[1].group, "lounge");
+
+  const shownForSpectator = [];
+  const spectatorApi = loadCatchMind();
+  spectatorApi.setState(state);
+  spectatorApi.setApi({
+    isHost() { return false; },
+    host() { return "A"; },
+    me() { return { nick: "S", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "S" }]; },
+    showChat(nick, text, side) { shownForSpectator.push({ nick, text, side }); }
+  });
+  spectatorApi.receiveMatchChat(sent[0]);
+  spectatorApi.receiveMatchChat(sent[1]);
+
+  assert.deepEqual(shownForSpectator, [
+    { nick: "B", text: "곧 시작!", side: "right" },
+    { nick: "S", text: "구경 중", side: "right" }
+  ]);
 });
 
 test("a solved player gets chat input and returns to the player group next turn", () => {

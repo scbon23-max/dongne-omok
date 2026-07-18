@@ -1,0 +1,2 @@
+[functions.catchmind-gallery]
+verify_jwt = false

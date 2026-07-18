@@ -110,6 +110,40 @@ window.Db = (function () {
     if (!rows.length) return { data: [], error: null };
     return sb.from("games").insert(rows);
   }
+  async function galleryInvoke(action, auth, payload) {
+    if (!sb || !sb.functions || !sb.functions.invoke) return { ok: false, reason: "unavailable" };
+    auth = auth || {};
+    payload = payload || {};
+    var body = Object.assign({}, payload, {
+      action: action,
+      auth: {
+        nick: String(auth.nick || "").slice(0, 40),
+        hash: String(auth.hash || "").slice(0, 128)
+      }
+    });
+    if (!body.auth.nick || !body.auth.hash) return { ok: false, reason: "auth" };
+    var response = await sb.functions.invoke("catchmind-gallery", { body: body });
+    if (response.error) return { ok: false, reason: "network", msg: response.error.message || String(response.error) };
+    return response.data && typeof response.data === "object"
+      ? response.data
+      : { ok: false, reason: "invalid_response" };
+  }
+  async function saveCatchmindDrawing(auth, drawing) {
+    return galleryInvoke("save", auth, drawing);
+  }
+  async function getCatchmindGallery(auth, mode, offset, limit) {
+    return galleryInvoke("list", auth, {
+      mode: mode === "favorites" ? "favorites" : "recent",
+      offset: Math.max(0, Math.floor(Number(offset) || 0)),
+      limit: Math.max(1, Math.min(40, Math.floor(Number(limit) || 20)))
+    });
+  }
+  async function toggleCatchmindFavorite(auth, drawingId, favorite) {
+    return galleryInvoke("favorite", auth, {
+      drawingId: Math.max(0, Math.floor(Number(drawingId) || 0)),
+      favorite: !!favorite
+    });
+  }
   var GAME_COLS = "id,black,white,winner,game,created_at";
   async function getGames() {
     if (!sb) return [];
@@ -213,7 +247,9 @@ window.Db = (function () {
   return {
     ADMIN: ADMIN, ensureAdmin: ensureAdmin, login: login, loginHash: loginHash, hashPw: sha256,
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
-    recordGame: recordGame, recordAlkGame: recordAlkGame, recordCatchmindMatch: recordCatchmindMatch, getGames: getGames, getGamesByType: getGamesByType,
+    recordGame: recordGame, recordAlkGame: recordAlkGame, recordCatchmindMatch: recordCatchmindMatch,
+    saveCatchmindDrawing: saveCatchmindDrawing, getCatchmindGallery: getCatchmindGallery, toggleCatchmindFavorite: toggleCatchmindFavorite,
+    getGames: getGames, getGamesByType: getGamesByType,
     getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves, deleteGame: deleteGame,
     addChatMsg: addChatMsg, getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,
     recordActivity: recordActivity, getActivityLogs: getActivityLogs,

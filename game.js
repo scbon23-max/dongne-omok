@@ -40,6 +40,7 @@
   var hostNick = null, amHost = false, wasHost = false, netMode = false, connected = false;
   var roomHostEligible = true;
   var activityLoginLogged = false, activityLogoutLogged = false, activityRoomLeaves = {};
+  var sessionAuthHash = "";
 
   var canvas, ctx, MARGIN = 28, GAP, RADIUS;
   var BOARD_SIZE = 450, boardPixelRatio = 1, boardResizeId = null, boardResizeBound = false;
@@ -175,6 +176,19 @@
       openMenu: openMenu,
       leaveRoom: requestLeaveRoom,
       roomChanged: broadcastRoomOpen,
+      galleryAuth: function () { return { nick: me.nick, hash: sessionAuthHash }; },
+      saveDrawing: function (drawing) {
+        if (!window.Db || !Db.saveCatchmindDrawing) return Promise.resolve({ ok: false, reason: "unavailable" });
+        return Promise.resolve(Db.saveCatchmindDrawing({ nick: me.nick, hash: sessionAuthHash }, drawing));
+      },
+      loadGallery: function (mode, offset, limit) {
+        if (!window.Db || !Db.getCatchmindGallery) return Promise.resolve({ ok: false, reason: "unavailable", rows: [] });
+        return Promise.resolve(Db.getCatchmindGallery({ nick: me.nick, hash: sessionAuthHash }, mode, offset, limit));
+      },
+      toggleGalleryFavorite: function (drawingId, favorite) {
+        if (!window.Db || !Db.toggleCatchmindFavorite) return Promise.resolve({ ok: false, reason: "unavailable" });
+        return Promise.resolve(Db.toggleCatchmindFavorite({ nick: me.nick, hash: sessionAuthHash }, drawingId, favorite));
+      },
       recordMatch: function (matchId, results) {
         if (!window.Db || !Db.recordCatchmindMatch) return Promise.resolve(null);
         return Promise.resolve(Db.recordCatchmindMatch(matchId, results));
@@ -260,6 +274,7 @@
         }
         me.nick = nick;
         me.isAdmin = !!(res.account && res.account.is_admin);
+        sessionAuthHash = window.Db && Db.hashPw ? await Db.hashPw(pw) : "";
         await saveAuth(nick, pw);
         setLoginMsg("");
         showLobby();
@@ -288,7 +303,10 @@
       }
     } catch (e) {}
   }
-  function clearAuth() { try { localStorage.removeItem(AUTH_KEY); } catch (e) {} }
+  function clearAuth() {
+    sessionAuthHash = "";
+    try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
+  }
   async function tryAutoLogin() {
     var saved;
     try { saved = JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); } catch (e) { clearAuth(); return; }
@@ -301,6 +319,7 @@
       if (res.ok) {
         me.nick = saved.nick;
         me.isAdmin = !!(res.account && res.account.is_admin);
+        sessionAuthHash = saved.h;
         setLoginMsg("");
         showLobby();
       } else {
