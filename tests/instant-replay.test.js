@@ -46,6 +46,7 @@ test("instant replay paints copied moves on the live board without mutating it",
   assert.match(render, /var position = instantReplayPosition\(\), board = position\.board/);
   assert.match(render, /if \(board\[sr\]\[sc\]\) drawStoneShadow/);
   assert.match(render, /if \(position\.lastMove\) drawLastMoveMarker\(position\.lastMove, board\)/);
+  assert.match(render, /drawMoveCount\(position\.moveCount\)/);
 });
 
 test("instant replay reconstructs the requested move without changing the final board", () => {
@@ -80,6 +81,7 @@ test("instant replay reconstructs the requested move without changing the final 
   assert.equal(context.replayPosition.board[8][7], 0);
   assert.equal(context.replayPosition.lastMove.r, 7);
   assert.equal(context.replayPosition.lastMove.c, 8);
+  assert.equal(context.replayPosition.moveCount, 2);
   assert.equal(finalBoard[8][7], 1);
 });
 

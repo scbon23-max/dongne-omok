@@ -1803,7 +1803,7 @@
     return copy;
   }
   function instantReplayPosition() {
-    if (!instantReplay) return { board: G.board, lastMove: G.lastMove };
+    if (!instantReplay) return { board: G.board, lastMove: G.lastMove, moveCount: (G.history || []).length };
     var board = Renju.emptyBoard(), lastMove = null;
     var limit = Math.max(0, Math.min(instantReplay.moves.length, instantReplay.index));
     for (var i = 0; i < limit; i++) {
@@ -1811,7 +1811,7 @@
       board[move.r][move.c] = move.color;
       lastMove = { r: move.r, c: move.c };
     }
-    return { board: board, lastMove: lastMove };
+    return { board: board, lastMove: lastMove, moveCount: limit };
   }
   function discardInstantReplay() {
     instantReplay = null;
@@ -3082,6 +3082,20 @@
       ctx.restore();
     }
   }
+  function drawMoveCount(count) {
+    var label = Math.max(0, Math.floor(Number(count) || 0)) + "수";
+    ctx.save();
+    ctx.font = "800 13px sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = "rgba(216,170,99,.94)";
+    ctx.fillStyle = "rgba(14,42,58,.88)";
+    ctx.strokeText(label, BOARD_SIZE - 7, BOARD_SIZE - 6);
+    ctx.fillText(label, BOARD_SIZE - 7, BOARD_SIZE - 6);
+    ctx.restore();
+  }
   function render() {
     if (!ctx) return;
     var W = BOARD_SIZE;
@@ -3132,6 +3146,7 @@
       }
     }
     if (position.lastMove) drawLastMoveMarker(position.lastMove, board);
+    drawMoveCount(position.moveCount);
     var cnt = stoneCount();
     if (cnt === lastStoneCount + 1 && isOmokFamily(curGame)) playStone();
     lastStoneCount = cnt;
