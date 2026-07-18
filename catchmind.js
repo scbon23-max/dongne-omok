@@ -1,11 +1,17 @@
 window.CatchMind = (function () {
   "use strict";
 
-  var ROUND_MS = 120000;
+  var ROUND_MS = 90000;
+  var ROUND_COUNTDOWN_MS = 3000;
+  var DRAWER_GRACE_MS = 15000;
+  var SECRET_RECOVERY_MS = 3000;
   var REVEAL_MS = 3000;
   var DRAW_SEND_MS = 60;
   var CANVAS_BG = "#ffffff";
   var PEN_COLORS = ["#17252f", "#d23b3b"];
+  var PEN_WIDTHS = [8, 24];
+  var ERASER_WIDTH = 90;
+  var MAX_STROKE_WIDTH = 96;
   var PALETTE_COLORS = [
     "#17252f", "#6b7280", "#d23b3b", "#f97316", "#eab308", "#22c55e",
     "#14b8a6", "#38bdf8", "#2474b5", "#8b5cf6", "#ec4899", "#7c4a2d"
@@ -27,6 +33,8 @@ window.CatchMind = (function () {
   var CATCH_BGM_VOLUME = 0.09;
   var CLEAR_SFX_SRC = "assets/catchmind-clear.mp3";
   var CLEAR_SFX_VOLUME = 0.28;
+  var FINISH_SFX_SRC = "assets/catchmind-finish.wav";
+  var FINISH_SFX_VOLUME = 0.38;
   var RECORD_STATUSES = ["idle", "pending", "saved", "failed", "skipped"];
   var SAVE_RETRY_DELAYS = [1000, 3000, 7000];
   var FALLBACK_WORDS = [
@@ -63,6 +71,8 @@ window.CatchMind = (function () {
   var bgmEl = null;
   var bgmPlayPending = false;
   var clearSfxEl = null;
+  var finishSfxEl = null;
+  var lastFinishSfxMatchId = null;
   var lastStrokeSend = 0;
   var pendingStrokeTimer = null;
   var strokeSentCount = 0;
@@ -80,11 +90,15 @@ window.CatchMind = (function () {
       rev: 0,
       matchId: null,
       queue: [],
+      spectators: [],
       roundIndex: 0,
       drawer: null,
       guessers: [],
       deadline: null,
       nextAt: null,
+      pauseKind: null,
+      pauseUntil: null,
+      pausedRemainMs: null,
       scores: Object.create(null),
       stats: Object.create(null),
       correct: Object.create(null),
@@ -109,6 +123,28 @@ window.CatchMind = (function () {
   function activePeople() { return people().filter(function (p) { return p && p.nick && !p.away; }); }
   function activeNicks() { return activePeople().map(function (p) { return p.nick; }); }
   function has(arr, value) { return arr.indexOf(value) >= 0; }
+  function sameList(a, b) {
+    return a.length === b.length && a.every(function (value, index) { return value === b[index]; });
+  }
+  function orderedActivePeople() {
+    return activePeople().slice().sort(function (a, b) {
+      return (a.joinTs || 0) - (b.joinTs || 0) || String(a.nick).localeCompare(String(b.nick));
+    });
+  }
+  function desiredParticipantPeople() {
+    var spectators = state.spectators || [];
+    return orderedActivePeople().filter(function (person) { return !has(spectators, person.nick); });
+  }
+  function desiredParticipantNicks() {
+    return desiredParticipantPeople().map(function (person) { return person.nick; });
+  }
+  function desiredSpectatorPeople() {
+    var spectators = state.spectators || [];
+    return orderedActivePeople().filter(function (person) { return has(spectators, person.nick); });
+  }
+  function canChangeRole() {
+    return state.phase === "idle" || state.phase === "finished";
+  }
   function normalize(value) { return String(value || "").toLowerCase().replace(/[\s\-_.!,?]/g, ""); }
   function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
   function safeInteger(value, min, max, fallback) {
@@ -208,11 +244,15 @@ window.CatchMind = (function () {
       rev: state.rev,
       matchId: state.matchId,
       queue: state.queue,
+      spectators: state.spectators,
       roundIndex: state.roundIndex,
       drawer: state.drawer,
       guessers: state.guessers,
       remainMs: state.deadline ? Math.max(0, state.deadline - Date.now()) : null,
       nextRemainMs: state.nextAt ? Math.max(0, state.nextAt - Date.now()) : null,
+      pauseKind: state.pauseKind,
+      pauseRemainMs: state.pauseUntil ? Math.max(0, state.pauseUntil - Date.now()) : null,
+      pausedRemainMs: state.pausedRemainMs,
       scores: state.scores,
       stats: state.stats,
       correct: state.correct,
@@ -242,7 +282,8 @@ window.CatchMind = (function () {
   }
 
   function requestCanvasSync(force) {
-    if (!api || !api.isHost() || state.phase !== "drawing" || !state.drawer || state.drawer === me().nick) return;
+    if (!api || !api.isHost() || state.phase !== "drawing" || state.pauseKind
+        || !state.drawer || state.drawer === me().nick) return;
     var now = Date.now();
     if (!force && now - lastCanvasRequestAt < 500) return;
     lastCanvasRequestAt = now;
@@ -270,9 +311,10 @@ window.CatchMind = (function () {
     if (!next || typeof next !== "object") return null;
     var rev = safeInteger(next.rev, 0, Number.MAX_SAFE_INTEGER, null);
     if (rev == null) return null;
-    var phases = ["idle", "drawing", "reveal", "finished"];
+    var phases = ["idle", "countdown", "drawing", "reveal", "finished"];
     var phase = phases.indexOf(next.phase) >= 0 ? next.phase : "idle";
     var queue = safeNickList(next.queue);
+    var spectators = safeNickList(next.spectators);
     var drawer = safeNick(next.drawer);
     if (!has(queue, drawer)) drawer = null;
     var guessers = safeNickList(next.guessers).filter(function (nick) {
@@ -281,16 +323,22 @@ window.CatchMind = (function () {
     var recordStatus = RECORD_STATUSES.indexOf(next.recordStatus) >= 0
       ? next.recordStatus
       : (next.recorded ? "saved" : "idle");
+    var pauseKind = next.pauseKind === "drawer" || next.pauseKind === "sync" ? next.pauseKind : null;
+    if (phase !== "countdown" && phase !== "drawing") pauseKind = null;
     return {
       phase: phase,
       rev: rev,
       matchId: next.matchId == null ? null : safeText(next.matchId, 80),
       queue: queue,
+      spectators: spectators,
       roundIndex: safeInteger(next.roundIndex, 0, Math.max(queue.length, 1), 0),
       drawer: drawer,
       guessers: guessers,
       remainMs: safeDuration(next.remainMs, ROUND_MS + 5000),
       nextRemainMs: safeDuration(next.nextRemainMs, REVEAL_MS + 5000),
+      pauseKind: pauseKind,
+      pauseRemainMs: pauseKind ? safeDuration(next.pauseRemainMs, DRAWER_GRACE_MS + 5000) : null,
+      pausedRemainMs: pauseKind ? safeDuration(next.pausedRemainMs, ROUND_MS + 5000) : null,
       scores: safeScores(next.scores, queue),
       stats: safeStats(next.stats, queue),
       correct: safeCorrect(next.correct, guessers),
@@ -307,6 +355,8 @@ window.CatchMind = (function () {
   function applyState(next, authorityChanged) {
     var clean = sanitizeSnapshot(next);
     if (!clean || (!authorityChanged && clean.rev < state.rev)) return false;
+    var previousPhase = state.phase;
+    var previousMatchId = state.matchId;
     var sameRound = state.matchId === clean.matchId && state.roundIndex === clean.roundIndex;
     if (!authorityChanged && clean.rev === state.rev) {
       if (!sameRound || clean.drawSeq <= state.drawSeq) return false;
@@ -322,11 +372,15 @@ window.CatchMind = (function () {
       rev: clean.rev,
       matchId: clean.matchId,
       queue: clean.queue,
+      spectators: clean.spectators,
       roundIndex: clean.roundIndex,
       drawer: clean.drawer,
       guessers: clean.guessers,
       deadline: clean.remainMs != null ? Date.now() + clean.remainMs : null,
       nextAt: clean.nextRemainMs != null ? Date.now() + clean.nextRemainMs : null,
+      pauseKind: clean.pauseKind,
+      pauseUntil: clean.pauseRemainMs != null ? Date.now() + clean.pauseRemainMs : null,
+      pausedRemainMs: clean.pausedRemainMs,
       scores: clean.scores,
       stats: clean.stats,
       correct: clean.correct,
@@ -339,6 +393,7 @@ window.CatchMind = (function () {
       recordStatus: clean.recordStatus
     };
     if (!sameRound) secretWord = null;
+    if (clean.phase === "finished" && previousPhase !== "finished" && previousMatchId === clean.matchId) playFinishSfx();
     render();
     return true;
   }
@@ -381,10 +436,12 @@ window.CatchMind = (function () {
 
   function resetMatchState(queue, matchId) {
     var currentRev = state.rev;
+    var currentSpectators = (state.spectators || []).slice();
     state = freshState();
     state.rev = currentRev;
     state.matchId = matchId || (Date.now().toString(36) + "-" + Math.floor(Math.random() * 100000).toString(36));
     state.queue = safeNickList(queue);
+    state.spectators = currentSpectators;
     return state;
   }
 
@@ -432,12 +489,9 @@ window.CatchMind = (function () {
   }
 
   function hostStartMatch() {
-    if (!api || !api.isHost()) return;
-    var queue = activePeople().sort(function (a, b) {
-      return (a.joinTs || 0) - (b.joinTs || 0) || String(a.nick).localeCompare(String(b.nick));
-    }).map(function (p) { return p.nick; });
-    queue = safeNickList(queue);
-    if (queue.length < 2) { api.toast("2명 이상 모여야 시작할 수 있어요"); return; }
+    if (!api || !api.isHost() || !canChangeRole()) return;
+    var queue = safeNickList(desiredParticipantNicks());
+    if (queue.length < 2) { api.toast("참가자가 2명 이상이어야 시작할 수 있어요"); return; }
     clearSaveRetry();
     resetMatchState(queue);
     state.queue.forEach(initStats);
@@ -480,7 +534,7 @@ window.CatchMind = (function () {
     var guessers = state.queue.filter(function (nick) { return nick !== drawer && has(live, nick); });
     if (!guessers.length) { hostFinishMatch(); return; }
 
-    state.phase = "drawing";
+    state.phase = "countdown";
     state.roundIndex = index;
     state.drawer = drawer;
     state.guessers = guessers;
@@ -490,8 +544,11 @@ window.CatchMind = (function () {
     state.drawSeq = 0;
     state.feed = [];
     state.revealWord = null;
-    state.deadline = Date.now() + ROUND_MS;
+    state.deadline = Date.now() + ROUND_COUNTDOWN_MS;
     state.nextAt = null;
+    state.pauseKind = null;
+    state.pauseUntil = null;
+    state.pausedRemainMs = null;
     state.recordStatus = "idle";
     lastCanvasRequestAt = 0;
     drawing = false;
@@ -500,13 +557,16 @@ window.CatchMind = (function () {
     canvasLimitNotified = false;
     guessTimes = Object.create(null);
     secretWord = pickWord();
-    state.wordLength = Array.from(secretWord).length;
+    state.wordLength = 0;
 
-    state.guessers.forEach(function (nick) { initStats(nick).maxPoints += 10; });
-    initStats(state.drawer).maxPoints += state.guessers.length * 3;
-    addFeed("", state.drawer + "님이 그림을 시작했어요", "system");
+    addFeed("", state.drawer + "님이 그릴 차례예요", "system");
     state.rev++;
     broadcastState();
+    render();
+  }
+
+  function sendSecretToDrawer() {
+    if (!api || !api.isHost() || state.phase !== "drawing" || !secretWord || !state.drawer) return;
     api.send({
       t: "cm_secret",
       from: me().nick,
@@ -515,14 +575,117 @@ window.CatchMind = (function () {
       roundIndex: state.roundIndex,
       word: secretWord
     });
+  }
+
+  function hostBeginDrawing() {
+    if (!api || !api.isHost() || state.phase !== "countdown" || state.pauseKind) return;
+    var live = activeNicks();
+    if (!has(live, state.drawer)) { hostPauseForDrawer(); return; }
+    state.guessers = state.guessers.filter(function (nick) { return has(live, nick); });
+    if (!state.guessers.length) { hostEndRound("정답을 맞힐 사람이 없어 턴을 넘겼어요"); return; }
+    if (!secretWord) secretWord = pickWord();
+
+    state.phase = "drawing";
+    state.deadline = Date.now() + ROUND_MS;
+    state.wordLength = Array.from(secretWord).length;
+    state.guessers.forEach(function (nick) { initStats(nick).maxPoints += 10; });
+    initStats(state.drawer).maxPoints += state.guessers.length * 3;
+    addFeed("", state.drawer + "님이 그림을 시작했어요", "system");
+    state.rev++;
+    broadcastState();
+    sendSecretToDrawer();
     render();
   }
 
+  function hostPauseForDrawer() {
+    if (!api || !api.isHost() || (state.phase !== "countdown" && state.phase !== "drawing")) return;
+    if (state.pauseKind === "drawer") return;
+    var fallback = state.phase === "countdown" ? ROUND_COUNTDOWN_MS : ROUND_MS;
+    state.pausedRemainMs = state.deadline ? Math.max(0, state.deadline - Date.now()) : (state.pausedRemainMs == null ? fallback : state.pausedRemainMs);
+    state.deadline = null;
+    state.pauseKind = "drawer";
+    state.pauseUntil = Date.now() + DRAWER_GRACE_MS;
+    drawing = false;
+    currentStroke = null;
+    addFeed("", state.drawer + "님 연결이 끊겨 잠시 멈췄어요", "system");
+    commit();
+  }
+
+  function hostResumeRound() {
+    if (!api || !api.isHost() || !state.pauseKind) return;
+    var fallback = state.phase === "countdown" ? ROUND_COUNTDOWN_MS : ROUND_MS;
+    var remain = state.pausedRemainMs == null ? fallback : state.pausedRemainMs;
+    state.pauseKind = null;
+    state.pauseUntil = null;
+    state.pausedRemainMs = null;
+    state.deadline = Date.now() + Math.max(250, remain);
+    addFeed("", state.drawer + "님이 돌아와 게임을 이어가요", "system");
+    commit();
+    if (state.phase === "drawing") sendSecretToDrawer();
+  }
+
+  function hostRequestSecretRecovery() {
+    if (!api || !api.isHost() || state.phase !== "drawing" || secretWord || !has(activeNicks(), state.drawer)) return;
+    if (state.pauseKind !== "sync") {
+      state.pausedRemainMs = state.deadline ? Math.max(0, state.deadline - Date.now()) : state.pausedRemainMs;
+      state.deadline = null;
+      state.pauseKind = "sync";
+      state.pauseUntil = Date.now() + SECRET_RECOVERY_MS;
+      commit();
+    }
+    api.send({
+      t: "cm_secret_req",
+      from: me().nick,
+      to: state.drawer,
+      matchId: state.matchId,
+      roundIndex: state.roundIndex
+    });
+  }
+
+  function answerSecretRecovery(msg) {
+    if (!api || state.phase !== "drawing" || me().nick !== state.drawer || !secretWord) return;
+    if (msg.from !== api.host() || msg.to !== me().nick || msg.matchId !== state.matchId || msg.roundIndex !== state.roundIndex) return;
+    api.send({
+      t: "cm_secret_restore",
+      from: me().nick,
+      to: api.host(),
+      matchId: state.matchId,
+      roundIndex: state.roundIndex,
+      word: secretWord
+    });
+  }
+
+  function hostRestoreSecret(msg) {
+    if (!api || !api.isHost() || state.phase !== "drawing" || state.pauseKind !== "sync") return;
+    if (msg.from !== state.drawer || msg.to !== me().nick || msg.matchId !== state.matchId || msg.roundIndex !== state.roundIndex) return;
+    var restored = safeText(msg.word, 10);
+    if (!/^[가-힣]{1,10}$/.test(restored)) return;
+    secretWord = restored;
+    state.wordLength = Array.from(secretWord).length;
+    hostResumeRound();
+  }
+
+  function hostRestartAfterSecretLoss() {
+    if (!api || !api.isHost() || state.phase !== "drawing" || state.pauseKind !== "sync"
+        || !has(activeNicks(), state.drawer)) return;
+    secretWord = pickWord();
+    state.wordLength = Array.from(secretWord).length;
+    state.strokes = [];
+    state.canvasBg = CANVAS_BG;
+    state.drawSeq++;
+    state.pausedRemainMs = ROUND_MS;
+    addFeed("", "연결 복구를 위해 새 제시어로 다시 시작해요", "system");
+    hostResumeRound();
+  }
+
   function hostEndRound(reason) {
-    if (!api || !api.isHost() || state.phase !== "drawing") return;
+    if (!api || !api.isHost() || (state.phase !== "countdown" && state.phase !== "drawing")) return;
     state.phase = "reveal";
     state.deadline = null;
     state.nextAt = Date.now() + REVEAL_MS;
+    state.pauseKind = null;
+    state.pauseUntil = null;
+    state.pausedRemainMs = null;
     state.revealWord = secretWord || "문제 취소";
     if (reason) addFeed("", reason, "system");
     if (secretWord) addFeed("", "정답은 " + secretWord, "answer");
@@ -536,23 +699,29 @@ window.CatchMind = (function () {
     state.guessers = [];
     state.deadline = null;
     state.nextAt = null;
+    state.pauseKind = null;
+    state.pauseUntil = null;
+    state.pausedRemainMs = null;
     state.revealWord = null;
     secretWord = null;
 
     var results = resultsFromState();
     state.recordStatus = results.length >= 2 ? "pending" : "skipped";
     addFeed("", "게임이 끝났어요. 최종 점수를 확인해 보세요", "system");
+    playFinishSfx();
     commit();
 
     if (state.recordStatus === "pending") persistResults(state.matchId, results, 0);
   }
 
   function allGuessersCorrect() {
-    return state.guessers.length > 0 && state.guessers.every(function (nick) { return !!state.correct[nick]; });
+    var live = api ? activeNicks() : state.guessers;
+    var current = state.guessers.filter(function (nick) { return has(live, nick); });
+    return current.length > 0 && current.every(function (nick) { return !!state.correct[nick]; });
   }
 
   function hostGuess(msg) {
-    if (!api.isHost() || state.phase !== "drawing" || !secretWord) return;
+    if (!api.isHost() || state.phase !== "drawing" || state.pauseKind || !state.deadline || !secretWord) return;
     if (msg.matchId !== state.matchId || msg.roundIndex !== state.roundIndex) return;
     var nick = safeNick(msg.nick), text = safeText(msg.text, 40).trim();
     if (!text || !has(state.guessers, nick) || !has(activeNicks(), nick) || state.correct[nick]) return;
@@ -579,8 +748,96 @@ window.CatchMind = (function () {
     }
   }
 
+  function hostSpectatorInput(msg) {
+    if (!api || !api.isHost() || state.phase !== "drawing" || state.pauseKind || !secretWord) return;
+    if (msg.matchId !== state.matchId || msg.roundIndex !== state.roundIndex) return;
+    var nick = safeNick(msg.nick), text = safeText(msg.text, 40).trim();
+    if (!nick || !text || has(state.queue, nick) || !has(activeNicks(), nick)) return;
+    if (normalize(text) === normalize(secretWord)) {
+      if (nick === me().nick) api.toast("관전자는 정답을 입력할 수 없어요");
+      else api.send({
+        t: "cm_notice",
+        from: me().nick,
+        to: nick,
+        matchId: state.matchId,
+        roundIndex: state.roundIndex
+      });
+      return;
+    }
+    if (api.relayChat) api.relayChat(nick, text);
+    if (nick !== me().nick) {
+      api.send({
+        t: "cm_chat_ack",
+        from: me().nick,
+        to: nick,
+        nick: nick,
+        text: text,
+        matchId: state.matchId,
+        roundIndex: state.roundIndex
+      });
+    }
+  }
+
+  function hostSetSpectatorPreference(nick, spectating) {
+    if (!api || !api.isHost() || !canChangeRole()) return false;
+    nick = safeNick(nick);
+    if (!nick || !has(activeNicks(), nick)) return false;
+
+    var known = people().filter(function (person) { return person && person.nick; })
+      .map(function (person) { return person.nick; });
+    var next = (state.spectators || []).filter(function (name) { return has(known, name); });
+    if (spectating && !has(next, nick)) next.push(nick);
+    if (!spectating) next = next.filter(function (name) { return name !== nick; });
+    next = safeNickList(next);
+    if (!sameList(state.spectators || [], next)) {
+      state.spectators = next;
+      commit();
+    }
+    return true;
+  }
+
+  function hostRoleRequest(msg) {
+    if (!api || !api.isHost()) return;
+    var nick = safeNick(msg.nick);
+    var from = safeNick(msg.from);
+    if (!nick || from !== nick || typeof msg.spectating !== "boolean") return;
+    var accepted = hostSetSpectatorPreference(nick, msg.spectating);
+    if (nick !== me().nick && has(activeNicks(), nick)) {
+      api.send({
+        t: "cm_role_ack",
+        from: me().nick,
+        to: nick,
+        spectating: !!msg.spectating,
+        accepted: accepted
+      });
+    }
+  }
+
+  function toggleRolePreference() {
+    if (!api) return;
+    if (!canChangeRole()) {
+      api.toast("게임 시작 전이나 종료 후에 바꿀 수 있어요");
+      return;
+    }
+    var nick = me().nick;
+    var spectating = !has(state.spectators || [], nick);
+    if (api.isHost()) {
+      if (hostSetSpectatorPreference(nick, spectating)) {
+        api.toast(spectating ? "관전 모드로 바꿨어요" : "참가 모드로 바꿨어요");
+      }
+      return;
+    }
+    api.send({
+      t: "cm_role_req",
+      from: nick,
+      nick: nick,
+      spectating: spectating
+    });
+  }
+
   function validRoundMessage(msg) {
-    return state.phase === "drawing" && msg.matchId === state.matchId && msg.roundIndex === state.roundIndex
+    return state.phase === "drawing" && !state.pauseKind
+      && msg.matchId === state.matchId && msg.roundIndex === state.roundIndex
       && safeNick(msg.nick) === state.drawer && has(activeNicks(), state.drawer);
   }
 
@@ -595,7 +852,7 @@ window.CatchMind = (function () {
     var limit = Math.min(MAX_POINTS_PER_STROKE, Math.max(0, pointLimit == null ? MAX_POINTS_PER_STROKE : pointLimit));
     var points = raw.points.slice(0, limit).map(safePoint);
     if (!points.length) return null;
-    return { id: safeText(raw.id, 80), color: color, width: clamp(Number(raw.width) || 8, 4, 36), points: points };
+    return { id: safeText(raw.id, 80), color: color, width: clamp(Number(raw.width) || 8, 4, MAX_STROKE_WIDTH), points: points };
   }
 
   function sanitizeStrokes(raw) {
@@ -638,7 +895,7 @@ window.CatchMind = (function () {
     return {
       id: safeText(raw.id, 80),
       color: color,
-      width: clamp(Number(raw.width) || 8, 4, 36),
+      width: clamp(Number(raw.width) || 8, 4, MAX_STROKE_WIDTH),
       offset: offset,
       points: raw.points.slice(0, MAX_POINTS_PER_STROKE).map(safePoint)
     };
@@ -696,7 +953,7 @@ window.CatchMind = (function () {
   }
 
   function sendCanvasSnapshot(msg) {
-    if (!api || state.phase !== "drawing" || state.drawer !== me().nick) return;
+    if (!api || state.phase !== "drawing" || state.pauseKind || state.drawer !== me().nick) return;
     if (msg.from !== api.host() || msg.to !== me().nick || msg.matchId !== state.matchId || msg.roundIndex !== state.roundIndex) return;
     api.send({
       t: "cm_canvas_state",
@@ -711,7 +968,7 @@ window.CatchMind = (function () {
   }
 
   function applyCanvasSnapshot(msg) {
-    if (!api || !api.isHost() || state.phase !== "drawing") return;
+    if (!api || !api.isHost() || state.phase !== "drawing" || state.pauseKind) return;
     if (msg.from !== state.drawer || msg.to !== me().nick || msg.matchId !== state.matchId || msg.roundIndex !== state.roundIndex) return;
     var seq = safeInteger(msg.drawSeq, 0, Number.MAX_SAFE_INTEGER, null);
     if (seq == null || seq < state.drawSeq || !Array.isArray(msg.strokes)) return;
@@ -739,7 +996,7 @@ window.CatchMind = (function () {
   }
 
   function syncReactionScope() {
-    var scope = state.phase === "drawing" ? reactionScopeKey() : "";
+    var scope = state.phase === "drawing" && !state.pauseKind ? reactionScopeKey() : "";
     if (reactionScope === scope) return;
     reactionScope = scope;
     clearReactionEffects();
@@ -776,7 +1033,7 @@ window.CatchMind = (function () {
 
   function pumpReactionQueue() {
     reactionPumpTimer = null;
-    if (state.phase !== "drawing") {
+    if (state.phase !== "drawing" || state.pauseKind) {
       clearReactionEffects();
       return;
     }
@@ -800,7 +1057,7 @@ window.CatchMind = (function () {
   function showReaction(emoji, nick) {
     emoji = safeReactionEmoji(emoji);
     nick = safeNick(nick);
-    if (!emoji || state.phase !== "drawing") return false;
+    if (!emoji || state.phase !== "drawing" || state.pauseKind) return false;
     syncReactionScope();
     var now = Date.now();
     if (nick && reactionLastBy[nick] && now - reactionLastBy[nick] < REACTION_USER_COOLDOWN_MS) return false;
@@ -813,12 +1070,13 @@ window.CatchMind = (function () {
 
   function canReact(nick) {
     nick = safeNick(nick);
-    return !!(state.phase === "drawing" && nick && has(state.guessers, nick) && state.correct[nick]);
+    return !!(state.phase === "drawing" && !state.pauseKind && nick && has(state.guessers, nick) && state.correct[nick]);
   }
 
   function validReactionMessage(msg) {
     var nick = safeNick(msg && msg.nick);
     return !!(state.phase === "drawing"
+      && !state.pauseKind
       && msg.matchId === state.matchId
       && msg.roundIndex === state.roundIndex
       && nick
@@ -848,7 +1106,7 @@ window.CatchMind = (function () {
       var helloNick = safeNick(msg.nick);
       if (api && api.isHost() && helloNick && helloNick !== me().nick && has(activeNicks(), helloNick)) {
         broadcastState();
-        if (state.phase === "drawing" && secretWord && helloNick === state.drawer) {
+        if (state.phase === "drawing" && !state.pauseKind && secretWord && helloNick === state.drawer) {
           api.send({
             t: "cm_secret",
             from: me().nick,
@@ -877,7 +1135,28 @@ window.CatchMind = (function () {
       }
     } else if (msg.t === "cm_canvas_req") sendCanvasSnapshot(msg);
     else if (msg.t === "cm_canvas_state") applyCanvasSnapshot(msg);
+    else if (msg.t === "cm_role_req") hostRoleRequest(msg);
+    else if (msg.t === "cm_role_ack") {
+      if (api && msg.from === api.host() && msg.to === me().nick) {
+        if (msg.accepted) api.toast(msg.spectating ? "관전 모드로 바꿨어요" : "참가 모드로 바꿨어요");
+        else api.toast("게임 시작 전이나 종료 후에 바꿀 수 있어요");
+      }
+    }
     else if (msg.t === "cm_guess") hostGuess(msg);
+    else if (msg.t === "cm_spectator_input") hostSpectatorInput(msg);
+    else if (msg.t === "cm_secret_req") answerSecretRecovery(msg);
+    else if (msg.t === "cm_secret_restore") hostRestoreSecret(msg);
+    else if (msg.t === "cm_notice") {
+      if (api && msg.from === api.host() && msg.to === me().nick && msg.matchId === state.matchId && msg.roundIndex === state.roundIndex) {
+        api.toast("관전자는 정답을 입력할 수 없어요");
+      }
+    }
+    else if (msg.t === "cm_chat_ack") {
+      if (api && api.showChat && msg.from === api.host() && msg.to === me().nick && msg.nick === me().nick
+          && msg.matchId === state.matchId && msg.roundIndex === state.roundIndex) {
+        api.showChat(me().nick, safeText(msg.text, 40));
+      }
+    }
     else if (msg.t === "cm_draw") applyDrawMessage(msg);
     else if (msg.t === "cm_undo") applyCanvasCommand(msg, "cm_undo");
     else if (msg.t === "cm_clear") applyCanvasCommand(msg, "cm_clear");
@@ -919,7 +1198,8 @@ window.CatchMind = (function () {
   }
 
   function syncBgm() {
-    if (!api || isSoundMuted()) { stopBgm(false); return; }
+    var active = state.phase === "countdown" || state.phase === "drawing" || state.phase === "reveal";
+    if (!api || !active || isSoundMuted()) { stopBgm(false); return; }
     var el = ensureBgm();
     if (!el || !el.paused || bgmPlayPending) return;
     bgmPlayPending = true;
@@ -960,6 +1240,36 @@ window.CatchMind = (function () {
     } catch (e) {}
   }
 
+  function ensureFinishSfx() {
+    if (finishSfxEl) return finishSfxEl;
+    if (typeof Audio === "undefined") return null;
+    try {
+      finishSfxEl = new Audio(FINISH_SFX_SRC);
+      finishSfxEl.preload = "auto";
+      finishSfxEl.volume = FINISH_SFX_VOLUME;
+      finishSfxEl.setAttribute("playsinline", "");
+      return finishSfxEl;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function playFinishSfx() {
+    if (!state.matchId || lastFinishSfxMatchId === state.matchId) return;
+    lastFinishSfxMatchId = state.matchId;
+    stopBgm(false);
+    if (isSoundMuted()) return;
+    var el = ensureFinishSfx();
+    if (!el) return;
+    try {
+      el.pause();
+      el.currentTime = 0;
+      el.volume = FINISH_SFX_VOLUME;
+      var play = el.play();
+      if (play && play.catch) play.catch(function () {});
+    } catch (e) {}
+  }
+
   function onPresence(_list, options) {
     if (!api) return;
     if (state.phase === "practice" && activePeople().length > 1) {
@@ -975,18 +1285,34 @@ window.CatchMind = (function () {
     var becameHost = options && options.becameHost;
     var lostHost = previousHost && !isHost;
     if (isHost) stateHost = me().nick;
-    if (isHost && becameHost && state.phase === "drawing" && !secretWord) {
-      hostEndRound("방장이 바뀌어 이번 문제를 넘겼어요");
-    } else if (isHost && state.phase === "drawing") {
-      // Presence can briefly mark a reconnecting player away. Only accepted guesses finish a round.
-      broadcastState();
+    if (isHost && becameHost && state.phase === "countdown" && !secretWord) secretWord = pickWord();
+    if (isHost && (state.phase === "countdown" || state.phase === "drawing")) {
+      var live = activeNicks();
+      var activeGuessers = state.guessers.filter(function (nick) { return has(live, nick); });
+      if (!has(live, state.drawer)) {
+        hostPauseForDrawer();
+      } else if (!activeGuessers.length) {
+        hostEndRound("정답을 맞힐 사람이 없어 턴을 넘겼어요");
+      } else if (state.phase === "drawing" && activeGuessers.every(function (nick) { return !!state.correct[nick]; })) {
+        hostEndRound("남아 있는 참가자가 모두 맞혔어요");
+      } else if (state.pauseKind === "drawer") {
+        if (state.phase === "drawing" && !secretWord) hostRequestSecretRecovery();
+        else hostResumeRound();
+      } else if (state.phase === "drawing" && !secretWord) {
+        hostRequestSecretRecovery();
+      } else {
+        broadcastState();
+      }
     } else if (isHost) {
       broadcastState();
     }
     if (isHost && becameHost && state.phase === "finished" && state.recordStatus === "pending") {
       persistResults(state.matchId, resultsFromState(), 0);
     }
-    if (isHost && state.phase === "drawing") requestCanvasSync(false);
+    if (isHost && state.phase === "drawing" && !state.pauseKind && has(activeNicks(), state.drawer)) {
+      sendSecretToDrawer();
+      requestCanvasSync(false);
+    }
     if (!isHost && (lostHost || stateHost !== api.host())) requestStateSync(true);
     previousHost = isHost;
     render();
@@ -996,9 +1322,25 @@ window.CatchMind = (function () {
     if (!api) return;
     syncBgm();
     renderTimer();
+    renderStage();
     if (!api.isHost()) return;
     var now = Date.now();
-    if (state.phase === "drawing" && state.deadline && now >= state.deadline) hostEndRound("시간이 끝났어요");
+    if (state.pauseKind === "drawer") {
+      if (has(activeNicks(), state.drawer)) {
+        if (state.phase === "drawing" && !secretWord) hostRequestSecretRecovery();
+        else hostResumeRound();
+      } else if (state.pauseUntil && now >= state.pauseUntil) {
+        hostEndRound(state.drawer + "님이 돌아오지 않아 턴을 넘겼어요");
+      }
+      return;
+    }
+    if (state.pauseKind === "sync") {
+      if (secretWord) hostResumeRound();
+      else if (state.pauseUntil && now >= state.pauseUntil) hostRestartAfterSecretLoss();
+      return;
+    }
+    if (state.phase === "countdown" && state.deadline && now >= state.deadline) hostBeginDrawing();
+    else if (state.phase === "drawing" && state.deadline && now >= state.deadline) hostEndRound("시간이 끝났어요");
     else if (state.phase === "reveal" && state.nextAt && now >= state.nextAt) hostStartRound(state.roundIndex + 1);
   }
 
@@ -1010,7 +1352,7 @@ window.CatchMind = (function () {
 
   function participantNicks() {
     var live = activeNicks();
-    var source = state.queue.length ? state.queue : live;
+    var source = state.queue.length ? state.queue : desiredParticipantNicks();
     return source.filter(function (nick) { return has(live, nick); });
   }
 
@@ -1018,6 +1360,7 @@ window.CatchMind = (function () {
     var label = $("catch-round-label");
     if (label) {
       if (state.phase === "practice") label.textContent = "연습모드";
+      else if (state.phase === "countdown") label.textContent = (state.drawer || "출제자") + " 준비 · " + (state.roundIndex + 1) + "/" + state.queue.length;
       else if (state.phase === "drawing" || state.phase === "reveal") label.textContent = (state.drawer || "출제자") + " 그림 · " + (state.roundIndex + 1) + "/" + state.queue.length;
       else if (state.phase === "finished") label.textContent = "게임 종료";
       else label.textContent = "게임 대기 중";
@@ -1029,7 +1372,16 @@ window.CatchMind = (function () {
 
   function renderTimer() {
     var box = $("catch-timer"); if (!box) return;
-    if (state.phase === "drawing" && state.deadline) {
+    if (state.pauseKind === "drawer" && state.pauseUntil) {
+      box.textContent = Math.max(0, Math.ceil((state.pauseUntil - Date.now()) / 1000)) + "초";
+      box.classList.add("urgent");
+    } else if (state.pauseKind === "sync") {
+      box.textContent = "동기화";
+      box.classList.remove("urgent");
+    } else if (state.phase === "countdown") {
+      box.textContent = "준비";
+      box.classList.remove("urgent");
+    } else if (state.phase === "drawing" && state.deadline) {
       var sec = Math.max(0, Math.ceil((state.deadline - Date.now()) / 1000));
       box.textContent = sec + "초";
       box.classList.toggle("urgent", sec <= 10);
@@ -1057,9 +1409,12 @@ window.CatchMind = (function () {
       var isParticipant = !!participantSet[nick];
       var isCorrect = state.phase === "drawing" && !!state.correct[nick];
       var cls = (nick === state.drawer ? " drawer" : "") + (isCorrect ? " correct" : "") + (isParticipant ? "" : " spectator");
-      var score = isParticipant && state.queue.length ? " " + (state.scores[nick] || 0) + "점" : "";
+      var score = isParticipant && state.queue.length
+        ? '<span class="catch-inline-score">' + (state.scores[nick] || 0) + '점</span>'
+        : "";
       var badge = isCorrect ? ' <em>정답</em>' : "";
-      return '<span class="' + cls.trim() + '"><b>' + esc(nick) + '</b>' + badge + score + '</span>';
+      var crown = api && nick === api.host() ? ' <span class="catch-host-crown" title="방장" aria-label="방장">👑</span>' : "";
+      return '<span class="' + cls.trim() + '"><b>' + esc(nick) + '</b>' + crown + badge + score + '</span>';
     }).join("");
   }
 
@@ -1089,20 +1444,71 @@ window.CatchMind = (function () {
     }).join("");
   }
 
+  function renderLobbyRoles() {
+    var box = $("catch-lobby-roles");
+    var participantList = $("catch-lobby-participants");
+    var spectatorList = $("catch-lobby-spectators");
+    var participantCount = $("catch-lobby-participant-count");
+    var spectatorCount = $("catch-lobby-spectator-count");
+    if (!box || !participantList || !spectatorList || !participantCount || !spectatorCount) return;
+
+    var show = canChangeRole();
+    box.classList.toggle("hidden", !show);
+    if (!show) return;
+
+    function namesHtml(list, spectator) {
+      if (!list.length) return '<span class="catch-lobby-empty">없음</span>';
+      return list.map(function (person) {
+        var crown = api && person.nick === api.host()
+          ? '<span class="catch-lobby-crown" title="방장" aria-label="방장">👑</span>'
+          : "";
+        var mine = person.nick === me().nick ? " mine" : "";
+        var cls = "catch-lobby-name" + (spectator ? " spectator" : "") + mine;
+        return '<span class="' + cls + '"><b>' + esc(person.nick) + '</b>' + crown + '</span>';
+      }).join("");
+    }
+
+    var participants = desiredParticipantPeople();
+    var spectators = desiredSpectatorPeople();
+    participantCount.textContent = participants.length;
+    spectatorCount.textContent = spectators.length;
+    participantList.innerHTML = namesHtml(participants, false);
+    spectatorList.innerHTML = namesHtml(spectators, true);
+  }
+
   function renderStage() {
     var stage = $("catch-stage"), title = $("catch-stage-title"), sub = $("catch-stage-sub"), start = $("catch-start-btn"), practice = $("catch-practice-btn");
     if (!stage || !title || !sub || !start || !practice) return;
-    var mine = me().nick;
-    var waitingDuringRound = state.phase === "drawing" && !has(state.queue, mine);
-    var show = (state.phase !== "drawing" && state.phase !== "practice") || waitingDuringRound;
+    var show = state.phase !== "drawing" && state.phase !== "practice";
+    var showLobbyRoles = canChangeRole();
+    if (state.pauseKind) show = true;
     stage.classList.toggle("hidden", !show);
-    stage.classList.toggle("side", waitingDuringRound || state.phase === "finished");
+    stage.classList.remove("side");
+    stage.classList.toggle("countdown", state.phase === "countdown" && !state.pauseKind);
+    stage.classList.toggle("paused", !!state.pauseKind);
+    stage.classList.toggle("drawer-wait", state.pauseKind === "drawer");
+    stage.classList.toggle("lobby-roles", showLobbyRoles);
     if (!show) return;
-    var canStart = api && api.isHost() && activePeople().length >= 2;
+    var participantCount = desiredParticipantNicks().length;
+    var canStart = api && api.isHost() && participantCount >= 2;
     var canPractice = api && activePeople().length <= 1;
-    if (waitingDuringRound) {
-      title.textContent = "대기 중";
-      sub.textContent = "이번 판은 진행 중이에요. 다음 게임부터 참여해요";
+    if (state.pauseKind === "drawer") {
+      var waitSec = state.pauseUntil ? Math.max(0, Math.ceil((state.pauseUntil - Date.now()) / 1000)) : 15;
+      title.textContent = state.drawer + "님 재접속 대기";
+      sub.textContent = waitSec + "초";
+      sub.classList.remove("hidden");
+      start.classList.add("hidden");
+      practice.classList.add("hidden");
+    } else if (state.pauseKind === "sync") {
+      title.textContent = "게임을 이어가는 중";
+      sub.textContent = "잠시만 기다려주세요";
+      sub.classList.remove("hidden");
+      start.classList.add("hidden");
+      practice.classList.add("hidden");
+    } else if (state.phase === "countdown") {
+      var count = state.deadline ? Math.max(1, Math.ceil((state.deadline - Date.now()) / 1000)) : 1;
+      title.textContent = state.drawer + "님이 그릴 차례";
+      sub.textContent = count + "";
       sub.classList.remove("hidden");
       start.classList.add("hidden");
       practice.classList.add("hidden");
@@ -1127,7 +1533,9 @@ window.CatchMind = (function () {
       practice.disabled = !canPractice;
     } else {
       title.textContent = "게임 대기 중";
-      sub.textContent = canPractice ? "혼자라면 연습모드로 그림을 테스트할 수 있어요" : (api && api.isHost() ? "2명 이상이면 바로 시작할 수 있어요" : "방장이 시작하면 모두 함께 참여해요");
+      sub.textContent = canPractice
+        ? "혼자라면 연습모드로 그림을 테스트할 수 있어요"
+        : (participantCount < 2 ? "참가할 사람을 기다리고 있어요" : (api && api.isHost() ? "준비된 참가자로 시작할 수 있어요" : "방장이 시작하면 게임이 시작돼요"));
       sub.classList.remove("hidden");
       start.textContent = "게임 시작";
       start.classList.toggle("hidden", !canStart);
@@ -1139,17 +1547,18 @@ window.CatchMind = (function () {
 
   function renderControls() {
     var mine = me().nick;
+    var paused = !!state.pauseKind;
     var isPractice = state.phase === "practice" && state.drawer === mine;
-    var isDrawer = (state.phase === "drawing" && state.drawer === mine) || isPractice;
-    var isGuesser = state.phase === "drawing" && has(state.guessers, mine) && !state.correct[mine];
+    var isDrawer = (state.phase === "drawing" && !paused && state.drawer === mine) || isPractice;
+    var isGuesser = state.phase === "drawing" && !paused && has(state.guessers, mine) && !state.correct[mine];
     var isCorrectGuesser = state.phase === "drawing" && !!state.correct[mine];
     var tools = $("catch-tools"), inputRow = $("catch-input-row"), input = $("catch-chat-input"), emojiRow = $("catch-emoji-row");
     if (tools) tools.classList.toggle("hidden", !isDrawer);
     if (!isDrawer) setPaletteOpen(false);
-    if (inputRow) inputRow.classList.toggle("hidden", isDrawer || isCorrectGuesser);
-    if (emojiRow) emojiRow.classList.toggle("hidden", !isCorrectGuesser);
+    if (inputRow) inputRow.classList.toggle("hidden", isDrawer || isCorrectGuesser || paused);
+    if (emojiRow) emojiRow.classList.toggle("hidden", !isCorrectGuesser || paused);
     if (input) {
-      input.disabled = isCorrectGuesser;
+      input.disabled = isCorrectGuesser || paused;
       if (isCorrectGuesser) input.value = "";
       if (isPractice) input.placeholder = "연습 중 · 채팅 입력";
       else if (isGuesser) input.placeholder = "정답 또는 채팅 입력";
@@ -1160,20 +1569,41 @@ window.CatchMind = (function () {
     syncToolButtons();
   }
 
+  function renderChatOverlayPosition() {
+    var overlay = $("catch-chat-overlay"); if (!overlay) return;
+    var mine = me().nick;
+    var right = state.phase === "idle" || state.phase === "finished" || (state.queue.length > 0 && !has(state.queue, mine));
+    overlay.classList.toggle("right", right);
+  }
+
+  function renderRoleButton() {
+    var button = $("catch-role-btn"); if (!button) return;
+    var spectating = has(state.spectators || [], me().nick);
+    button.textContent = spectating ? "참가하기" : "관전하기";
+    button.disabled = !canChangeRole();
+    button.setAttribute("aria-pressed", String(spectating));
+    button.setAttribute("aria-label", spectating ? "다음 게임에 참가하기" : "다음 게임 관전하기");
+  }
+
   function render() {
     if (!api) return;
+    syncBgm();
     syncReactionScope();
     renderHeader();
     renderScores();
     renderWord();
     renderFeed();
+    renderLobbyRoles();
     renderStage();
     renderControls();
+    renderRoleButton();
+    renderChatOverlayPosition();
     redraw();
   }
 
   function canDraw() {
-    return !!(api && state.drawer === me().nick && (state.phase === "practice" || (state.phase === "drawing" && secretWord)));
+    return !!(api && state.drawer === me().nick && (state.phase === "practice"
+      || (state.phase === "drawing" && !state.pauseKind && state.deadline && secretWord)));
   }
 
   function pointFromEvent(event) {
@@ -1263,7 +1693,7 @@ window.CatchMind = (function () {
     currentStroke = {
       id: me().nick + "-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 10000).toString(36),
       color: color,
-      width: selectedTool === "eraser" ? 30 : 8,
+      width: brushWidth(selectedTool, selectedColorSlot),
       points: [pointFromEvent(event)]
     };
     strokeSentCount = 0;
@@ -1307,6 +1737,12 @@ window.CatchMind = (function () {
     return safeInteger(raw, 0, PEN_COLORS.length - 1, fallback);
   }
 
+  function brushWidth(tool, slot) {
+    if (tool === "eraser") return ERASER_WIDTH;
+    slot = safeInteger(slot, 0, PEN_WIDTHS.length - 1, 0);
+    return PEN_WIDTHS[slot] || PEN_WIDTHS[0];
+  }
+
   function updateColorButtons() {
     var colorButtons = document.querySelectorAll("[data-catch-color]");
     for (var i = 0; i < colorButtons.length; i++) {
@@ -1314,7 +1750,7 @@ window.CatchMind = (function () {
       var color = PEN_COLORS[slot] || PEN_COLORS[0];
       colorButtons[i].setAttribute("data-catch-color-slot", String(slot));
       colorButtons[i].setAttribute("data-catch-color", color);
-      colorButtons[i].setAttribute("aria-label", "color " + (slot + 1));
+      colorButtons[i].setAttribute("aria-label", slot === 1 ? "굵은 펜 색상" : "일반 펜 색상");
       var chip = colorButtons[i].querySelector("span");
       if (chip) chip.style.background = color;
     }
@@ -1428,6 +1864,10 @@ window.CatchMind = (function () {
     if (state.phase === "drawing" && state.correct[mine]) { input.value = ""; return; }
     if (state.phase === "drawing" && has(state.guessers, mine) && !state.correct[mine]) {
       api.send({ t: "cm_guess", nick: mine, text: text, matchId: state.matchId, roundIndex: state.roundIndex });
+    } else if (state.phase === "drawing" && state.queue.length && !has(state.queue, mine)) {
+      var spectatorMessage = { t: "cm_spectator_input", nick: mine, text: text, matchId: state.matchId, roundIndex: state.roundIndex };
+      if (api.isHost()) hostSpectatorInput(spectatorMessage);
+      else api.send(spectatorMessage);
     } else {
       api.sendChat(text);
     }
@@ -1476,6 +1916,36 @@ window.CatchMind = (function () {
     });
   }
 
+  function bindHorizontalDrag(scroller) {
+    if (!scroller || scroller.getAttribute("data-drag-scroll") === "1") return;
+    scroller.setAttribute("data-drag-scroll", "1");
+    var drag = null;
+    scroller.addEventListener("pointerdown", function (event) {
+      if (event.pointerType && event.pointerType !== "mouse") return;
+      if (event.button !== 0 || scroller.scrollWidth <= scroller.clientWidth) return;
+      drag = { id: event.pointerId, x: event.clientX, left: scroller.scrollLeft };
+      scroller.classList.add("dragging");
+      if (scroller.setPointerCapture) scroller.setPointerCapture(event.pointerId);
+    });
+    scroller.addEventListener("pointermove", function (event) {
+      if (!drag || drag.id !== event.pointerId) return;
+      event.preventDefault();
+      scroller.scrollLeft = drag.left - (event.clientX - drag.x);
+    });
+    function endDrag(event) {
+      if (!drag || (event && drag.id !== event.pointerId)) return;
+      drag = null;
+      scroller.classList.remove("dragging");
+    }
+    scroller.addEventListener("pointerup", endDrag);
+    scroller.addEventListener("pointercancel", endDrag);
+    scroller.addEventListener("wheel", function (event) {
+      if (scroller.scrollWidth <= scroller.clientWidth || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      event.preventDefault();
+      scroller.scrollLeft += event.deltaY;
+    }, { passive: false });
+  }
+
   function bind() {
     if (bound) return;
     bound = true;
@@ -1484,6 +1954,7 @@ window.CatchMind = (function () {
     setupToolButtons();
     buildPaletteUi();
     updateColorButtons();
+    bindHorizontalDrag($("catch-score-strip"));
     canvas.addEventListener("pointerdown", pointerDown);
     canvas.addEventListener("pointermove", pointerMove);
     canvas.addEventListener("pointerup", pointerUp);
@@ -1499,6 +1970,7 @@ window.CatchMind = (function () {
       sendReaction(this.getAttribute("data-catch-emoji"));
     });
     $("catch-leave-btn").addEventListener("click", function () { if (api) api.leaveRoom(); });
+    $("catch-role-btn").addEventListener("click", toggleRolePreference);
     $("catch-people-btn").addEventListener("click", function () { if (api) api.openPlayers(); });
     $("catch-rank-btn").addEventListener("click", function () { if (api) api.openRank(); });
     $("catch-menu-btn").addEventListener("click", function () { if (api) api.openMenu(); });
@@ -1549,6 +2021,9 @@ window.CatchMind = (function () {
     stateHost = null;
     lastSyncRequestAt = 0;
     lastCanvasRequestAt = 0;
+    if (finishSfxEl) {
+      try { finishSfxEl.pause(); finishSfxEl.currentTime = 0; } catch (e) {}
+    }
     canvas = $("catch-board");
     ctx = canvas ? canvas.getContext("2d") : null;
     if (canvas) bind();
@@ -1560,6 +2035,9 @@ window.CatchMind = (function () {
 
   function leave() {
     stopBgm(true);
+    if (finishSfxEl) {
+      try { finishSfxEl.pause(); finishSfxEl.currentTime = 0; } catch (e) {}
+    }
     if (tickId) { clearInterval(tickId); tickId = null; }
     if (pendingStrokeTimer) { clearTimeout(pendingStrokeTimer); pendingStrokeTimer = null; }
     clearSaveRetry();
@@ -1583,20 +2061,26 @@ window.CatchMind = (function () {
 
   function roomMeta() {
     if (state.phase === "practice") return { status: "대기중", summary: "연습모드" };
+    if (state.phase === "countdown") {
+      return { status: "게임중", summary: (state.drawer || "출제자") + " 준비 · " + (state.roundIndex + 1) + "/" + state.queue.length };
+    }
     if (state.phase === "drawing") {
       var solved = Object.keys(state.correct).filter(function (nick) { return state.correct[nick]; }).length;
-      return { status: "게임중", summary: (state.drawer || "출제자") + " 그림 · " + solved + "/" + state.guessers.length + " 정답" };
+      var reconnecting = state.pauseKind === "drawer" ? " · 재접속 대기" : "";
+      return { status: "게임중", summary: (state.drawer || "출제자") + " 그림" + reconnecting + " · " + solved + "/" + state.guessers.length + " 정답" };
     }
     if (state.phase === "reveal") return { status: "게임중", summary: "정답 공개 · 다음 라운드 준비" };
     if (state.phase === "finished") {
       var order = scoreOrder();
       return { status: "끝", summary: order.length ? order[0] + " 1위 · " + (state.scores[order[0]] || 0) + "점" : "게임 종료" };
     }
-    return { status: "대기중", summary: activePeople().length + "명 참여" };
+    var waitingParticipants = desiredParticipantNicks().length;
+    var waitingSpectators = desiredSpectatorPeople().length;
+    return { status: "대기중", summary: waitingParticipants + "명 참가 · " + waitingSpectators + "명 관전" };
   }
 
   function isBusy() {
-    return (state.phase === "drawing" || state.phase === "reveal") && has(state.queue, me().nick);
+    return (state.phase === "countdown" || state.phase === "drawing" || state.phase === "reveal") && has(state.queue, me().nick);
   }
 
   function canChat(nick) {
@@ -1614,7 +2098,9 @@ window.CatchMind = (function () {
     var list = people().slice().sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); });
     box.innerHTML = list.map(function (person) {
       var role = "다음 게임", cls = "role-catch";
-      if (state.phase === "drawing" && person.nick === state.drawer) { role = "그림"; cls = "role-draw"; }
+      if (canChangeRole() && has(state.spectators || [], person.nick)) { role = "관전"; cls = "role-catch"; }
+      else if (canChangeRole()) { role = "참가"; cls = "role-catch"; }
+      else if (state.phase === "drawing" && person.nick === state.drawer) { role = "그림"; cls = "role-draw"; }
       else if (state.correct[person.nick]) { role = "정답"; cls = "role-correct"; }
       else if (has(state.queue, person.nick)) { role = "참여"; cls = "role-catch"; }
       var hostMark = person.nick === host && !person.away ? ' <span class="mini-host">방장</span>' : "";
@@ -1630,7 +2116,8 @@ window.CatchMind = (function () {
       title: "캐치마인드 규칙",
       html: '<p class="rule-intro">한 사람씩 제시어를 보고 그림을 그리고, 나머지 사람은 제한시간 안에 정답을 맞힙니다.</p>'
         + '<p class="rule-foot" style="text-align:left;line-height:1.8">'
-        + '· 방에 있는 사람이 한 번씩 <b>120초</b> 동안 그림을 그립니다.<br>'
+        + '· 차례가 되면 3초 뒤 시작하며, 한 사람씩 <b>90초</b> 동안 그림을 그립니다.<br>'
+        + '· 출제자가 연결을 잃으면 최대 15초 동안 게임이 멈추고, 돌아오면 이어서 진행합니다.<br>'
         + '· 정답을 맞히면 <b>+10점</b>, 내 그림을 한 사람이 맞힐 때마다 출제자도 <b>+3점</b>을 얻습니다.<br>'
         + '· 모두 맞히거나 시간이 끝나면 다음 사람 차례로 넘어갑니다.<br>'
         + '· 한 바퀴가 끝나면 결과가 시즌 랭킹에 반영됩니다.<br>'
@@ -1661,6 +2148,18 @@ window.CatchMind = (function () {
       applyState: applyState,
       applyStrokeDelta: applyStrokeDelta,
       allGuessersCorrect: allGuessersCorrect,
+      hostStartMatch: hostStartMatch,
+      hostStartRound: hostStartRound,
+      hostBeginDrawing: hostBeginDrawing,
+      hostPauseForDrawer: hostPauseForDrawer,
+      hostResumeRound: hostResumeRound,
+      hostSpectatorInput: hostSpectatorInput,
+      hostSetSpectatorPreference: hostSetSpectatorPreference,
+      toggleRolePreference: toggleRolePreference,
+      tick: tick,
+      brushWidth: brushWidth,
+      canDraw: canDraw,
+      setSecretWord: function (word) { secretWord = word; },
       validReactionMessage: validReactionMessage,
       canChat: canChat,
       onMessage: onMessage,
@@ -1669,10 +2168,21 @@ window.CatchMind = (function () {
       clearSaveRetry: clearSaveRetry,
       snapshot: snapshot,
       participantNicks: participantNicks,
+      desiredParticipantNicks: desiredParticipantNicks,
+      desiredSpectatorPeople: desiredSpectatorPeople,
       getState: function () { return state; },
       setState: function (next) { state = next; },
       setApi: function (next) { api = next; },
-      limits: { strokes: MAX_STROKES, pointsPerStroke: MAX_POINTS_PER_STROKE, canvasPoints: MAX_CANVAS_POINTS, players: MAX_PLAYERS }
+      limits: {
+        strokes: MAX_STROKES,
+        pointsPerStroke: MAX_POINTS_PER_STROKE,
+        canvasPoints: MAX_CANVAS_POINTS,
+        players: MAX_PLAYERS,
+        strokeWidth: MAX_STROKE_WIDTH,
+        roundMs: ROUND_MS,
+        countdownMs: ROUND_COUNTDOWN_MS,
+        drawerGraceMs: DRAWER_GRACE_MS
+      }
     };
   }
   return controller;

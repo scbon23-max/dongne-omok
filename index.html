@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260717-pro-depth-tiers-v1">
+<meta name="app-build" content="20260718-catchmind-spectator-roles-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -283,6 +283,7 @@
 
   <div class="action-row slim catch-action-row">
     <button id="catch-rank-btn" class="btn-flat">🏅 랭킹</button>
+    <button id="catch-role-btn" class="btn-flat catch-role-btn" type="button" aria-pressed="false">관전하기</button>
     <button id="catch-leave-btn" class="btn-flat">나가기</button>
     <button id="catch-menu-btn" class="btn-flat menu-dots">⋯</button>
   </div>
@@ -302,6 +303,16 @@
     <div id="catch-stage" class="catch-stage">
       <div id="catch-stage-title" class="catch-stage-title">게임 대기 중</div>
       <div id="catch-stage-sub" class="catch-stage-sub">방장이 시작하면 모두 함께 참여해요</div>
+      <div id="catch-lobby-roles" class="catch-lobby-roles hidden" aria-live="polite">
+        <div class="catch-lobby-role-row">
+          <span class="catch-lobby-role-label participant">참가 <b id="catch-lobby-participant-count">0</b></span>
+          <div id="catch-lobby-participants" class="catch-lobby-names"></div>
+        </div>
+        <div class="catch-lobby-role-row">
+          <span class="catch-lobby-role-label spectator">관전 <b id="catch-lobby-spectator-count">0</b></span>
+          <div id="catch-lobby-spectators" class="catch-lobby-names"></div>
+        </div>
+      </div>
       <button id="catch-start-btn" class="center-btn catch-start-btn hidden" type="button">게임 시작</button>
       <button id="catch-practice-btn" class="center-btn catch-start-btn catch-practice-btn hidden" type="button">연습모드</button>
     </div>
@@ -310,8 +321,8 @@
   <div id="catch-tools" class="catch-tools hidden" aria-label="그리기 도구">
     <button class="catch-tool active" type="button" data-catch-tool="pen">펜</button>
     <button class="catch-tool" type="button" data-catch-tool="eraser">지우개</button>
-    <button class="catch-color active" type="button" data-catch-color-slot="0" data-catch-color="#17252f" aria-label="검정색"><span style="background:#17252f"></span></button>
-    <button class="catch-color" type="button" data-catch-color-slot="1" data-catch-color="#d23b3b" aria-label="빨간색"><span style="background:#d23b3b"></span></button>
+    <button class="catch-color active" type="button" data-catch-color-slot="0" data-catch-color="#17252f" aria-label="일반 펜 색상"><span style="background:#17252f"></span></button>
+    <button class="catch-color" type="button" data-catch-color-slot="1" data-catch-color="#d23b3b" aria-label="굵은 펜 색상"><span style="background:#d23b3b"></span></button>
     <button id="catch-bg-btn" class="catch-tool catch-tool-icon catch-bg-btn" type="button" aria-label="배경색">▣</button>
     <button id="catch-undo-btn" class="catch-tool catch-tool-icon" type="button" aria-label="마지막 선 되돌리기">↶</button>
     <button id="catch-clear-btn" class="catch-tool catch-tool-icon" type="button" aria-label="그림 모두 지우기">⌫</button>

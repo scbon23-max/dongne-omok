@@ -29,6 +29,7 @@ function baseSnapshot(overrides) {
     rev: 1,
     matchId: "match-a",
     queue: ["A", "B", "C"],
+    spectators: [],
     roundIndex: 0,
     drawer: "A",
     guessers: ["B", "C"],
@@ -481,4 +482,358 @@ test("prototype-like nicknames do not count as already correct", () => {
 
   assert.equal(state.correct.toString, undefined);
   assert.equal(api.allGuessersCorrect(), false);
+});
+
+test("a match uses a three-second ready phase and a ninety-second drawing phase", () => {
+  const api = loadCatchMind();
+  const sent = [];
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A", joinTs: 1 }, { nick: "B", joinTs: 2 }]; },
+    send(message) { sent.push(message); },
+    roomChanged() {},
+    toast() {}
+  });
+
+  const beforeCountdown = Date.now();
+  api.hostStartMatch();
+  assert.equal(api.getState().phase, "countdown");
+  assert.ok(api.getState().deadline - beforeCountdown <= api.limits.countdownMs + 100);
+  assert.equal(sent.some(message => message.t === "cm_secret"), false);
+
+  const beforeDrawing = Date.now();
+  api.hostBeginDrawing();
+  assert.equal(api.getState().phase, "drawing");
+  assert.ok(api.getState().deadline - beforeDrawing >= api.limits.roundMs - 100);
+  assert.ok(api.getState().deadline - beforeDrawing <= api.limits.roundMs + 100);
+  assert.equal(sent.filter(message => message.t === "cm_secret").length, 1);
+});
+
+test("the drawer gets a fifteen-second reconnect pause and resumes the same round", () => {
+  const api = loadCatchMind();
+  const sent = [];
+  let roster = [{ nick: "A" }, { nick: "B" }, { nick: "C" }];
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return roster; },
+    send(message) { sent.push(message); },
+    roomChanged() {},
+    toast() {}
+  });
+  api.applyState(baseSnapshot({ drawer: "B", guessers: ["A", "C"], remainMs: 50000 }));
+  api.setSecretWord("사과");
+
+  roster = [{ nick: "A" }, { nick: "C" }];
+  const pauseStarted = Date.now();
+  api.onPresence([], { becameHost: false });
+  assert.equal(api.getState().pauseKind, "drawer");
+  assert.equal(api.getState().deadline, null);
+  assert.ok(api.getState().pauseUntil - pauseStarted >= api.limits.drawerGraceMs - 100);
+
+  roster = [{ nick: "A" }, { nick: "B" }, { nick: "C" }];
+  api.onPresence([], { becameHost: false });
+  assert.equal(api.getState().phase, "drawing");
+  assert.equal(api.getState().pauseKind, null);
+  assert.ok(api.getState().deadline > Date.now());
+  assert.ok(sent.some(message => message.t === "cm_secret" && message.to === "B"));
+});
+
+test("an absent drawer loses the turn after the reconnect deadline", () => {
+  const api = loadCatchMind();
+  let roster = [{ nick: "A" }, { nick: "B" }, { nick: "C" }];
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return roster; },
+    send() {},
+    roomChanged() {},
+    toast() {}
+  });
+  api.applyState(baseSnapshot({ drawer: "B", guessers: ["A", "C"] }));
+  api.setSecretWord("사과");
+
+  roster = [{ nick: "A" }, { nick: "C" }];
+  api.onPresence([], { becameHost: false });
+  api.getState().pauseUntil = Date.now() - 1;
+  api.tick();
+
+  assert.equal(api.getState().phase, "reveal");
+  assert.equal(api.getState().pauseKind, null);
+  assert.ok(api.getState().feed.some(item => item.text.includes("턴을 넘겼어요")));
+});
+
+test("a new host restarts safely if the private word cannot be recovered", () => {
+  const api = loadCatchMind();
+  const sent = [];
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }]; },
+    send(message) { sent.push(message); },
+    roomChanged() {},
+    toast() {}
+  });
+  api.applyState(baseSnapshot({
+    drawer: "B",
+    guessers: ["A", "C"],
+    strokes: [{ id: "old", color: "#17252f", width: 8, points: [{ x: 0.2, y: 0.2 }] }]
+  }));
+
+  api.onPresence([], { becameHost: true });
+  assert.equal(api.getState().pauseKind, "sync");
+  assert.ok(sent.some(message => message.t === "cm_secret_req" && message.to === "B"));
+
+  api.getState().pauseUntil = Date.now() - 1;
+  api.tick();
+  assert.equal(api.getState().phase, "drawing");
+  assert.equal(api.getState().pauseKind, null);
+  assert.equal(api.getState().strokes.length, 0);
+  assert.equal(api.getState().wordLength, 2);
+  assert.ok(api.getState().deadline - Date.now() >= api.limits.roundMs - 100);
+  assert.ok(sent.some(message => message.t === "cm_secret" && message.to === "B"));
+});
+
+test("spectators cannot submit the exact answer but can still chat", () => {
+  const api = loadCatchMind();
+  const sent = [];
+  const relayed = [];
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "S" }]; },
+    send(message) { sent.push(message); },
+    relayChat(nick, text) { relayed.push({ nick, text }); },
+    roomChanged() {},
+    toast() {}
+  });
+  api.applyState(baseSnapshot({
+    queue: ["A", "B"],
+    drawer: "A",
+    guessers: ["B"],
+    scores: { A: 0, B: 0 },
+    stats: {
+      A: { points: 0, maxPoints: 3, correct: 0, drawCorrect: 0 },
+      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+    }
+  }));
+  api.setSecretWord("사과");
+
+  api.hostSpectatorInput({ nick: "S", text: "사과", matchId: "match-a", roundIndex: 0 });
+  assert.equal(relayed.length, 0);
+  assert.ok(sent.some(message => message.t === "cm_notice" && message.to === "S"));
+
+  api.hostSpectatorInput({ nick: "S", text: "멋진 그림", matchId: "match-a", roundIndex: 0 });
+  assert.deepEqual(relayed, [{ nick: "S", text: "멋진 그림" }]);
+  assert.ok(sent.some(message => message.t === "cm_chat_ack" && message.to === "S"));
+});
+
+test("drawing widths distinguish normal pen, thick pen, and eraser", () => {
+  const api = loadCatchMind();
+  assert.equal(api.brushWidth("pen", 0), 8);
+  assert.equal(api.brushWidth("pen", 1), 24);
+  assert.equal(api.brushWidth("eraser", 0), 90);
+
+  const clean = api.sanitizeSnapshot(baseSnapshot({
+    strokes: [{ id: "wide", color: "#17252f", width: 90, points: [{ x: 0.2, y: 0.2 }] }]
+  }));
+  assert.equal(clean.strokes[0].width, 90);
+  assert.equal(api.limits.strokeWidth, 96);
+});
+
+test("the round advances when every remaining guesser has left", () => {
+  const api = loadCatchMind();
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }]; },
+    send() {},
+    roomChanged() {},
+    toast() {}
+  });
+  api.applyState(baseSnapshot());
+  api.setSecretWord("사과");
+
+  api.onPresence([], { becameHost: false });
+  assert.equal(api.getState().phase, "reveal");
+  assert.ok(api.getState().feed.some(item => item.text.includes("정답을 맞힐 사람이 없어")));
+});
+
+test("paused rounds reject stale drawing and reaction messages", () => {
+  const api = loadCatchMind();
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    pauseKind: "drawer",
+    pauseRemainMs: 12000,
+    pausedRemainMs: 40000
+  })));
+  api.setApi({
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }]; }
+  });
+
+  api.onMessage({
+    t: "cm_draw",
+    nick: "A",
+    matchId: "match-a",
+    roundIndex: 0,
+    seq: 1,
+    stroke: { id: "late", color: "#17252f", width: 8, offset: 0, points: [{ x: 0.2, y: 0.2 }] }
+  });
+
+  assert.equal(api.getState().drawSeq, 0);
+  assert.equal(api.validReactionMessage({
+    t: "cm_react",
+    nick: "B",
+    emoji: "🤣",
+    matchId: "match-a",
+    roundIndex: 0
+  }), false);
+});
+
+test("a returning guesser keeps the same game role without disturbing others", () => {
+  const api = loadCatchMind();
+  let roster = [{ nick: "A" }, { nick: "B" }];
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return roster; },
+    send() {},
+    roomChanged() {},
+    toast() {}
+  });
+  api.applyState(baseSnapshot());
+  api.setSecretWord("사과");
+
+  api.onPresence([], { becameHost: false });
+  assert.equal(api.getState().phase, "drawing");
+  assert.deepEqual(Array.from(api.getState().guessers), ["B", "C"]);
+
+  roster = [{ nick: "A" }, { nick: "B" }, { nick: "C" }];
+  api.onPresence([], { becameHost: false });
+  api.onMessage({ t: "cm_guess", nick: "C", text: "사과", matchId: "match-a", roundIndex: 0 });
+
+  assert.equal(api.getState().phase, "drawing");
+  assert.equal(api.getState().correct.C, true);
+  assert.equal(api.getState().scores.C, 10);
+});
+
+test("spectator preferences produce the exact participant queue at match start", () => {
+  const api = loadCatchMind();
+  const sent = [];
+  const roster = ["A", "B", "C", "D", "E", "F"].map((nick, index) => ({ nick, joinTs: index + 1 }));
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return roster; },
+    send(message) { sent.push(message); },
+    roomChanged() {},
+    toast() {}
+  });
+
+  api.onMessage({ t: "cm_role_req", from: "E", nick: "E", spectating: true });
+  api.onMessage({ t: "cm_role_req", from: "F", nick: "F", spectating: true });
+
+  assert.deepEqual(Array.from(api.getState().spectators), ["E", "F"]);
+  assert.deepEqual(Array.from(api.desiredParticipantNicks()), ["A", "B", "C", "D"]);
+  assert.deepEqual(Array.from(api.desiredSpectatorPeople(), person => person.nick), ["E", "F"]);
+
+  api.hostStartMatch();
+  assert.equal(api.getState().phase, "countdown");
+  assert.deepEqual(Array.from(api.getState().queue), ["A", "B", "C", "D"]);
+  assert.deepEqual(Array.from(api.getState().spectators), ["E", "F"]);
+  assert.equal(sent.filter(message => message.t === "cm_role_ack").length, 2);
+});
+
+test("a spectator can switch back to participant before the match", () => {
+  const api = loadCatchMind();
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }]; },
+    send() {},
+    roomChanged() {},
+    toast() {}
+  });
+
+  assert.equal(api.hostSetSpectatorPreference("B", true), true);
+  assert.deepEqual(Array.from(api.getState().spectators), ["B"]);
+  assert.equal(api.hostSetSpectatorPreference("B", false), true);
+  assert.deepEqual(Array.from(api.getState().spectators), []);
+  assert.deepEqual(Array.from(api.desiredParticipantNicks()), ["A", "B", "C"]);
+});
+
+test("non-host role toggles are sent to the elected host", () => {
+  const api = loadCatchMind();
+  const sent = [];
+  api.setApi({
+    isHost() { return false; },
+    host() { return "A"; },
+    me() { return { nick: "B", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }]; },
+    send(message) { sent.push(message); },
+    roomChanged() {},
+    toast() {}
+  });
+
+  api.toggleRolePreference();
+
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].t, "cm_role_req");
+  assert.equal(sent[0].from, "B");
+  assert.equal(sent[0].nick, "B");
+  assert.equal(sent[0].spectating, true);
+});
+
+test("role changes are frozen once the countdown starts", () => {
+  const api = loadCatchMind();
+  const sent = [];
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }]; },
+    send(message) { sent.push(message); },
+    roomChanged() {},
+    toast() {}
+  });
+
+  api.hostStartMatch();
+  api.onMessage({ t: "cm_role_req", from: "B", nick: "B", spectating: true });
+
+  assert.equal(api.getState().phase, "countdown");
+  assert.deepEqual(Array.from(api.getState().queue), ["A", "B", "C"]);
+  assert.deepEqual(Array.from(api.getState().spectators), []);
+  const ack = sent.filter(message => message.t === "cm_role_ack").pop();
+  assert.equal(ack.to, "B");
+  assert.equal(ack.accepted, false);
+});
+
+test("a match cannot start with fewer than two willing participants", () => {
+  const api = loadCatchMind();
+  const toasts = [];
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }]; },
+    send() {},
+    roomChanged() {},
+    toast(message) { toasts.push(message); }
+  });
+
+  api.hostSetSpectatorPreference("B", true);
+  api.hostStartMatch();
+
+  assert.equal(api.getState().phase, "idle");
+  assert.deepEqual(Array.from(api.getState().queue), []);
+  assert.ok(toasts.some(message => message.includes("참가자가 2명 이상")));
 });

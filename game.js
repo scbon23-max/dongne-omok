@@ -146,6 +146,17 @@
         }
       },
       sendChat: function (text) { sendChatText(activeFamily(), text); },
+      relayChat: function (nick, text) {
+        nick = String(nick || "").slice(0, 40);
+        text = String(text || "").trim().slice(0, 80);
+        if (!nick || !text) return;
+        addChatTo("catchmind", nick, text, true);
+        if (netMode) {
+          Net.send({ t: "chat", game: "catchmind", nick: nick, text: text, relayBy: me.nick });
+          if (window.Db) Db.addChatMsg(chatRoomOf("catchmind"), nick, text);
+        }
+      },
+      showChat: function (nick, text) { addChatTo("catchmind", nick, text, true); },
       toast: toast,
       openRank: function () { openRank(curRoomGame || curGame); },
       openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
@@ -1247,7 +1258,8 @@
       case "toggle_pause": if (amHost && (msg.by === ADMIN || msg.by === hostNick)) setManualPause(!!msg.paused); break;
       case "chat":
         var chatGame = gameFamily(msg.game || "omok"), chatCtrl = gameController(chatGame);
-        if (msg.nick !== me.nick && (!chatCtrl || !chatCtrl.canChat || chatCtrl.canChat(msg.nick))) addChatTo(chatGame, msg.nick, msg.text, true);
+        if (msg.nick !== me.nick && msg.relayBy !== me.nick
+            && (!chatCtrl || !chatCtrl.canChat || chatCtrl.canChat(msg.nick))) addChatTo(chatGame, msg.nick, msg.text, true);
         break;
       case "undo_req": if (msg.to === me.nick) showUndoModal(msg.from, msg.gseq, msg.hlen); break;
       case "undo_res":
