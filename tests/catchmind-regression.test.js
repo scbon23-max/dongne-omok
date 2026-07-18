@@ -153,7 +153,7 @@ test("the drawing palette has three diverse rows including white", () => {
   assert.equal(colors.every(color => /^#[0-9a-f]{6}$/.test(color)), true);
 });
 
-test("waiting music pauses for one match-start sound and resumes after play", async () => {
+test("waiting music yields to looping match music and resumes after play", async () => {
   function media(src) {
     return {
       src: src || "",
@@ -223,6 +223,7 @@ test("waiting music pauses for one match-start sound and resumes after play", as
   assert.equal(created.length, 1);
   assert.equal(start.src, "assets/catchmind-start.mp3");
   assert.equal(start.volume, 1);
+  assert.equal(start.loop, true);
   assert.equal(start.playCount, 1);
 
   state.phase = "drawing";
@@ -235,6 +236,13 @@ test("waiting music pauses for one match-start sound and resumes after play", as
   assert.equal(start.playCount, 1);
   assert.equal(bgm.playCount, 1);
 
+  start.currentTime = 21;
+  start.pause();
+  api.syncAudio();
+  await Promise.resolve();
+  assert.equal(start.playCount, 2);
+  assert.equal(start.currentTime, 21);
+
   state.phase = "finished";
   api.syncAudio();
   await Promise.resolve();
@@ -243,12 +251,13 @@ test("waiting music pauses for one match-start sound and resumes after play", as
   assert.equal(bgm.playCount, 2);
   assert.equal(bgm.currentTime, 18);
 
-  state.phase = "countdown";
+  state.phase = "drawing";
   state.matchId = "match-two";
   state.roundIndex = 0;
   api.syncAudio();
   await Promise.resolve();
-  assert.equal(start.playCount, 2);
+  assert.equal(start.playCount, 3);
+  assert.equal(start.currentTime, 0);
   assert.equal(api.audioConfig.startVolume, 1);
   assert.equal(api.audioConfig.clearSrc, "assets/catchmind-clear.mp3");
   assert.equal(api.audioConfig.clearVolume, 1);

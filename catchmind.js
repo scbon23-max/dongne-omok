@@ -1283,6 +1283,7 @@ window.CatchMind = (function () {
       startSfxEl = new Audio(START_SFX_SRC);
       startSfxEl.preload = "auto";
       startSfxEl.volume = START_SFX_VOLUME;
+      startSfxEl.loop = true;
       startSfxEl.setAttribute("playsinline", "");
       return startSfxEl;
     } catch (e) {
@@ -1301,37 +1302,40 @@ window.CatchMind = (function () {
 
   function playStartSfx() {
     var matchId = state.matchId;
-    if (!matchId || lastStartSfxMatchId === matchId || startSfxPlayPending) return;
-    lastStartSfxMatchId = matchId;
+    if (!matchId || startSfxPlayPending) return;
     stopBgm(false);
     if (isSoundMuted()) return;
     var el = ensureStartSfx();
     if (!el) return;
+    var isNewMatch = lastStartSfxMatchId !== matchId;
+    if (!isNewMatch && !el.paused) return;
     try {
-      el.pause();
-      el.currentTime = 0;
+      if (isNewMatch) {
+        el.pause();
+        el.currentTime = 0;
+      }
+      lastStartSfxMatchId = matchId;
       el.volume = START_SFX_VOLUME;
+      el.loop = true;
       startSfxPlayPending = true;
       var play = el.play();
       if (play && play.then) {
         play.then(function () { startSfxPlayPending = false; })
           .catch(function () {
             startSfxPlayPending = false;
-            if (lastStartSfxMatchId === matchId) lastStartSfxMatchId = null;
           });
       } else {
         startSfxPlayPending = false;
       }
     } catch (e) {
       startSfxPlayPending = false;
-      if (lastStartSfxMatchId === matchId) lastStartSfxMatchId = null;
     }
   }
 
   function syncStartSfx() {
     if (!api || isSoundMuted()) { stopStartSfx(false); return; }
     if (!isMatchPlaying()) { stopStartSfx(true); return; }
-    if (state.phase === "countdown" && state.roundIndex === 0) playStartSfx();
+    playStartSfx();
   }
 
   function syncAudio() {

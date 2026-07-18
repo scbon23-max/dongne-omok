@@ -108,13 +108,14 @@ test("the CatchMind result dialog is wired to the shared season rating calculati
   assert.match(game, /aggregateCatchmind\(priorGames\.concat\(virtualRows\)\)/);
 });
 
-test("CatchMind ships the balanced match-start audio asset", () => {
+test("CatchMind ships the balanced looping match audio asset", () => {
   const asset = path.join(root, "assets", "catchmind-start.mp3");
   assert.equal(fs.existsSync(asset), true);
   assert.ok(fs.statSync(asset).size > 100000);
   assert.match(catchmind, /START_SFX_SRC = "assets\/catchmind-start\.mp3"/);
   assert.match(catchmind, /START_SFX_VOLUME = 1/);
-  assert.match(catchmind, /state\.phase === "countdown" && state\.roundIndex === 0/);
+  assert.match(catchmind, /startSfxEl\.loop = true/);
+  assert.match(catchmind, /if \(!isMatchPlaying\(\)\) { stopStartSfx\(true\); return; }/);
 });
 
 test("the Omok board uses a HiDPI backing store with logical input coordinates", () => {
