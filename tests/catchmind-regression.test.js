@@ -334,6 +334,35 @@ test("the countdown sound plays once for each visible 3 2 1 step", async () => {
   assert.equal(api.audioConfig.countdownVolume, 1);
 });
 
+test("the chat overlay stays behind the countdown and returns for play", () => {
+  const overlay = fakeElement();
+  const api = loadCatchMind({ elements: { "catch-chat-overlay": overlay } });
+  api.setApi({
+    isHost() { return false; },
+    host() { return "A"; },
+    me() { return { nick: "B", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }]; }
+  });
+
+  const state = api.freshState();
+  state.phase = "countdown";
+  state.queue = ["A", "B"];
+  api.setState(state);
+  api.renderChatOverlayPosition();
+  assert.equal(overlay.classList.contains("hidden"), true);
+  assert.equal(overlay.classList.contains("right"), false);
+
+  state.phase = "drawing";
+  api.renderChatOverlayPosition();
+  assert.equal(overlay.classList.contains("hidden"), false);
+  assert.equal(overlay.classList.contains("right"), false);
+
+  state.phase = "finished";
+  api.renderChatOverlayPosition();
+  assert.equal(overlay.classList.contains("hidden"), false);
+  assert.equal(overlay.classList.contains("right"), true);
+});
+
 test("canvas background fill syncs as a draw command", () => {
   const api = loadCatchMind();
   api.setState(api.sanitizeSnapshot(baseSnapshot({ drawSeq: 0, strokes: [], canvasBg: "#ffffff" })));

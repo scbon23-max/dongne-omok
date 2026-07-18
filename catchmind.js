@@ -2046,6 +2046,7 @@ window.CatchMind = (function () {
   function renderChatOverlayPosition() {
     var overlay = $("catch-chat-overlay"); if (!overlay) return;
     var mine = me().nick;
+    overlay.classList.toggle("hidden", state.phase === "countdown");
     var right = state.phase === "idle" || state.phase === "finished" || (state.queue.length > 0 && !has(state.queue, mine));
     overlay.classList.toggle("right", right);
   }
@@ -2673,6 +2674,7 @@ window.CatchMind = (function () {
       renderScores: renderScores,
       renderLobbyRoles: renderLobbyRoles,
       renderStage: renderStage,
+      renderChatOverlayPosition: renderChatOverlayPosition,
       matchHighlights: matchHighlights,
       formatHighlightSeconds: formatHighlightSeconds,
       fallbackResultInfo: fallbackResultInfo,
