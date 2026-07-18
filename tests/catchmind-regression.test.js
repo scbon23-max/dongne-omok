@@ -9,9 +9,10 @@ const vm = require("node:vm");
 function loadCatchMind(options) {
   options = options || {};
   const source = fs.readFileSync(path.join(__dirname, "..", "catchmind.js"), "utf8");
+  const elements = options.elements || {};
   const context = {
     window: { __CATCHMIND_TEST__: true, CATCHMIND_WORDS: ["사과"] },
-    document: { getElementById() { return null; }, querySelectorAll() { return []; } },
+    document: { getElementById(id) { return elements[id] || null; }, querySelectorAll() { return []; } },
     console,
     setTimeout: options.setTimeout || setTimeout,
     clearTimeout: options.clearTimeout || clearTimeout,
@@ -21,6 +22,24 @@ function loadCatchMind(options) {
   vm.createContext(context);
   vm.runInContext(source, context, { filename: "catchmind.js" });
   return context.window.CatchMind._test;
+}
+
+function fakeElement() {
+  const classes = new Set();
+  return {
+    innerHTML: "",
+    textContent: "",
+    classList: {
+      add(name) { classes.add(name); },
+      remove(name) { classes.delete(name); },
+      toggle(name, force) {
+        if (force === undefined) force = !classes.has(name);
+        if (force) classes.add(name);
+        else classes.delete(name);
+      },
+      contains(name) { return classes.has(name); }
+    }
+  };
 }
 
 function baseSnapshot(overrides) {
@@ -88,14 +107,20 @@ test("state sanitizing blocks markup and malformed values", () => {
   const clean = api.sanitizeSnapshot(baseSnapshot({
     scores: { A: '<img src=x onerror="alert(1)">', B: -5, C: 12 },
     stats: { A: null },
-    feed: [{ who: "A", text: "hello", kind: 'x\" onmouseover=\"alert(1)' }]
+    feed: [{ who: "A", text: "hello", kind: 'x\" onmouseover=\"alert(1)' }],
+    resultRatings: [
+      { nick: "A", beforeRating: 1000, rating: 1012, delta: 12, games: 5, rankText: "<img>", rankMove: 1 },
+      { nick: "constructor", beforeRating: 1000, rating: 2000 }
+    ]
   }));
 
   assert.equal(clean.scores.A, 0);
   assert.equal(clean.scores.B, 0);
   assert.equal(clean.scores.C, 12);
-  assert.deepEqual(Object.assign({}, clean.stats.A), { points: 0, maxPoints: 0, correct: 0, drawCorrect: 0 });
+  assert.deepEqual(Object.assign({}, clean.stats.A), { points: 0, maxPoints: 0, correct: 0, drawCorrect: 0, fastestMs: null });
   assert.equal(clean.feed[0].kind, "guess");
+  assert.equal(clean.resultRatings.length, 1);
+  assert.equal(clean.resultRatings[0].rankText, "<img>");
 });
 
 test("custom drawing colors allow safe hex values only", () => {
@@ -109,6 +134,16 @@ test("custom drawing colors allow safe hex values only", () => {
 
   assert.equal(clean.strokes[0].color, "#22c55e");
   assert.equal(clean.strokes[1].color, "#17252f");
+});
+
+test("the drawing palette has three diverse rows including white", () => {
+  const api = loadCatchMind();
+  const colors = Array.from(api.paletteColors);
+
+  assert.equal(colors.length, 18);
+  assert.equal(new Set(colors).size, 18);
+  assert.equal(colors.includes("#ffffff"), true);
+  assert.equal(colors.every(color => /^#[0-9a-f]{6}$/.test(color)), true);
 });
 
 test("canvas background fill syncs as a draw command", () => {
@@ -345,6 +380,288 @@ test("participant count excludes active spectators during a match", () => {
   });
 
   assert.deepEqual(Array.from(api.participantNicks()), ["A", "B", "C"]);
+});
+
+test("away members remain visible while active participant counts exclude them", () => {
+  const strip = fakeElement();
+  const roleBox = fakeElement();
+  const participantRow = fakeElement();
+  const spectatorRow = fakeElement();
+  const participantList = fakeElement();
+  const spectatorList = fakeElement();
+  const participantCount = fakeElement();
+  const spectatorCount = fakeElement();
+  const api = loadCatchMind({
+    elements: {
+      "catch-score-strip": strip,
+      "catch-lobby-roles": roleBox,
+      "catch-lobby-participant-row": participantRow,
+      "catch-lobby-spectator-row": spectatorRow,
+      "catch-lobby-participants": participantList,
+      "catch-lobby-spectators": spectatorList,
+      "catch-lobby-participant-count": participantCount,
+      "catch-lobby-spectator-count": spectatorCount
+    }
+  });
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() {
+      return [
+        { nick: "A", joinTs: 1 },
+        { nick: "B", joinTs: 2, away: true },
+        { nick: "S", joinTs: 3, away: true }
+      ];
+    }
+  });
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    queue: ["A", "B"],
+    spectators: ["S"],
+    drawer: "A",
+    guessers: ["B"],
+    scores: { A: 0, B: 0 },
+    stats: {
+      A: { points: 0, maxPoints: 3, correct: 0, drawCorrect: 0 },
+      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+    }
+  })));
+
+  assert.deepEqual(Array.from(api.participantNicks()), ["A"]);
+  api.renderScores();
+  assert.match(strip.innerHTML, />B</);
+  assert.match(strip.innerHTML, />S</);
+  assert.equal((strip.innerHTML.match(/자리비움/g) || []).length, 2);
+  assert.match(strip.innerHTML, /class="[^"]*away[^"]*"/);
+
+  const waiting = api.freshState();
+  waiting.spectators = ["S"];
+  api.setState(waiting);
+  api.renderLobbyRoles();
+  assert.equal(participantCount.textContent, 2);
+  assert.equal(spectatorCount.textContent, 1);
+  assert.match(participantList.innerHTML, />B</);
+  assert.match(participantList.innerHTML, /자리비움/);
+  assert.match(spectatorList.innerHTML, />S</);
+  assert.match(spectatorList.innerHTML, /자리비움/);
+});
+
+test("waiting and finished stages share the light CatchMind status hierarchy", () => {
+  const stage = fakeElement();
+  const kicker = fakeElement();
+  const title = fakeElement();
+  const sub = fakeElement();
+  const actions = fakeElement();
+  const start = fakeElement();
+  const practice = fakeElement();
+  const resultOpen = fakeElement();
+  const marks = fakeElement();
+  const hostReady = fakeElement();
+  const hostReadyText = fakeElement();
+  const highlights = fakeElement();
+  const finishNote = fakeElement();
+  const correctName = fakeElement();
+  const correctValue = fakeElement();
+  const fastName = fakeElement();
+  const fastValue = fakeElement();
+  const drawName = fakeElement();
+  const drawValue = fakeElement();
+  kicker.classList.add("hidden");
+  actions.classList.add("hidden");
+  start.classList.add("hidden");
+  practice.classList.add("hidden");
+  resultOpen.classList.add("hidden");
+  marks.classList.add("hidden");
+  hostReady.classList.add("hidden");
+  highlights.classList.add("hidden");
+  finishNote.classList.add("hidden");
+  let roster = [{ nick: "A", joinTs: 1 }];
+  const api = loadCatchMind({
+    elements: {
+      "catch-stage": stage,
+      "catch-stage-kicker": kicker,
+      "catch-stage-title": title,
+      "catch-stage-sub": sub,
+      "catch-stage-marks": marks,
+      "catch-host-ready": hostReady,
+      "catch-host-ready-text": hostReadyText,
+      "catch-round-highlights": highlights,
+      "catch-finish-note": finishNote,
+      "catch-highlight-correct-name": correctName,
+      "catch-highlight-correct-value": correctValue,
+      "catch-highlight-fast-name": fastName,
+      "catch-highlight-fast-value": fastValue,
+      "catch-highlight-draw-name": drawName,
+      "catch-highlight-draw-value": drawValue,
+      "catch-stage-actions": actions,
+      "catch-result-open-btn": resultOpen,
+      "catch-start-btn": start,
+      "catch-practice-btn": practice
+    }
+  });
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return roster; }
+  });
+
+  api.setState(api.freshState());
+  api.renderStage();
+  assert.equal(stage.classList.contains("idle"), true);
+  assert.equal(stage.classList.contains("lobby-roles"), true);
+  assert.equal(kicker.textContent, "READY TO DRAW");
+  assert.equal(kicker.classList.contains("hidden"), false);
+  assert.equal(marks.classList.contains("hidden"), false);
+  assert.equal(title.textContent, "그릴 준비 됐나요?");
+  assert.equal(sub.textContent, "1명의 참가자가 모였어요. 시작하면 첫 번째 제시어가 공개됩니다.");
+  assert.equal(hostReady.classList.contains("hidden"), false);
+  assert.equal(hostReadyText.textContent, "혼자라면 연습모드로 그림을 테스트할 수 있어요");
+  assert.equal(start.classList.contains("hidden"), true);
+  assert.equal(practice.classList.contains("hidden"), false);
+  assert.equal(actions.classList.contains("hidden"), false);
+
+  roster = [{ nick: "A", joinTs: 1 }, { nick: "B", joinTs: 2 }];
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    phase: "finished",
+    queue: ["A", "B"],
+    drawer: null,
+    guessers: [],
+    remainMs: null,
+    scores: { A: 42, B: 25 },
+    stats: {
+      A: { points: 42, maxPoints: 50, correct: 3, drawCorrect: 4, fastestMs: 4200 },
+      B: { points: 25, maxPoints: 50, correct: 2, drawCorrect: 1, fastestMs: 6800 }
+    },
+    recordStatus: "saved"
+  })));
+  api.renderStage();
+  assert.equal(stage.classList.contains("idle"), false);
+  assert.equal(stage.classList.contains("lobby-roles"), false);
+  assert.equal(stage.classList.contains("finished"), true);
+  assert.equal(kicker.textContent, "ROUND COMPLETE");
+  assert.equal(title.textContent, "그림 릴레이 끝!");
+  assert.equal(sub.textContent, "이번 판에서 나온 재미있는 기록이에요");
+  assert.equal(hostReady.classList.contains("hidden"), true);
+  assert.equal(highlights.classList.contains("hidden"), false);
+  assert.equal(correctName.textContent, "A");
+  assert.equal(correctValue.textContent, "정답 3개");
+  assert.equal(fastName.textContent, "A");
+  assert.equal(fastValue.textContent, "4.2초");
+  assert.equal(drawName.textContent, "A");
+  assert.equal(drawValue.textContent, "4명 정답");
+  assert.equal(finishNote.textContent, "이번 게임에서 모두 5개의 정답을 만들었어요 · 시즌 기록 반영 완료");
+  assert.equal(resultOpen.classList.contains("hidden"), false);
+  assert.equal(start.textContent, "다시 시작");
+  assert.equal(start.classList.contains("hidden"), false);
+  assert.equal(practice.classList.contains("hidden"), true);
+  assert.equal(actions.classList.contains("hidden"), false);
+});
+
+test("a correct guess records the player's fastest real answer time", () => {
+  const api = loadCatchMind();
+  const now = Date.now();
+  const state = api.freshState();
+  state.phase = "drawing";
+  state.matchId = "match-fast";
+  state.queue = ["A", "B"];
+  state.drawer = "A";
+  state.guessers = ["B"];
+  state.deadline = now + api.limits.roundMs - 5000;
+  state.scores.A = 0;
+  state.scores.B = 0;
+  state.stats.A = { points: 0, maxPoints: 3, correct: 0, drawCorrect: 0, fastestMs: null };
+  state.stats.B = { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0, fastestMs: null };
+  api.setState(state);
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }]; },
+    send() {},
+    roomChanged() {},
+    toast() {}
+  });
+  api.setSecretWord("사과");
+
+  api.hostGuess({ nick: "B", text: "사과", matchId: "match-fast", roundIndex: 0 });
+
+  assert.equal(api.getState().stats.B.correct, 1);
+  assert.ok(api.getState().stats.B.fastestMs >= 5000);
+  assert.ok(api.getState().stats.B.fastestMs < 5200);
+  assert.equal(api.formatHighlightSeconds(api.getState().stats.B.fastestMs), "5초");
+});
+
+test("finished matches open a reusable result popup with every player's rating change", async () => {
+  const backdrop = fakeElement();
+  backdrop.classList.add("hidden");
+  const meta = fakeElement();
+  const winner = fakeElement();
+  const winnerScore = fakeElement();
+  const winnerRate = fakeElement();
+  const list = fakeElement();
+  const api = loadCatchMind({
+    elements: {
+      "catch-result-backdrop": backdrop,
+      "catch-result-meta": meta,
+      "catch-result-winner": winner,
+      "catch-result-winner-score": winnerScore,
+      "catch-result-winner-rate": winnerRate,
+      "catch-result-list": list
+    }
+  });
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    phase: "finished",
+    matchId: "match-a",
+    drawer: null,
+    guessers: [],
+    remainMs: null,
+    scores: { A: 42, B: 25 },
+    stats: {
+      A: { points: 42, maxPoints: 50, correct: 3, drawCorrect: 4 },
+      B: { points: 25, maxPoints: 50, correct: 2, drawCorrect: 1 }
+    },
+    queue: ["A", "B"],
+    recordStatus: "saved"
+  })));
+  api.setApi({
+    isHost() { return true; },
+    me() { return { nick: "A", isAdmin: false }; },
+    send() {},
+    roomChanged() {},
+    resultSummary() {
+      return Promise.resolve({
+        matchId: "match-a",
+        players: [
+          { nick: "A", beforeRating: 1066, rating: 1084, delta: 18, games: 8, rankText: "1등", rankMove: 2 },
+          { nick: "B", beforeRating: 1005, rating: 997, delta: -8, games: 8, rankText: "7등", rankMove: -1 }
+        ]
+      });
+    }
+  });
+
+  api.syncResultPopup();
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(backdrop.classList.contains("hidden"), false);
+  assert.equal(meta.textContent, "캐치마인드 · 참가자 2명");
+  assert.equal(winner.textContent, "A");
+  assert.equal(winnerScore.textContent, "42점");
+  assert.equal(winnerRate.textContent, "활약도 84%");
+  assert.match(list.innerHTML, /A/);
+  assert.match(list.innerHTML, /B/);
+  assert.match(list.innerHTML, /1,066 →/);
+  assert.match(list.innerHTML, /1,084/);
+  assert.match(list.innerHTML, /\+18/);
+  assert.match(list.innerHTML, /▲ 1등/);
+  assert.match(list.innerHTML, /▼ 7등/);
+  assert.equal(api.getState().resultRatings.length, 2);
+
+  api.closeResultPopup();
+  api.syncResultPopup();
+  assert.equal(backdrop.classList.contains("hidden"), true);
+  api.openResultPopup();
+  assert.equal(backdrop.classList.contains("hidden"), false);
 });
 
 test("ranking saves retry before reporting success", async () => {

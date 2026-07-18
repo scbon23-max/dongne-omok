@@ -170,6 +170,9 @@
         if (!window.Db || !Db.recordCatchmindMatch) return Promise.resolve(null);
         return Promise.resolve(Db.recordCatchmindMatch(matchId, results));
       },
+      resultSummary: function (matchId, results) {
+        return withTimeout(buildCatchmindResultSummary(matchId, results), 8000);
+      },
       scoresChanged: function () {
         scheduleScoresRefresh("catchmind");
         if (lobbyMode) Net.sendLobby({ t: "scores", game: "catchmind" });
@@ -2608,6 +2611,102 @@
       stat.score = stat.elo;
       return stat;
     });
+  }
+  async function buildCatchmindResultSummary(matchId, results) {
+    if (!window.Db || !Db.getGamesByType) return null;
+    var safeId = String(matchId || "").replace(/[^a-zA-Z0-9_-]/g, "");
+    if (!safeId || !Array.isArray(results)) return null;
+    var seen = {};
+    var clean = results.map(function (row) {
+      row = row && typeof row === "object" ? row : {};
+      var nick = String(row.nick || "").trim().slice(0, 40);
+      if (!nick || seen[nick]) return null;
+      seen[nick] = true;
+      return {
+        nick: nick,
+        score: Math.max(0, Math.round(Number(row.score) || Number(row.points) || 0)),
+        points: Math.max(0, Math.round(Number(row.points) || 0)),
+        maxPoints: Math.max(1, Math.round(Number(row.maxPoints) || 1)),
+        correct: Math.max(0, Math.round(Number(row.correct) || 0)),
+        drawCorrect: Math.max(0, Math.round(Number(row.drawCorrect) || 0))
+      };
+    }).filter(Boolean);
+    if (!clean.length) return null;
+
+    var allGames = await Db.getGamesByType("catchmind");
+    var accounts = null;
+    if (Db.listAccounts) {
+      try { accounts = await Db.listAccounts(); } catch (e) {}
+    }
+    var accountSet = null;
+    if (Array.isArray(accounts) && accounts.length) {
+      accountSet = {};
+      accounts.forEach(function (account) {
+        if (account && account.nickname) accountSet[account.nickname] = true;
+      });
+    }
+
+    var currentRecords = (allGames || []).map(parseCatchmindRecord).filter(function (row) {
+      return row && row.matchId === safeId;
+    });
+    var resultAt = Date.now();
+    currentRecords.forEach(function (row) {
+      var time = new Date(row.createdAt).getTime();
+      if (isFinite(time)) resultAt = Math.min(resultAt, time);
+    });
+    var resultIso = new Date(resultAt).toISOString();
+    var season = seasonOf(resultIso);
+    var priorGames = (allGames || []).filter(function (game) {
+      if (!gameInSeason(game, season)) return false;
+      var row = parseCatchmindRecord(game);
+      if (!row || row.matchId === safeId) return false;
+      var time = new Date(game.created_at).getTime();
+      return isFinite(time) && time <= resultAt;
+    });
+    var virtualRows = clean.map(function (row) {
+      return {
+        black: row.nick,
+        white: ["cm", safeId, row.points, row.maxPoints, row.correct, row.drawCorrect].join(":"),
+        winner: "draw",
+        game: "catchmind",
+        created_at: resultIso
+      };
+    });
+    var beforeStats = aggregateCatchmind(priorGames);
+    var afterStats = aggregateCatchmind(priorGames.concat(virtualRows));
+    function eligible(stats) {
+      return accountSet ? stats.filter(function (stat) { return accountSet[stat.nick]; }) : stats;
+    }
+    var beforeRank = rankLookup(eligible(beforeStats));
+    var afterRank = rankLookup(eligible(afterStats));
+    function statOf(stats, nick) {
+      for (var i = 0; i < stats.length; i++) if (stats[i].nick === nick) return stats[i];
+      return { nick: nick, score: ELO_START, games: 0, rate: 0 };
+    }
+
+    return {
+      matchId: safeId,
+      players: clean.map(function (row) {
+        var before = statOf(beforeStats, row.nick);
+        var after = statOf(afterStats, row.nick);
+        var beforePlace = beforeRank[row.nick] || null;
+        var afterPlace = afterRank[row.nick] || null;
+        var rankMove = 0;
+        if (afterPlace && !beforePlace) rankMove = 1;
+        else if (afterPlace && beforePlace && afterPlace !== beforePlace) rankMove = beforePlace - afterPlace;
+        return {
+          nick: row.nick,
+          score: row.score,
+          performance: Math.min(100, Math.round(row.points / row.maxPoints * 100)),
+          beforeRating: before.score,
+          rating: after.score,
+          delta: after.score - before.score,
+          games: after.games,
+          rankText: afterPlace ? afterPlace + "등" : "배치 " + Math.min(after.games, RANK_MIN_GAMES) + "/" + RANK_MIN_GAMES,
+          rankMove: rankMove
+        };
+      })
+    };
   }
   function aggregateForGame(game, games) {
     return game === "catchmind" ? aggregateCatchmind(games) : aggregate(games);

@@ -94,6 +94,19 @@ test("late-loaded game code still binds the interface", () => {
   assert.match(game, /if \(document\.readyState === "loading"\) document\.addEventListener\("DOMContentLoaded", bind\);\s*else bind\(\);/);
 });
 
+test("the CatchMind result dialog is wired to the shared season rating calculation", () => {
+  assert.match(index, /id="catch-result-backdrop"/);
+  assert.match(index, /id="catch-result-list"/);
+  assert.match(index, /id="catch-result-open-btn"/);
+  assert.match(index, /id="catch-stage-marks"/);
+  assert.match(index, /id="catch-lobby-roles"/);
+  assert.match(index, /id="catch-round-highlights"/);
+  assert.match(index, /id="catch-highlight-fast-value"/);
+  assert.match(game, /resultSummary: function \(matchId, results\)/);
+  assert.match(game, /function buildCatchmindResultSummary\(matchId, results\)/);
+  assert.match(game, /aggregateCatchmind\(priorGames\.concat\(virtualRows\)\)/);
+});
+
 test("the Omok board uses a HiDPI backing store with logical input coordinates", () => {
   assert.match(game, /var BOARD_SIZE = 450/);
   assert.match(game, /Math\.min\(3, Number\(window\.devicePixelRatio\) \|\| 1\)/);

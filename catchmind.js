@@ -13,8 +13,9 @@ window.CatchMind = (function () {
   var ERASER_WIDTH = 90;
   var MAX_STROKE_WIDTH = 96;
   var PALETTE_COLORS = [
-    "#17252f", "#6b7280", "#d23b3b", "#f97316", "#eab308", "#22c55e",
-    "#14b8a6", "#38bdf8", "#2474b5", "#8b5cf6", "#ec4899", "#7c4a2d"
+    "#17252f", "#4b5563", "#9ca3af", "#ffffff", "#7c4a2d", "#d23b3b",
+    "#be123c", "#f97316", "#facc15", "#84cc16", "#22c55e", "#14b8a6",
+    "#06b6d4", "#38bdf8", "#2474b5", "#4338ca", "#8b5cf6", "#ec4899"
   ];
   var COLOR_STORAGE_KEY = "catchmind.quickColors.v1";
   var MAX_STROKES = 100;
@@ -83,6 +84,11 @@ window.CatchMind = (function () {
   var stateHost = null;
   var lastSyncRequestAt = 0;
   var lastCanvasRequestAt = 0;
+  var resultInfo = null;
+  var resultInfoMatchId = null;
+  var resultLoadMatchId = null;
+  var resultLoadToken = 0;
+  var resultPopupShownMatchId = null;
 
   function freshState() {
     return {
@@ -108,7 +114,8 @@ window.CatchMind = (function () {
       feed: [],
       revealWord: null,
       wordLength: 0,
-      recordStatus: "idle"
+      recordStatus: "idle",
+      resultRatings: []
     };
   }
 
@@ -120,6 +127,11 @@ window.CatchMind = (function () {
   }
   function me() { return api ? api.me() : { nick: "", isAdmin: false }; }
   function people() { return api ? api.roster() : []; }
+  function orderedPeople() {
+    return people().filter(function (person) { return person && person.nick; }).slice().sort(function (a, b) {
+      return (a.joinTs || 0) - (b.joinTs || 0) || String(a.nick).localeCompare(String(b.nick));
+    });
+  }
   function activePeople() { return people().filter(function (p) { return p && p.nick && !p.away; }); }
   function activeNicks() { return activePeople().map(function (p) { return p.nick; }); }
   function has(arr, value) { return arr.indexOf(value) >= 0; }
@@ -127,9 +139,7 @@ window.CatchMind = (function () {
     return a.length === b.length && a.every(function (value, index) { return value === b[index]; });
   }
   function orderedActivePeople() {
-    return activePeople().slice().sort(function (a, b) {
-      return (a.joinTs || 0) - (b.joinTs || 0) || String(a.nick).localeCompare(String(b.nick));
-    });
+    return orderedPeople().filter(function (person) { return !person.away; });
   }
   function desiredParticipantPeople() {
     var spectators = state.spectators || [];
@@ -141,6 +151,14 @@ window.CatchMind = (function () {
   function desiredSpectatorPeople() {
     var spectators = state.spectators || [];
     return orderedActivePeople().filter(function (person) { return has(spectators, person.nick); });
+  }
+  function waitingParticipantPeople() {
+    var spectators = state.spectators || [];
+    return orderedPeople().filter(function (person) { return !has(spectators, person.nick); });
+  }
+  function waitingSpectatorPeople() {
+    var spectators = state.spectators || [];
+    return orderedPeople().filter(function (person) { return has(spectators, person.nick); });
   }
   function canChangeRole() {
     return state.phase === "idle" || state.phase === "finished";
@@ -212,9 +230,33 @@ window.CatchMind = (function () {
         points: safeInteger(row.points, 0, MAX_SCORE, 0),
         maxPoints: safeInteger(row.maxPoints, 0, MAX_SCORE, 0),
         correct: safeInteger(row.correct, 0, MAX_SCORE, 0),
-        drawCorrect: safeInteger(row.drawCorrect, 0, MAX_SCORE, 0)
+        drawCorrect: safeInteger(row.drawCorrect, 0, MAX_SCORE, 0),
+        fastestMs: row.fastestMs == null ? null : safeInteger(row.fastestMs, 0, ROUND_MS, null)
       };
     });
+    return out;
+  }
+  function safeResultRatings(raw, queue) {
+    if (!Array.isArray(raw)) return [];
+    var out = [], seen = Object.create(null);
+    for (var i = 0; i < raw.length && out.length < MAX_PLAYERS; i++) {
+      var row = raw[i] && typeof raw[i] === "object" ? raw[i] : {};
+      var nick = safeNick(row.nick);
+      if (!nick || !has(queue, nick) || seen[nick]) continue;
+      var beforeRating = safeInteger(row.beforeRating, 0, MAX_SCORE, null);
+      var rating = safeInteger(row.rating, 0, MAX_SCORE, null);
+      if (beforeRating == null || rating == null) continue;
+      seen[nick] = true;
+      out.push({
+        nick: nick,
+        beforeRating: beforeRating,
+        rating: rating,
+        delta: safeInteger(row.delta, -MAX_SCORE, MAX_SCORE, rating - beforeRating),
+        games: safeInteger(row.games, 0, MAX_SCORE, 0),
+        rankText: safeText(row.rankText, 20),
+        rankMove: safeInteger(row.rankMove, -MAX_SCORE, MAX_SCORE, 0)
+      });
+    }
     return out;
   }
   function safeCorrect(raw, guessers) {
@@ -233,7 +275,7 @@ window.CatchMind = (function () {
 
   function initStats(nick) {
     if (state.scores[nick] == null) state.scores[nick] = 0;
-    if (!state.stats[nick]) state.stats[nick] = { points: 0, maxPoints: 0, correct: 0, drawCorrect: 0 };
+    if (!state.stats[nick]) state.stats[nick] = { points: 0, maxPoints: 0, correct: 0, drawCorrect: 0, fastestMs: null };
     return state.stats[nick];
   }
 
@@ -263,6 +305,7 @@ window.CatchMind = (function () {
       revealWord: state.revealWord,
       wordLength: state.wordLength,
       recordStatus: state.recordStatus,
+      resultRatings: state.resultRatings,
       recorded: state.recordStatus === "saved"
     };
   }
@@ -348,7 +391,8 @@ window.CatchMind = (function () {
       feed: safeFeed(next.feed),
       revealWord: next.revealWord == null ? null : safeText(next.revealWord, 40),
       wordLength: safeInteger(next.wordLength, 0, 10, 0),
-      recordStatus: recordStatus
+      recordStatus: recordStatus,
+      resultRatings: safeResultRatings(next.resultRatings, queue)
     };
   }
 
@@ -390,7 +434,8 @@ window.CatchMind = (function () {
       feed: clean.feed,
       revealWord: clean.revealWord,
       wordLength: clean.wordLength,
-      recordStatus: clean.recordStatus
+      recordStatus: clean.recordStatus,
+      resultRatings: clean.resultRatings
     };
     if (!sameRound) secretWord = null;
     if (clean.phase === "finished" && previousPhase !== "finished" && previousMatchId === clean.matchId) playFinishSfx();
@@ -449,7 +494,14 @@ window.CatchMind = (function () {
     return state.queue.map(function (nick) {
       var s = state.stats[nick];
       if (!s || !s.maxPoints) return null;
-      return { nick: nick, points: s.points, maxPoints: s.maxPoints, correct: s.correct, drawCorrect: s.drawCorrect };
+      return {
+        nick: nick,
+        score: state.scores[nick] || 0,
+        points: s.points,
+        maxPoints: s.maxPoints,
+        correct: s.correct,
+        drawCorrect: s.drawCorrect
+      };
     }).filter(Boolean);
   }
 
@@ -730,10 +782,13 @@ window.CatchMind = (function () {
     guessTimes[nick] = now;
 
     if (normalize(text) === normalize(secretWord)) {
+      var guesserStats = initStats(nick);
+      var elapsedMs = clamp(ROUND_MS - Math.max(0, state.deadline - now), 0, ROUND_MS);
       state.correct[nick] = true;
       state.scores[nick] = (state.scores[nick] || 0) + 10;
-      state.stats[nick].points += 10;
-      state.stats[nick].correct++;
+      guesserStats.points += 10;
+      guesserStats.correct++;
+      if (guesserStats.fastestMs == null || elapsedMs < guesserStats.fastestMs) guesserStats.fastestMs = elapsedMs;
       if (state.stats[state.drawer]) {
         state.scores[state.drawer] = (state.scores[state.drawer] || 0) + 3;
         state.stats[state.drawer].points += 3;
@@ -1309,6 +1364,9 @@ window.CatchMind = (function () {
     if (isHost && becameHost && state.phase === "finished" && state.recordStatus === "pending") {
       persistResults(state.matchId, resultsFromState(), 0);
     }
+    if (isHost && becameHost && state.phase === "finished" && (!state.resultRatings || !state.resultRatings.length)) {
+      resultLoadMatchId = null;
+    }
     if (isHost && state.phase === "drawing" && !state.pauseKind && has(activeNicks(), state.drawer)) {
       sendSecretToDrawer();
       requestCanvasSync(false);
@@ -1348,6 +1406,247 @@ window.CatchMind = (function () {
     return state.queue.slice().sort(function (a, b) {
       return (state.scores[b] || 0) - (state.scores[a] || 0) || state.queue.indexOf(a) - state.queue.indexOf(b);
     });
+  }
+
+  function matchHighlights() {
+    var highlights = { mostCorrect: null, fastest: null, bestDrawer: null, totalCorrect: 0 };
+    state.queue.forEach(function (nick) {
+      var stats = state.stats[nick] || {};
+      var correct = safeInteger(stats.correct, 0, MAX_SCORE, 0);
+      var drawCorrect = safeInteger(stats.drawCorrect, 0, MAX_SCORE, 0);
+      var fastestMs = stats.fastestMs == null ? null : safeInteger(stats.fastestMs, 0, ROUND_MS, null);
+      highlights.totalCorrect += correct;
+      if (correct > 0 && (!highlights.mostCorrect || correct > highlights.mostCorrect.value)) {
+        highlights.mostCorrect = { nick: nick, value: correct };
+      }
+      if (fastestMs != null && (!highlights.fastest || fastestMs < highlights.fastest.value)) {
+        highlights.fastest = { nick: nick, value: fastestMs };
+      }
+      if (drawCorrect > 0 && (!highlights.bestDrawer || drawCorrect > highlights.bestDrawer.value)) {
+        highlights.bestDrawer = { nick: nick, value: drawCorrect };
+      }
+    });
+    return highlights;
+  }
+
+  function formatHighlightSeconds(milliseconds) {
+    if (milliseconds == null) return "--";
+    var seconds = Math.max(0.1, milliseconds / 1000);
+    return seconds.toFixed(1).replace(/\.0$/, "") + "초";
+  }
+
+  function renderMatchHighlights() {
+    var correctName = $("catch-highlight-correct-name");
+    var correctValue = $("catch-highlight-correct-value");
+    var fastName = $("catch-highlight-fast-name");
+    var fastValue = $("catch-highlight-fast-value");
+    var drawName = $("catch-highlight-draw-name");
+    var drawValue = $("catch-highlight-draw-value");
+    var note = $("catch-finish-note");
+    var highlights = matchHighlights();
+    if (correctName) correctName.textContent = highlights.mostCorrect ? highlights.mostCorrect.nick : "기록 없음";
+    if (correctValue) correctValue.textContent = highlights.mostCorrect ? "정답 " + highlights.mostCorrect.value + "개" : "정답 0개";
+    if (fastName) fastName.textContent = highlights.fastest ? highlights.fastest.nick : "정답 없음";
+    if (fastValue) fastValue.textContent = highlights.fastest ? formatHighlightSeconds(highlights.fastest.value) : "--";
+    if (drawName) drawName.textContent = highlights.bestDrawer ? highlights.bestDrawer.nick : "기록 없음";
+    if (drawValue) drawValue.textContent = highlights.bestDrawer ? highlights.bestDrawer.value + "명 정답" : "0명 정답";
+    if (note) {
+      var text = highlights.totalCorrect
+        ? "이번 게임에서 모두 " + highlights.totalCorrect + "개의 정답을 만들었어요"
+        : "이번 게임에서는 정답이 나오지 않았어요";
+      if (state.recordStatus === "pending") text += " · 결과 저장 중";
+      else if (state.recordStatus === "saved") text += " · 시즌 기록 반영 완료";
+      else if (state.recordStatus === "failed") text += " · 기록 저장 실패";
+      note.textContent = text;
+    }
+  }
+
+  function formatResultNumber(value) {
+    return String(Math.round(Number(value) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  function fallbackResultInfo() {
+    return {
+      matchId: state.matchId,
+      players: scoreOrder().map(function (nick) {
+        var stats = state.stats[nick] || {};
+        var points = safeInteger(stats.points, 0, MAX_SCORE, state.scores[nick] || 0);
+        var maxPoints = safeInteger(stats.maxPoints, 0, MAX_SCORE, 0);
+        return {
+          nick: nick,
+          score: safeInteger(state.scores[nick], 0, MAX_SCORE, 0),
+          correct: safeInteger(stats.correct, 0, MAX_SCORE, 0),
+          drawCorrect: safeInteger(stats.drawCorrect, 0, MAX_SCORE, 0),
+          performance: maxPoints ? Math.min(100, Math.round(points / maxPoints * 100)) : 0,
+          ratingReady: false,
+          beforeRating: 0,
+          rating: 0,
+          delta: 0,
+          games: 0,
+          rankText: "",
+          rankMove: 0
+        };
+      })
+    };
+  }
+
+  function mergeResultInfo(raw) {
+    var fallback = fallbackResultInfo();
+    if (!raw || typeof raw !== "object" || String(raw.matchId || "") !== String(state.matchId || "")
+        || !Array.isArray(raw.players)) return fallback;
+    var computed = Object.create(null);
+    raw.players.forEach(function (player) {
+      if (!player || typeof player !== "object") return;
+      var nick = safeNick(player.nick);
+      if (!nick || !has(state.queue, nick) || computed[nick]) return;
+      var beforeRating = safeInteger(player.beforeRating, 0, MAX_SCORE, null);
+      var rating = safeInteger(player.rating, 0, MAX_SCORE, null);
+      if (beforeRating == null || rating == null) return;
+      computed[nick] = {
+        beforeRating: beforeRating,
+        rating: rating,
+        delta: safeInteger(player.delta, -MAX_SCORE, MAX_SCORE, rating - beforeRating),
+        games: safeInteger(player.games, 0, MAX_SCORE, 0),
+        rankText: safeText(player.rankText, 20),
+        rankMove: safeInteger(player.rankMove, -MAX_SCORE, MAX_SCORE, 0)
+      };
+    });
+    fallback.players.forEach(function (player) {
+      var row = computed[player.nick];
+      if (!row) return;
+      player.ratingReady = true;
+      player.beforeRating = row.beforeRating;
+      player.rating = row.rating;
+      player.delta = row.delta;
+      player.games = row.games;
+      player.rankText = row.rankText;
+      player.rankMove = row.rankMove;
+    });
+    return fallback;
+  }
+
+  function resultRatingHtml(player) {
+    if (state.recordStatus !== "saved" || !player.ratingReady) {
+      var label = "계산 중";
+      var cls = "";
+      if (state.recordStatus === "pending") label = "저장 중";
+      else if (state.recordStatus === "failed") { label = "저장 실패"; cls = " failed"; }
+      else if (state.recordStatus === "skipped") label = "미반영";
+      else if (state.recordStatus === "saved") label = "반영 완료";
+      return '<span class="cm-result-rating-state' + cls + '">' + label + '</span>';
+    }
+    var delta = player.delta || 0;
+    var deltaClass = delta > 0 ? "up" : delta < 0 ? "down" : "same";
+    var deltaText = (delta > 0 ? "+" : "") + delta;
+    var rankClass = player.rankMove > 0 ? "up" : player.rankMove < 0 ? "down" : "same";
+    var rankPrefix = player.rankMove > 0 ? "▲ " : player.rankMove < 0 ? "▼ " : "";
+    return '<div class="cm-result-rating-main"><span class="cm-result-before">'
+      + formatResultNumber(player.beforeRating) + ' →</span><strong>' + formatResultNumber(player.rating)
+      + '</strong><span class="cm-result-delta ' + deltaClass + '">' + deltaText + '</span></div>'
+      + (player.rankText ? '<span class="cm-result-rank ' + rankClass + '">' + rankPrefix + esc(player.rankText) + '</span>' : "");
+  }
+
+  function renderResultPopup() {
+    var list = $("catch-result-list");
+    var meta = $("catch-result-meta");
+    var winnerName = $("catch-result-winner");
+    var winnerScore = $("catch-result-winner-score");
+    var winnerRate = $("catch-result-winner-rate");
+    if (!list || !meta || !winnerName || !winnerScore || !winnerRate) return;
+    var info = resultInfo && resultInfoMatchId === state.matchId ? resultInfo : fallbackResultInfo();
+    var players = info.players || [];
+    var winner = players[0] || null;
+    meta.textContent = "캐치마인드 · 참가자 " + players.length + "명";
+    winnerName.textContent = winner ? winner.nick : "-";
+    winnerScore.textContent = winner ? winner.score + "점" : "0점";
+    winnerRate.textContent = "활약도 " + (winner ? winner.performance : 0) + "%";
+    list.innerHTML = players.map(function (player, index) {
+      var mine = player.nick === me().nick;
+      return '<li class="cm-result-row' + (mine ? " me" : "") + '">'
+        + '<span class="cm-result-place">' + (index + 1) + '</span>'
+        + '<div class="cm-result-person"><div class="cm-result-person-name"><strong>' + esc(player.nick) + '</strong>'
+        + (mine ? '<span class="cm-result-me">나</span>' : "") + '</div>'
+        + '<span class="cm-result-match">' + player.score + '점 · 정답 ' + player.correct
+        + ' · 그림 성공 ' + player.drawCorrect + '</span></div>'
+        + '<div class="cm-result-rating">' + resultRatingHtml(player) + '</div></li>';
+    }).join("");
+  }
+
+  function setResultPopupOpen(open) {
+    var backdrop = $("catch-result-backdrop"); if (!backdrop) return;
+    backdrop.classList.toggle("hidden", !open);
+    if (backdrop.setAttribute) backdrop.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+
+  function openResultPopup() {
+    if (state.phase !== "finished") return;
+    renderResultPopup();
+    resultPopupShownMatchId = state.matchId;
+    setResultPopupOpen(true);
+  }
+
+  function closeResultPopup() {
+    setResultPopupOpen(false);
+  }
+
+  function requestResultInfo() {
+    if (!api || !api.isHost() || !api.resultSummary || !state.matchId
+        || state.recordStatus === "skipped" || resultLoadMatchId === state.matchId) return;
+    var matchId = state.matchId;
+    var token = ++resultLoadToken;
+    resultLoadMatchId = matchId;
+    var request;
+    try { request = api.resultSummary(matchId, resultsFromState()); }
+    catch (error) { return; }
+    Promise.resolve(request).then(function (summary) {
+      if (!api || !api.isHost() || token !== resultLoadToken || state.phase !== "finished" || state.matchId !== matchId) return;
+      resultInfo = mergeResultInfo(summary);
+      resultInfoMatchId = matchId;
+      state.resultRatings = resultInfo.players.filter(function (player) {
+        return player.ratingReady;
+      }).map(function (player) {
+        return {
+          nick: player.nick,
+          beforeRating: player.beforeRating,
+          rating: player.rating,
+          delta: player.delta,
+          games: player.games,
+          rankText: player.rankText,
+          rankMove: player.rankMove
+        };
+      });
+      if (state.resultRatings.length) commit();
+      else renderResultPopup();
+    }).catch(function () {});
+  }
+
+  function syncResultPopup() {
+    if (!$("catch-result-backdrop")) return;
+    if (state.phase !== "finished" || !state.matchId) {
+      setResultPopupOpen(false);
+      return;
+    }
+    if (resultInfoMatchId !== state.matchId) {
+      resultInfoMatchId = state.matchId;
+      resultInfo = fallbackResultInfo();
+      resultLoadMatchId = null;
+    }
+    if (state.resultRatings && state.resultRatings.length) {
+      resultInfo = mergeResultInfo({ matchId: state.matchId, players: state.resultRatings });
+      resultInfoMatchId = state.matchId;
+    }
+    renderResultPopup();
+    if (resultPopupShownMatchId !== state.matchId) openResultPopup();
+    if (!state.resultRatings || !state.resultRatings.length) requestResultInfo();
+  }
+
+  function resetResultPopup() {
+    resultLoadToken++;
+    resultInfo = null;
+    resultInfoMatchId = null;
+    resultLoadMatchId = null;
+    resultPopupShownMatchId = null;
+    setResultPopupOpen(false);
   }
 
   function participantNicks() {
@@ -1393,28 +1692,42 @@ window.CatchMind = (function () {
 
   function renderScores() {
     var box = $("catch-score-strip"); if (!box) return;
-    var livePeople = activePeople().slice().sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); });
-    if (!livePeople.length) {
+    var shownPeople = orderedPeople();
+    if (!shownPeople.length) {
       box.textContent = "";
       box.classList.add("hidden");
       return;
     }
     box.classList.remove("hidden");
-    var liveNicks = livePeople.map(function (p) { return p.nick; });
+    var shownNicks = shownPeople.map(function (person) { return person.nick; });
+    var peopleByNick = Object.create(null);
+    shownPeople.forEach(function (person) { peopleByNick[person.nick] = person; });
     var participantSet = Object.create(null);
-    participantNicks().forEach(function (nick) { participantSet[nick] = true; });
-    var ordered = scoreOrder().filter(function (nick) { return has(liveNicks, nick); });
-    livePeople.forEach(function (person) { if (!has(ordered, person.nick)) ordered.push(person.nick); });
+    var participantSource = state.queue.length
+      ? state.queue
+      : waitingParticipantPeople().map(function (person) { return person.nick; });
+    participantSource.forEach(function (nick) { participantSet[nick] = true; });
+    var ordered = scoreOrder().filter(function (nick) { return has(shownNicks, nick); });
+    shownPeople.forEach(function (person) { if (!has(ordered, person.nick)) ordered.push(person.nick); });
     box.innerHTML = ordered.map(function (nick) {
+      var person = peopleByNick[nick] || {};
+      var isAway = !!person.away;
       var isParticipant = !!participantSet[nick];
       var isCorrect = state.phase === "drawing" && !!state.correct[nick];
-      var cls = (nick === state.drawer ? " drawer" : "") + (isCorrect ? " correct" : "") + (isParticipant ? "" : " spectator");
+      var classes = [];
+      if (nick === state.drawer) classes.push("drawer");
+      if (isCorrect) classes.push("correct");
+      if (!isParticipant) classes.push("spectator");
+      if (isAway) classes.push("away");
       var score = isParticipant && state.queue.length
         ? '<span class="catch-inline-score">' + (state.scores[nick] || 0) + '점</span>'
         : "";
       var badge = isCorrect ? ' <em>정답</em>' : "";
-      var crown = api && nick === api.host() ? ' <span class="catch-host-crown" title="방장" aria-label="방장">👑</span>' : "";
-      return '<span class="' + cls.trim() + '"><b>' + esc(nick) + '</b>' + crown + badge + score + '</span>';
+      var crown = api && !isAway && nick === api.host()
+        ? ' <span class="catch-host-crown" title="방장" aria-label="방장">👑</span>'
+        : "";
+      var awayBadge = isAway ? ' <i class="catch-away-tag">자리비움</i>' : "";
+      return '<span class="' + classes.join(" ") + '"><b>' + esc(nick) + '</b>' + crown + awayBadge + badge + score + '</span>';
     }).join("");
   }
 
@@ -1446,41 +1759,53 @@ window.CatchMind = (function () {
 
   function renderLobbyRoles() {
     var box = $("catch-lobby-roles");
+    var participantRow = $("catch-lobby-participant-row");
+    var spectatorRow = $("catch-lobby-spectator-row");
     var participantList = $("catch-lobby-participants");
     var spectatorList = $("catch-lobby-spectators");
     var participantCount = $("catch-lobby-participant-count");
     var spectatorCount = $("catch-lobby-spectator-count");
-    if (!box || !participantList || !spectatorList || !participantCount || !spectatorCount) return;
+    if (!box || !participantRow || !spectatorRow || !participantList || !spectatorList || !participantCount || !spectatorCount) return;
 
-    var show = canChangeRole();
+    var show = state.phase === "idle" && !state.pauseKind;
     box.classList.toggle("hidden", !show);
     if (!show) return;
 
     function namesHtml(list, spectator) {
-      if (!list.length) return '<span class="catch-lobby-empty">없음</span>';
+      if (!list.length) return "";
       return list.map(function (person) {
-        var crown = api && person.nick === api.host()
+        var away = !!person.away;
+        var crown = api && !away && person.nick === api.host()
           ? '<span class="catch-lobby-crown" title="방장" aria-label="방장">👑</span>'
           : "";
         var mine = person.nick === me().nick ? " mine" : "";
-        var cls = "catch-lobby-name" + (spectator ? " spectator" : "") + mine;
-        return '<span class="' + cls + '"><b>' + esc(person.nick) + '</b>' + crown + '</span>';
+        var cls = "catch-lobby-name" + (spectator ? " spectator" : "") + mine + (away ? " away" : "");
+        var awayBadge = away ? '<span class="catch-lobby-away">자리비움</span>' : "";
+        return '<span class="' + cls + '"><b>' + esc(person.nick) + '</b>' + crown + awayBadge + '</span>';
       }).join("");
     }
 
-    var participants = desiredParticipantPeople();
-    var spectators = desiredSpectatorPeople();
+    var participants = waitingParticipantPeople();
+    var spectators = waitingSpectatorPeople();
     participantCount.textContent = participants.length;
     spectatorCount.textContent = spectators.length;
+    participantRow.classList.toggle("empty", !participants.length);
+    spectatorRow.classList.toggle("empty", !spectators.length);
     participantList.innerHTML = namesHtml(participants, false);
     spectatorList.innerHTML = namesHtml(spectators, true);
   }
 
   function renderStage() {
-    var stage = $("catch-stage"), title = $("catch-stage-title"), sub = $("catch-stage-sub"), start = $("catch-start-btn"), practice = $("catch-practice-btn");
-    if (!stage || !title || !sub || !start || !practice) return;
+    var stage = $("catch-stage"), kicker = $("catch-stage-kicker"), title = $("catch-stage-title"), sub = $("catch-stage-sub");
+    var actions = $("catch-stage-actions"), start = $("catch-start-btn"), practice = $("catch-practice-btn");
+    var resultOpen = $("catch-result-open-btn");
+    var marks = $("catch-stage-marks"), hostReady = $("catch-host-ready"), hostReadyText = $("catch-host-ready-text");
+    var highlights = $("catch-round-highlights"), finishNote = $("catch-finish-note");
+    if (!stage || !kicker || !title || !sub || !actions || !start || !practice) return;
     var show = state.phase !== "drawing" && state.phase !== "practice";
-    var showLobbyRoles = canChangeRole();
+    var idle = state.phase === "idle" && !state.pauseKind;
+    var finished = state.phase === "finished" && !state.pauseKind;
+    var showLobbyRoles = idle;
     if (state.pauseKind) show = true;
     stage.classList.toggle("hidden", !show);
     stage.classList.remove("side");
@@ -1488,6 +1813,14 @@ window.CatchMind = (function () {
     stage.classList.toggle("paused", !!state.pauseKind);
     stage.classList.toggle("drawer-wait", state.pauseKind === "drawer");
     stage.classList.toggle("lobby-roles", showLobbyRoles);
+    stage.classList.toggle("idle", idle);
+    stage.classList.toggle("finished", finished);
+    kicker.classList.toggle("hidden", !idle && !finished);
+    if (marks) marks.classList.toggle("hidden", !idle && !finished);
+    if (hostReady) hostReady.classList.add("hidden");
+    if (highlights) highlights.classList.toggle("hidden", !finished);
+    if (finishNote) finishNote.classList.toggle("hidden", !finished);
+    if (resultOpen) resultOpen.classList.toggle("hidden", !finished);
     if (!show) return;
     var participantCount = desiredParticipantNicks().length;
     var canStart = api && api.isHost() && participantCount >= 2;
@@ -1519,30 +1852,39 @@ window.CatchMind = (function () {
       start.classList.add("hidden");
       practice.classList.add("hidden");
     } else if (state.phase === "finished") {
-      var order = scoreOrder(), winner = order[0];
-      title.textContent = winner ? winner + "님 1위!" : "게임 종료";
-      if (state.recordStatus === "pending") sub.textContent = "랭킹 기록을 저장하고 있어요";
-      else if (state.recordStatus === "saved") sub.textContent = "결과가 시즌 랭킹에 반영됐어요";
-      else if (state.recordStatus === "failed") sub.textContent = "랭킹 기록 저장에 실패했어요";
-      else sub.textContent = "참여 기록이 부족해 랭킹에는 반영되지 않았어요";
+      kicker.textContent = "ROUND COMPLETE";
+      title.textContent = "그림 릴레이 끝!";
+      sub.textContent = "이번 판에서 나온 재미있는 기록이에요";
       sub.classList.remove("hidden");
+      renderMatchHighlights();
       start.textContent = "다시 시작";
       start.classList.toggle("hidden", !canStart);
       start.disabled = state.recordStatus === "pending";
       practice.classList.toggle("hidden", !canPractice);
       practice.disabled = !canPractice;
     } else {
-      title.textContent = "게임 대기 중";
-      sub.textContent = canPractice
-        ? "혼자라면 연습모드로 그림을 테스트할 수 있어요"
-        : (participantCount < 2 ? "참가할 사람을 기다리고 있어요" : (api && api.isHost() ? "준비된 참가자로 시작할 수 있어요" : "방장이 시작하면 게임이 시작돼요"));
+      kicker.textContent = "READY TO DRAW";
+      title.textContent = "그릴 준비 됐나요?";
+      sub.textContent = participantCount
+        ? participantCount + "명의 참가자가 모였어요. 시작하면 첫 번째 제시어가 공개됩니다."
+        : "참가할 사람을 기다리고 있어요.";
       sub.classList.remove("hidden");
+      if (hostReady && hostReadyText) {
+        var hostNick = api && api.host ? api.host() : "";
+        if (canPractice) hostReadyText.textContent = "혼자라면 연습모드로 그림을 테스트할 수 있어요";
+        else if (canStart && api && api.isHost()) hostReadyText.textContent = "방장 " + (hostNick || me().nick) + "님이 시작할 수 있어요";
+        else if (canStart) hostReadyText.textContent = "방장 " + (hostNick || "") + "님이 시작할 때까지 기다려주세요";
+        else hostReadyText.textContent = "참가자가 2명 이상 모이면 시작할 수 있어요";
+        hostReady.classList.remove("hidden");
+      }
       start.textContent = "게임 시작";
       start.classList.toggle("hidden", !canStart);
       start.disabled = false;
       practice.classList.toggle("hidden", !canPractice);
       practice.disabled = !canPractice;
     }
+    actions.classList.toggle("hidden", start.classList.contains("hidden") && practice.classList.contains("hidden")
+      && (!resultOpen || resultOpen.classList.contains("hidden")));
   }
 
   function renderControls() {
@@ -1598,6 +1940,7 @@ window.CatchMind = (function () {
     renderControls();
     renderRoleButton();
     renderChatOverlayPosition();
+    syncResultPopup();
     redraw();
   }
 
@@ -1962,6 +2305,17 @@ window.CatchMind = (function () {
 
     $("catch-start-btn").addEventListener("click", hostStartMatch);
     $("catch-practice-btn").addEventListener("click", startPractice);
+    var resultOpenButton = $("catch-result-open-btn");
+    var resultCloseButton = $("catch-result-close");
+    var resultConfirmButton = $("catch-result-confirm");
+    var resultRankButton = $("catch-result-rank");
+    if (resultOpenButton) resultOpenButton.addEventListener("click", openResultPopup);
+    if (resultCloseButton) resultCloseButton.addEventListener("click", closeResultPopup);
+    if (resultConfirmButton) resultConfirmButton.addEventListener("click", closeResultPopup);
+    if (resultRankButton) resultRankButton.addEventListener("click", function () {
+        closeResultPopup();
+        if (api) api.openRank();
+      });
     $("catch-chat-input").addEventListener("keydown", function (event) {
       if (event.key === "Enter" && !event.isComposing) sendInput();
     });
@@ -2021,6 +2375,7 @@ window.CatchMind = (function () {
     stateHost = null;
     lastSyncRequestAt = 0;
     lastCanvasRequestAt = 0;
+    resetResultPopup();
     if (finishSfxEl) {
       try { finishSfxEl.pause(); finishSfxEl.currentTime = 0; } catch (e) {}
     }
@@ -2035,6 +2390,7 @@ window.CatchMind = (function () {
 
   function leave() {
     stopBgm(true);
+    resetResultPopup();
     if (finishSfxEl) {
       try { finishSfxEl.pause(); finishSfxEl.currentTime = 0; } catch (e) {}
     }
@@ -2151,6 +2507,7 @@ window.CatchMind = (function () {
       hostStartMatch: hostStartMatch,
       hostStartRound: hostStartRound,
       hostBeginDrawing: hostBeginDrawing,
+      hostGuess: hostGuess,
       hostPauseForDrawer: hostPauseForDrawer,
       hostResumeRound: hostResumeRound,
       hostSpectatorInput: hostSpectatorInput,
@@ -2170,6 +2527,20 @@ window.CatchMind = (function () {
       participantNicks: participantNicks,
       desiredParticipantNicks: desiredParticipantNicks,
       desiredSpectatorPeople: desiredSpectatorPeople,
+      waitingParticipantPeople: waitingParticipantPeople,
+      waitingSpectatorPeople: waitingSpectatorPeople,
+      renderScores: renderScores,
+      renderLobbyRoles: renderLobbyRoles,
+      renderStage: renderStage,
+      matchHighlights: matchHighlights,
+      formatHighlightSeconds: formatHighlightSeconds,
+      fallbackResultInfo: fallbackResultInfo,
+      mergeResultInfo: mergeResultInfo,
+      renderResultPopup: renderResultPopup,
+      syncResultPopup: syncResultPopup,
+      openResultPopup: openResultPopup,
+      closeResultPopup: closeResultPopup,
+      paletteColors: PALETTE_COLORS.slice(),
       getState: function () { return state; },
       setState: function (next) { state = next; },
       setApi: function (next) { api = next; },

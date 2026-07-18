@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260718-catchmind-lobby-chips-fill-v1">
+<meta name="app-build" content="20260718-catchmind-lobby-highlights-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -301,21 +301,65 @@
     <div id="catch-chat-overlay" class="chat-overlay catch-chat-overlay"></div>
     <div id="catch-feed" class="catch-feed" aria-live="polite"></div>
     <div id="catch-stage" class="catch-stage">
-      <div id="catch-stage-title" class="catch-stage-title">게임 대기 중</div>
-      <div id="catch-stage-sub" class="catch-stage-sub">방장이 시작하면 모두 함께 참여해요</div>
+      <div class="catch-stage-main">
+        <div id="catch-stage-marks" class="catch-stage-marks hidden" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="catch-stage-copy">
+          <div id="catch-stage-kicker" class="catch-stage-kicker hidden">READY TO DRAW</div>
+          <div id="catch-stage-title" class="catch-stage-title">그릴 준비 됐나요?</div>
+          <div id="catch-stage-sub" class="catch-stage-sub">참가자를 기다리는 중이에요</div>
+        </div>
+        <div id="catch-host-ready" class="catch-host-ready hidden">
+          <span aria-hidden="true"></span>
+          <b id="catch-host-ready-text"></b>
+        </div>
+      </div>
       <div id="catch-lobby-roles" class="catch-lobby-roles hidden" aria-live="polite">
-        <div class="catch-lobby-role-row">
-          <span class="catch-lobby-role-label participant">참가 <b id="catch-lobby-participant-count">0</b></span>
+        <div id="catch-lobby-participant-row" class="catch-lobby-role-row">
+          <span class="catch-lobby-role-label participant">참가 <b id="catch-lobby-participant-count">0</b>명</span>
           <div id="catch-lobby-participants" class="catch-lobby-names"></div>
         </div>
-        <div class="catch-lobby-role-row">
-          <span class="catch-lobby-role-label spectator">관전 <b id="catch-lobby-spectator-count">0</b></span>
+        <div id="catch-lobby-spectator-row" class="catch-lobby-role-row">
+          <span class="catch-lobby-role-label spectator">관전 <b id="catch-lobby-spectator-count">0</b>명</span>
           <div id="catch-lobby-spectators" class="catch-lobby-names"></div>
         </div>
       </div>
-      <button id="catch-start-btn" class="center-btn catch-start-btn hidden" type="button">게임 시작</button>
-      <button id="catch-practice-btn" class="center-btn catch-start-btn catch-practice-btn hidden" type="button">연습모드</button>
+      <div id="catch-round-highlights" class="catch-round-highlights hidden" aria-label="이번 게임 주요 기록">
+        <div class="catch-round-highlight correct">
+          <span class="catch-highlight-mark" aria-hidden="true"></span>
+          <div class="catch-highlight-copy">
+            <span>가장 많이 맞혔어요</span>
+            <strong id="catch-highlight-correct-name">기록 없음</strong>
+          </div>
+          <em id="catch-highlight-correct-value">정답 0개</em>
+        </div>
+        <div class="catch-round-highlight fast">
+          <span class="catch-highlight-mark" aria-hidden="true"></span>
+          <div class="catch-highlight-copy">
+            <span>가장 빨리 맞혔어요</span>
+            <strong id="catch-highlight-fast-name">정답 없음</strong>
+          </div>
+          <em id="catch-highlight-fast-value">--</em>
+        </div>
+        <div class="catch-round-highlight draw">
+          <span class="catch-highlight-mark" aria-hidden="true"></span>
+          <div class="catch-highlight-copy">
+            <span>가장 잘 전달한 그림</span>
+            <strong id="catch-highlight-draw-name">기록 없음</strong>
+          </div>
+          <em id="catch-highlight-draw-value">0명 정답</em>
+        </div>
+      </div>
+      <p id="catch-finish-note" class="catch-finish-note hidden"></p>
     </div>
+  </div>
+
+  <div id="catch-stage-actions" class="catch-stage-actions hidden">
+    <button id="catch-result-open-btn" class="catch-result-open-btn hidden" type="button">결과 보기</button>
+    <button id="catch-start-btn" class="center-btn catch-start-btn hidden" type="button">게임 시작</button>
+    <button id="catch-practice-btn" class="center-btn catch-start-btn catch-practice-btn hidden" type="button">연습모드</button>
   </div>
 
   <div id="catch-tools" class="catch-tools hidden" aria-label="그리기 도구">
@@ -346,6 +390,45 @@
     <button type="button" data-catch-emoji="❤️">❤️</button>
   </div>
 </section>
+
+<!-- 캐치마인드 경기 결과 팝업 -->
+<div id="catch-result-backdrop" class="cm-result-backdrop hidden" aria-hidden="true">
+  <section class="cm-result-dialog" role="dialog" aria-modal="true" aria-labelledby="catch-result-title">
+    <header class="cm-result-head">
+      <div class="cm-result-title">
+        <span id="catch-result-meta">캐치마인드 · 참가자 0명</span>
+        <h2 id="catch-result-title">게임 결과</h2>
+      </div>
+      <button id="catch-result-close" class="cm-result-close" type="button" aria-label="결과 닫기">✕</button>
+    </header>
+
+    <div class="cm-result-winner">
+      <div class="cm-result-winner-label">
+        <span>이번 게임 1위</span>
+        <strong id="catch-result-winner">-</strong>
+      </div>
+      <div class="cm-result-winner-score">
+        <strong id="catch-result-winner-score">0점</strong>
+        <span id="catch-result-winner-rate">활약도 0%</span>
+      </div>
+    </div>
+
+    <div class="cm-result-columns" aria-hidden="true">
+      <span>순위</span>
+      <span>참가자 · 게임 기록</span>
+      <span>랭킹 점수 변동</span>
+    </div>
+
+    <div class="cm-result-scroll">
+      <ol id="catch-result-list" class="cm-result-list" aria-live="polite"></ol>
+    </div>
+
+    <footer class="cm-result-foot">
+      <button id="catch-result-rank" class="cm-result-rank-btn" type="button">🏅 랭킹 보기</button>
+      <button id="catch-result-confirm" class="cm-result-confirm" type="button">확인</button>
+    </footer>
+  </section>
+</div>
 
 <!-- 방 만들기 모달 -->
 <div id="create-modal" class="modal-overlay hidden">
