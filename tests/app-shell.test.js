@@ -100,6 +100,7 @@ test("the CatchMind result dialog is wired to the shared season rating calculati
   assert.match(index, /id="catch-result-backdrop"/);
   assert.match(index, /id="catch-result-list"/);
   assert.match(index, /id="catch-result-open-btn"/);
+  assert.match(index, /id="catch-ready-btn"/);
   assert.match(index, /id="catch-stage-marks"/);
   assert.match(index, /id="catch-lobby-roles"/);
   assert.match(index, /id="catch-round-highlights"/);

@@ -157,6 +157,7 @@ body {
 .catch-lobby-name.away b { color: inherit; }
 .catch-lobby-name b { min-width: 0; font-weight: inherit; white-space: nowrap; }
 .catch-lobby-crown { flex: 0 0 auto; font-size: 10px; line-height: 1; }
+.catch-lobby-ready { flex: 0 0 auto; padding: 1px 4px; border-radius: 4px; background: rgba(243,97,42,.14); color: var(--orange-dark); font-size: 8px; line-height: 1.2; font-weight: 900; }
 .catch-lobby-away { flex: 0 0 auto; padding: 1px 3px; border-radius: 4px; background: #e5e8e7; color: #89979d; font-size: 8px; line-height: 1.2; font-weight: 900; }
 .catch-lobby-empty { color: #94a3a9; font-size: 10.5px; font-weight: 700; }
 .catch-stage.finished { justify-content: flex-start; gap: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 20px 16px; background: rgba(251,250,247,.92); color: var(--navy); }
@@ -185,6 +186,7 @@ body {
 .catch-stage-actions .catch-result-open-btn:active { transform: scale(.97); background: var(--navy-3); }
 .catch-stage-actions .catch-start-btn { position: static; left: auto; top: auto; flex: 1.1 1 0; width: 100%; min-height: 46px; transform: none; margin: 0; border-radius: 8px; padding: 10px 16px; font-size: 15px; box-shadow: none; }
 .catch-stage-actions .catch-start-btn:active { transform: scale(.97); }
+.catch-stage-actions .catch-ready-btn[aria-pressed="true"] { border: 1px solid var(--orange); background: transparent; color: var(--orange-dark); }
 .catch-start-btn:disabled { opacity: .45; cursor: default; }
 .catch-feed { position: absolute; z-index: 6; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; }
 .catch-feed-line { max-width: 100%; padding: 4px 9px; border-radius: 7px; background: rgba(14,42,58,.22); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.55); font-size: 12px; font-weight: 700; overflow-wrap: anywhere; transition: opacity .2s ease; }

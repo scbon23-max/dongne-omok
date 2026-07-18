@@ -34,9 +34,12 @@ function loadCatchMind(options) {
 
 function fakeElement() {
   const classes = new Set();
+  const attributes = new Map();
   return {
     innerHTML: "",
     textContent: "",
+    setAttribute(name, value) { attributes.set(name, String(value)); },
+    getAttribute(name) { return attributes.has(name) ? attributes.get(name) : null; },
     classList: {
       add(name) { classes.add(name); },
       remove(name) { classes.delete(name); },
@@ -57,6 +60,7 @@ function baseSnapshot(overrides) {
     matchId: "match-a",
     queue: ["A", "B", "C"],
     spectators: [],
+    ready: [],
     roundIndex: 0,
     drawer: "A",
     guessers: ["B", "C"],
@@ -1067,8 +1071,8 @@ test("waiting and finished stages share the light CatchMind status hierarchy", (
   assert.equal(title.textContent, "그릴 준비 됐나요?");
   assert.equal(sub.textContent, "");
   assert.equal(sub.classList.contains("hidden"), true);
-  assert.equal(hostReady.classList.contains("hidden"), false);
-  assert.equal(hostReadyText.textContent, "혼자라면 연습모드로 그림을 테스트할 수 있어요");
+  assert.equal(hostReady.classList.contains("hidden"), true);
+  assert.equal(hostReadyText.textContent, "");
   assert.equal(start.classList.contains("hidden"), true);
   assert.equal(practice.classList.contains("hidden"), false);
   assert.equal(actions.classList.contains("hidden"), false);
@@ -1106,6 +1110,10 @@ test("waiting and finished stages share the light CatchMind status hierarchy", (
   assert.equal(resultOpen.classList.contains("hidden"), false);
   assert.equal(start.textContent, "다시 시작");
   assert.equal(start.classList.contains("hidden"), false);
+  assert.equal(start.disabled, true);
+  api.getState().ready = ["B"];
+  api.renderStage();
+  assert.equal(start.disabled, false);
   assert.equal(practice.classList.contains("hidden"), true);
   assert.equal(actions.classList.contains("hidden"), false);
 });
@@ -1474,6 +1482,112 @@ test("prototype-like nicknames do not count as already correct", () => {
   assert.equal(api.allGuessersCorrect(), false);
 });
 
+test("the host can start only after every active participant is ready", () => {
+  const sent = [];
+  const toasts = [];
+  const api = loadCatchMind();
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }]; },
+    send(message) { sent.push(message); },
+    roomChanged() {},
+    toast(message) { toasts.push(message); }
+  });
+
+  api.hostStartMatch();
+  assert.equal(api.getState().phase, "idle");
+  assert.ok(toasts.some(message => message.includes("모두가 레디")));
+
+  api.onMessage({ t: "cm_ready_req", from: "B", nick: "C", ready: true });
+  assert.deepEqual(Array.from(api.getState().ready), []);
+
+  api.onMessage({ t: "cm_ready_req", from: "B", nick: "B", ready: true });
+  assert.deepEqual(Array.from(api.getState().ready), ["B"]);
+  assert.equal(api.allParticipantsReady(), false);
+  api.hostStartMatch();
+  assert.equal(api.getState().phase, "idle");
+
+  api.onMessage({ t: "cm_ready_req", from: "C", nick: "C", ready: true });
+  assert.equal(api.allParticipantsReady(), true);
+  api.hostStartMatch();
+
+  assert.equal(api.getState().phase, "countdown");
+  assert.deepEqual(Array.from(api.getState().queue), ["A", "B", "C"]);
+  assert.deepEqual(Array.from(api.getState().ready), []);
+  assert.ok(sent.some(message => message.t === "cm_state"));
+});
+
+test("participants see a ready action while spectators do not", () => {
+  const stage = fakeElement();
+  const kicker = fakeElement();
+  const title = fakeElement();
+  const sub = fakeElement();
+  const actions = fakeElement();
+  const start = fakeElement();
+  const ready = fakeElement();
+  const practice = fakeElement();
+  start.classList.add("hidden");
+  ready.classList.add("hidden");
+  practice.classList.add("hidden");
+  const api = loadCatchMind({
+    elements: {
+      "catch-stage": stage,
+      "catch-stage-kicker": kicker,
+      "catch-stage-title": title,
+      "catch-stage-sub": sub,
+      "catch-stage-actions": actions,
+      "catch-start-btn": start,
+      "catch-ready-btn": ready,
+      "catch-practice-btn": practice
+    }
+  });
+  api.setApi({
+    isHost() { return false; },
+    host() { return "A"; },
+    me() { return { nick: "B", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }]; }
+  });
+  api.setState(api.freshState());
+
+  api.renderStage();
+  assert.equal(ready.classList.contains("hidden"), false);
+  assert.equal(ready.textContent, "레디");
+  assert.equal(ready.getAttribute("aria-pressed"), "false");
+
+  api.getState().ready = ["B"];
+  api.renderStage();
+  assert.equal(ready.textContent, "레디 취소");
+  assert.equal(ready.getAttribute("aria-pressed"), "true");
+
+  api.getState().spectators = ["B"];
+  api.renderStage();
+  assert.equal(ready.classList.contains("hidden"), true);
+});
+
+test("away and role changes clear stale ready state", () => {
+  let roster = [{ nick: "A" }, { nick: "B" }, { nick: "C" }];
+  const api = loadCatchMind();
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return roster; },
+    send() {},
+    roomChanged() {},
+    toast() {}
+  });
+  api.getState().ready = ["B", "C"];
+
+  api.hostSetSpectatorPreference("B", true);
+  assert.deepEqual(Array.from(api.getState().ready), ["C"]);
+
+  roster = [{ nick: "A" }, { nick: "B" }, { nick: "C", away: true }];
+  api.onPresence([], { becameHost: false });
+  assert.deepEqual(Array.from(api.getState().ready), []);
+});
+
 test("a match uses a five-second ready phase, previews the word to the drawer, and draws for ninety seconds", () => {
   const api = loadCatchMind();
   const sent = [];
@@ -1488,6 +1602,7 @@ test("a match uses a five-second ready phase, previews the word to the drawer, a
   });
 
   const beforeCountdown = Date.now();
+  api.getState().ready = ["B"];
   api.hostStartMatch();
   assert.equal(api.getState().phase, "countdown");
   assert.ok(api.getState().deadline - beforeCountdown <= api.limits.countdownMs + 100);
@@ -1808,6 +1923,7 @@ test("spectator preferences produce the exact participant queue at match start",
   assert.deepEqual(Array.from(api.desiredParticipantNicks()), ["A", "B", "C", "D"]);
   assert.deepEqual(Array.from(api.desiredSpectatorPeople(), person => person.nick), ["E", "F"]);
 
+  api.getState().ready = ["B", "C", "D"];
   api.hostStartMatch();
   assert.equal(api.getState().phase, "countdown");
   assert.deepEqual(Array.from(api.getState().queue), ["A", "B", "C", "D"]);
@@ -1926,6 +2042,7 @@ test("role changes are frozen once the countdown starts", () => {
     toast() {}
   });
 
+  api.getState().ready = ["B", "C"];
   api.hostStartMatch();
   api.onMessage({ t: "cm_role_req", from: "B", nick: "B", spectating: true });
 

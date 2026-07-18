@@ -125,6 +125,7 @@ window.CatchMind = (function () {
       matchId: null,
       queue: [],
       spectators: [],
+      ready: [],
       roundIndex: 0,
       drawer: null,
       guessers: [],
@@ -190,6 +191,19 @@ window.CatchMind = (function () {
   }
   function canChangeRole() {
     return state.phase === "idle" || state.phase === "finished";
+  }
+  function requiredReadyNicks() {
+    var hostNick = api && api.host ? safeNick(api.host()) : "";
+    return desiredParticipantNicks().filter(function (nick) {
+      return nick !== hostNick;
+    });
+  }
+  function allParticipantsReady() {
+    var participants = desiredParticipantNicks();
+    if (!api || participants.length < 2 || !has(participants, safeNick(api.host()))) return false;
+    return requiredReadyNicks().every(function (nick) {
+      return has(state.ready || [], nick);
+    });
   }
   function isGroupedChatPhase() {
     return state.phase === "countdown" || state.phase === "drawing" || state.phase === "reveal";
@@ -347,6 +361,7 @@ window.CatchMind = (function () {
       matchId: state.matchId,
       queue: state.queue,
       spectators: state.spectators,
+      ready: state.ready,
       roundIndex: state.roundIndex,
       drawer: state.drawer,
       guessers: state.guessers,
@@ -418,6 +433,9 @@ window.CatchMind = (function () {
     var phase = phases.indexOf(next.phase) >= 0 ? next.phase : "idle";
     var queue = safeNickList(next.queue);
     var spectators = safeNickList(next.spectators);
+    var ready = safeNickList(next.ready).filter(function (nick) {
+      return !has(spectators, nick);
+    });
     var drawer = safeNick(next.drawer);
     if (!has(queue, drawer)) drawer = null;
     var guessers = safeNickList(next.guessers).filter(function (nick) {
@@ -434,6 +452,7 @@ window.CatchMind = (function () {
       matchId: next.matchId == null ? null : safeText(next.matchId, 80),
       queue: queue,
       spectators: spectators,
+      ready: ready,
       roundIndex: safeInteger(next.roundIndex, 0, Math.max(queue.length, 1), 0),
       drawer: drawer,
       guessers: guessers,
@@ -477,6 +496,7 @@ window.CatchMind = (function () {
       matchId: clean.matchId,
       queue: clean.queue,
       spectators: clean.spectators,
+      ready: clean.ready,
       roundIndex: clean.roundIndex,
       drawer: clean.drawer,
       guessers: clean.guessers,
@@ -608,6 +628,7 @@ window.CatchMind = (function () {
     if (!api || !api.isHost() || !canChangeRole()) return;
     var queue = safeNickList(desiredParticipantNicks());
     if (queue.length < 2) { api.toast("참가자가 2명 이상이어야 시작할 수 있어요"); return; }
+    if (!allParticipantsReady()) { api.toast("참가자 모두가 레디해야 시작할 수 있어요"); return; }
     clearSaveRetry();
     resetMatchState(queue);
     state.queue.forEach(initStats);
@@ -915,6 +936,42 @@ window.CatchMind = (function () {
     if (api.showChat) api.showChat(nick, text, chatOverlaySide(group));
   }
 
+  function hostSetReady(nick, ready) {
+    if (!api || !api.isHost() || !canChangeRole()) return false;
+    nick = safeNick(nick);
+    var allowed = requiredReadyNicks();
+    if (!nick || !has(allowed, nick)) return false;
+    var current = state.ready || [];
+    var next = allowed.filter(function (name) {
+      return name === nick ? ready : has(current, name);
+    });
+    if (!sameList(current, next)) {
+      state.ready = next;
+      commit();
+    }
+    return true;
+  }
+
+  function hostReadyRequest(msg) {
+    if (!api || !api.isHost()) return;
+    var nick = safeNick(msg.nick);
+    var from = safeNick(msg.from);
+    if (!nick || nick !== from || typeof msg.ready !== "boolean") return;
+    hostSetReady(nick, msg.ready);
+  }
+
+  function toggleReady() {
+    if (!api || !canChangeRole()) return;
+    var nick = me().nick;
+    if (nick === api.host() || has(state.spectators || [], nick) || !has(desiredParticipantNicks(), nick)) return;
+    api.send({
+      t: "cm_ready_req",
+      from: nick,
+      nick: nick,
+      ready: !has(state.ready || [], nick)
+    });
+  }
+
   function hostSetSpectatorPreference(nick, spectating) {
     if (!api || !api.isHost() || !canChangeRole()) return false;
     nick = safeNick(nick);
@@ -932,8 +989,10 @@ window.CatchMind = (function () {
     if (spectating && !has(next, nick)) next.push(nick);
     if (!spectating) next = next.filter(function (name) { return name !== nick; });
     next = safeNickList(next);
-    if (!sameList(state.spectators || [], next)) {
+    var nextReady = (state.ready || []).filter(function (name) { return name !== nick; });
+    if (!sameList(state.spectators || [], next) || !sameList(state.ready || [], nextReady)) {
       state.spectators = next;
+      state.ready = nextReady;
       commit();
     }
     return true;
@@ -1280,6 +1339,7 @@ window.CatchMind = (function () {
     } else if (msg.t === "cm_canvas_req") sendCanvasSnapshot(msg);
     else if (msg.t === "cm_canvas_state") applyCanvasSnapshot(msg);
     else if (msg.t === "cm_role_req") hostRoleRequest(msg);
+    else if (msg.t === "cm_ready_req") hostReadyRequest(msg);
     else if (msg.t === "cm_role_ack") {
       if (api && msg.from === api.host() && msg.to === me().nick) {
         if (msg.accepted) {
@@ -1556,6 +1616,16 @@ window.CatchMind = (function () {
     var becameHost = options && options.becameHost;
     var lostHost = previousHost && !isHost;
     if (isHost) stateHost = me().nick;
+    if (isHost && canChangeRole()) {
+      var allowedReady = requiredReadyNicks();
+      var nextReady = allowedReady.filter(function (nick) {
+        return has(state.ready || [], nick);
+      });
+      if (!sameList(state.ready || [], nextReady)) {
+        state.ready = nextReady;
+        state.rev++;
+      }
+    }
     if (isHost && becameHost && state.phase === "countdown" && !secretWord) secretWord = pickWord();
     if (isHost && (state.phase === "countdown" || state.phase === "drawing")) {
       var live = activeNicks();
@@ -2004,7 +2074,10 @@ window.CatchMind = (function () {
         var mine = person.nick === me().nick ? " mine" : "";
         var cls = "catch-lobby-name" + (spectator ? " spectator" : "") + mine + (away ? " away" : "");
         var awayBadge = away ? '<span class="catch-lobby-away">자리비움</span>' : "";
-        return '<span class="' + cls + '"><b>' + esc(person.nick) + '</b>' + crown + awayBadge + '</span>';
+        var readyBadge = !spectator && !away && api && person.nick !== api.host() && has(state.ready || [], person.nick)
+          ? '<span class="catch-lobby-ready">레디</span>'
+          : "";
+        return '<span class="' + cls + '"><b>' + esc(person.nick) + '</b>' + crown + readyBadge + awayBadge + '</span>';
       }).join("");
     }
 
@@ -2021,6 +2094,7 @@ window.CatchMind = (function () {
   function renderStage() {
     var stage = $("catch-stage"), kicker = $("catch-stage-kicker"), title = $("catch-stage-title"), sub = $("catch-stage-sub");
     var actions = $("catch-stage-actions"), start = $("catch-start-btn"), practice = $("catch-practice-btn");
+    var readyButton = $("catch-ready-btn");
     var resultOpen = $("catch-result-open-btn");
     var marks = $("catch-stage-marks"), hostReady = $("catch-host-ready"), hostReadyText = $("catch-host-ready-text");
     var highlights = $("catch-round-highlights"), finishNote = $("catch-finish-note");
@@ -2048,10 +2122,26 @@ window.CatchMind = (function () {
     if (highlights) highlights.classList.toggle("hidden", !finished);
     if (finishNote) finishNote.classList.toggle("hidden", !finished);
     if (resultOpen) resultOpen.classList.toggle("hidden", !finished);
+    if (readyButton) readyButton.classList.add("hidden");
     if (!show) return;
-    var participantCount = desiredParticipantNicks().length;
-    var canStart = api && api.isHost() && participantCount >= 2;
+    var participantNicks = desiredParticipantNicks();
+    var participantCount = participantNicks.length;
+    var mine = me().nick;
+    var isHost = !!(api && api.isHost());
+    var isParticipant = has(participantNicks, mine);
+    var canStart = isHost && participantCount >= 2 && isParticipant;
+    var everyoneReady = allParticipantsReady();
+    var readyNicks = requiredReadyNicks();
+    var readyCount = readyNicks.filter(function (nick) { return has(state.ready || [], nick); }).length;
+    var showReadyButton = !isHost && isParticipant && (idle || finished);
     var canPractice = api && activePeople().length <= 1;
+    if (readyButton) {
+      var mineReady = has(state.ready || [], mine);
+      readyButton.textContent = mineReady ? "레디 취소" : "레디";
+      readyButton.disabled = false;
+      readyButton.setAttribute("aria-pressed", String(mineReady));
+      readyButton.classList.toggle("hidden", !showReadyButton);
+    }
     if (state.pauseKind === "drawer") {
       var waitSec = state.pauseUntil ? Math.max(0, Math.ceil((state.pauseUntil - Date.now()) / 1000)) : 15;
       title.textContent = state.drawer + "님 재접속 대기";
@@ -2096,7 +2186,7 @@ window.CatchMind = (function () {
       renderMatchHighlights();
       start.textContent = "다시 시작";
       start.classList.toggle("hidden", !canStart);
-      start.disabled = state.recordStatus === "pending";
+      start.disabled = state.recordStatus === "pending" || !everyoneReady;
       practice.classList.toggle("hidden", !canPractice);
       practice.disabled = !canPractice;
     } else {
@@ -2106,19 +2196,26 @@ window.CatchMind = (function () {
       sub.classList.add("hidden");
       if (hostReady && hostReadyText) {
         var hostNick = api && api.host ? api.host() : "";
-        if (canPractice) hostReadyText.textContent = "혼자라면 연습모드로 그림을 테스트할 수 있어요";
-        else if (canStart && api && api.isHost()) hostReadyText.textContent = "방장 " + (hostNick || me().nick) + "님이 시작할 수 있어요";
-        else if (canStart) hostReadyText.textContent = "방장 " + (hostNick || "") + "님이 시작할 때까지 기다려주세요";
-        else hostReadyText.textContent = "참가자가 2명 이상 모이면 시작할 수 있어요";
-        hostReady.classList.remove("hidden");
+        if (canPractice) {
+          hostReadyText.textContent = "";
+        } else {
+          if (participantCount < 2) hostReadyText.textContent = "참가자가 2명 이상 모이면 시작할 수 있어요";
+          else if (isHost && everyoneReady) hostReadyText.textContent = "모두 레디했어요. 게임을 시작할 수 있어요";
+          else if (isHost) hostReadyText.textContent = readyCount + "/" + readyNicks.length + "명 레디 중";
+          else if (isParticipant && has(state.ready || [], mine)) hostReadyText.textContent = "레디 완료! 방장이 시작할 때까지 기다려주세요";
+          else if (isParticipant) hostReadyText.textContent = "레디 버튼을 눌러 준비를 알려주세요";
+          else hostReadyText.textContent = "참가자들이 준비 중이에요";
+          if (hostNick || participantCount) hostReady.classList.remove("hidden");
+        }
       }
       start.textContent = "게임 시작";
       start.classList.toggle("hidden", !canStart);
-      start.disabled = false;
+      start.disabled = !everyoneReady;
       practice.classList.toggle("hidden", !canPractice);
       practice.disabled = !canPractice;
     }
     actions.classList.toggle("hidden", start.classList.contains("hidden") && practice.classList.contains("hidden")
+      && (!readyButton || readyButton.classList.contains("hidden"))
       && (!resultOpen || resultOpen.classList.contains("hidden")));
   }
 
@@ -2795,6 +2892,7 @@ window.CatchMind = (function () {
     canvas.addEventListener("pointercancel", pointerUp);
 
     $("catch-start-btn").addEventListener("click", hostStartMatch);
+    $("catch-ready-btn").addEventListener("click", toggleReady);
     $("catch-practice-btn").addEventListener("click", startPractice);
     var resultOpenButton = $("catch-result-open-btn");
     var resultCloseButton = $("catch-result-close");
@@ -3071,6 +3169,10 @@ window.CatchMind = (function () {
       hostSpectatorInput: hostMatchChatInput,
       hostMatchChatInput: hostMatchChatInput,
       receiveMatchChat: receiveMatchChat,
+      requiredReadyNicks: requiredReadyNicks,
+      allParticipantsReady: allParticipantsReady,
+      hostSetReady: hostSetReady,
+      toggleReady: toggleReady,
       hostSetSpectatorPreference: hostSetSpectatorPreference,
       toggleRolePreference: toggleRolePreference,
       tick: tick,
