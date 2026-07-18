@@ -118,8 +118,18 @@ body {
 .catch-stage-marks span:nth-child(6) { height: 41px; background: #7c3aed; transform: rotate(-7deg); }
 .catch-stage-marks span:nth-child(7) { height: 27px; background: #ec4899; }
 .catch-stage-marks span:nth-child(8) { height: 36px; background: #0f766e; transform: rotate(-5deg); }
-.catch-stage.countdown .catch-stage-sub,
 .catch-stage.drawer-wait .catch-stage-sub { color: #fff; font-size: 48px; line-height: 1; font-weight: 900; font-variant-numeric: tabular-nums; }
+.catch-stage.countdown { gap: 0; padding: 26px 20px; background: #fff; color: var(--navy); }
+.catch-stage.countdown .catch-stage-main { width: 100%; }
+.catch-stage.countdown .catch-stage-copy { gap: 0; }
+.catch-stage.countdown .catch-stage-kicker { margin-bottom: 7px; color: var(--orange-dark); }
+.catch-stage.countdown .catch-stage-title { margin-bottom: 18px; color: var(--navy); font-size: 21px; }
+.catch-stage.countdown .catch-stage-sub { width: 112px; height: 112px; max-width: none; display: grid; place-items: center; margin: 0 0 14px; border: 3px solid #f2c5b4; border-radius: 50%; background: #fff; color: var(--orange); font-size: 64px; line-height: 1; font-weight: 900; font-variant-numeric: tabular-nums; }
+.catch-countdown-copy { color: #6f838d; font-size: 12px; line-height: 1.45; font-weight: 800; }
+.catch-countdown-steps { height: 10px; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 15px; }
+.catch-countdown-steps span { width: 32px; height: 5px; display: block; border-radius: 3px; background: #dfe8ec; }
+.catch-countdown-steps span.passed { background: #2474b5; }
+.catch-countdown-steps span.active { background: var(--orange); }
 .catch-stage.side { left: auto; right: 72px; width: min(36%, 132px); bottom: auto; min-height: 156px; top: calc(40px + (100% - 40px) / 2); transform: translateY(-50%); border-radius: 8px; padding: 11px 9px; background: rgba(14,42,58,.84); box-shadow: -4px 0 14px rgba(0,0,0,.24); }
 .catch-stage.side .catch-stage-title { max-width: 100%; overflow-wrap: anywhere; font-size: 16px; line-height: 1.25; }
 .catch-stage.side .catch-stage-sub { max-width: 100%; overflow-wrap: anywhere; font-size: 11px; line-height: 1.35; }
@@ -149,12 +159,16 @@ body {
 .catch-lobby-crown { flex: 0 0 auto; font-size: 10px; line-height: 1; }
 .catch-lobby-away { flex: 0 0 auto; padding: 1px 3px; border-radius: 4px; background: #e5e8e7; color: #89979d; font-size: 8px; line-height: 1.2; font-weight: 900; }
 .catch-lobby-empty { color: #94a3a9; font-size: 10.5px; font-weight: 700; }
-.catch-stage.finished { padding: 23px 25px 25px; background: rgba(251,250,247,.92); color: var(--navy); }
-.catch-stage.finished .catch-stage-marks { height: 36px; margin-bottom: 10px; transform: scale(.86); }
-.catch-stage.finished .catch-stage-title { color: var(--navy); font-size: 27px; }
+.catch-stage.finished { justify-content: flex-start; gap: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 20px 16px; background: rgba(251,250,247,.92); color: var(--navy); }
+.catch-stage.finished .catch-stage-main { width: 100%; flex: 0 0 auto; order: 0; }
+.catch-stage.finished .catch-stage-marks { height: 28px; margin-bottom: 4px; transform: scale(.72); }
+.catch-stage.finished .catch-stage-title { color: var(--navy); font-size: 25px; }
 .catch-stage.finished .catch-stage-sub { margin-top: 3px; color: #758a94; font-size: 11px; line-height: 1.45; font-weight: 800; }
-.catch-round-highlights { width: min(100%, 302px); margin-top: 9px; border-top: 1px solid #dcd6cd; border-bottom: 1px solid #dcd6cd; }
-.catch-round-highlight { min-height: 49px; display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 10px; text-align: left; }
+.catch-stage.finished .catch-round-highlights { order: 1; }
+.catch-stage.finished .catch-finish-note { order: 2; }
+.catch-stage.finished .catch-lobby-roles { order: 3; max-height: 64px; margin-top: 7px; padding-top: 7px; }
+.catch-round-highlights { width: min(100%, 302px); margin-top: 7px; border-top: 1px solid #dcd6cd; border-bottom: 1px solid #dcd6cd; }
+.catch-round-highlight { min-height: 43px; display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 10px; text-align: left; }
 .catch-round-highlight + .catch-round-highlight { border-top: 1px solid #e6e0d8; }
 .catch-highlight-mark { width: 7px; height: 27px; display: block; border-radius: 4px; background: var(--orange); transform: rotate(7deg); }
 .catch-round-highlight.fast .catch-highlight-mark { height: 22px; background: #2474b5; transform: rotate(-6deg); }
@@ -165,7 +179,7 @@ body {
 .catch-round-highlight em { color: var(--orange-dark); font-size: 12px; font-style: normal; font-weight: 900; white-space: nowrap; }
 .catch-round-highlight.fast em { color: #2474b5; }
 .catch-round-highlight.draw em { color: #16845a; }
-.catch-finish-note { margin-top: 11px; color: #708791; font-size: 10px; line-height: 1.45; font-weight: 900; }
+.catch-finish-note { margin-top: 7px; color: #708791; font-size: 10px; line-height: 1.45; font-weight: 900; }
 .catch-stage-actions { order: 4; width: 100%; max-width: min(420px, calc(100vw - 24px)); margin: 7px auto 0; display: flex; gap: 7px; }
 .catch-stage-actions .catch-result-open-btn { flex: .9 1 0; min-width: 0; min-height: 46px; border: 1px solid #31576a; border-radius: 8px; padding: 10px 12px; background: var(--navy-2); color: #eaf2f6; font-size: 14px; font-weight: 900; cursor: pointer; }
 .catch-stage-actions .catch-result-open-btn:active { transform: scale(.97); background: var(--navy-3); }
@@ -279,6 +293,13 @@ body:has(.cm-result-backdrop:not(.hidden)) { overflow: hidden; }
 .cm-result-foot button:active { transform: scale(.98); }
 
 @media (max-width: 380px) {
+  .catch-stage.countdown { padding: 14px; }
+  .catch-stage.countdown .catch-stage-kicker { margin-bottom: 4px; font-size: 9px; }
+  .catch-stage.countdown .catch-stage-title { margin-bottom: 14px; font-size: 19px; }
+  .catch-stage.countdown .catch-stage-sub { width: 96px; height: 96px; margin-bottom: 11px; font-size: 56px; }
+  .catch-countdown-copy { font-size: 11px; }
+  .catch-countdown-steps { height: 8px; margin-top: 11px; gap: 6px; }
+  .catch-countdown-steps span { width: 28px; height: 5px; }
   .catch-stage.idle { padding: 18px 18px 14px; }
   .catch-stage.idle .catch-stage-marks { height: 38px; margin-bottom: 8px; transform: scale(.86); }
   .catch-stage.idle .catch-stage-title { font-size: 24px; }
@@ -287,16 +308,22 @@ body:has(.cm-result-backdrop:not(.hidden)) { overflow: hidden; }
   .catch-lobby-roles { max-height: 80px; padding-top: 9px; }
   .catch-lobby-role-row { grid-template-columns: 42px minmax(0, 1fr); gap: 5px; }
   .catch-lobby-names { font-size: 9.5px; }
-  .catch-stage.finished { padding: 14px 18px 16px; }
-  .catch-stage.finished .catch-stage-marks { height: 32px; margin-bottom: 6px; transform: scale(.8); }
-  .catch-stage.finished .catch-stage-title { font-size: 24px; }
+  .catch-stage.finished { padding: 10px 14px 12px; }
+  .catch-stage.finished .catch-stage-marks { height: 22px; margin-bottom: 2px; transform: scale(.62); }
+  .catch-stage.finished .catch-stage-title { font-size: 22px; }
   .catch-stage.finished .catch-stage-sub { display: none; }
-  .catch-round-highlights { margin-top: 11px; }
-  .catch-round-highlight { min-height: 42px; }
-  .catch-finish-note { margin-top: 8px; }
+  .catch-stage.finished .catch-lobby-roles { max-height: 56px; margin-top: 5px; padding-top: 5px; }
+  .catch-round-highlights { margin-top: 6px; }
+  .catch-round-highlight { min-height: 39px; }
+  .catch-finish-note { margin-top: 5px; }
 }
 
 @media (max-width: 350px) {
+  .catch-stage.countdown { padding-top: 10px; padding-bottom: 10px; }
+  .catch-stage.countdown .catch-stage-kicker { margin-bottom: 2px; }
+  .catch-stage.countdown .catch-stage-title { margin-bottom: 10px; font-size: 18px; }
+  .catch-stage.countdown .catch-stage-sub { width: 88px; height: 88px; margin-bottom: 8px; font-size: 50px; }
+  .catch-countdown-steps { margin-top: 7px; }
   .catch-statusbar { grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px; }
   .catch-people-btn { padding: 0; }
   .catch-timer { min-width: auto; padding-left: 0; padding-right: 0; }

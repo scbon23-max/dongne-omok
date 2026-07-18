@@ -38,6 +38,7 @@
   var me = { nick: "", isAdmin: false };
   var roster = [];
   var hostNick = null, amHost = false, wasHost = false, netMode = false, connected = false;
+  var roomHostEligible = true;
   var activityLoginLogged = false, activityLogoutLogged = false, activityRoomLeaves = {};
 
   var canvas, ctx, MARGIN = 28, GAP, RADIUS;
@@ -138,6 +139,14 @@
       isHost: function () { return !netMode || amHost; },
       host: function () { return hostNick || me.nick; },
       isNet: function () { return netMode; },
+      setHostEligible: function (eligible) {
+        eligible = !!eligible;
+        if (roomHostEligible === eligible) return;
+        if (!eligible && amHost) myJoinTs = Math.max(Date.now(), myJoinTs + 1);
+        roomHostEligible = eligible;
+        if (netMode) Net.track(myMetaObj(null));
+        if (lobbyMode && curRoomId) Net.trackLobby(myMetaObj(curRoomId));
+      },
       send: function (msg) {
         if (netMode) Net.send(msg);
         else {
@@ -302,7 +311,9 @@
   }
 
   var myJoinTs = 0;
-  function myMetaObj(v) { return { nick: me.nick, isAdmin: me.isAdmin, joinTs: myJoinTs, viewing: v }; }
+  function myMetaObj(v) {
+    return { nick: me.nick, isAdmin: me.isAdmin, joinTs: myJoinTs, viewing: v, hostEligible: roomHostEligible };
+  }
   function appConnect() {
     joinedAt = Date.now();
     firstPresenceAt = 0;
@@ -550,6 +561,7 @@
     try { if (controller && controller.leave) controller.leave(); } catch (e) {}
     try { if (window.Net && Net.leaveRoom) Net.leaveRoom(); } catch (e) {}
     netMode = false; hostNick = null; amHost = false; wasHost = false; connected = false;
+    roomHostEligible = true;
     curRoomId = null; curRoomGame = null; curGame = null; curRoomTitle = "";
     document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
     try { stopHostTimer(); clearAllGrace(); clearAlkGrace(); clearAwayRoster(); } catch (e) {}
@@ -580,6 +592,7 @@
       hostNick = null; amHost = false; wasHost = false; document.body.classList.remove("is-host"); stopHostTimer();
       resetRoomGameState(); resetRoomChat();
       if (game === "alk_terr" && window.Alkkagi) { A.mode = "territory"; Alkkagi.setMode("territory"); Alkkagi.setStones([]); }
+      roomHostEligible = true;
       myJoinTs = Date.now();
       netMode = Net.init(roomId, myMetaObj(null),
         { onReady: onNetReady, onMessage: onMessage, onPresence: onPresence, onStatus: onStatus });
@@ -648,6 +661,7 @@
       setTimeout(function () {
         if (wasHostHere && wasAlone && lobbyMode && leavingId) Net.sendLobby({ t: "room_close", id: leavingId });
         Net.leaveRoom(); netMode = false; hostNick = null; amHost = false; wasHost = false;
+        roomHostEligible = true;
         document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
         stopHostTimer(); clearAllGrace(); clearAlkGrace(); clearAwayRoster();
         curRoomId = null; curGame = null;
@@ -1032,7 +1046,8 @@
   // ---------- 방장 선출 ----------
   function electHost(list) {
     if (!list.length) return null;
-    var pool = list.slice().sort(function (a, b) {
+    var eligible = list.filter(function (member) { return member.hostEligible !== false; });
+    var pool = (eligible.length ? eligible : list).slice().sort(function (a, b) {
       if (a.joinTs !== b.joinTs) return a.joinTs - b.joinTs;
       return a.nick < b.nick ? -1 : 1;
     });

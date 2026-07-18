@@ -357,6 +357,12 @@ test("the chat overlay stays behind the countdown and returns for play", () => {
   assert.equal(overlay.classList.contains("hidden"), false);
   assert.equal(overlay.classList.contains("right"), false);
 
+  overlay.innerHTML = "이전 참가자 채팅";
+  state.correct.B = true;
+  api.renderChatOverlayPosition();
+  assert.equal(overlay.classList.contains("right"), true);
+  assert.equal(overlay.innerHTML, "");
+
   state.phase = "finished";
   api.renderChatOverlayPosition();
   assert.equal(overlay.classList.contains("hidden"), false);
@@ -391,6 +397,45 @@ test("the drawing feed keeps the newest five messages", () => {
   assert.equal(clean.feed.length, 5);
   assert.equal(clean.feed[0].text, "2");
   assert.equal(clean.feed[4].text, "6");
+});
+
+test("participant guesses stay out of the spectator and solved-player feed", () => {
+  const feed = fakeElement();
+  const api = loadCatchMind({
+    elements: {
+      "catch-feed": feed
+    }
+  });
+  const roster = [{ nick: "A" }, { nick: "B" }, { nick: "C" }, { nick: "S" }];
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    feed: [
+      { who: "C", text: "비밀 추측", kind: "guess" },
+      { who: "", text: "게임 안내", kind: "system" }
+    ]
+  })));
+
+  api.setApi({
+    me() { return { nick: "S", isAdmin: false }; },
+    roster() { return roster; }
+  });
+  api.renderFeed();
+  assert.doesNotMatch(feed.innerHTML, /비밀 추측/);
+  assert.match(feed.innerHTML, /게임 안내/);
+
+  api.setApi({
+    me() { return { nick: "B", isAdmin: false }; },
+    roster() { return roster; }
+  });
+  api.getState().correct.B = true;
+  api.renderFeed();
+  assert.doesNotMatch(feed.innerHTML, /비밀 추측/);
+
+  api.setApi({
+    me() { return { nick: "C", isAdmin: false }; },
+    roster() { return roster; }
+  });
+  api.renderFeed();
+  assert.match(feed.innerHTML, /비밀 추측/);
 });
 
 test("canvas snapshots remain below the free broadcast payload limit", () => {
@@ -545,15 +590,74 @@ test("a round only finishes after every guesser is correct", () => {
   assert.equal(api.allGuessersCorrect(), true);
 });
 
-test("correct guessers cannot chat during the active round", () => {
+test("match chat separates active players from spectators and solved players", () => {
   const api = loadCatchMind();
   api.setState(api.sanitizeSnapshot(baseSnapshot({ correct: { B: true } })));
 
+  assert.equal(api.chatGroupFor("A"), "players");
+  assert.equal(api.chatGroupFor("B"), "lounge");
+  assert.equal(api.chatGroupFor("C"), "players");
+  assert.equal(api.chatGroupFor("S"), "lounge");
   assert.equal(api.canChat("B"), false);
-  assert.equal(api.canChat("C"), true);
+  assert.equal(api.canChat("C"), false);
+  assert.equal(api.canChat("S"), false);
 
   api.setState(api.sanitizeSnapshot(baseSnapshot({ phase: "reveal", correct: { B: true } })));
+  assert.equal(api.chatGroupFor("B"), "lounge");
+
+  api.setState(api.sanitizeSnapshot(baseSnapshot({ phase: "countdown", correct: {} })));
+  assert.equal(api.chatGroupFor("B"), "players");
+
+  api.setState(api.freshState());
   assert.equal(api.canChat("B"), true);
+});
+
+test("a solved player gets chat input and returns to the player group next turn", () => {
+  const inputRow = fakeElement();
+  const input = fakeElement();
+  const emojiRow = fakeElement();
+  inputRow.classList.add("hidden");
+  emojiRow.classList.add("hidden");
+  input.value = "";
+  const sent = [];
+  const api = loadCatchMind({
+    elements: {
+      "catch-input-row": inputRow,
+      "catch-chat-input": input,
+      "catch-emoji-row": emojiRow
+    }
+  });
+  api.setApi({
+    isHost() { return false; },
+    me() { return { nick: "B", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }]; },
+    send(message) { sent.push(message); }
+  });
+  api.setState(api.sanitizeSnapshot(baseSnapshot({ correct: { B: true } })));
+
+  api.renderControls();
+  assert.equal(inputRow.classList.contains("hidden"), false);
+  assert.equal(emojiRow.classList.contains("hidden"), false);
+  assert.equal(input.disabled, false);
+  assert.equal(input.placeholder, "관전자 · 정답자 채팅");
+
+  input.value = "이제 같이 봐요";
+  api.sendInput();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].t, "cm_group_input");
+  assert.equal(sent[0].nick, "B");
+
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    phase: "countdown",
+    roundIndex: 1,
+    drawer: "B",
+    guessers: ["A", "C"],
+    correct: {}
+  })));
+  api.renderControls();
+  assert.equal(api.chatGroupFor("B"), "players");
+  assert.equal(emojiRow.classList.contains("hidden"), true);
+  assert.equal(input.placeholder, "참가자 채팅");
 });
 
 test("remote reactions are accepted from round guessers", () => {
@@ -663,6 +767,108 @@ test("away members remain visible while active participant counts exclude them",
   assert.match(spectatorList.innerHTML, /자리비움/);
 });
 
+test("the player strip follows game order before spectators", () => {
+  const strip = fakeElement();
+  const api = loadCatchMind({
+    elements: {
+      "catch-score-strip": strip
+    }
+  });
+  api.setApi({
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() {
+      return [
+        { nick: "B", joinTs: 1 },
+        { nick: "S", joinTs: 2 },
+        { nick: "A", joinTs: 3 },
+        { nick: "C", joinTs: 4 }
+      ];
+    }
+  });
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    queue: ["C", "A", "B"],
+    spectators: ["S"],
+    drawer: "C",
+    guessers: ["A", "B"],
+    scores: { C: 0, A: 99, B: 50 },
+    stats: {
+      C: { points: 0, maxPoints: 6, correct: 0, drawCorrect: 0 },
+      A: { points: 99, maxPoints: 10, correct: 0, drawCorrect: 0 },
+      B: { points: 50, maxPoints: 10, correct: 0, drawCorrect: 0 }
+    }
+  })));
+
+  api.renderScores();
+
+  assert.ok(strip.innerHTML.indexOf("<b>C</b>") < strip.innerHTML.indexOf("<b>A</b>"));
+  assert.ok(strip.innerHTML.indexOf("<b>A</b>") < strip.innerHTML.indexOf("<b>B</b>"));
+  assert.ok(strip.innerHTML.indexOf("<b>B</b>") < strip.innerHTML.indexOf("<b>S</b>"));
+});
+
+test("countdown stage uses the simple CatchMind progress design", () => {
+  const stage = fakeElement();
+  const kicker = fakeElement();
+  const title = fakeElement();
+  const sub = fakeElement();
+  const copy = fakeElement();
+  const steps = fakeElement();
+  const marks = fakeElement();
+  const actions = fakeElement();
+  const start = fakeElement();
+  const practice = fakeElement();
+  steps.children = [fakeElement(), fakeElement(), fakeElement()];
+  kicker.classList.add("hidden");
+  copy.classList.add("hidden");
+  steps.classList.add("hidden");
+  marks.classList.add("hidden");
+  const api = loadCatchMind({
+    Date: { now() { return 1000; } },
+    elements: {
+      "catch-stage": stage,
+      "catch-stage-kicker": kicker,
+      "catch-stage-title": title,
+      "catch-stage-sub": sub,
+      "catch-countdown-copy": copy,
+      "catch-countdown-steps": steps,
+      "catch-stage-marks": marks,
+      "catch-stage-actions": actions,
+      "catch-start-btn": start,
+      "catch-practice-btn": practice
+    }
+  });
+  const state = api.freshState();
+  state.phase = "countdown";
+  state.matchId = "match-countdown-ui";
+  state.queue = ["A", "B", "C"];
+  state.drawer = "B";
+  state.guessers = ["A", "C"];
+  state.deadline = 4000;
+  api.setState(state);
+
+  api.renderStage();
+
+  assert.equal(stage.classList.contains("countdown"), true);
+  assert.equal(kicker.classList.contains("hidden"), false);
+  assert.equal(marks.classList.contains("hidden"), true);
+  assert.equal(copy.classList.contains("hidden"), false);
+  assert.equal(steps.classList.contains("hidden"), false);
+  assert.equal(kicker.textContent, "이번 출제자");
+  assert.equal(title.textContent, "B님의 그림 차례");
+  assert.equal(sub.textContent, "3");
+  assert.equal(copy.textContent, "그림을 준비해주세요");
+  assert.equal(steps.children[0].classList.contains("active"), true);
+
+  state.deadline = 2000;
+  api.renderStage();
+
+  assert.equal(sub.textContent, "1");
+  assert.equal(copy.textContent, "곧 그림이 시작돼요");
+  assert.equal(steps.children[0].classList.contains("passed"), true);
+  assert.equal(steps.children[1].classList.contains("passed"), true);
+  assert.equal(steps.children[2].classList.contains("active"), true);
+});
+
 test("waiting and finished stages share the light CatchMind status hierarchy", () => {
   const stage = fakeElement();
   const kicker = fakeElement();
@@ -754,7 +960,7 @@ test("waiting and finished stages share the light CatchMind status hierarchy", (
   })));
   api.renderStage();
   assert.equal(stage.classList.contains("idle"), false);
-  assert.equal(stage.classList.contains("lobby-roles"), false);
+  assert.equal(stage.classList.contains("lobby-roles"), true);
   assert.equal(stage.classList.contains("finished"), true);
   assert.equal(kicker.textContent, "ROUND COMPLETE");
   assert.equal(title.textContent, "그림 릴레이 끝!");
@@ -773,6 +979,60 @@ test("waiting and finished stages share the light CatchMind status hierarchy", (
   assert.equal(start.classList.contains("hidden"), false);
   assert.equal(practice.classList.contains("hidden"), true);
   assert.equal(actions.classList.contains("hidden"), false);
+});
+
+test("finished stage keeps the next participant and spectator lists visible", () => {
+  const roleBox = fakeElement();
+  const participantRow = fakeElement();
+  const spectatorRow = fakeElement();
+  const participantList = fakeElement();
+  const spectatorList = fakeElement();
+  const participantCount = fakeElement();
+  const spectatorCount = fakeElement();
+  const api = loadCatchMind({
+    elements: {
+      "catch-lobby-roles": roleBox,
+      "catch-lobby-participant-row": participantRow,
+      "catch-lobby-spectator-row": spectatorRow,
+      "catch-lobby-participants": participantList,
+      "catch-lobby-spectators": spectatorList,
+      "catch-lobby-participant-count": participantCount,
+      "catch-lobby-spectator-count": spectatorCount
+    }
+  });
+  api.setApi({
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() {
+      return [
+        { nick: "A", joinTs: 1 },
+        { nick: "B", joinTs: 2 },
+        { nick: "S", joinTs: 3 }
+      ];
+    }
+  });
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    phase: "finished",
+    queue: ["A", "B"],
+    spectators: ["S"],
+    drawer: null,
+    guessers: [],
+    remainMs: null,
+    scores: { A: 10, B: 0 },
+    stats: {
+      A: { points: 10, maxPoints: 10, correct: 1, drawCorrect: 0 },
+      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+    }
+  })));
+
+  api.renderLobbyRoles();
+
+  assert.equal(roleBox.classList.contains("hidden"), false);
+  assert.equal(participantCount.textContent, 2);
+  assert.equal(spectatorCount.textContent, 1);
+  assert.match(participantList.innerHTML, /<b>A<\/b>/);
+  assert.match(participantList.innerHTML, /<b>B<\/b>/);
+  assert.match(spectatorList.innerHTML, /<b>S<\/b>/);
 });
 
 test("a correct guess records the player's fastest real answer time", () => {
@@ -1133,17 +1393,17 @@ test("a new host restarts safely if the private word cannot be recovered", () =>
   assert.ok(sent.some(message => message.t === "cm_secret" && message.to === "B"));
 });
 
-test("spectators cannot submit the exact answer but can still chat", () => {
+test("spectators cannot submit the exact answer but can use the lounge chat", () => {
   const api = loadCatchMind();
   const sent = [];
-  const relayed = [];
+  const shown = [];
   api.setApi({
     isHost() { return true; },
     host() { return "A"; },
     me() { return { nick: "A", isAdmin: false }; },
     roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "S" }]; },
     send(message) { sent.push(message); },
-    relayChat(nick, text, overlaySide) { relayed.push({ nick, text, overlaySide }); },
+    showChat(nick, text, overlaySide) { shown.push({ nick, text, overlaySide }); },
     roomChanged() {},
     toast() {}
   });
@@ -1160,49 +1420,80 @@ test("spectators cannot submit the exact answer but can still chat", () => {
   api.setSecretWord("사과");
 
   api.hostSpectatorInput({ nick: "S", text: "사과", matchId: "match-a", roundIndex: 0 });
-  assert.equal(relayed.length, 0);
   assert.ok(sent.some(message => message.t === "cm_notice" && message.to === "S"));
 
   api.hostSpectatorInput({ nick: "S", text: "멋진 그림", matchId: "match-a", roundIndex: 0 });
-  assert.deepEqual(relayed, [{ nick: "S", text: "멋진 그림", overlaySide: "right" }]);
-  assert.ok(sent.some(message => message.t === "cm_chat_ack" && message.to === "S"));
+  const loungeMessage = sent.find(message => message.t === "cm_group_chat");
+  assert.ok(loungeMessage);
+  assert.equal(loungeMessage.nick, "S");
+  assert.equal(loungeMessage.group, "lounge");
+  assert.deepEqual(shown, []);
+
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    queue: ["A", "B"],
+    drawer: "A",
+    guessers: ["B"],
+    correct: { B: true },
+    scores: { A: 3, B: 10 },
+    stats: {
+      A: { points: 3, maxPoints: 3, correct: 0, drawCorrect: 1 },
+      B: { points: 10, maxPoints: 10, correct: 1, drawCorrect: 0 }
+    }
+  })));
+  api.hostMatchChatInput({ nick: "B", text: "관전자랑 대화", matchId: "match-a", roundIndex: 0 });
+  const solvedMessage = sent.filter(message => message.t === "cm_group_chat").pop();
+  assert.equal(solvedMessage.nick, "B");
+  assert.equal(solvedMessage.group, "lounge");
 });
 
-test("a spectator sees their acknowledged chat on the right overlay", () => {
+test("spectators and solved players see lounge chat while active players do not", () => {
   const api = loadCatchMind();
   const shown = [];
+  let mine = "S";
   api.setApi({
     isHost() { return false; },
     host() { return "A"; },
-    me() { return { nick: "S", isAdmin: false }; },
-    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "S" }]; },
+    me() { return { nick: mine, isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }, { nick: "S" }]; },
     send() {},
     showChat(nick, text, overlaySide) { shown.push({ nick, text, overlaySide }); },
     roomChanged() {},
     toast() {}
   });
   api.applyState(baseSnapshot({
-    queue: ["A", "B"],
+    queue: ["A", "B", "C"],
     drawer: "A",
-    guessers: ["B"],
-    scores: { A: 0, B: 0 },
+    guessers: ["B", "C"],
+    correct: { B: true },
+    scores: { A: 0, B: 0, C: 0 },
     stats: {
-      A: { points: 0, maxPoints: 3, correct: 0, drawCorrect: 0 },
-      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+      A: { points: 0, maxPoints: 6, correct: 0, drawCorrect: 0 },
+      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 },
+      C: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
     }
   }));
 
-  api.onMessage({
-    t: "cm_chat_ack",
+  const message = {
+    t: "cm_group_chat",
     from: "A",
-    to: "S",
     nick: "S",
     text: "멋진 그림",
+    group: "lounge",
     matchId: "match-a",
     roundIndex: 0
-  });
+  };
 
+  api.onMessage(message);
   assert.deepEqual(shown, [{ nick: "S", text: "멋진 그림", overlaySide: "right" }]);
+
+  mine = "B";
+  api.onMessage(message);
+  assert.equal(shown.length, 2);
+  assert.deepEqual(shown[1], { nick: "S", text: "멋진 그림", overlaySide: "right" });
+
+  mine = "C";
+  api.onMessage(message);
+  assert.equal(shown.length, 2);
 });
 
 test("drawing widths distinguish normal pen, thick pen, and eraser", () => {
@@ -1340,6 +1631,63 @@ test("a spectator can switch back to participant before the match", () => {
   assert.equal(api.hostSetSpectatorPreference("B", false), true);
   assert.deepEqual(Array.from(api.getState().spectators), []);
   assert.deepEqual(Array.from(api.desiredParticipantNicks()), ["A", "B", "C"]);
+});
+
+test("a host yields room authority when switching to spectator", () => {
+  const eligibility = [];
+  const toasts = [];
+  const api = loadCatchMind();
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() {
+      return [
+        { nick: "A", joinTs: 1 },
+        { nick: "B", joinTs: 2 },
+        { nick: "S", joinTs: 3 }
+      ];
+    },
+    setHostEligible(value) { eligibility.push(value); },
+    send() {},
+    roomChanged() {},
+    toast(message) { toasts.push(message); }
+  });
+  api.getState().spectators = ["S"];
+
+  api.toggleRolePreference();
+
+  assert.deepEqual(Array.from(api.getState().spectators), ["S", "A"]);
+  assert.equal(eligibility[eligibility.length - 1], false);
+  assert.ok(toasts.some(message => message.includes("방장을 넘기고")));
+});
+
+test("a host cannot spectate without another willing participant", () => {
+  const eligibility = [];
+  const toasts = [];
+  const api = loadCatchMind();
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() {
+      return [
+        { nick: "A", joinTs: 1 },
+        { nick: "S", joinTs: 2 }
+      ];
+    },
+    setHostEligible(value) { eligibility.push(value); },
+    send() {},
+    roomChanged() {},
+    toast(message) { toasts.push(message); }
+  });
+  api.getState().spectators = ["S"];
+
+  api.toggleRolePreference();
+
+  assert.deepEqual(Array.from(api.getState().spectators), ["S"]);
+  assert.deepEqual(eligibility, []);
+  assert.ok(toasts.some(message => message.includes("참가자가 한 명 이상")));
 });
 
 test("non-host role toggles are sent to the elected host", () => {

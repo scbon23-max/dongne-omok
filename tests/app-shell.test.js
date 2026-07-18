@@ -10,6 +10,7 @@ const root = path.join(__dirname, "..");
 const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
 const catchmind = fs.readFileSync(path.join(root, "catchmind.js"), "utf8");
+const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 const inlineScripts = Array.from(index.matchAll(/<script>([\s\S]*?)<\/script>/g), (match) => match[1]);
 const shellSource = inlineScripts.find((source) => source.includes("window.AppShell ="));
 const loaderSource = inlineScripts.find((source) => source.includes("var files = ["));
@@ -124,6 +125,20 @@ test("CatchMind ships the per-second countdown sound asset", () => {
   assert.ok(fs.statSync(asset).size > 50000);
   assert.match(catchmind, /COUNTDOWN_SFX_SRC = "assets\/catchmind-countdown\.wav"/);
   assert.match(catchmind, /var count = clamp\(Math\.ceil\(\(state\.deadline - Date\.now\(\)\) \/ 1000\), 1, 3\)/);
+});
+
+test("CatchMind countdown ships its simple bright progress treatment", () => {
+  assert.match(index, /id="catch-countdown-copy"/);
+  assert.match(index, /id="catch-countdown-steps"/);
+  assert.match(styles, /\.catch-stage\.countdown\s*\{[^}]*background:\s*#fff/);
+  assert.match(styles, /\.catch-countdown-steps span\.active\s*\{[^}]*background:\s*var\(--orange\)/);
+  assert.doesNotMatch(styles, /\.catch-stage\.countdown::before/);
+});
+
+test("room host election skips members who switched to spectating", () => {
+  assert.match(game, /var eligible = list\.filter\(function \(member\) \{ return member\.hostEligible !== false; \}\)/);
+  assert.match(game, /setHostEligible: function \(eligible\)[\s\S]{0,500}Net\.track\(myMetaObj\(null\)\)/);
+  assert.match(game, /hostEligible: roomHostEligible/);
 });
 
 test("the Omok board uses a HiDPI backing store with logical input coordinates", () => {
