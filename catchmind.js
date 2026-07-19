@@ -23,9 +23,11 @@ window.CatchMind = (function () {
     "#06b6d4", "#38bdf8", "#2474b5", "#4338ca", "#8b5cf6", "#ec4899"
   ];
   var COLOR_STORAGE_KEY = "catchmind.quickColors.v1";
-  var MAX_STROKES = 100;
-  var MAX_POINTS_PER_STROKE = 600;
-  var MAX_CANVAS_POINTS = 3200;
+  var MAX_STROKES = 240;
+  var MAX_POINTS_PER_STROKE = 1200;
+  var MAX_CANVAS_POINTS = 7000;
+  var POINT_PRECISION = 10000;
+  var MIN_POINT_DISTANCE_PX = 3;
   var MAX_PLAYERS = 40;
   var MAX_SCORE = 1000000;
   var MAX_FEED_LINES = 5;
@@ -1046,7 +1048,10 @@ window.CatchMind = (function () {
 
   function safePoint(raw) {
     raw = raw && typeof raw === "object" ? raw : {};
-    return { x: clamp(Number(raw.x) || 0, 0, 1), y: clamp(Number(raw.y) || 0, 0, 1) };
+    return {
+      x: Math.round(clamp(Number(raw.x) || 0, 0, 1) * POINT_PRECISION) / POINT_PRECISION,
+      y: Math.round(clamp(Number(raw.y) || 0, 0, 1) * POINT_PRECISION) / POINT_PRECISION
+    };
   }
 
   function sanitizeStroke(raw, pointLimit) {
@@ -2292,10 +2297,18 @@ window.CatchMind = (function () {
 
   function pointFromEvent(event) {
     var rect = canvas.getBoundingClientRect();
-    return {
+    return safePoint({
       x: clamp((event.clientX - rect.left) / rect.width, 0, 1),
       y: clamp((event.clientY - rect.top) / rect.height, 0, 1)
-    };
+    });
+  }
+
+  function pointDistanceSquaredInPixels(a, b) {
+    var width = Math.max(1, canvas.clientWidth || canvas.width || 1);
+    var height = Math.max(1, canvas.clientHeight || canvas.height || 1);
+    var dx = (a.x - b.x) * width;
+    var dy = (a.y - b.y) * height;
+    return dx * dx + dy * dy;
   }
 
   function drawStroke(targetCtx, width, height, stroke) {
@@ -2676,8 +2689,7 @@ window.CatchMind = (function () {
     if (!drawing || !currentStroke || !canDraw()) return;
     event.preventDefault();
     var point = pointFromEvent(event), prev = currentStroke.points[currentStroke.points.length - 1];
-    var dx = point.x - prev.x, dy = point.y - prev.y;
-    if (dx * dx + dy * dy < 0.000015) return;
+    if (pointDistanceSquaredInPixels(point, prev) < MIN_POINT_DISTANCE_PX * MIN_POINT_DISTANCE_PX) return;
     if (currentStroke.points.length >= MAX_POINTS_PER_STROKE) return;
     if (canvasPointCount() >= MAX_CANVAS_POINTS) {
       notifyCanvasLimit();

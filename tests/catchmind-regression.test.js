@@ -514,6 +514,14 @@ test("canvas snapshots remain below the free broadcast payload limit", () => {
   assert.ok(bytes < 256 * 1024, "snapshot was " + bytes + " bytes");
 });
 
+test("drawing capacity supports detailed tablet sketches", () => {
+  const api = loadCatchMind();
+
+  assert.ok(api.limits.strokes >= 200);
+  assert.ok(api.limits.pointsPerStroke >= 1000);
+  assert.ok(api.limits.canvasPoints >= 7000);
+});
+
 test("stroke deltas append once and reject gaps", () => {
   const api = loadCatchMind();
   api.setState(api.sanitizeSnapshot(baseSnapshot({ strokes: [] })));
