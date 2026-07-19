@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 104 104">
+  <defs>
+    <pattern id="grid" width="17.333" height="17.333" patternUnits="userSpaceOnUse">
+      <path d="M 17.333 0 L 0 0 0 17.333" fill="none" stroke="#76552d" stroke-opacity=".36" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="black" cx="32%" cy="25%">
+      <stop offset="0" stop-color="#596169"/>
+      <stop offset=".58" stop-color="#1b1b1b"/>
+      <stop offset="1" stop-color="#090b0d"/>
+    </radialGradient>
+    <radialGradient id="white" cx="32%" cy="25%">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".68" stop-color="#f4f4f1"/>
+      <stop offset="1" stop-color="#d4d2ca"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="1.5" dy="2.5" stdDeviation="1.6" flood-color="#432b12" flood-opacity=".38"/>
+    </filter>
+  </defs>
+  <rect width="104" height="104" rx="8" fill="#E8C88A"/>
+  <rect x="8" y="8" width="88" height="88" fill="url(#grid)"/>
+  <path d="M0 52h104" stroke="#795a31" stroke-opacity=".38" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <g filter="url(#shadow)">
+    <circle cx="30" cy="27" r="12" fill="url(#white)"/>
+    <circle cx="72" cy="30" r="12" fill="url(#white)"/>
+    <circle cx="33" cy="75" r="12" fill="url(#black)"/>
+    <circle cx="68" cy="70" r="12" fill="url(#black)"/>
+  </g>
+  <path d="M64 67c8-6 13-12 16-20" fill="none" stroke="#F3612A" stroke-width="3" stroke-linecap="round"/>
+  <path d="m77 48 4-4 1 6" fill="#F3612A"/>
+</svg>

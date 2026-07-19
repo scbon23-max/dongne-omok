@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 360">
+  <defs>
+    <pattern id="grid" width="55" height="45" patternUnits="userSpaceOnUse">
+      <path d="M55 0H0V45" fill="none" stroke="#5a3c14" stroke-opacity=".28" stroke-width="2"/>
+    </pattern>
+    <radialGradient id="black" cx="32%" cy="25%">
+      <stop offset="0" stop-color="#555e65"/>
+      <stop offset=".58" stop-color="#1b1b1b"/>
+      <stop offset="1" stop-color="#080a0c"/>
+    </radialGradient>
+    <radialGradient id="white" cx="32%" cy="25%">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".68" stop-color="#f4f4f1"/>
+      <stop offset="1" stop-color="#d4d2ca"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="170%" height="180%">
+      <feDropShadow dx="3" dy="5" stdDeviation="3" flood-color="#5a3c14" flood-opacity=".34"/>
+    </filter>
+  </defs>
+  <rect width="660" height="360" fill="#E8C88A"/>
+  <rect width="660" height="360" fill="url(#grid)"/>
+  <circle cx="330" cy="180" r="125" fill="#5a3c14" fill-opacity=".10" stroke="#5a3c14" stroke-opacity=".4" stroke-width="3"/>
+  <circle cx="330" cy="180" r="80" fill="#F3612A" fill-opacity=".14" stroke="#5a3c14" stroke-opacity=".4" stroke-width="3"/>
+  <circle cx="330" cy="180" r="43" fill="#F3612A" fill-opacity=".30" stroke="#5a3c14" stroke-opacity=".4" stroke-width="3"/>
+  <circle cx="330" cy="180" r="5" fill="#C7481B"/>
+  <g filter="url(#shadow)">
+    <circle cx="120" cy="65" r="22" fill="url(#white)"/>
+    <circle cx="455" cy="112" r="22" fill="url(#white)"/>
+    <circle cx="285" cy="148" r="22" fill="url(#white)"/>
+    <circle cx="372" cy="207" r="22" fill="url(#white)"/>
+    <circle cx="530" cy="268" r="22" fill="url(#white)"/>
+    <circle cx="535" cy="76" r="22" fill="url(#black)"/>
+    <circle cx="370" cy="135" r="22" fill="url(#black)"/>
+    <circle cx="310" cy="220" r="22" fill="url(#black)"/>
+    <circle cx="205" cy="236" r="22" fill="url(#black)"/>
+    <circle cx="145" cy="298" r="22" fill="url(#black)"/>
+  </g>
+  <path d="M207 232c29-18 48-25 70-30" fill="none" stroke="#F3612A" stroke-width="6" stroke-linecap="round"/>
+  <path d="m267 193 19 6-14 14Z" fill="#F3612A"/>
+</svg>

@@ -9,6 +9,7 @@ const vm = require("node:vm");
 const root = path.join(__dirname, "..");
 const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
+const alkkagi = fs.readFileSync(path.join(root, "alkkagi.js"), "utf8");
 const catchmind = fs.readFileSync(path.join(root, "catchmind.js"), "utf8");
 const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 const inlineScripts = Array.from(index.matchAll(/<script>([\s\S]*?)<\/script>/g), (match) => match[1]);
@@ -174,4 +175,36 @@ test("the Omok board uses a HiDPI backing store with logical input coordinates",
   assert.doesNotMatch(game, /strokeInsideCircle/);
   assert.match(game, /drawStoneShadow\(px\(sc\), px\(sr\), board\[sr\]\[sc\]\)[\s\S]*drawStone\(px\(c\), px\(r\), board\[r\]\[c\]\)/);
   assert.doesNotMatch(game, /ctx\.arc\([^;]*RADIUS \+/);
+});
+
+test("Alkkagi reuses the Omok stone skins and redraws each entered room mode", () => {
+  assert.match(alkkagi, /load\("black", "assets\/stone-black\.png"\)/);
+  assert.match(alkkagi, /load\("white", "assets\/stone-white\.png"\)/);
+  assert.match(alkkagi, /var STONE_SOURCE_INSET = 0\.09/);
+  assert.match(alkkagi, /ctx\.drawImage\(img, sourceX, sourceY, sourceWidth, sourceHeight,/);
+  assert.match(alkkagi, /if \(shadowStone\.alive\) drawStoneShadow\(shadowStone\)/);
+  assert.match(alkkagi, /ctx\.imageSmoothingQuality = "high"/);
+  assert.match(game, /if \(!alkStarted\) alkStarted = true;\s*alkStartView\(\);/);
+  assert.match(game, /if \(game === "alk_terr" && window\.Alkkagi\) \{ A\.mode = "territory"; Alkkagi\.setMode\("territory"\); Alkkagi\.setStones\(\[\]\); \}/);
+});
+
+test("room creation uses the navy game picker and a second Alkkagi mode step", () => {
+  assert.match(index, /id="create-game-step"/);
+  assert.match(index, /id="create-alk-mode-step"/);
+  assert.match(index, /id="create-step-back"/);
+  assert.match(index, /id="create-mode-confirm"/);
+  assert.match(index, /data-game="alk"[\s\S]*data-game="alk_terr"/);
+  assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind"\]\)/);
+  assert.match(game, /if \(createGame === "alk"\)[\s\S]*showCreateRoomStep\("alk-mode"\)/);
+  assert.match(game, /createRoom\(createAlkMode, nm\)/);
+  assert.match(styles, /\.create-room-dialog\s*\{[^}]*background:\s*var\(--navy-2\)/);
+  assert.match(styles, /\.create-game-option\.active\s*\{[^}]*border:\s*2px solid var\(--orange\)/);
+  assert.doesNotMatch(index, /알까기-일반|알까기-점령전/);
+
+  [
+    "assets/game-icon-alkkagi.svg",
+    "assets/game-icon-catchmind.svg",
+    "assets/alkkagi-mode-normal.svg",
+    "assets/alkkagi-mode-territory.svg"
+  ].forEach((asset) => assert.equal(fs.existsSync(path.join(root, asset)), true));
 });

@@ -8,6 +8,8 @@ window.Alkkagi = (function () {
   var onFlick = null, canFlick = null, onHit = null, onPlace = null;
   var mode = "knockout";
   var komi = 0;
+  var STONE_SOURCE_INSET = 0.09;
+  var stoneImages = { black: null, white: null };
   var TCX = SW / 2, TCY = SH / 2, GM = SH * 0.09, RING = { c: SH * 0.062, m: SH * 0.115, o: SH * 0.18 };
   function placeActive(x) {
     for (var i = 0; i < stones.length; i++) {
@@ -16,6 +18,53 @@ window.Alkkagi = (function () {
   }
   function setMode(m) { mode = m; }
   function setKomi(k) { komi = k || 0; }
+  function localAssetUrl(path) {
+    return window.AppShell && AppShell.assetUrl ? AppShell.assetUrl(path) : path;
+  }
+  function loadStoneImages() {
+    if (stoneImages.black && stoneImages.white) return;
+    function load(kind, path) {
+      var img = new Image();
+      img.onload = render;
+      img.onerror = function () { stoneImages[kind] = null; };
+      img.src = localAssetUrl(path);
+      stoneImages[kind] = img;
+    }
+    load("black", "assets/stone-black.png");
+    load("white", "assets/stone-white.png");
+  }
+  function drawStoneShadow(stone) {
+    ctx.save();
+    ctx.shadowColor = stone.c === "w" ? "rgba(42,29,16,.31)" : "rgba(42,29,16,.28)";
+    ctx.shadowBlur = R * 0.28;
+    ctx.shadowOffsetX = R * 0.1;
+    ctx.shadowOffsetY = R * 0.18;
+    ctx.fillStyle = "#E8C88A";
+    ctx.beginPath();
+    ctx.arc(stone.x, stone.y, R * 0.97, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  function drawStone(stone) {
+    var img = stone.c === "b" ? stoneImages.black : stoneImages.white;
+    if (img && img.complete && img.naturalWidth) {
+      var sourceX = img.naturalWidth * STONE_SOURCE_INSET;
+      var sourceY = img.naturalHeight * STONE_SOURCE_INSET;
+      var sourceWidth = img.naturalWidth - sourceX * 2;
+      var sourceHeight = img.naturalHeight - sourceY * 2;
+      var size = R * 2;
+      ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight,
+        stone.x - size / 2, stone.y - size / 2, size, size);
+      return;
+    }
+    ctx.beginPath();
+    ctx.arc(stone.x, stone.y, R, 0, Math.PI * 2);
+    ctx.fillStyle = stone.c === "b" ? "#1b1b1b" : "#f4f4f4";
+    ctx.fill();
+    ctx.strokeStyle = stone.c === "b" ? "#000" : "#b9b4a6";
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
   function ringPoints(x, y) {
     var d = Math.hypot(x - TCX, y - TCY);
     if (d <= RING.c) return 3;
@@ -176,8 +225,11 @@ window.Alkkagi = (function () {
       }
     }
     for (var j = 0; j < stones.length; j++) {
-      var s3 = stones[j]; if (!s3.alive) continue;
-      ctx.beginPath(); ctx.arc(s3.x, s3.y, R, 0, 7); ctx.fillStyle = s3.c === "b" ? "#1b1b1b" : "#f4f4f4"; ctx.fill();
+      var shadowStone = stones[j]; if (shadowStone.alive) drawStoneShadow(shadowStone);
+    }
+    for (var j2 = 0; j2 < stones.length; j2++) {
+      var s3 = stones[j2]; if (!s3.alive) continue;
+      drawStone(s3);
       if (!moving && !drag && g2.ok && s3.c === g2.color && (mode !== "territory" || s3.active)) { ctx.beginPath(); ctx.arc(s3.x, s3.y, R + 5, 0, 7); ctx.strokeStyle = "rgba(47,184,158,.6)"; ctx.lineWidth = 2; ctx.stroke(); }
     }
     if (mode === "territory") {
@@ -193,6 +245,9 @@ window.Alkkagi = (function () {
   function init(opts) {
     cv = document.getElementById("alk-board"); if (!cv) return;
     ctx = cv.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
+    loadStoneImages();
     onFlick = opts && opts.onFlick; canFlick = opts && opts.canFlick; onHit = opts && opts.onHit; onPlace = opts && opts.onPlace;
     if (!bound) {
       bound = true;

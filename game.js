@@ -736,7 +736,8 @@
         if (!omokStarted) { omokStarted = true; startGameUI(); }
       } else if (isAlkFamily(curGame)) {
         $("alkgame").classList.remove("hidden");
-        if (!alkStarted) { alkStarted = true; alkStartView(); }
+        if (!alkStarted) alkStarted = true;
+        alkStartView();
       } else {
         $(target.ui.screenId).classList.remove("hidden");
       }
@@ -3770,12 +3771,39 @@
   function openModal(id) { $(id).classList.remove("hidden"); }
   function renderCreateGameOptions(selected) {
     var box = $("create-game"); if (!box) return selected || "omok";
-    var ids = visibleGameIds(window.GameCatalog ? GameCatalog.order : ["omok", "alk", "alk_terr"]);
+    if (selected === "alk_terr") selected = "alk";
+    var ids = visibleGameIds(["omok", "alk", "catchmind"]);
     if (ids.indexOf(selected) < 0) selected = ids[0] || "omok";
     box.innerHTML = ids.map(function (id) {
       var label = gameName(id);
-      return '<button class="radio-chip' + (id === selected ? ' active' : '') + '" data-game="' + esc(id) + '">' + esc(label) + '</button>';
+      var desc = id === "omok" ? "렌주룰로 즐기는 1:1 대국"
+        : id === "alk" ? "돌을 튕겨 겨루는 실시간 대결"
+        : "그리고 맞히는 단체 그림 퀴즈";
+      var icon = id === "omok"
+        ? '<span class="create-game-icon omok" aria-hidden="true"></span>'
+        : '<img class="create-game-icon" src="' + localAssetUrl(id === "alk" ? "assets/game-icon-alkkagi.svg" : "assets/game-icon-catchmind.svg") + '" alt="">';
+      return '<button class="create-game-option' + (id === selected ? ' active' : '') + '" data-game="' + esc(id) + '" type="button" aria-pressed="' + (id === selected ? 'true' : 'false') + '">'
+        + icon + '<span class="create-game-copy"><span class="create-game-name">' + esc(label) + '</span><span class="create-game-desc">' + esc(desc) + '</span></span></button>';
     }).join("");
+    return selected;
+  }
+  function showCreateRoomStep(step) {
+    var gameStep = $("create-game-step"), modeStep = $("create-alk-mode-step");
+    if (gameStep) gameStep.classList.toggle("hidden", step !== "game");
+    if (modeStep) modeStep.classList.toggle("hidden", step !== "alk-mode");
+  }
+  function renderCreateAlkMode(selected) {
+    selected = selected === "alk_terr" ? "alk_terr" : "alk";
+    var box = $("create-alk-mode");
+    if (box) {
+      var cards = box.querySelectorAll(".create-mode-card");
+      for (var i = 0; i < cards.length; i++) {
+        var active = cards[i].getAttribute("data-game") === selected;
+        cards[i].classList.toggle("active", active);
+        cards[i].setAttribute("aria-pressed", active ? "true" : "false");
+      }
+    }
+    if ($("create-mode-confirm")) $("create-mode-confirm").textContent = (selected === "alk_terr" ? "점령전" : "일반") + " 방 만들기";
     return selected;
   }
   function openMenu() {
@@ -4590,19 +4618,42 @@
     });
     $("lobby-rank-btn").addEventListener("click", function () { openRank("all"); });
     $("lobby-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendLobbyChat(); });
-    $("create-room-btn").addEventListener("click", function () { createGame = renderCreateGameOptions(createGame); openModal("create-modal"); });
+    $("create-room-btn").addEventListener("click", function () {
+      createGame = renderCreateGameOptions(createGame);
+      createAlkMode = renderCreateAlkMode(createAlkMode);
+      showCreateRoomStep("game");
+      openModal("create-modal");
+    });
     var createGame = renderCreateGameOptions("omok");
+    var createAlkMode = renderCreateAlkMode("alk");
     $("create-game").addEventListener("click", function (event) {
-      var chip = event.target.closest(".radio-chip");
-      if (!chip || !this.contains(chip)) return;
-      createGame = chip.getAttribute("data-game");
-      var all = this.querySelectorAll(".radio-chip");
-      for (var y = 0; y < all.length; y++) all[y].classList.toggle("active", all[y] === chip);
+      var option = event.target.closest(".create-game-option");
+      if (!option || !this.contains(option)) return;
+      createGame = renderCreateGameOptions(option.getAttribute("data-game"));
     });
     $("create-confirm").addEventListener("click", function () {
+      var nm = $("create-name").value;
+      if (createGame === "alk") {
+        if ($("create-room-summary-name")) $("create-room-summary-name").textContent = nm.trim() || (me.nick + "님의 방");
+        createAlkMode = renderCreateAlkMode(createAlkMode);
+        showCreateRoomStep("alk-mode");
+        return;
+      }
+      $("create-modal").classList.add("hidden");
+      $("create-name").value = "";
+      createRoom(createGame, nm);
+    });
+    $("create-step-back").addEventListener("click", function () { showCreateRoomStep("game"); });
+    $("create-alk-mode").addEventListener("click", function (event) {
+      var card = event.target.closest(".create-mode-card");
+      if (!card || !this.contains(card)) return;
+      createAlkMode = renderCreateAlkMode(card.getAttribute("data-game"));
+    });
+    $("create-mode-confirm").addEventListener("click", function () {
       $("create-modal").classList.add("hidden");
       var nm = $("create-name").value; $("create-name").value = "";
-      createRoom(createGame, nm);
+      createRoom(createAlkMode, nm);
+      showCreateRoomStep("game");
     });
     $("alk-chipB").addEventListener("click", function () { onAlkChipTap("black"); });
     $("alk-chipW").addEventListener("click", function () { onAlkChipTap("white"); });

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 360">
+  <defs>
+    <pattern id="grid" width="55" height="45" patternUnits="userSpaceOnUse">
+      <path d="M55 0H0V45" fill="none" stroke="#5a3c14" stroke-opacity=".28" stroke-width="2"/>
+    </pattern>
+    <radialGradient id="black" cx="32%" cy="25%">
+      <stop offset="0" stop-color="#555e65"/>
+      <stop offset=".58" stop-color="#1b1b1b"/>
+      <stop offset="1" stop-color="#080a0c"/>
+    </radialGradient>
+    <radialGradient id="white" cx="32%" cy="25%">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".68" stop-color="#f4f4f1"/>
+      <stop offset="1" stop-color="#d4d2ca"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="170%" height="180%">
+      <feDropShadow dx="3" dy="5" stdDeviation="3" flood-color="#5a3c14" flood-opacity=".34"/>
+    </filter>
+  </defs>
+  <rect width="660" height="360" fill="#E8C88A"/>
+  <rect width="660" height="360" fill="url(#grid)"/>
+  <path d="M0 180h660" stroke="#5a3c14" stroke-opacity=".25" stroke-width="2" stroke-dasharray="10 10"/>
+  <g filter="url(#shadow)">
+    <circle cx="100" cy="70" r="23" fill="url(#white)"/>
+    <circle cx="215" cy="70" r="23" fill="url(#white)"/>
+    <circle cx="330" cy="70" r="23" fill="url(#white)"/>
+    <circle cx="445" cy="70" r="23" fill="url(#white)"/>
+    <circle cx="560" cy="70" r="23" fill="url(#white)"/>
+    <circle cx="100" cy="292" r="23" fill="url(#black)"/>
+    <circle cx="215" cy="292" r="23" fill="url(#black)"/>
+    <circle cx="330" cy="260" r="23" fill="url(#black)"/>
+    <circle cx="445" cy="292" r="23" fill="url(#black)"/>
+    <circle cx="560" cy="292" r="23" fill="url(#black)"/>
+  </g>
+  <path d="M330 233c0-35 0-54 0-91" fill="none" stroke="#F3612A" stroke-width="6" stroke-linecap="round"/>
+  <path d="m318 150 12-17 12 17Z" fill="#F3612A"/>
+  <circle cx="330" cy="119" r="14" fill="none" stroke="#F3612A" stroke-width="4" stroke-opacity=".75"/>
+</svg>

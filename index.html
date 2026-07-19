@@ -472,23 +472,54 @@
 
 <!-- 방 만들기 모달 -->
 <div id="create-modal" class="modal-overlay hidden">
-  <div class="modal">
-    <div class="modal-head"><h2>방 만들기</h2><button class="modal-close" data-close>✕</button></div>
-    <div class="modal-body">
-      <div class="setting-group">
-        <div class="setting-title">게임</div>
-        <div class="radio-row" id="create-game">
-          <button class="radio-chip active" data-game="omok">오목</button>
-          <button class="radio-chip" data-game="alk">알까기-일반</button>
-          <button class="radio-chip" data-game="alk_terr">알까기-점령전</button>
+  <div class="modal create-room-dialog">
+    <div id="create-game-step">
+      <div class="create-head">
+        <h2>방 만들기</h2>
+        <button class="create-icon-btn modal-close" data-close aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group create-game-group">
+          <div class="setting-title">게임 선택</div>
+          <div class="create-game-list" id="create-game"></div>
+        </div>
+        <div class="setting-group create-name-group">
+          <label class="setting-title" for="create-name">방 이름</label>
+          <input id="create-name" class="create-name-input" type="text" maxlength="16" placeholder="예: 구나의 방" autocomplete="off">
         </div>
       </div>
-      <div class="setting-group">
-        <div class="setting-title">방 이름</div>
-        <input id="create-name" class="nick-input" type="text" maxlength="16" placeholder="예: 구나의 방" autocomplete="off">
-      </div>
+      <button id="create-confirm" class="btn-primary create-confirm">방 만들기</button>
     </div>
-    <button id="create-confirm" class="btn-primary modal-ok">방 만들기</button>
+
+    <div id="create-alk-mode-step" class="hidden">
+      <div class="create-head create-head-mode">
+        <button id="create-step-back" class="create-icon-btn create-back" type="button" aria-label="이전">←</button>
+        <h2>알까기 방식</h2>
+        <button class="create-icon-btn modal-close" data-close aria-label="닫기">✕</button>
+      </div>
+      <div class="create-room-summary">
+        <span>방 이름</span>
+        <strong id="create-room-summary-name"></strong>
+      </div>
+      <div class="setting-title">게임 방식 선택</div>
+      <div id="create-alk-mode" class="create-mode-list">
+        <button class="create-mode-card active" type="button" data-game="alk">
+          <img src="assets/alkkagi-mode-normal.svg" alt="">
+          <span class="create-mode-copy">
+            <strong>일반</strong>
+            <span>상대 돌을 판 밖으로 밀어내는 대결</span>
+          </span>
+        </button>
+        <button class="create-mode-card" type="button" data-game="alk_terr">
+          <img src="assets/alkkagi-mode-territory.svg" alt="">
+          <span class="create-mode-copy">
+            <strong>점령전</strong>
+            <span>중앙 과녁에 돌을 모아 점수를 겨루는 대결</span>
+          </span>
+        </button>
+      </div>
+      <button id="create-mode-confirm" class="btn-primary create-confirm">일반 방 만들기</button>
+    </div>
   </div>
 </div>
 
