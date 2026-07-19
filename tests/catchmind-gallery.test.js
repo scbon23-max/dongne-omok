@@ -9,11 +9,17 @@ const vm = require("node:vm");
 const root = path.join(__dirname, "..");
 const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
+const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
+const catchmind = fs.readFileSync(path.join(root, "catchmind.js"), "utf8");
 const migration = fs.readFileSync(path.join(root, "supabase", "migrations", "202607180001_catchmind_gallery.sql"), "utf8");
 const edgeFunction = fs.readFileSync(path.join(root, "supabase", "functions", "catchmind-gallery", "index.ts"), "utf8");
 
-test("gallery button precedes ranking and ships a mobile gallery dialog", () => {
-  assert.match(index, /id="catch-gallery-btn"[\s\S]*?id="catch-rank-btn"[\s\S]*?id="catch-role-btn"/);
+test("the main lobby opens CatchMind gallery before ranking", () => {
+  assert.match(index, /id="lobby-catch-gallery-btn"[\s\S]*?id="lobby-rank-btn"[\s\S]*?id="lobby-menu-btn"/);
+  assert.match(index, /id="catch-rank-btn"[\s\S]*?id="catch-gallery-btn"[\s\S]*?id="catch-role-btn"/);
+  assert.match(game, /lobby-catch-gallery-btn[\s\S]{0,300}CatchMind\.openGallery\(controllerApi\(\)\)/);
+  assert.match(catchmind, /openGallery:\s*openGallery/);
+  assert.match(catchmind, /function openGallery\(nextApi\)[\s\S]{0,120}bindGallery\(\)/);
   assert.match(index, /id="catch-gallery-backdrop"/);
   assert.match(index, /id="catch-gallery-recent-tab"/);
   assert.match(index, /id="catch-gallery-favorite-tab"/);

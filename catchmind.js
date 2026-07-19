@@ -117,6 +117,7 @@ window.CatchMind = (function () {
   var galleryError = "";
   var galleryRequestToken = 0;
   var gallerySavedRounds = Object.create(null);
+  var galleryBound = false;
 
   function freshState() {
     return {
@@ -2493,7 +2494,40 @@ window.CatchMind = (function () {
     }
   }
 
-  function openGallery() {
+  function bindGallery() {
+    if (galleryBound) return;
+    galleryBound = true;
+    var galleryButton = $("catch-gallery-btn");
+    var galleryClose = $("catch-gallery-close");
+    var galleryBackdrop = $("catch-gallery-backdrop");
+    var galleryGrid = $("catch-gallery-grid");
+    if (galleryButton) galleryButton.addEventListener("click", function () { openGallery(); });
+    if (galleryClose) galleryClose.addEventListener("click", closeGallery);
+    if (galleryBackdrop) galleryBackdrop.addEventListener("click", function (event) {
+      if (event.target === galleryBackdrop) closeGallery();
+    });
+    var galleryRecentTab = $("catch-gallery-recent-tab");
+    var galleryFavoriteTab = $("catch-gallery-favorite-tab");
+    var galleryMore = $("catch-gallery-more");
+    var galleryPreviewClose = $("catch-gallery-preview-close");
+    if (galleryRecentTab) galleryRecentTab.addEventListener("click", function () { setGalleryMode("recent"); });
+    if (galleryFavoriteTab) galleryFavoriteTab.addEventListener("click", function () { setGalleryMode("favorites"); });
+    if (galleryMore) galleryMore.addEventListener("click", function () { loadGallery(false); });
+    if (galleryPreviewClose) galleryPreviewClose.addEventListener("click", closeGalleryPreview);
+    if (galleryGrid) galleryGrid.addEventListener("click", function (event) {
+      var favoriteButton = event.target.closest && event.target.closest("[data-gallery-favorite]");
+      if (favoriteButton) {
+        toggleGalleryFavorite(favoriteButton.getAttribute("data-gallery-favorite"), favoriteButton);
+        return;
+      }
+      var openButton = event.target.closest && event.target.closest("[data-gallery-open]");
+      if (openButton) openGalleryPreview(openButton.getAttribute("data-gallery-open"));
+    });
+  }
+
+  function openGallery(nextApi) {
+    if (nextApi) api = nextApi;
+    bindGallery();
     var backdrop = $("catch-gallery-backdrop");
     if (!backdrop) return;
     closeGalleryPreview();
@@ -2916,32 +2950,7 @@ window.CatchMind = (function () {
     $("catch-role-btn").addEventListener("click", toggleRolePreference);
     $("catch-people-btn").addEventListener("click", function () { if (api) api.openPlayers(); });
     $("catch-rank-btn").addEventListener("click", function () { if (api) api.openRank(); });
-    var galleryButton = $("catch-gallery-btn");
-    var galleryClose = $("catch-gallery-close");
-    var galleryBackdrop = $("catch-gallery-backdrop");
-    var galleryGrid = $("catch-gallery-grid");
-    if (galleryButton) galleryButton.addEventListener("click", openGallery);
-    if (galleryClose) galleryClose.addEventListener("click", closeGallery);
-    if (galleryBackdrop) galleryBackdrop.addEventListener("click", function (event) {
-      if (event.target === galleryBackdrop) closeGallery();
-    });
-    var galleryRecentTab = $("catch-gallery-recent-tab");
-    var galleryFavoriteTab = $("catch-gallery-favorite-tab");
-    var galleryMore = $("catch-gallery-more");
-    var galleryPreviewClose = $("catch-gallery-preview-close");
-    if (galleryRecentTab) galleryRecentTab.addEventListener("click", function () { setGalleryMode("recent"); });
-    if (galleryFavoriteTab) galleryFavoriteTab.addEventListener("click", function () { setGalleryMode("favorites"); });
-    if (galleryMore) galleryMore.addEventListener("click", function () { loadGallery(false); });
-    if (galleryPreviewClose) galleryPreviewClose.addEventListener("click", closeGalleryPreview);
-    if (galleryGrid) galleryGrid.addEventListener("click", function (event) {
-      var favoriteButton = event.target.closest && event.target.closest("[data-gallery-favorite]");
-      if (favoriteButton) {
-        toggleGalleryFavorite(favoriteButton.getAttribute("data-gallery-favorite"), favoriteButton);
-        return;
-      }
-      var openButton = event.target.closest && event.target.closest("[data-gallery-open]");
-      if (openButton) openGalleryPreview(openButton.getAttribute("data-gallery-open"));
-    });
+    bindGallery();
     $("catch-menu-btn").addEventListener("click", function () { if (api) api.openMenu(); });
 
     var toolButtons = document.querySelectorAll("[data-catch-tool]");
@@ -3148,6 +3157,7 @@ window.CatchMind = (function () {
     canChat: canChat,
     renderPlayers: renderPlayers,
     render: render,
+    openGallery: openGallery,
     rules: rules,
     get state() { return state; }
   };

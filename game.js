@@ -4448,6 +4448,10 @@
 
     // 로비
     $("lobby-menu-btn").addEventListener("click", openMenu);
+    $("lobby-catch-gallery-btn").addEventListener("click", function () {
+      if (window.CatchMind && CatchMind.openGallery) CatchMind.openGallery(controllerApi());
+      else toast("갤러리를 열 수 없어요");
+    });
     $("lobby-rank-btn").addEventListener("click", function () { openRank("all"); });
     $("lobby-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendLobbyChat(); });
     $("create-room-btn").addEventListener("click", function () { createGame = renderCreateGameOptions(createGame); openModal("create-modal"); });
