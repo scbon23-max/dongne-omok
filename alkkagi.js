@@ -1,12 +1,14 @@
 window.Alkkagi = (function () {
   "use strict";
-  var SW = 340, SH = 440, R = 14, FR = 0.933, MINV = 0.10, MAX_PULL = 90, MAXV = 22.5;
+  var SW = 340, SH = 440, R = 14, FR = 0.933, ICE_FR = 0.975, MINV = 0.10, MAX_PULL = 90, MAXV = 22.5;
   var cv = null, ctx = null, bound = false;
   var stones = [];
   var turn = "b", seats = { black: null, white: null }, started = false, over = false, winner = null;
   var moving = false, drag = null, dragRaf = 0;
   var onFlick = null, canFlick = null, onHit = null, onPlace = null;
   var mode = "knockout";
+  var mapId = "base";
+  var mapObjects = [];
   var komi = 0;
   var STONE_SOURCE_INSET = 0.09;
   var stoneImages = { black: null, white: null };
@@ -17,6 +19,45 @@ window.Alkkagi = (function () {
     }
   }
   function setMode(m) { mode = m; }
+  function setMap(id, seed) {
+    mapId = window.AlkkagiMaps && AlkkagiMaps.has(id) ? id : "base";
+    mapObjects = window.AlkkagiMaps ? AlkkagiMaps.createObjects(mapId, seed == null ? Date.now() + ":" + Math.random() : seed) : [];
+    render();
+  }
+  function cloneMapObjects(list) {
+    return (list || []).slice(0, 12).map(function (object) {
+      var copy = {};
+      Object.keys(object || {}).forEach(function (key) {
+        var value = object[key];
+        if (typeof value === "number" && !isFinite(value)) return;
+        if (typeof value === "number" || typeof value === "string" || typeof value === "boolean") copy[key] = value;
+      });
+      if (typeof copy.x === "number") copy.x = Math.max(0, Math.min(SW, copy.x));
+      if (typeof copy.y === "number") copy.y = Math.max(0, Math.min(SH, copy.y));
+      if (typeof copy.radius === "number") copy.radius = Math.max(10, Math.min(60, copy.radius));
+      if (typeof copy.variant === "number") copy.variant = Math.max(0, Math.min(2, Math.floor(copy.variant)));
+      if (typeof copy.pair === "number") copy.pair = Math.max(0, Math.min(3, Math.floor(copy.pair)));
+      return copy;
+    });
+  }
+  function setMapState(id, objects) {
+    mapId = window.AlkkagiMaps && AlkkagiMaps.has(id) ? id : "base";
+    mapObjects = cloneMapObjects(objects);
+    render();
+  }
+  function getMap() { return mapId; }
+  function getMapObjects() { return cloneMapObjects(mapObjects); }
+  function advanceMapTurn(seed, objects) {
+    var next = cloneMapObjects(objects == null ? mapObjects : objects);
+    if (mapId !== "wind" || !next.length) return next;
+    var text = String(seed == null ? Date.now() : seed), hash = 0;
+    for (var i = 0; i < text.length; i++) hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+    var oldStep = Math.round((next[0].rotation || 0) / (Math.PI / 4));
+    var step = Math.abs(hash) % 8;
+    if (step === ((oldStep % 8) + 8) % 8) step = (step + 1) % 8;
+    next[0].rotation = step * Math.PI / 4;
+    return next;
+  }
   function setKomi(k) { komi = k || 0; }
   function localAssetUrl(path) {
     return window.AppShell && AppShell.assetUrl ? AppShell.assetUrl(path) : path;
@@ -143,72 +184,239 @@ window.Alkkagi = (function () {
     render(); e.preventDefault();
   }
 
+  function movingFastEnough(stone) {
+    return Math.hypot(stone.vx || 0, stone.vy || 0) >= MINV;
+  }
+
+  function applyFieldForces(stone, objects, step) {
+    if (!movingFastEnough(stone) || step > 150) return;
+    if (mapId === "magnet") {
+      for (var i = 0; i < objects.length; i++) {
+        var magnet = objects[i];
+        var dx = magnet.x - stone.x, dy = magnet.y - stone.y, distance = Math.hypot(dx, dy);
+        if (!distance || distance > 145) continue;
+        var pull = 0.052 * (1 - distance / 145);
+        stone.vx += dx / distance * pull;
+        stone.vy += dy / distance * pull;
+      }
+    } else if (mapId === "wind" && objects.length) {
+      var angle = objects[0].rotation || 0;
+      stone.vx += Math.cos(angle) * 0.038;
+      stone.vy += Math.sin(angle) * 0.038;
+    }
+  }
+
+  function applySwampDrag(stone, objects) {
+    if (mapId !== "swamp") return;
+    for (var i = 0; i < objects.length; i++) {
+      var swamp = objects[i];
+      if (Math.hypot(stone.x - swamp.x, stone.y - swamp.y) <= swamp.radius * 0.88 + R) {
+        stone.vx *= 0.93;
+        stone.vy *= 0.93;
+        return;
+      }
+    }
+  }
+
+  function resolveStoneCollisions(world, hitCallback) {
+    for (var a = 0; a < world.stones.length; a++) {
+      for (var b = a + 1; b < world.stones.length; b++) {
+        var p = world.stones[a], q = world.stones[b];
+        if (!p.alive || !q.alive) continue;
+        var dx = q.x - p.x, dy = q.y - p.y, dist = Math.hypot(dx, dy);
+        if (dist > 0 && dist < R * 2) {
+          var nx = dx / dist, ny = dy / dist, overlap = R * 2 - dist;
+          p.x -= nx * overlap / 2; p.y -= ny * overlap / 2;
+          q.x += nx * overlap / 2; q.y += ny * overlap / 2;
+          var pvn = p.vx * nx + p.vy * ny, qvn = q.vx * nx + q.vy * ny, delta = pvn - qvn;
+          p.vx -= delta * nx; p.vy -= delta * ny;
+          q.vx += delta * nx; q.vy += delta * ny;
+          if (hitCallback && delta > 0) hitCallback(delta);
+        }
+      }
+    }
+  }
+
+  function resolveObstacleCollisions(stone, objects, hitCallback) {
+    if (mapId !== "obstacle" || !stone.alive) return;
+    for (var i = 0; i < objects.length; i++) {
+      var obstacle = objects[i];
+      var objectRadius = obstacle.radius * (obstacle.variant === 2 ? 1.12 : 0.88);
+      var dx = stone.x - obstacle.x, dy = stone.y - obstacle.y, distance = Math.hypot(dx, dy);
+      var hitDistance = R + objectRadius;
+      if (distance >= hitDistance) continue;
+      var nx = distance ? dx / distance : Math.cos(obstacle.rotation || 0);
+      var ny = distance ? dy / distance : Math.sin(obstacle.rotation || 0);
+      stone.x = obstacle.x + nx * hitDistance;
+      stone.y = obstacle.y + ny * hitDistance;
+      var normalVelocity = stone.vx * nx + stone.vy * ny;
+      if (normalVelocity < 0) {
+        stone.vx -= 1.82 * normalVelocity * nx;
+        stone.vy -= 1.82 * normalVelocity * ny;
+        stone.vx *= 0.86;
+        stone.vy *= 0.86;
+        if (hitCallback) hitCallback(Math.abs(normalVelocity));
+      }
+    }
+  }
+
+  function teleportStone(stone, objects) {
+    if (mapId !== "portal" || !stone.alive) return;
+    if (stone.portalCooldown > 0) { stone.portalCooldown--; return; }
+    for (var i = 0; i < objects.length; i++) {
+      var portal = objects[i];
+      if (Math.hypot(stone.x - portal.x, stone.y - portal.y) > portal.radius * 0.58 + R * 0.45) continue;
+      var destination = null;
+      for (var j = 0; j < objects.length; j++) {
+        if (i !== j && objects[j].pair === portal.pair && objects[j].variant !== portal.variant) { destination = objects[j]; break; }
+      }
+      if (!destination) return;
+      var speed = Math.hypot(stone.vx, stone.vy);
+      var nx = speed ? stone.vx / speed : Math.cos(destination.rotation || 0);
+      var ny = speed ? stone.vy / speed : Math.sin(destination.rotation || 0);
+      stone.x = destination.x + nx * (destination.radius * 0.7 + R);
+      stone.y = destination.y + ny * (destination.radius * 0.7 + R);
+      stone.portalCooldown = 16;
+      return;
+    }
+  }
+
+  function absorbBlackHole(stone, objects) {
+    if (mapId !== "blackhole" || !stone.alive) return;
+    for (var i = 0; i < objects.length; i++) {
+      var hole = objects[i];
+      if (Math.hypot(stone.x - hole.x, stone.y - hole.y) <= hole.radius * 0.58 + R * 0.35) {
+        stone.alive = false;
+        stone.vx = 0;
+        stone.vy = 0;
+        return;
+      }
+    }
+  }
+
+  function triggerMines(world, stone) {
+    if (mapId !== "minefield" || !stone.alive) return;
+    for (var i = 0; i < world.objects.length; i++) {
+      var mine = world.objects[i];
+      if (mine.active === false) continue;
+      if (Math.hypot(stone.x - mine.x, stone.y - mine.y) > mine.radius * 0.72 + R) continue;
+      mine.active = false;
+      for (var j = 0; j < world.stones.length; j++) {
+        var target = world.stones[j];
+        if (!target.alive) continue;
+        var dx = target.x - mine.x, dy = target.y - mine.y, distance = Math.hypot(dx, dy);
+        if (distance > 105) continue;
+        if (!distance) {
+          var incoming = Math.hypot(target.vx, target.vy);
+          dx = incoming ? target.vx / incoming : 1;
+          dy = incoming ? target.vy / incoming : 0;
+          distance = 1;
+        }
+        var force = 10.5 * (1 - Math.min(distance, 105) / 105) + 2.2;
+        target.vx += dx / distance * force;
+        target.vy += dy / distance * force;
+      }
+      return;
+    }
+  }
+
+  function stepWorld(world, hitCallback) {
+    var friction = mapId === "ice" ? ICE_FR : FR;
+    for (var i = 0; i < world.stones.length; i++) {
+      var stone = world.stones[i];
+      if (!stone.alive) continue;
+      applyFieldForces(stone, world.objects, world.step);
+      stone.x += stone.vx || 0;
+      stone.y += stone.vy || 0;
+      stone.vx = (stone.vx || 0) * friction;
+      stone.vy = (stone.vy || 0) * friction;
+      applySwampDrag(stone, world.objects);
+      if (Math.hypot(stone.vx, stone.vy) < MINV) { stone.vx = 0; stone.vy = 0; }
+    }
+    world.step++;
+    resolveStoneCollisions(world, hitCallback);
+    for (var j = 0; j < world.stones.length; j++) {
+      var current = world.stones[j];
+      if (!current.alive) continue;
+      resolveObstacleCollisions(current, world.objects, hitCallback);
+      teleportStone(current, world.objects);
+      absorbBlackHole(current, world.objects);
+      triggerMines(world, current);
+      if (current.alive && (current.x < 0 || current.x > SW || current.y < 0 || current.y > SH)) {
+        current.alive = false;
+        current.vx = 0;
+        current.vy = 0;
+      }
+    }
+    for (var k = 0; k < world.stones.length; k++) if (world.stones[k].alive && movingFastEnough(world.stones[k])) return true;
+    return false;
+  }
+
+  function prepareWorld(sourceStones, sourceObjects, idx, vx, vy) {
+    var world = {
+      stones: sourceStones.map(function (stone) {
+        return { x: stone.x, y: stone.y, c: stone.c, alive: stone.alive, active: !!stone.active, vx: 0, vy: 0, portalCooldown: 0 };
+      }),
+      objects: cloneMapObjects(sourceObjects),
+      step: 0
+    };
+    if (world.stones[idx]) { world.stones[idx].vx = vx; world.stones[idx].vy = vy; }
+    return world;
+  }
+
+  function stopWorld(world) {
+    for (var i = 0; i < world.stones.length; i++) { world.stones[i].vx = 0; world.stones[i].vy = 0; }
+  }
+
+  function publicStones(list) {
+    return list.map(function (stone) {
+      return { x: stone.x, y: stone.y, c: stone.c, alive: stone.alive, active: !!stone.active };
+    });
+  }
+
   function runFlick(idx, vx, vy, onSettle) {
     if (!stones[idx]) { if (onSettle) onSettle(); return; }
-    for (var i = 0; i < stones.length; i++) { stones[i].vx = 0; stones[i].vy = 0; }
-    stones[idx].vx = vx; stones[idx].vy = vy;
+    var world = prepareWorld(stones, mapObjects, idx, vx, vy);
+    stones = world.stones;
+    mapObjects = world.objects;
+    var guard = 0;
     moving = true;
     (function loop() {
       if (!moving) return;
-      for (var i = 0; i < stones.length; i++) { var s = stones[i]; if (!s.alive) continue; s.x += s.vx; s.y += s.vy; s.vx *= FR; s.vy *= FR; if (Math.hypot(s.vx, s.vy) < MINV) { s.vx = 0; s.vy = 0; } }
-      for (var a = 0; a < stones.length; a++) {
-        for (var b = a + 1; b < stones.length; b++) {
-          var p = stones[a], q = stones[b]; if (!p.alive || !q.alive) continue;
-          var dx = q.x - p.x, dy = q.y - p.y, dist = Math.hypot(dx, dy);
-          if (dist > 0 && dist < R * 2) {
-            var nx = dx / dist, ny = dy / dist, ov = R * 2 - dist;
-            p.x -= nx * ov / 2; p.y -= ny * ov / 2; q.x += nx * ov / 2; q.y += ny * ov / 2;
-            var pvn = p.vx * nx + p.vy * ny, qvn = q.vx * nx + q.vy * ny, dp = pvn - qvn;
-            p.vx -= dp * nx; p.vy -= dp * ny; q.vx += dp * nx; q.vy += dp * ny;
-            if (onHit && dp > 0) onHit(dp);
-          }
-        }
-      }
-      for (var k = 0; k < stones.length; k++) { var s2 = stones[k]; if (s2.alive && (s2.x < 0 || s2.x > SW || s2.y < 0 || s2.y > SH)) s2.alive = false; }
-      var any = false; for (var m2 = 0; m2 < stones.length; m2++) { if (stones[m2].alive && (stones[m2].vx || stones[m2].vy)) any = true; }
+      var any = stepWorld(world, onHit);
+      if (++guard > 1400) { stopWorld(world); any = false; }
       render();
-      if (any) requestAnimationFrame(loop); else { moving = false; if (onSettle) onSettle(); }
+      if (any) requestAnimationFrame(loop);
+      else { moving = false; if (onSettle) onSettle(); }
     })();
   }
 
   function simulate(idx, vx, vy) {
-    var sim = stones.map(function (s) { return { x: s.x, y: s.y, c: s.c, alive: s.alive, active: !!s.active, vx: 0, vy: 0 }; });
-    if (!sim[idx]) { var ba0 = aliveCount("b"), wa0 = aliveCount("w"); return { stones: getStones(), bAlive: ba0, wAlive: wa0 }; }
-    sim[idx].vx = vx; sim[idx].vy = vy;
-    var guard = 0;
-    while (guard++ < 20000) {
-      var any = false;
-      for (var i = 0; i < sim.length; i++) { var s = sim[i]; if (!s.alive) continue; s.x += s.vx; s.y += s.vy; s.vx *= FR; s.vy *= FR; if (Math.hypot(s.vx, s.vy) < MINV) { s.vx = 0; s.vy = 0; } }
-      for (var a = 0; a < sim.length; a++) {
-        for (var b = a + 1; b < sim.length; b++) {
-          var p = sim[a], q = sim[b]; if (!p.alive || !q.alive) continue;
-          var dx = q.x - p.x, dy = q.y - p.y, dist = Math.hypot(dx, dy);
-          if (dist > 0 && dist < R * 2) {
-            var nx = dx / dist, ny = dy / dist, ov = R * 2 - dist;
-            p.x -= nx * ov / 2; p.y -= ny * ov / 2; q.x += nx * ov / 2; q.y += ny * ov / 2;
-            var pvn = p.vx * nx + p.vy * ny, qvn = q.vx * nx + q.vy * ny, dp = pvn - qvn;
-            p.vx -= dp * nx; p.vy -= dp * ny; q.vx += dp * nx; q.vy += dp * ny;
-          }
-        }
-      }
-      for (var k = 0; k < sim.length; k++) { var s2 = sim[k]; if (s2.alive && (s2.x < 0 || s2.x > SW || s2.y < 0 || s2.y > SH)) s2.alive = false; }
-      for (var m2 = 0; m2 < sim.length; m2++) { if (sim[m2].alive && (sim[m2].vx || sim[m2].vy)) any = true; }
-      if (!any) break;
+    var world = prepareWorld(stones, mapObjects, idx, vx, vy);
+    if (!world.stones[idx]) {
+      return { stones: getStones(), mapObjects: getMapObjects(), bAlive: aliveCount("b"), wAlive: aliveCount("w") };
     }
-    var out = sim.map(function (s) { return { x: s.x, y: s.y, c: s.c, alive: s.alive, active: !!s.active }; });
-    var ba = 0, wa = 0; out.forEach(function (s) { if (s.alive) { if (s.c === "b") ba++; else wa++; } });
-    return { stones: out, bAlive: ba, wAlive: wa };
+    var guard = 0;
+    while (guard++ < 1400 && stepWorld(world, null)) {}
+    if (guard >= 1400) stopWorld(world);
+    var out = publicStones(world.stones);
+    var blackAlive = 0, whiteAlive = 0;
+    out.forEach(function (stone) {
+      if (stone.alive) { if (stone.c === "b") blackAlive++; else whiteAlive++; }
+    });
+    return { stones: out, mapObjects: cloneMapObjects(world.objects), bAlive: blackAlive, wAlive: whiteAlive };
   }
   function render() {
     if (!ctx) return;
-    ctx.fillStyle = "#E8C88A"; ctx.fillRect(0, 0, SW, SH);
-    ctx.strokeStyle = "rgba(90,60,20,.28)"; ctx.lineWidth = 1;
-    var g = 13, mX = GM, mY = GM, stX = (SW - 2 * mX) / (g - 1), stY = (SH - 2 * mY) / (g - 1);
-    for (var i = 0; i < g; i++) {
-      ctx.beginPath(); ctx.moveTo(mX, mY + stY * i); ctx.lineTo(SW - mX, mY + stY * i); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(mX + stX * i, mY); ctx.lineTo(mX + stX * i, SH - mY); ctx.stroke();
+    if (window.AlkkagiMaps) AlkkagiMaps.drawBackground(ctx, SW, SH, mapId);
+    else { ctx.fillStyle = "#F6EEDC"; ctx.fillRect(0, 0, SW, SH); }
+    if (mode === "territory") { drawTarget(); }
+    else {
+      ctx.strokeStyle = mapId === "ice" || mapId === "wind" ? "rgba(255,255,255,.38)" : "rgba(255,255,255,.2)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(0, SH / 2); ctx.lineTo(SW, SH / 2); ctx.stroke(); ctx.setLineDash([]);
     }
-    if (mode === "territory") { drawTarget(); } else { ctx.strokeStyle = "rgba(90,60,20,.18)"; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(0, SH / 2); ctx.lineTo(SW, SH / 2); ctx.stroke(); ctx.setLineDash([]); }
+    if (window.AlkkagiMaps) AlkkagiMaps.drawObjects(ctx, SW, SH, mapId, mapObjects);
     var g2 = canFlick ? canFlick() : { ok: false };
     if (drag) {
       var s = stones[drag.idx], dx = s.x - drag.x, dy = s.y - drag.y, d = Math.hypot(dx, dy);
@@ -247,6 +455,7 @@ window.Alkkagi = (function () {
     ctx = cv.getContext("2d");
     ctx.imageSmoothingEnabled = true;
     if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
+    if (window.AlkkagiMaps) AlkkagiMaps.preload(render);
     loadStoneImages();
     onFlick = opts && opts.onFlick; canFlick = opts && opts.canFlick; onHit = opts && opts.onHit; onPlace = opts && opts.onPlace;
     if (!bound) {
@@ -260,6 +469,7 @@ window.Alkkagi = (function () {
   return {
     init: init, layout: layout, setStones: setStones, getStones: getStones, setMeta: setMeta,
     runFlick: runFlick, simulate: simulate, render: render, aliveCount: aliveCount, isMoving: function () { return moving; },
-    setMode: setMode, setKomi: setKomi, spawnActive: spawnActive, markActivePlayed: markActivePlayed, territoryScore: territoryScore, ringPoints: ringPoints, placeActive: placeActive
+    setMode: setMode, setMap: setMap, setMapState: setMapState, getMap: getMap, getMapObjects: getMapObjects, advanceMapTurn: advanceMapTurn,
+    setKomi: setKomi, spawnActive: spawnActive, markActivePlayed: markActivePlayed, territoryScore: territoryScore, ringPoints: ringPoints, placeActive: placeActive
   };
 })();

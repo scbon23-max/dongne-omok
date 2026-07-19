@@ -70,6 +70,55 @@ body {
 .player-chip.active .chip-cnt { color: var(--navy); }
 .alk-board-wrap { width: 100%; max-width: 300px; margin: 0 auto; position: relative; }
 #alk-board { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.35); touch-action: none; }
+.alk-map-pill { position: absolute; z-index: 3; top: 8px; left: 8px; padding: 5px 9px; border: 1px solid rgba(255,255,255,.28); border-radius: 999px; background: rgba(11,31,45,.76); color: #fff; font-size: 11px; line-height: 1; font-weight: 900; box-shadow: 0 2px 7px rgba(0,0,0,.22); pointer-events: none; backdrop-filter: blur(4px); }
+.alk-map-roulette { position: absolute; z-index: 12; inset: 0; display: grid; place-items: center; overflow: hidden; border-radius: 10px; background: rgba(5,22,32,.88); backdrop-filter: blur(5px); }
+.alk-roulette-card { width: 58%; min-width: 148px; padding: 10px; border: 2px solid rgba(255,255,255,.18); border-radius: 17px; background: #0A2431; text-align: center; box-shadow: 0 15px 35px rgba(0,0,0,.42); transform: scale(.97); transition: transform .2s, border-color .2s, box-shadow .2s; }
+.alk-map-roulette.final .alk-roulette-card { border-color: #F7B13A; box-shadow: 0 0 0 4px rgba(247,177,58,.18), 0 15px 38px rgba(0,0,0,.48); transform: scale(1.04); }
+.alk-roulette-kicker { display: block; margin-bottom: 6px; color: #79D6C7; font-size: 8px; font-weight: 1000; letter-spacing: .15em; }
+#alk-roulette-canvas { display: block; width: 100%; height: auto; aspect-ratio: 340 / 440; border-radius: 10px; background: #173746; }
+#alk-roulette-name { display: block; margin-top: 7px; color: #fff; font-size: 15px; font-weight: 1000; }
+#alk-roulette-desc { display: block; min-height: 27px; margin-top: 2px; color: #8FABB7; font-size: 9px; font-weight: 700; line-height: 1.45; }
+.modal.alk-map-dialog { max-width: 720px; max-height: calc(100dvh - 16px); background: #102F3E; color: #fff; }
+.alk-map-dialog .modal-head { align-items: flex-start; margin-bottom: 7px; }
+.alk-map-dialog .modal-head h2 { margin: 2px 0 0; color: #fff; }
+.alk-map-kicker { color: #79D6C7; font-size: 10px; font-weight: 900; letter-spacing: .12em; }
+.alk-map-intro { margin: 0 0 12px; color: #A9C0CA; font-size: 12px; line-height: 1.55; }
+.alk-map-random-btn { width: 100%; min-height: 58px; margin: 0 0 10px; padding: 9px 12px; display: flex; align-items: center; gap: 10px; border: 2px solid transparent; border-radius: 13px; background: linear-gradient(135deg, #153C4D, #0A2633); color: #fff; text-align: left; cursor: pointer; }
+.alk-map-random-btn.active { border-color: #F7B13A; box-shadow: 0 0 0 3px rgba(247,177,58,.14); }
+.alk-random-icon { flex: 0 0 auto; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: #F7B13A; font-size: 19px; }
+.alk-map-random-btn > span:nth-child(2) { min-width: 0; flex: 1; }
+.alk-map-random-btn strong { display: block; font-size: 13px; font-weight: 1000; }
+.alk-map-random-btn small { display: block; margin-top: 2px; color: #8FAAB6; font-size: 10px; font-weight: 700; }
+.alk-random-check { flex: 0 0 auto; color: #F7C765; font-size: 10px; font-weight: 900; opacity: 0; }
+.alk-map-random-btn.active .alk-random-check { opacity: 1; }
+.alk-map-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; }
+.alk-map-card { min-width: 0; overflow: hidden; padding: 0; border: 2px solid transparent; border-radius: 12px; background: #0A2431; color: #fff; text-align: left; cursor: pointer; box-shadow: 0 3px 8px rgba(0,0,0,.18); }
+.alk-map-card:active { transform: scale(.98); }
+.alk-map-card.active { border-color: var(--orange); box-shadow: 0 0 0 2px rgba(243,97,42,.18), 0 5px 12px rgba(0,0,0,.24); }
+.alk-map-card canvas { display: block; width: 100%; height: auto; aspect-ratio: 340 / 440; background: #173746; }
+.alk-map-card-copy { display: block; min-width: 0; padding: 7px 7px 8px; }
+.alk-map-card strong { display: block; overflow: hidden; color: #fff; font-size: 12px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.alk-map-card small { display: block; min-height: 29px; margin-top: 3px; color: #87A4B0; font-size: 9.5px; font-weight: 700; line-height: 1.45; word-break: keep-all; }
+.alk-map-preview-mode #alkgame .bottom-row,
+.alk-map-preview-mode #alkgame .room-strip,
+.alk-map-preview-mode #alk-center-btn,
+.alk-map-preview-mode #alk-swap-btn,
+.alk-map-preview-mode #alk-win,
+.alk-map-preview-mode #alk-rank-btn,
+.alk-map-preview-mode #alk-leave-room-btn,
+.alk-map-preview-mode #alk-menu-btn { display: none !important; }
+.alk-map-preview-mode #alkgame { min-height: 100dvh; justify-content: flex-start; }
+.alk-map-preview-mode #alk-map-gallery-btn { max-width: 220px; margin: 0 auto; }
+@media (max-width: 380px) {
+  .modal.alk-map-dialog { padding: 14px; }
+  .alk-map-grid { gap: 6px; }
+  .alk-map-card-copy { padding: 6px; }
+  .alk-map-card strong { font-size: 11px; }
+  .alk-map-card small { min-height: 26px; font-size: 8.5px; }
+}
+@media (max-width: 600px) {
+  .alk-map-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 
 /* ---------- 캐치마인드 ---------- */
 .game-screen.catch-screen { height: auto; min-height: 100dvh; justify-content: flex-start; overflow: visible; padding-bottom: max(10px, env(safe-area-inset-bottom)); }

@@ -243,6 +243,15 @@
 
   <div class="alk-board-wrap">
     <canvas id="alk-board" width="340" height="440"></canvas>
+    <div id="alk-map-pill" class="alk-map-pill">기본맵</div>
+    <div id="alk-map-roulette" class="alk-map-roulette hidden" aria-live="polite">
+      <div class="alk-roulette-card">
+        <span class="alk-roulette-kicker">RANDOM STAGE</span>
+        <canvas id="alk-roulette-canvas" width="170" height="220"></canvas>
+        <strong id="alk-roulette-name">맵 추첨 중</strong>
+        <small id="alk-roulette-desc">어떤 맵이 나올까요?</small>
+      </div>
+    </div>
     <div id="alk-chat-overlay" class="chat-overlay"></div>
     <button id="alk-center-btn" class="center-btn hidden">대국 신청</button>
     <button id="alk-swap-btn" class="center-btn center-swap-action center-swap hidden">자리 체인지</button>
@@ -254,6 +263,7 @@
 
   <div class="action-row slim">
     <button class="btn-flat" id="alk-rank-btn">🏅 랭킹</button>
+    <button class="btn-flat" id="alk-map-gallery-btn">🗺️ 맵 보기</button>
     <button class="btn-flat" id="alk-leave-room-btn">나가기</button>
     <button id="alk-menu-btn" class="btn-flat menu-dots">⋯</button>
   </div>
@@ -273,6 +283,27 @@
 
   <div class="room-strip" id="room-strip-alk"></div>
 </section>
+
+<!-- 알까기 맵 디자인 미리보기 -->
+<div id="alk-map-modal" class="modal-overlay hidden">
+  <div class="modal alk-map-dialog">
+    <div class="modal-head">
+      <div>
+        <span class="alk-map-kicker">알까기</span>
+        <h2>맵 디자인 미리보기</h2>
+      </div>
+      <button class="modal-close" data-close aria-label="닫기">✕</button>
+    </div>
+    <p class="alk-map-intro">맵을 누르면 실제 판에 바로 적용됩니다. 미리보기에서는 돌을 직접 튕겨 맵 효과를 시험할 수 있습니다.</p>
+    <button id="alk-map-random-btn" class="alk-map-random-btn" type="button" aria-pressed="true">
+      <span class="alk-random-icon">🎲</span>
+      <span><strong>랜덤 스테이지</strong><small>매 판 새로운 맵을 추첨합니다</small></span>
+      <span class="alk-random-check">선택됨</span>
+    </button>
+    <div id="alk-map-grid" class="alk-map-grid"></div>
+    <button class="btn-primary modal-ok" data-close>선택한 맵 보기</button>
+  </div>
+</div>
 
 <!-- 캐치마인드 게임 화면 -->
 <section id="catchgame" class="screen game-screen catch-screen hidden">
@@ -782,6 +813,7 @@
     { src: "omok-ai.js" },
     { src: "omok-ai-v2.js" },
     { src: "net.js" },
+    { src: "alkkagi-maps.js" },
     { src: "alkkagi.js" },
     { src: "game-catalog.js" },
     { src: "catchmind-words.js" },

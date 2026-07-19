@@ -358,7 +358,11 @@
     restoreOwnedRoomLease();
   }
   var curGame = null, curRoomGame = null, omokStarted = false, alkStarted = false;
-  var A = { seats: { black: null, white: null }, turn: "b", started: false, over: false, winner: null, seq: 0, gameSeq: 0, recorded: false, paused: false, winChatText: null };
+  var A = {
+    seats: { black: null, white: null }, turn: "b", started: false, over: false, winner: null,
+    seq: 0, gameSeq: 0, recorded: false, paused: false, winChatText: null,
+    mapId: "base", mapObjects: [], mapMode: "random"
+  };
   var alkInited = false;
   var alkGrace = { black: null, white: null };
   var scoreMap = emptyScoreMap();
@@ -627,13 +631,14 @@
   function resetRoomGameState() {
     cancelAiSearch();
     discardInstantReplay();
+    clearAlkMapRoulette();
     G.board = Renju.emptyBoard(); G.turn = BLACK; G.lastMove = null; G.over = false; G.winner = 0; G.draw = false;
     G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = []; G.aiLevel = null;
     G.recorded = false; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.winChatText = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
     A.seats = { black: null, white: null }; A.turn = "b"; A.started = false; A.over = false; A.winner = null;
     A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; A.winChatText = null; alkSolo = false; omokSolo = false; omokAI.on = false; aiPending = false;
-    A.mode = "knockout"; A.remain = null; A.score = null;
-    if (window.Alkkagi) Alkkagi.setMode("knockout");
+    A.mode = "knockout"; A.remain = null; A.score = null; A.mapId = "base"; A.mapObjects = []; A.mapMode = "random";
+    if (window.Alkkagi) { Alkkagi.setMode("knockout"); Alkkagi.setMapState("base", []); }
     winShownSeq = -1; liveSeq = -1; omokWinChatSeq = -1; alkWinChatSeq = -1; prevNicks = []; firstPresenceAt = 0; clearAwayRoster();
     seatSoundArmed = false; prevSeats = { black: null, white: null }; lastRoomSoundAt = 0;
     clearAllGrace(); clearAlkGrace();
@@ -830,17 +835,241 @@
   }
 
   // ---------- 알까기 대전 ----------
+  var alkRouletteTimers = [];
+  var alkRouletteRunning = false;
+  function clearAlkMapRoulette() {
+    while (alkRouletteTimers.length) clearTimeout(alkRouletteTimers.pop());
+    alkRouletteRunning = false;
+    var overlay = $("alk-map-roulette");
+    if (overlay) { overlay.classList.add("hidden"); overlay.classList.remove("final"); }
+  }
+  function alkMapHash(seed) {
+    var text = String(seed == null ? Date.now() : seed), hash = 2166136261;
+    for (var i = 0; i < text.length; i++) { hash ^= text.charCodeAt(i); hash = Math.imul(hash, 16777619); }
+    return hash >>> 0;
+  }
+  function chooseRandomAlkMap(seed) {
+    var maps = window.AlkkagiMaps ? AlkkagiMaps.all() : [];
+    if (!maps.length) return "base";
+    var candidates = maps.filter(function (map) { return map.id !== A.mapId; });
+    if (!candidates.length) candidates = maps;
+    return candidates[alkMapHash(seed) % candidates.length].id;
+  }
+  function drawAlkRouletteMap(map, seed) {
+    var canvas = $("alk-roulette-canvas");
+    if (!canvas || !map || !window.AlkkagiMaps) return;
+    var objects = AlkkagiMaps.createObjects(map.id, seed);
+    AlkkagiMaps.draw(canvas.getContext("2d"), canvas.width, canvas.height, map.id, objects);
+    if ($("alk-roulette-name")) $("alk-roulette-name").textContent = map.name;
+    if ($("alk-roulette-desc")) $("alk-roulette-desc").textContent = map.desc;
+  }
+  function showAlkMapRoulette(chosenId, seed, onDone) {
+    clearAlkMapRoulette();
+    var overlay = $("alk-map-roulette");
+    var maps = window.AlkkagiMaps ? AlkkagiMaps.all() : [];
+    if (!overlay || !maps.length) { if (onDone) onDone(); return; }
+    var chosen = AlkkagiMaps.get(chosenId);
+    var hash = alkMapHash(seed), order = [];
+    for (var i = 0; i < 11; i++) order.push(maps[(hash + i * 5 + i * i) % maps.length]);
+    order.push(chosen);
+    var intervals = [0, 65, 70, 78, 90, 108, 132, 165, 210, 270, 350, 440];
+    var elapsed = 0;
+    alkRouletteRunning = true;
+    overlay.classList.remove("hidden");
+    overlay.classList.remove("final");
+    order.forEach(function (map, index) {
+      elapsed += intervals[index];
+      alkRouletteTimers.push(setTimeout(function () {
+        drawAlkRouletteMap(map, seed + ":" + index);
+        if (index === order.length - 1) overlay.classList.add("final");
+      }, elapsed));
+    });
+    alkRouletteTimers.push(setTimeout(function () {
+      overlay.classList.add("hidden");
+      overlay.classList.remove("final");
+      alkRouletteRunning = false;
+      alkRouletteTimers = [];
+      if (onDone) onDone();
+    }, elapsed + 620));
+  }
+  function prepareAlkMapForGame(prefix, onReady) {
+    var seed = prefix + ":" + (A.gameSeq + 1) + ":" + Date.now();
+    if (A.mapMode !== "random") {
+      applyAlkMapSelection(A.mapId || "base", seed);
+      onReady();
+      return;
+    }
+    var chosenId = chooseRandomAlkMap(seed);
+    if ($("alk-map-modal")) $("alk-map-modal").classList.add("hidden");
+    if (netMode) Net.send({ t: "alk_roulette", by: me.nick, mapId: chosenId, seed: seed });
+    showAlkMapRoulette(chosenId, seed, function () {
+      applyAlkMapSelection(chosenId, seed);
+      onReady();
+    });
+  }
+  function syncAlkMapPreviewUI() {
+    if (!window.Alkkagi || !window.AlkkagiMaps) return;
+    var map = AlkkagiMaps.get(Alkkagi.getMap());
+    var randomMode = A.mapMode === "random";
+    if ($("alk-map-pill")) {
+      $("alk-map-pill").textContent = randomMode && !A.started && !A.over ? "랜덤 스테이지" : map.name;
+      $("alk-map-pill").title = randomMode ? "매 판 새로운 맵을 추첨합니다" : map.desc;
+    }
+    var randomButton = $("alk-map-random-btn");
+    if (randomButton) {
+      randomButton.classList.toggle("active", randomMode);
+      randomButton.setAttribute("aria-pressed", randomMode ? "true" : "false");
+    }
+    var cards = document.querySelectorAll("#alk-map-grid .alk-map-card");
+    for (var i = 0; i < cards.length; i++) {
+      var active = !randomMode && cards[i].getAttribute("data-map") === map.id;
+      cards[i].classList.toggle("active", active);
+      cards[i].setAttribute("aria-pressed", active ? "true" : "false");
+    }
+  }
+  function applyAlkMapSelection(id, seed, objects) {
+    if (!window.Alkkagi || !window.AlkkagiMaps) return;
+    if (objects) Alkkagi.setMapState(id, objects);
+    else Alkkagi.setMap(id, seed);
+    A.mapId = Alkkagi.getMap();
+    A.mapObjects = Alkkagi.getMapObjects();
+    syncAlkMapPreviewUI();
+  }
+  function hostAlkMapSelection(by, id) {
+    if (netMode && !amHost) return;
+    if (A.started && !A.over) { if (by === me.nick) toast("대국 중에는 맵을 바꿀 수 없어요"); return; }
+    var allowed = !netMode || by === A.seats.black || by === A.seats.white || by === ADMIN;
+    if (!allowed || !window.AlkkagiMaps || !AlkkagiMaps.has(id)) return;
+    A.mapMode = "fixed";
+    applyAlkMapSelection(id, A.gameSeq + ":" + A.seq + ":" + Date.now());
+    A.seq++;
+    broadcastAlk();
+    renderAlkUI();
+  }
+  function requestAlkMapSelection(id) {
+    var previewMode = document.body.classList.contains("alk-map-preview-mode");
+    if (previewMode) {
+      A.mapMode = "fixed";
+      applyAlkMapSelection(id, "preview:" + Date.now());
+      Alkkagi.setStones(Alkkagi.layout());
+      A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.seq++;
+      Alkkagi.setMeta(A.turn, A.seats, true, false, null);
+      renderAlkUI();
+      return;
+    }
+    if (!netMode) { hostAlkMapSelection(me.nick, id); return; }
+    if (A.started && !A.over) { toast("대국 중에는 맵을 바꿀 수 없어요"); return; }
+    if (amHost) hostAlkMapSelection(me.nick, id);
+    else Net.send({ t: "alk_map", by: me.nick, mapId: id });
+  }
+  function hostAlkMapMode(by, mode) {
+    if (netMode && !amHost) return;
+    if (A.started && !A.over) { if (by === me.nick) toast("대국 중에는 맵 설정을 바꿀 수 없어요"); return; }
+    var allowed = !netMode || by === A.seats.black || by === A.seats.white || by === ADMIN;
+    if (!allowed || mode !== "random") return;
+    A.mapMode = "random";
+    A.seq++;
+    broadcastAlk();
+    syncAlkMapPreviewUI();
+    renderAlkUI();
+  }
+  function requestAlkRandomMode() {
+    var previewMode = document.body.classList.contains("alk-map-preview-mode");
+    if (previewMode) {
+      A.mapMode = "random";
+      var seed = "preview-random:" + Date.now();
+      var chosenId = chooseRandomAlkMap(seed);
+      $("alk-map-modal").classList.add("hidden");
+      showAlkMapRoulette(chosenId, seed, function () {
+        applyAlkMapSelection(chosenId, seed);
+        Alkkagi.setStones(Alkkagi.layout());
+        A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.seq++;
+        Alkkagi.setMeta(A.turn, A.seats, true, false, null);
+        renderAlkUI();
+      });
+      syncAlkMapPreviewUI();
+      return;
+    }
+    if (!netMode) { hostAlkMapMode(me.nick, "random"); return; }
+    if (A.started && !A.over) { toast("대국 중에는 맵 설정을 바꿀 수 없어요"); return; }
+    if (amHost) hostAlkMapMode(me.nick, "random");
+    else Net.send({ t: "alk_map_mode", by: me.nick, mode: "random" });
+  }
+  function onRemoteAlkRoulette(msg) {
+    if (!msg || msg.by === me.nick || !window.AlkkagiMaps || !AlkkagiMaps.has(msg.mapId)) return;
+    A.mapMode = "random";
+    if ($("alk-map-modal")) $("alk-map-modal").classList.add("hidden");
+    showAlkMapRoulette(msg.mapId, msg.seed || ("remote:" + Date.now()), null);
+    syncAlkMapPreviewUI();
+  }
+  function renderAlkMapGallery() {
+    var box = $("alk-map-grid");
+    if (!box || !window.AlkkagiMaps) return;
+    AlkkagiMaps.preload(renderAlkMapGallery);
+    box.innerHTML = "";
+    AlkkagiMaps.all().forEach(function (map) {
+      var card = document.createElement("button");
+      card.type = "button";
+      card.className = "alk-map-card";
+      card.setAttribute("data-map", map.id);
+      card.setAttribute("aria-label", map.name + " 미리보기");
+      var preview = document.createElement("canvas");
+      preview.width = 170;
+      preview.height = 220;
+      AlkkagiMaps.draw(preview.getContext("2d"), preview.width, preview.height, map.id);
+      var copy = document.createElement("span");
+      copy.className = "alk-map-card-copy";
+      var strong = document.createElement("strong");
+      strong.textContent = map.name;
+      var small = document.createElement("small");
+      small.textContent = map.desc;
+      copy.appendChild(strong); copy.appendChild(small);
+      card.appendChild(preview); card.appendChild(copy);
+      card.addEventListener("click", function () {
+        requestAlkMapSelection(map.id);
+      });
+      box.appendChild(card);
+    });
+    syncAlkMapPreviewUI();
+  }
+  function openAlkMapGallery() {
+    renderAlkMapGallery();
+    openModal("alk-map-modal");
+  }
+  function startLocalAlkMapPreview() {
+    var host = window.location.hostname;
+    if (host !== "127.0.0.1" && host !== "localhost") return false;
+    var params = new URLSearchParams(window.location.search);
+    if (params.get("preview") !== "alk-maps") return false;
+    me.nick = "맵 미리보기";
+    curGame = "alk"; curRoomGame = "alk"; curRoomTitle = "맵 디자인 미리보기";
+    netMode = false; amHost = false;
+    resetRoomGameState();
+    alkSolo = true;
+    A.seats = { black: me.nick, white: me.nick };
+    A.started = true; A.over = false; A.winner = null;
+    $("entry").classList.add("hidden");
+    $("lobby").classList.add("hidden");
+    hideGameScreens();
+    $("alkgame").classList.remove("hidden");
+    document.body.classList.add("alk-map-preview-mode");
+    alkStartView();
+    renderAlkMapGallery();
+    openModal("alk-map-modal");
+    return true;
+  }
   function alkStartView() {
     if (!window.Alkkagi) return;
     if (!alkInited) { alkInited = true; Alkkagi.init({ onFlick: onAlkFlick, canFlick: alkCanFlick, onHit: playHit, onPlace: onAlkPlace }); }
     if (A.mode !== "territory" && !Alkkagi.getStones().length) Alkkagi.setStones(Alkkagi.layout());
     Alkkagi.setMeta(A.turn, A.seats, A.started, A.over, A.winner);
+    syncAlkMapPreviewUI();
     renderAlkUI();
   }
   var alkSolo = false;
   var alkWinSeq = -1;
   function alkCanFlick() {
-    if (!A.started || A.over || A.paused || Alkkagi.isMoving()) return { ok: false };
+    if (!A.started || A.over || A.paused || alkRouletteRunning || Alkkagi.isMoving()) return { ok: false };
     if (alkSolo) return { ok: true, color: A.turn };
     var col = A.seats.black === me.nick ? "b" : A.seats.white === me.nick ? "w" : null;
     if (!col || col !== A.turn) return { ok: false };
@@ -848,6 +1077,10 @@
   }
   function startAlkSolo() {
     if (netMode && roster.length > 1) { toast("혼자 연습은 방에 나 혼자 있을 때만 돼요"); return; }
+    if (alkRouletteRunning) return;
+    prepareAlkMapForGame("solo", finishStartAlkSolo);
+  }
+  function finishStartAlkSolo() {
     alkSolo = true;
     A.mode = "knockout"; A.remain = null; A.score = null;
     A.seats = { black: me.nick, white: me.nick };
@@ -867,6 +1100,10 @@
   }
   function startTerritorySolo() {
     if (netMode && roster.length > 1) { toast("점령전 연습은 방에 나 혼자 있을 때만 돼요"); return; }
+    if (alkRouletteRunning) return;
+    prepareAlkMapForGame("territory-solo", finishStartTerritorySolo);
+  }
+  function finishStartTerritorySolo() {
     alkSolo = true;
     A.mode = "territory"; A.remain = { b: 6, w: 6 }; A.score = { b: 0, w: 0 };
     A.seats = { black: me.nick, white: me.nick };
@@ -878,7 +1115,15 @@
     broadcastAlk(); renderAlkUI();
     toast("점령전 연습 — 과녁 중심에 가깝게! 흑·백 6개씩");
   }
-  function alkSnapshot() { return { seats: A.seats, turn: A.turn, started: A.started, over: A.over, winner: A.winner, winChatText: A.winChatText, paused: A.paused, seq: A.seq, gameSeq: A.gameSeq, mode: A.mode, remain: A.remain, score: A.score, stones: Alkkagi.getStones() }; }
+  function alkSnapshot() {
+    return {
+      seats: A.seats, turn: A.turn, started: A.started, over: A.over, winner: A.winner,
+      winChatText: A.winChatText, paused: A.paused, seq: A.seq, gameSeq: A.gameSeq,
+      mode: A.mode, remain: A.remain, score: A.score,
+      mapId: A.mapId || "base", mapObjects: Alkkagi.getMapObjects(), mapMode: A.mapMode === "fixed" ? "fixed" : "random",
+      stones: Alkkagi.getStones()
+    };
+  }
   function broadcastAlk() { if (netMode) Net.send({ t: "alk_state", state: alkSnapshot() }); }
   function applyAlkState(s) {
     if (!s || (typeof s.seq === "number" && s.seq < A.seq)) return;
@@ -887,7 +1132,13 @@
     A.started = !!s.started; A.over = !!s.over; A.winner = s.winner || null; A.winChatText = s.winChatText || null; A.paused = !!s.paused;
     A.seq = s.seq || 0; A.gameSeq = s.gameSeq || 0;
     A.mode = s.mode || "knockout"; A.remain = s.remain || null; A.score = s.score || null;
-    if (window.Alkkagi) { Alkkagi.setMode(A.mode); Alkkagi.setStones(s.stones || []); Alkkagi.setMeta(A.turn, A.seats, A.started, A.over, A.winner); }
+    A.mapId = s.mapId || "base"; A.mapObjects = s.mapObjects || []; A.mapMode = s.mapMode === "fixed" ? "fixed" : "random";
+    if (window.Alkkagi) {
+      Alkkagi.setMode(A.mode);
+      Alkkagi.setMapState(A.mapId, A.mapObjects);
+      Alkkagi.setStones(s.stones || []);
+      Alkkagi.setMeta(A.turn, A.seats, A.started, A.over, A.winner);
+    }
     renderAlkUI();
   }
   function requestAlkSeat(nick, seat) { if (!netMode) { hostAlkSeat(nick, nick, seat); return; } Net.send({ t: "alk_seat", by: me.nick, nick: nick, seat: seat }); }
@@ -928,6 +1179,10 @@
     if (netMode && !amHost) return;
     if (!(A.seats.black && A.seats.white)) { if (by === me.nick) toast("흑·백 두 자리가 다 차야 시작해요"); return; }
     if (netMode && by !== A.seats.black && by !== A.seats.white && by !== ADMIN) return;
+    if (alkRouletteRunning) return;
+    prepareAlkMapForGame("match", function () { finishAlkBegin(by); });
+  }
+  function finishAlkBegin(by) {
     var rematch = A.over;
     alkSolo = false;
     if (curRoomGame === "alk_terr" && rematch && A.seats.black !== A.seats.white) {
@@ -974,19 +1229,21 @@
       newRemain[A.turn]--;
       var tover = (newRemain.b === 0 && newRemain.w === 0);
       var sc = territoryScoreOf(played);
+      var nextTerritoryObjects = tover ? sim.mapObjects : Alkkagi.advanceMapTurn((A.seq + 1) + ":" + A.turn, sim.mapObjects);
       fin = {
         territory: true, stones: played,
         turn: tover ? A.turn : (A.turn === "b" ? "w" : "b"),
         over: tover, winner: tover ? (sc.b + TERR_KOMI > sc.w ? "b" : "w") : null,
-        remain: newRemain, score: sc, seq: ++A.seq
+        remain: newRemain, score: sc, mapId: A.mapId, mapObjects: nextTerritoryObjects, seq: ++A.seq
       };
     } else {
       var over = (sim.bAlive === 0 || sim.wAlive === 0);
+      var nextMapObjects = over ? sim.mapObjects : Alkkagi.advanceMapTurn((A.seq + 1) + ":" + A.turn, sim.mapObjects);
       fin = {
         stones: sim.stones,
         turn: over ? A.turn : (A.turn === "b" ? "w" : "b"),
         over: over, winner: over ? (sim.bAlive > 0 ? "b" : sim.wAlive > 0 ? "w" : "draw") : null,
-        seq: ++A.seq
+        mapId: A.mapId, mapObjects: nextMapObjects, seq: ++A.seq
       };
     }
     if (fin.over && fin.winner && fin.winner !== "draw") fin.winChatText = alkWinChatText(fin.winner);
@@ -1000,6 +1257,8 @@
       if (fin) {
         A.turn = fin.turn; A.over = fin.over; A.winner = fin.winner; A.winChatText = fin.winChatText || null; A.started = !fin.over;
         if (fin.seq) A.seq = Math.max(A.seq, fin.seq);
+        A.mapId = fin.mapId || A.mapId || "base"; A.mapObjects = fin.mapObjects || A.mapObjects || [];
+        Alkkagi.setMapState(A.mapId, A.mapObjects);
         Alkkagi.setStones(fin.stones);
         if (fin.territory) {
           A.remain = fin.remain; A.score = fin.score;
@@ -1415,6 +1674,9 @@
       case "room_leave": if (msg.nick !== me.nick) completeExplicitLeave(msg.nick); break;
       case "resign": if (amHost) hostResign(msg.by || msg.nick, msg.nick); break;
       case "alk_state": applyAlkState(msg.state); break;
+      case "alk_map": if (amHost) hostAlkMapSelection(msg.by, msg.mapId); break;
+      case "alk_map_mode": if (amHost) hostAlkMapMode(msg.by, msg.mode); break;
+      case "alk_roulette": onRemoteAlkRoulette(msg); break;
       case "alk_seat": if (amHost) hostAlkSeat(msg.by, msg.nick, msg.seat); break;
       case "alk_begin_req": if (msg.to === me.nick) showBeginModal("alk", msg.from, msg.gseq); break;
       case "alk_begin_res": onBeginResponse("alk", msg); break;
@@ -4498,6 +4760,8 @@
     $("rank-btn").addEventListener("click", function () { openRank("omok"); });
     $("rank-info-btn").addEventListener("click", function () { renderRankInfo(); openModal("rank-info-modal"); });
     $("alk-rank-btn").addEventListener("click", function () { openRank(curRoomGame === "alk_terr" ? "alk_terr" : "alk"); });
+    $("alk-map-gallery-btn").addEventListener("click", openAlkMapGallery);
+    $("alk-map-random-btn").addEventListener("click", requestAlkRandomMode);
     var rtabs = document.querySelectorAll("#rank-tabs .rtab");
     for (var rt = 0; rt < rtabs.length; rt++) rtabs[rt].addEventListener("click", function () { rankTab = this.getAttribute("data-g"); renderSeason(); });
     $("confirm-place").addEventListener("click", confirmPlace);
@@ -4687,7 +4951,7 @@
     }
     ["pointerdown", "touchend", "click"].forEach(function (ev) { document.addEventListener(ev, unlockAudio, true); });
 
-    tryAutoLogin();
+    if (!startLocalAlkMapPreview()) tryAutoLogin();
   }
 
   window.__omok = {
