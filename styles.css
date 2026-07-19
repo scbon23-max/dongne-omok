@@ -707,7 +707,6 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-room-dialog {
   max-width: 378px;
   padding: 19px;
-  border: 1px solid #2b5063;
   background: var(--navy-2);
   color: #fff;
   box-shadow: 0 22px 64px rgba(0,0,0,.48);
@@ -732,7 +731,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   height: 34px;
   display: grid;
   place-items: center;
-  border: 1px solid #355c6f;
+  border: 0;
   border-radius: 50%;
   background: var(--navy);
   color: #a9bdc6;
@@ -759,7 +758,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   align-items: center;
   gap: 12px;
   padding: 8px;
-  border: 1px solid #31576a;
+  border: 0;
   border-radius: 8px;
   background: var(--navy);
   color: #fff;
@@ -768,9 +767,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-game-option:active, .create-mode-card:active { transform: scale(.985); }
 .create-game-option.active {
-  padding: 7px;
-  border: 2px solid var(--orange);
-  background: rgba(243,97,42,.12);
+  background: rgba(243,97,42,.2);
 }
 .create-game-icon {
   position: relative;
@@ -782,7 +779,6 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   object-fit: cover;
 }
 .create-game-icon.omok {
-  border: 1px solid #b88643;
   background-color: #d8aa63;
   background-image:
     linear-gradient(rgba(89,57,22,.52) 1px, transparent 1px),
@@ -822,7 +818,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-name-input {
   width: 100%;
   height: 49px;
-  border: 1px solid #355c6f;
+  border: 0;
   border-radius: 8px;
   padding: 0 14px;
   outline: none;
@@ -833,8 +829,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-name-input::placeholder { color: #688391; }
 .create-name-input:focus {
-  border-color: var(--teal);
-  box-shadow: 0 0 0 3px rgba(47,184,158,.13);
+  background: #102f40;
 }
 .create-confirm {
   height: 50px;
@@ -852,8 +847,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   gap: 12px;
   margin-bottom: 13px;
   padding: 9px 11px;
-  border-left: 3px solid var(--teal);
-  border-radius: 0 6px 6px 0;
+  border-radius: 6px;
   background: var(--navy);
   color: #b6cad3;
   font-size: 12px;
@@ -873,7 +867,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   display: grid;
   grid-template-columns: 132px minmax(0, 1fr);
   align-items: stretch;
-  border: 1px solid #31576a;
+  border: 0;
   border-radius: 8px;
   background: var(--navy);
   color: #fff;
@@ -881,8 +875,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   cursor: pointer;
 }
 .create-mode-card.active {
-  border: 2px solid var(--orange);
-  background: rgba(243,97,42,.12);
+  background: rgba(243,97,42,.2);
 }
 .create-mode-card > img {
   width: 132px;
@@ -890,7 +883,6 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   display: block;
   object-fit: cover;
 }
-.create-mode-card.active > img { width: 131px; height: 92px; }
 .create-mode-copy {
   min-width: 0;
   display: flex;
@@ -915,7 +907,6 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   .create-game-icon { width: 46px; height: 46px; }
   .create-room-dialog .setting-group { margin-bottom: 12px; }
   .create-mode-card > img { height: 82px; }
-  .create-mode-card.active > img { height: 80px; }
 }
 
 .win-close:active { background: rgba(255,255,255,.35); }

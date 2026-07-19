@@ -198,7 +198,11 @@ test("room creation uses the navy game picker and a second Alkkagi mode step", (
   assert.match(game, /if \(createGame === "alk"\)[\s\S]*showCreateRoomStep\("alk-mode"\)/);
   assert.match(game, /createRoom\(createAlkMode, nm\)/);
   assert.match(styles, /\.create-room-dialog\s*\{[^}]*background:\s*var\(--navy-2\)/);
-  assert.match(styles, /\.create-game-option\.active\s*\{[^}]*border:\s*2px solid var\(--orange\)/);
+  assert.match(styles, /\.create-game-option\.active\s*\{[^}]*background:\s*rgba\(243,97,42,\.2\)/);
+  assert.match(styles, /\.create-game-option\s*\{[^}]*border:\s*0/);
+  assert.match(styles, /\.create-mode-card\s*\{[^}]*border:\s*0/);
+  assert.match(styles, /\.create-name-input\s*\{[^}]*border:\s*0/);
+  assert.doesNotMatch(styles, /\.create-room-dialog\s*\{[^}]*border:/);
   assert.doesNotMatch(index, /알까기-일반|알까기-점령전/);
 
   [
