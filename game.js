@@ -864,7 +864,8 @@
     var canvas = $("alk-roulette-canvas");
     if (!canvas || !map || !window.AlkkagiMaps) return;
     var objects = AlkkagiMaps.createObjects(map.id, seed);
-    AlkkagiMaps.draw(canvas.getContext("2d"), canvas.width, canvas.height, map.id, objects);
+    var context = AlkkagiMaps.prepareCanvas(canvas, 170, 220);
+    AlkkagiMaps.draw(context, 170, 220, map.id, objects);
     if ($("alk-roulette-name")) $("alk-roulette-name").textContent = map.name;
     if ($("alk-roulette-desc")) $("alk-roulette-desc").textContent = map.desc;
   }
@@ -1020,9 +1021,8 @@
       card.setAttribute("data-map", map.id);
       card.setAttribute("aria-label", map.name + " 미리보기");
       var preview = document.createElement("canvas");
-      preview.width = 170;
-      preview.height = 220;
-      AlkkagiMaps.draw(preview.getContext("2d"), preview.width, preview.height, map.id);
+      var previewContext = AlkkagiMaps.prepareCanvas(preview, 170, 220);
+      AlkkagiMaps.draw(previewContext, 170, 220, map.id);
       var copy = document.createElement("span");
       copy.className = "alk-map-card-copy";
       var strong = document.createElement("strong");

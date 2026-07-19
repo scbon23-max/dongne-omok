@@ -45,6 +45,31 @@ test("every map renders at the shared 340 by 440 board ratio", () => {
   });
 });
 
+test("alkkagi canvases use a high-density backing store without changing logical coordinates", () => {
+  const mapsSource = fs.readFileSync(path.join(root, "alkkagi-maps.js"), "utf8");
+  const gameSource = fs.readFileSync(path.join(root, "game.js"), "utf8");
+  const alkkagiSource = fs.readFileSync(path.join(root, "alkkagi.js"), "utf8");
+  const context = fakeContext();
+  context.setTransform = (...args) => context.calls.push(["setTransform", ...args]);
+  const canvas = { width: 340, height: 440, getContext: () => context };
+  const sandbox = {
+    window: { devicePixelRatio: 3 },
+    Image: function () { this.complete = false; this.naturalWidth = 0; }
+  };
+  vm.runInNewContext(mapsSource, sandbox);
+
+  const prepared = sandbox.window.AlkkagiMaps.prepareCanvas(canvas, 340, 440);
+  assert.equal(prepared, context);
+  assert.equal(canvas.width, 1020);
+  assert.equal(canvas.height, 1320);
+  assert.deepEqual(context.calls.at(-1), ["setTransform", 3, 0, 0, 3, 0, 0]);
+  assert.match(alkkagiSource, /AlkkagiMaps\.prepareCanvas\(cv, SW, SH\)/);
+  assert.match(gameSource, /AlkkagiMaps\.prepareCanvas\(canvas, 170, 220\)/);
+  assert.match(gameSource, /AlkkagiMaps\.prepareCanvas\(preview, 170, 220\)/);
+  assert.match(alkkagiSource, /\/ r\.width \* SW/);
+  assert.match(alkkagiSource, /\/ r\.height \* SH/);
+});
+
 test("special map backgrounds and gameplay objects are separate image assets", () => {
   const source = fs.readFileSync(path.join(root, "alkkagi-maps.js"), "utf8");
   const sandbox = { window: {}, Image: function () { this.complete = false; this.naturalWidth = 0; } };

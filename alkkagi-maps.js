@@ -218,6 +218,22 @@ window.AlkkagiMaps = (function () {
     drawObjects(ctx, width, height, id, objects);
   }
 
+  function prepareCanvas(canvas, logicalWidth, logicalHeight) {
+    if (!canvas) return null;
+    var ratio = Math.max(1, Math.min(3, Number(window.devicePixelRatio) || 1));
+    var backingWidth = Math.round(logicalWidth * ratio);
+    var backingHeight = Math.round(logicalHeight * ratio);
+    if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
+      canvas.width = backingWidth;
+      canvas.height = backingHeight;
+    }
+    var context = canvas.getContext("2d");
+    if (context.setTransform) context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.imageSmoothingEnabled = true;
+    if ("imageSmoothingQuality" in context) context.imageSmoothingQuality = "high";
+    return context;
+  }
+
   function all() {
     return catalog.map(function (map) {
       return { id: map.id, name: map.name, desc: map.desc, background: map.background || null, object: map.object || null };
@@ -238,6 +254,7 @@ window.AlkkagiMaps = (function () {
     draw: draw,
     drawBackground: drawBackground,
     drawObjects: drawObjects,
-    createObjects: createObjects
+    createObjects: createObjects,
+    prepareCanvas: prepareCanvas
   };
 })();

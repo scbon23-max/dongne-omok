@@ -407,6 +407,8 @@ window.Alkkagi = (function () {
     return { stones: out, mapObjects: cloneMapObjects(world.objects), bAlive: blackAlive, wAlive: whiteAlive };
   }
   function render() {
+    if (!cv) return;
+    if (window.AlkkagiMaps && AlkkagiMaps.prepareCanvas) ctx = AlkkagiMaps.prepareCanvas(cv, SW, SH);
     if (!ctx) return;
     if (window.AlkkagiMaps) AlkkagiMaps.drawBackground(ctx, SW, SH, mapId);
     else { ctx.fillStyle = "#F6EEDC"; ctx.fillRect(0, 0, SW, SH); }
@@ -452,9 +454,13 @@ window.Alkkagi = (function () {
 
   function init(opts) {
     cv = document.getElementById("alk-board"); if (!cv) return;
-    ctx = cv.getContext("2d");
-    ctx.imageSmoothingEnabled = true;
-    if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
+    ctx = window.AlkkagiMaps && AlkkagiMaps.prepareCanvas
+      ? AlkkagiMaps.prepareCanvas(cv, SW, SH)
+      : cv.getContext("2d");
+    if (ctx) {
+      ctx.imageSmoothingEnabled = true;
+      if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
+    }
     if (window.AlkkagiMaps) AlkkagiMaps.preload(render);
     loadStoneImages();
     onFlick = opts && opts.onFlick; canFlick = opts && opts.canFlick; onHit = opts && opts.onHit; onPlace = opts && opts.onPlace;
@@ -462,6 +468,7 @@ window.Alkkagi = (function () {
       bound = true;
       cv.addEventListener("mousedown", down); window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
       cv.addEventListener("touchstart", down, { passive: false }); cv.addEventListener("touchmove", move, { passive: false }); cv.addEventListener("touchend", up, { passive: false });
+      window.addEventListener("resize", render);
     }
     render();
   }
