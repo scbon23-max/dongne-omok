@@ -97,4 +97,8 @@ test("random stage roulette slows down and avoids repeating the current map", ()
   assert.match(game, /maps\.filter\(function \(map\) \{ return map\.id !== A\.mapId; \}\)/);
   assert.match(game, /if \(A\.mapMode !== "random"\) \{\s*applyAlkMapSelection/);
   assert.match(game, /order\.push\(chosen\)/);
+  assert.match(game, /playAlkRouletteTick\(\);\s*drawAlkRouletteMap\(map, seed \+ ":" \+ index\)/);
+  assert.match(game, /fetch\("assets\/alkkagi-roulette\.mp3"\)/);
+  assert.match(game, /function playAlkRouletteTick\(\)/);
+  assert.equal(fs.existsSync(path.join(root, "assets/alkkagi-roulette.mp3")), true);
 });

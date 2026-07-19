@@ -4,6 +4,9 @@
   var SIZE = Renju.SIZE, BLACK = Renju.BLACK, WHITE = Renju.WHITE;
   var TERR_KOMI = 1.5;
   var APP_REFRESH_KEY = "dongne_games_app_refresh";
+  // Keep the unfinished territory mode code available for future development,
+  // but hide every user-facing entry point until it is ready.
+  var ENABLE_ALK_TERRITORY = false;
 
   var G = {
     board: Renju.emptyBoard(),
@@ -60,6 +63,7 @@
   var seatBuffer = null, seatLoading = false, lastRoomSoundAt = 0;
   var leaveBuffer = null, leaveLoading = false;
   var hitBuffer = null, hitLoading = false, lastHitAt = 0;
+  var alkRouletteBuffer = null, alkRouletteLoading = false;
   var prevSeats = { black: null, white: null }, seatSoundArmed = false;
   var oldestChatTs = null, loadingOlder = false, noMoreChat = false;
   var sessionChat = [];
@@ -82,6 +86,7 @@
   }
   function activeController() { return gameController(curRoomGame || curGame); }
   function canSeeGame(id) {
+    if (id === "alk_terr" && !ENABLE_ALK_TERRITORY) return false;
     return !!(window.GameCatalog ? GameCatalog.get(id) : id);
   }
   function visibleGameIds(ids) {
@@ -880,6 +885,7 @@
     order.forEach(function (map, index) {
       elapsed += intervals[index];
       alkRouletteTimers.push(setTimeout(function () {
+        playAlkRouletteTick();
         drawAlkRouletteMap(map, seed + ":" + index);
         if (index === order.length - 1) overlay.classList.add("final");
       }, elapsed));
@@ -3819,6 +3825,7 @@
       if (!seatBuffer && !seatLoading) loadSeatSound();
       if (!leaveBuffer && !leaveLoading) loadLeaveSound();
       if (!hitBuffer && !hitLoading) loadHitSound();
+      if (!alkRouletteBuffer && !alkRouletteLoading) loadAlkRouletteSound();
       unlockSilentSwitch();
     } catch (e) {}
   }
@@ -3869,6 +3876,22 @@
       .then(function (ab) { return audioCtx.decodeAudioData(ab); })
       .then(function (buf) { hitBuffer = buf; })
       .catch(function () { hitLoading = false; });
+  }
+  function loadAlkRouletteSound() {
+    if (!audioCtx) return;
+    alkRouletteLoading = true;
+    fetch("assets/alkkagi-roulette.mp3").then(function (r) { return r.arrayBuffer(); })
+      .then(function (ab) { return audioCtx.decodeAudioData(ab); })
+      .then(function (buf) { alkRouletteBuffer = buf; })
+      .catch(function () { alkRouletteLoading = false; });
+  }
+  function playAlkRouletteTick() {
+    if (soundMuted || !audioCtx || !alkRouletteBuffer) return;
+    var src = audioCtx.createBufferSource();
+    var gain = audioCtx.createGain();
+    src.buffer = alkRouletteBuffer;
+    gain.gain.value = 0.72;
+    src.connect(gain); gain.connect(audioCtx.destination); src.start();
   }
   function playHit(strength) {
     if (soundMuted || !audioCtx || !hitBuffer) return;
@@ -4050,6 +4073,7 @@
     return selected;
   }
   function showCreateRoomStep(step) {
+    if (step === "alk-mode" && !ENABLE_ALK_TERRITORY) step = "game";
     var gameStep = $("create-game-step"), modeStep = $("create-alk-mode-step");
     if (gameStep) gameStep.classList.toggle("hidden", step !== "game");
     if (modeStep) modeStep.classList.toggle("hidden", step !== "alk-mode");
@@ -4897,7 +4921,7 @@
     });
     $("create-confirm").addEventListener("click", function () {
       var nm = $("create-name").value;
-      if (createGame === "alk") {
+      if (createGame === "alk" && ENABLE_ALK_TERRITORY) {
         if ($("create-room-summary-name")) $("create-room-summary-name").textContent = nm.trim() || (me.nick + "님의 방");
         createAlkMode = renderCreateAlkMode(createAlkMode);
         showCreateRoomStep("alk-mode");
@@ -4905,7 +4929,7 @@
       }
       $("create-modal").classList.add("hidden");
       $("create-name").value = "";
-      createRoom(createGame, nm);
+      createRoom(createGame === "alk" ? "alk" : createGame, nm);
     });
     $("create-step-back").addEventListener("click", function () { showCreateRoomStep("game"); });
     $("create-alk-mode").addEventListener("click", function (event) {

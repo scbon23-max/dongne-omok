@@ -189,14 +189,18 @@ test("Alkkagi reuses the Omok stone skins and redraws each entered room mode", (
   assert.match(game, /if \(game === "alk_terr" && window\.Alkkagi\) \{ A\.mode = "territory"; Alkkagi\.setMode\("territory"\); Alkkagi\.setStones\(\[\]\); \}/);
 });
 
-test("room creation uses the navy game picker and a second Alkkagi mode step", () => {
+test("room creation hides territory mode and creates normal Alkkagi rooms directly", () => {
   assert.match(index, /id="create-game-step"/);
   assert.match(index, /id="create-alk-mode-step"/);
   assert.match(index, /id="create-step-back"/);
   assert.match(index, /id="create-mode-confirm"/);
   assert.match(index, /data-game="alk"[\s\S]*data-game="alk_terr"/);
   assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind"\]\)/);
-  assert.match(game, /if \(createGame === "alk"\)[\s\S]*showCreateRoomStep\("alk-mode"\)/);
+  assert.match(game, /var ENABLE_ALK_TERRITORY = false/);
+  assert.match(game, /if \(id === "alk_terr" && !ENABLE_ALK_TERRITORY\) return false/);
+  assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);
+  assert.match(game, /if \(createGame === "alk" && ENABLE_ALK_TERRITORY\)[\s\S]*showCreateRoomStep\("alk-mode"\)/);
+  assert.match(game, /createRoom\(createGame === "alk" \? "alk" : createGame, nm\)/);
   assert.match(game, /createRoom\(createAlkMode, nm\)/);
   assert.match(styles, /\.create-room-dialog\s*\{[^}]*background:\s*var\(--navy-2\)/);
   assert.match(styles, /\.create-game-option\.active\s*\{[^}]*background:\s*rgba\(243,97,42,\.2\)/);
