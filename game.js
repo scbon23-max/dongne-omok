@@ -362,6 +362,43 @@
   // ---------- 로비 ----------
   var lobbyMode = false, lobbyRoster = [], rooms = {}, roomFilter = "all";
   var curRoomId = null, curRoomTitle = "", roomCreatedTs = 0;
+  var roomLease = null, roomLeaseTimer = null, roomCreatePending = false;
+
+  function roomLeaseAuth() { return { nick: me.nick, hash: sessionAuthHash }; }
+  function roomLeaseToken() {
+    var bytes = new Uint8Array(16);
+  if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+    else for (var i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    return Array.prototype.map.call(bytes, function (value) { return value.toString(16).padStart(2, "0"); }).join("");
+  }
+  function stopRoomLeaseHeartbeat() {
+    if (roomLeaseTimer) { clearInterval(roomLeaseTimer); roomLeaseTimer = null; }
+  }
+  function releaseOwnedRoomLease(roomId) {
+    if (!roomLease || roomLease.roomId !== roomId) return;
+    var lease = roomLease;
+    roomLease = null;
+    stopRoomLeaseHeartbeat();
+    if (window.Db && Db.releaseRoomLease) {
+      Promise.resolve(Db.releaseRoomLease(roomLeaseAuth(), lease)).catch(function () {});
+    }
+  }
+  async function renewOwnedRoomLease() {
+    if (!roomLease || roomLease.roomId !== curRoomId || !window.Db || !Db.renewRoomLease) return;
+    var lease = roomLease;
+    var result;
+    try { result = await Db.renewRoomLease(roomLeaseAuth(), lease); }
+    catch (e) { return; }
+    if (!roomLease || roomLease.token !== lease.token || !result || result.reason !== "lost") return;
+    roomLease = null;
+    stopRoomLeaseHeartbeat();
+    toast("이 계정의 방 소유권이 다른 접속으로 넘어가 방을 닫았어요", 4500);
+    if (curRoomId === lease.roomId) leaveRoomToLobby();
+  }
+  function startRoomLeaseHeartbeat() {
+    stopRoomLeaseHeartbeat();
+    roomLeaseTimer = setInterval(renewOwnedRoomLease, 15000);
+  }
 
   function setLobbyConn(s) { var d = $("lobby-conn-dot"); if (d) d.className = "conn-dot " + s; }
   function onLobbyStatus(s) {
@@ -502,7 +539,10 @@
     var wasAlone = !netMode || roster.length <= 1, wasHostHere = amHost, leavingId = curRoomId;
     var leavingActivity = currentRoomActivity();
     if (wasHostHere && wasAlone && lobbyMode && leavingId) Net.sendLobby({ t: "room_close", id: leavingId });
-    if (enterRoom(r.id, r.game, r.name)) logRoomLeave(leavingActivity);
+    if (enterRoom(r.id, r.game, r.name)) {
+      releaseOwnedRoomLease(leavingId);
+      logRoomLeave(leavingActivity);
+    }
   }
   function vacateSeatIfActive() {
     var seatedOmok = netMode && isOmokFamily(curGame) && G.started && !G.over && (G.seats.black === me.nick || G.seats.white === me.nick);
@@ -577,6 +617,7 @@
 
   function rollbackRoomEntry(controller, error) {
     if (window.console && console.error) console.error("Room entry failed", error);
+    releaseOwnedRoomLease(curRoomId);
     try { if (controller && controller.leave) controller.leave(); } catch (e) {}
     try { if (window.Net && Net.leaveRoom) Net.leaveRoom(); } catch (e) {}
     netMode = false; hostNick = null; amHost = false; wasHost = false; connected = false;
@@ -640,14 +681,33 @@
       return false;
     }
   }
-  function createRoom(game, name) {
+  async function createRoom(game, name) {
     if (!canSeeGame(game)) { toast("아직 테스트 중인 게임이에요"); return; }
+    if (roomCreatePending) return;
     var id = "rm" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e4).toString(36);
-    roomCreatedTs = Date.now();
     var title = (name && name.trim()) || (me.nick + "님의 방");
-    if (enterRoom(id, game, title)) {
-      recordActivity("room_create", { roomId: id, roomName: title, game: game });
+    var lease = { roomId: id, roomName: title, game: game, token: roomLeaseToken() };
+    if (!window.Db || !Db.claimRoomLease || !sessionAuthHash) {
+      toast("방 소유권을 확인할 수 없어 잠시 후 다시 시도해주세요");
+      return;
     }
+    roomCreatePending = true;
+    var claimed;
+    try { claimed = await Db.claimRoomLease(roomLeaseAuth(), lease); }
+    catch (e) { claimed = { ok: false, reason: "network" }; }
+    roomCreatePending = false;
+    if (!claimed || !claimed.ok) {
+      if (claimed && claimed.reason === "already_owned") {
+        toast("이 계정으로 이미 만든 방이 있어요 · " + (claimed.roomName || "기존 방"), 4500);
+      } else toast("방 생성 확인에 실패했어요. 잠시 후 다시 시도해주세요");
+      return;
+    }
+    roomLease = lease;
+    roomCreatedTs = Date.now();
+    if (enterRoom(id, game, title)) {
+      startRoomLeaseHeartbeat();
+      recordActivity("room_create", { roomId: id, roomName: title, game: game });
+    } else releaseOwnedRoomLease(id);
   }
   function requestLeaveRoom() {
     var ctrl = activeController();
@@ -674,6 +734,7 @@
     if (leavingController && leavingController.leave) leavingController.leave();
     var forfeited = vacateSeatIfActive();
     var wasAlone = !netMode || roster.length <= 1, wasHostHere = amHost, leavingId = curRoomId;
+    releaseOwnedRoomLease(leavingId);
     var delay = forfeited ? 220 : 0;
     setTimeout(function () {
       if (netMode && leavingId) Net.send({ t: "room_leave", nick: me.nick });

@@ -144,6 +144,33 @@ window.Db = (function () {
       favorite: !!favorite
     });
   }
+  async function roomLeaseInvoke(action, auth, lease) {
+    if (!sb || !sb.functions || !sb.functions.invoke) return { ok: false, reason: "unavailable" };
+    auth = auth || {};
+    lease = lease || {};
+    var body = {
+      action: action,
+      auth: {
+        nick: String(auth.nick || "").slice(0, 40),
+        hash: String(auth.hash || "").slice(0, 128)
+      },
+      roomId: String(lease.roomId || "").slice(0, 80),
+      token: String(lease.token || "").slice(0, 100)
+    };
+    if (action === "claim") {
+      body.roomName = String(lease.roomName || "").slice(0, 80);
+      body.game = String(lease.game || "").slice(0, 30);
+    }
+    if (!body.auth.nick || !body.auth.hash || !body.roomId || !body.token) return { ok: false, reason: "auth" };
+    var result = await sb.functions.invoke("room-lease", { body: body });
+    if (result.error) return { ok: false, reason: "network", msg: result.error.message || String(result.error) };
+    return result.data && typeof result.data === "object"
+      ? result.data
+      : { ok: false, reason: "invalid_response" };
+  }
+  async function claimRoomLease(auth, lease) { return roomLeaseInvoke("claim", auth, lease); }
+  async function renewRoomLease(auth, lease) { return roomLeaseInvoke("renew", auth, lease); }
+  async function releaseRoomLease(auth, lease) { return roomLeaseInvoke("release", auth, lease); }
   var GAME_COLS = "id,black,white,winner,game,created_at";
   async function getGames() {
     if (!sb) return [];
@@ -249,6 +276,7 @@ window.Db = (function () {
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
     recordGame: recordGame, recordAlkGame: recordAlkGame, recordCatchmindMatch: recordCatchmindMatch,
     saveCatchmindDrawing: saveCatchmindDrawing, getCatchmindGallery: getCatchmindGallery, toggleCatchmindFavorite: toggleCatchmindFavorite,
+    claimRoomLease: claimRoomLease, renewRoomLease: renewRoomLease, releaseRoomLease: releaseRoomLease,
     getGames: getGames, getGamesByType: getGamesByType,
     getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves, deleteGame: deleteGame,
     addChatMsg: addChatMsg, getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,
