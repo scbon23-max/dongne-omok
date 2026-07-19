@@ -1038,9 +1038,56 @@
     });
     syncAlkMapPreviewUI();
   }
+  var alkMapStartAction = null;
+  function setAlkMapDialogStartMode(starting) {
+    var modal = $("alk-map-modal");
+    if (!modal) return;
+    modal.classList.toggle("start-selecting", !!starting);
+    if ($("alk-map-dialog-title")) $("alk-map-dialog-title").textContent = starting ? "시작할 맵 선택" : "맵 디자인 미리보기";
+    if ($("alk-map-dialog-intro")) $("alk-map-dialog-intro").textContent = starting
+      ? "원하는 맵을 고른 뒤 아래 버튼을 누르면 해당 맵으로 시작합니다."
+      : "맵을 누르면 실제 판에 바로 적용됩니다. 미리보기에서는 돌을 직접 튕겨 맵 효과를 시험할 수 있습니다.";
+    if ($("alk-map-dialog-action")) $("alk-map-dialog-action").textContent = starting ? "선택한 맵으로 시작" : "선택한 맵 보기";
+  }
   function openAlkMapGallery() {
+    alkMapStartAction = null;
+    setAlkMapDialogStartMode(false);
     renderAlkMapGallery();
     openModal("alk-map-modal");
+  }
+  function runAlkStartAction(action) {
+    if (action === "solo") {
+      if (curRoomGame === "alk_terr") startTerritorySolo();
+      else startAlkSolo();
+    } else {
+      requestAlkBegin();
+    }
+  }
+  function startAlkWithRandomMap() {
+    var actions = $("alk-start-actions");
+    if (!actions || !actions.dataset.act) return;
+    requestAlkRandomMode();
+    runAlkStartAction(actions.dataset.act);
+  }
+  function openAlkMapStartPicker() {
+    var actions = $("alk-start-actions");
+    if (!actions || !actions.dataset.act) return;
+    alkMapStartAction = actions.dataset.act;
+    setAlkMapDialogStartMode(true);
+    renderAlkMapGallery();
+    openModal("alk-map-modal");
+  }
+  function confirmAlkMapStart() {
+    var action = alkMapStartAction;
+    $("alk-map-modal").classList.add("hidden");
+    if (!action) {
+      setAlkMapDialogStartMode(false);
+      return;
+    }
+    if (A.mapMode !== "fixed") requestAlkMapSelection(A.mapId || "base");
+    alkMapStartAction = null;
+    setAlkMapDialogStartMode(false);
+    runAlkStartAction(action);
   }
   function startLocalAlkMapPreview() {
     var host = window.location.hostname;
@@ -1329,15 +1376,15 @@
     else { $("alk-cntB").textContent = window.Alkkagi ? Alkkagi.aliveCount("b") : 5; $("alk-cntW").textContent = window.Alkkagi ? Alkkagi.aliveCount("w") : 5; }
     $("alk-chipB").classList.toggle("active", A.turn === "b" && A.started && !A.over);
     $("alk-chipW").classList.toggle("active", A.turn === "w" && A.started && !A.over);
-    var cb = $("alk-center-btn"), sb = $("alk-swap-btn");
+    var startActions = $("alk-start-actions"), sb = $("alk-swap-btn");
     var alkSeatedMe = (!netMode || A.seats.black === me.nick || A.seats.white === me.nick || me.isAdmin);
     var alkISit = (A.seats.black === me.nick || A.seats.white === me.nick);
     var alkBoth = A.seats.black && A.seats.white;
     var alkCanSwap = !!(netMode && !A.started && !A.over && alkBoth && alkISit);
-    if (cb) {
-      if (!A.started && !A.over && alkBoth && alkSeatedMe) { cb.textContent = "대국 신청"; cb.dataset.act = "begin"; cb.classList.remove("hidden"); }
-      else if (!A.started && !A.over && alkISit && !alkBoth) { cb.textContent = "연습하기"; cb.dataset.act = "solo"; cb.classList.remove("hidden"); }
-      else cb.classList.add("hidden");
+    if (startActions) {
+      if (!A.started && !A.over && alkBoth && alkSeatedMe) { startActions.dataset.act = "begin"; startActions.classList.remove("hidden"); }
+      else if (!A.started && !A.over && alkISit && !alkBoth) { startActions.dataset.act = "solo"; startActions.classList.remove("hidden"); }
+      else { startActions.dataset.act = ""; startActions.classList.add("hidden"); }
     }
     if (sb) sb.classList.toggle("hidden", !alkCanSwap);
     var sc = terr ? (A.score || { b: 0, w: 0 }) : null;
@@ -1983,7 +2030,7 @@
   var beginCooldownUntil = 0;
   function startBeginCooldown() {
     beginCooldownUntil = Date.now() + REQUEST_COOLDOWN_MS;
-    ["center-btn", "alk-center-btn", "omok-again", "alk-again"].forEach(function (id) {
+    ["center-btn", "alk-random-start-btn", "alk-select-start-btn", "omok-again", "alk-again"].forEach(function (id) {
       var b = $(id); if (!b) return;
       b.disabled = true; b.classList.add("cooldown");
       setTimeout(function () { b.disabled = false; b.classList.remove("cooldown"); }, REQUEST_COOLDOWN_MS);
@@ -4786,6 +4833,7 @@
     $("alk-rank-btn").addEventListener("click", function () { openRank(curRoomGame === "alk_terr" ? "alk_terr" : "alk"); });
     $("alk-map-gallery-btn").addEventListener("click", openAlkMapGallery);
     $("alk-map-random-btn").addEventListener("click", requestAlkRandomMode);
+    $("alk-map-dialog-action").addEventListener("click", confirmAlkMapStart);
     var rtabs = document.querySelectorAll("#rank-tabs .rtab");
     for (var rt = 0; rt < rtabs.length; rt++) rtabs[rt].addEventListener("click", function () { rankTab = this.getAttribute("data-g"); renderSeason(); });
     $("confirm-place").addEventListener("click", confirmPlace);
@@ -4945,11 +4993,8 @@
     });
     $("alk-chipB").addEventListener("click", function () { onAlkChipTap("black"); });
     $("alk-chipW").addEventListener("click", function () { onAlkChipTap("white"); });
-    $("alk-center-btn").addEventListener("click", function () {
-      var b = $("alk-center-btn");
-      if (b && b.dataset.act === "solo") { if (curRoomGame === "alk_terr") startTerritorySolo(); else startAlkSolo(); }
-      else requestAlkBegin();
-    });
+    $("alk-random-start-btn").addEventListener("click", startAlkWithRandomMap);
+    $("alk-select-start-btn").addEventListener("click", openAlkMapStartPicker);
     var alkSwapBtn = $("alk-swap-btn");
     if (alkSwapBtn) alkSwapBtn.addEventListener("click", function () { requestSeatSwap("alk"); });
     $("alk-again").addEventListener("click", function () { if (alkSolo) { if (A.mode === "territory") startTerritorySolo(); else startAlkSolo(); } else requestAlkBegin(); });

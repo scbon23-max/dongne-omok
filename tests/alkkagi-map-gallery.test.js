@@ -109,6 +109,24 @@ test("the live alkkagi screen loads and exposes the map gallery", () => {
   assert.match(alkkagi, /setMap: setMap, setMapState: setMapState, getMap: getMap/);
 });
 
+test("alkkagi waiting screen offers separate random and selected-map start actions", () => {
+  const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
+  const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
+
+  assert.match(index, /id="alk-start-actions"/);
+  assert.match(index, /id="alk-random-start-btn"[\s\S]*랜덤 맵 시작/);
+  assert.match(index, /id="alk-select-start-btn"[\s\S]*맵 선택 시작/);
+  assert.match(index, /id="alk-map-dialog-action"[\s\S]*선택한 맵 보기/);
+  assert.match(styles, /\.alk-start-actions \{/);
+  assert.match(styles, /#alk-map-modal\.start-selecting \.alk-map-random-btn \{ display: none; \}/);
+  assert.match(game, /function startAlkWithRandomMap\(\)[\s\S]*requestAlkRandomMode\(\);[\s\S]*runAlkStartAction/);
+  assert.match(game, /function openAlkMapStartPicker\(\)/);
+  assert.match(game, /function confirmAlkMapStart\(\)[\s\S]*requestAlkMapSelection\(A\.mapId \|\| "base"\)/);
+  assert.match(game, /\$\("alk-random-start-btn"\)\.addEventListener\("click", startAlkWithRandomMap\)/);
+  assert.match(game, /\$\("alk-select-start-btn"\)\.addEventListener\("click", openAlkMapStartPicker\)/);
+});
+
 test("random stage roulette slows down and avoids repeating the current map", () => {
   const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
   const intervalsMatch = game.match(/var intervals = \[([^\]]+)\]/);

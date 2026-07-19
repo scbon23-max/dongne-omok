@@ -253,7 +253,16 @@
       </div>
     </div>
     <div id="alk-chat-overlay" class="chat-overlay"></div>
-    <button id="alk-center-btn" class="center-btn hidden">대국 신청</button>
+    <div id="alk-start-actions" class="alk-start-actions hidden">
+      <button id="alk-random-start-btn" class="alk-start-btn alk-start-random" type="button">
+        <span class="alk-start-icon">🎲</span>
+        <span><strong>랜덤 맵 시작</strong><small>룰렛으로 맵 추첨</small></span>
+      </button>
+      <button id="alk-select-start-btn" class="alk-start-btn alk-start-select" type="button">
+        <span class="alk-start-icon">🗺️</span>
+        <span><strong>맵 선택 시작</strong><small>원하는 맵을 골라 시작</small></span>
+      </button>
+    </div>
     <button id="alk-swap-btn" class="center-btn center-swap-action center-swap hidden">자리 체인지</button>
     <div class="win-flag hidden" id="alk-win">
       <div class="wt" id="alk-wintext">흑 승리!</div>
@@ -290,18 +299,18 @@
     <div class="modal-head">
       <div>
         <span class="alk-map-kicker">알까기</span>
-        <h2>맵 디자인 미리보기</h2>
+        <h2 id="alk-map-dialog-title">맵 디자인 미리보기</h2>
       </div>
       <button class="modal-close" data-close aria-label="닫기">✕</button>
     </div>
-    <p class="alk-map-intro">맵을 누르면 실제 판에 바로 적용됩니다. 미리보기에서는 돌을 직접 튕겨 맵 효과를 시험할 수 있습니다.</p>
+    <p id="alk-map-dialog-intro" class="alk-map-intro">맵을 누르면 실제 판에 바로 적용됩니다. 미리보기에서는 돌을 직접 튕겨 맵 효과를 시험할 수 있습니다.</p>
     <button id="alk-map-random-btn" class="alk-map-random-btn" type="button" aria-pressed="true">
       <span class="alk-random-icon">🎲</span>
       <span><strong>랜덤 스테이지</strong><small>매 판 새로운 맵을 추첨합니다</small></span>
       <span class="alk-random-check">선택됨</span>
     </button>
     <div id="alk-map-grid" class="alk-map-grid"></div>
-    <button class="btn-primary modal-ok" data-close>선택한 맵 보기</button>
+    <button id="alk-map-dialog-action" class="btn-primary modal-ok" type="button">선택한 맵 보기</button>
   </div>
 </div>
 
