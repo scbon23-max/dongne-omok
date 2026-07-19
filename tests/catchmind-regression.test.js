@@ -183,6 +183,15 @@ test("the drawing palette has three diverse rows including white", () => {
   assert.equal(colors.every(color => /^#[0-9a-f]{6}$/.test(color)), true);
 });
 
+test("color slots open the shared palette without a separate palette button", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "catchmind.js"), "utf8");
+
+  assert.doesNotMatch(source, /catch-palette-btn/);
+  assert.match(source, /var shouldClose = paletteOpen && paletteTarget === "pen" && selectedColorSlot === slot/);
+  assert.match(source, /selectColorSlot\(slot\);\s*setPaletteOpen\(!shouldClose\)/);
+  assert.match(source, /function pointerDown\(event\) \{\s*if \(!canDraw\(\)\) return;\s*setPaletteOpen\(false\)/);
+});
+
 test("waiting music yields to looping match music and resumes after play", async () => {
   function media(src) {
     return {

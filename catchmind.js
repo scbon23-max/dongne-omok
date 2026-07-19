@@ -2661,6 +2661,7 @@ window.CatchMind = (function () {
 
   function pointerDown(event) {
     if (!canDraw()) return;
+    setPaletteOpen(false);
     if (state.strokes.length >= MAX_STROKES || canvasPointCount() >= MAX_CANVAS_POINTS) {
       notifyCanvasLimit();
       return;
@@ -2728,6 +2729,8 @@ window.CatchMind = (function () {
       var color = PEN_COLORS[slot] || PEN_COLORS[0];
       colorButtons[i].setAttribute("data-catch-color-slot", String(slot));
       colorButtons[i].setAttribute("data-catch-color", color);
+      colorButtons[i].setAttribute("aria-controls", "catch-palette");
+      colorButtons[i].setAttribute("aria-haspopup", "true");
       colorButtons[i].setAttribute("aria-label", slot === 1 ? "굵은 펜 색상" : "일반 펜 색상");
       var chip = colorButtons[i].querySelector("span");
       if (chip) chip.style.background = color;
@@ -2753,11 +2756,13 @@ window.CatchMind = (function () {
   }
 
   function setPaletteOpen(open) {
-    var palette = $("catch-palette"), button = $("catch-palette-btn");
+    var palette = $("catch-palette");
     if (palette) palette.classList.toggle("hidden", !open);
-    if (button) {
-      button.classList.toggle("active", !!open && paletteTarget !== "bg");
-      button.setAttribute("aria-expanded", String(!!open));
+    var colorButtons = document.querySelectorAll("[data-catch-color]");
+    for (var i = 0; i < colorButtons.length; i++) {
+      var expanded = !!open && paletteTarget === "pen"
+        && colorSlotFromButton(colorButtons[i], i) === selectedColorSlot;
+      colorButtons[i].setAttribute("aria-expanded", String(expanded));
     }
     var bg = $("catch-bg-btn");
     if (bg) bg.classList.toggle("active", !!open && paletteTarget === "bg");
@@ -2765,17 +2770,7 @@ window.CatchMind = (function () {
 
   function buildPaletteUi() {
     var tools = $("catch-tools");
-    if (!tools || $("catch-palette-btn")) return;
-    var undo = $("catch-undo-btn");
-    var button = document.createElement("button");
-    button.id = "catch-palette-btn";
-    button.className = "catch-tool catch-tool-icon catch-palette-btn";
-    button.type = "button";
-    button.setAttribute("aria-label", "palette");
-    button.setAttribute("aria-expanded", "false");
-    button.appendChild(document.createElement("span"));
-    tools.insertBefore(button, undo || null);
-
+    if (!tools || $("catch-palette")) return;
     var palette = document.createElement("div");
     palette.id = "catch-palette";
     palette.className = "catch-palette hidden";
@@ -2971,17 +2966,17 @@ window.CatchMind = (function () {
     });
     var colorButtons = document.querySelectorAll("[data-catch-color]");
     for (var j = 0; j < colorButtons.length; j++) colorButtons[j].addEventListener("click", function () {
-      selectColorSlot(this.getAttribute("data-catch-color-slot"));
+      var slot = safeInteger(this.getAttribute("data-catch-color-slot"), 0, PEN_COLORS.length - 1, 0);
+      var palette = $("catch-palette");
+      var paletteOpen = !!palette && !palette.classList.contains("hidden");
+      var shouldClose = paletteOpen && paletteTarget === "pen" && selectedColorSlot === slot;
+      selectColorSlot(slot);
+      setPaletteOpen(!shouldClose);
     });
     $("catch-bg-btn").addEventListener("click", function () {
       paletteTarget = "bg";
       selectedTool = "pen";
       syncToolButtons();
-      var palette = $("catch-palette");
-      setPaletteOpen(!palette || palette.classList.contains("hidden"));
-    });
-    $("catch-palette-btn").addEventListener("click", function () {
-      paletteTarget = "pen";
       var palette = $("catch-palette");
       setPaletteOpen(!palette || palette.classList.contains("hidden"));
     });

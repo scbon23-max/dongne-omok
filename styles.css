@@ -226,8 +226,6 @@ body {
 .catch-color span { width: 16px; height: 16px; display: block; border-radius: 50%; border: 1px solid rgba(255,255,255,.45); }
 .catch-color[data-catch-color-slot="1"] span { width: 24px; height: 24px; }
 .catch-color.active { border-color: var(--orange); }
-.catch-palette-btn { display: inline-flex; align-items: center; justify-content: center; }
-.catch-palette-btn span { width: 18px; height: 18px; display: block; border-radius: 5px; border: 1px solid rgba(255,255,255,.45); background: conic-gradient(#d23b3b 0 25%, #eab308 0 50%, #22c55e 0 75%, #2474b5 0); }
 .catch-palette { order: 5; width: 100%; max-width: min(420px, calc(100vw - 24px)); margin: 6px auto 0; padding: 6px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; border: 1px solid rgba(207,224,231,.24); border-radius: 10px; background: rgba(22,56,74,.94); box-shadow: 0 4px 12px rgba(0,0,0,.22); }
 .catch-palette-color { width: 100%; height: 38px; min-height: 38px; border: 2px solid rgba(255,255,255,.5); border-radius: 8px; cursor: pointer; }
 .catch-palette-color[data-catch-palette-color="#ffffff"] { border-color: #cbd5e1; box-shadow: inset 0 0 0 1px rgba(14,42,58,.16); }
