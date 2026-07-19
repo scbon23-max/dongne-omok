@@ -918,10 +918,6 @@
     if (!window.Alkkagi || !window.AlkkagiMaps) return;
     var map = AlkkagiMaps.get(Alkkagi.getMap());
     var randomMode = A.mapMode === "random";
-    if ($("alk-map-pill")) {
-      $("alk-map-pill").textContent = randomMode && !A.started && !A.over ? "랜덤 스테이지" : map.name;
-      $("alk-map-pill").title = randomMode ? "매 판 새로운 맵을 추첨합니다" : map.desc;
-    }
     var randomButton = $("alk-map-random-btn");
     if (randomButton) {
       randomButton.classList.toggle("active", randomMode);

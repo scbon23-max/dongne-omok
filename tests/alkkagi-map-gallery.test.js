@@ -107,6 +107,8 @@ test("the live alkkagi screen loads and exposes the map gallery", () => {
   assert.match(game, /host !== "127\.0\.0\.1" && host !== "localhost"/);
   assert.match(game, /params\.get\("preview"\) !== "alk-maps"/);
   assert.match(alkkagi, /setMap: setMap, setMapState: setMapState, getMap: getMap/);
+  assert.doesNotMatch(index, /id="alk-map-pill"/);
+  assert.doesNotMatch(game, /\$\("alk-map-pill"\)/);
 });
 
 test("alkkagi waiting screen offers separate random and selected-map start actions", () => {
