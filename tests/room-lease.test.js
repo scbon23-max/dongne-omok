@@ -11,6 +11,13 @@ const migration = fs.readFileSync(path.join(root, "supabase", "migrations", "202
 const edge = fs.readFileSync(path.join(root, "supabase", "functions", "room-lease", "index.ts"), "utf8");
 const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
 
+function between(source, start, end) {
+  const from = source.indexOf(start);
+  const to = source.indexOf(end, from + start.length);
+  assert.ok(from >= 0 && to > from, `missing source block: ${start}`);
+  return source.slice(from, to);
+}
+
 test("room leases atomically limit each account to one owned room", () => {
   assert.match(migration, /nickname text primary key/);
   assert.match(migration, /pg_advisory_xact_lock\(hashtext\(p_nickname\)\)/);
@@ -30,6 +37,58 @@ test("room creation claims, renews, and releases the account lease", () => {
   assert.match(game, /setInterval\(renewOwnedRoomLease, 15000\)/);
   assert.match(game, /releaseOwnedRoomLease\(leavingId\)/);
   assert.match(game, /reason === "already_owned"/);
+});
+
+test("a refresh restores the same owned room instead of leaving an invisible lease", () => {
+  assert.match(game, /ROOM_LEASE_STORAGE_KEY = "dongne_owned_room_lease_v1"/);
+  assert.match(game, /sessionStorage\.setItem\(ROOM_LEASE_STORAGE_KEY/);
+  assert.match(game, /async function restoreOwnedRoomLease\(\)/);
+  assert.match(game, /claimed = await Db\.claimRoomLease\(roomLeaseAuth\(\), lease\)/);
+  assert.match(game, /enterRoom\(lease\.roomId, lease\.game, lease\.roomName\)/);
+  assert.match(game, /toast\("새로고침 전 방으로 돌아왔어요"/);
+  assert.match(game, /function showLobby\(\)[\s\S]*?restoreOwnedRoomLease\(\)/);
+  assert.match(game, /clearStoredRoomLease\(roomId\)/);
+});
+
+test("stored room ownership survives refresh only for the same account and room", () => {
+  const source = between(game, 'var ROOM_LEASE_STORAGE_KEY = "dongne_owned_room_lease_v1";', "function roomLeaseAuth()");
+  const values = new Map();
+  const context = {
+    me: { nick: "구나" },
+    roomCreatedTs: 1234,
+    sessionStorage: {
+      getItem(key) { return values.get(key) || null; },
+      setItem(key, value) { values.set(key, value); },
+      removeItem(key) { values.delete(key); }
+    },
+    JSON,
+    String,
+    Number,
+    Math,
+    Date
+  };
+  vm.runInNewContext(`${source}
+    this.storeLease = storeRoomLease;
+    this.readLease = readStoredRoomLease;
+    this.clearLease = clearStoredRoomLease;
+  `, context);
+
+  context.storeLease({
+    roomId: "room-1",
+    roomName: "구나의 방",
+    game: "catchmind",
+    token: "a".repeat(32),
+    createdTs: 4567
+  });
+  const restored = context.readLease();
+  assert.equal(restored.roomId, "room-1");
+  assert.equal(restored.game, "catchmind");
+  assert.equal(restored.createdTs, 4567);
+
+  context.clearLease("another-room");
+  assert.ok(context.readLease());
+  context.clearLease("room-1");
+  assert.equal(context.readLease(), null);
 });
 
 test("database room lease calls include account proof and lease identity", async () => {

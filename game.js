@@ -242,9 +242,11 @@
     var button = $("logout-btn");
     if (button) button.disabled = true;
     var roomInfo = currentRoomActivity();
-    var finish = roomInfo
+    var activityFinish = roomInfo
       ? logRoomLeave(roomInfo).then(function () { return recordActivity("logout"); })
       : recordActivity("logout");
+    var leaseFinish = releaseOwnedRoomLease(curRoomId);
+    var finish = Promise.all([activityFinish, leaseFinish]);
     try { await withTimeout(finish, 1800); } catch (e) {}
     clearAuth();
     location.reload();
@@ -353,6 +355,7 @@
     renderRoomList();
     updateOnlineCounts(); renderLobbyOnline();
     logLoginOnce();
+    restoreOwnedRoomLease();
   }
   var curGame = null, curRoomGame = null, omokStarted = false, alkStarted = false;
   var A = { seats: { black: null, white: null }, turn: "b", started: false, over: false, winner: null, seq: 0, gameSeq: 0, recorded: false, paused: false, winChatText: null };
@@ -362,8 +365,50 @@
   // ---------- 로비 ----------
   var lobbyMode = false, lobbyRoster = [], rooms = {}, roomFilter = "all";
   var curRoomId = null, curRoomTitle = "", roomCreatedTs = 0;
-  var roomLease = null, roomLeaseTimer = null, roomCreatePending = false;
+  var ROOM_LEASE_STORAGE_KEY = "dongne_owned_room_lease_v1";
+  var roomLease = null, roomLeaseTimer = null, roomCreatePending = false, roomLeaseRestorePending = false;
 
+  function readStoredRoomLease() {
+    var saved;
+    try { saved = JSON.parse(sessionStorage.getItem(ROOM_LEASE_STORAGE_KEY) || "null"); }
+    catch (e) { clearStoredRoomLease(); return null; }
+    if (!saved || saved.nick !== me.nick || !saved.roomId || !saved.roomName || !saved.game ||
+        !/^[a-zA-Z0-9_-]{16,100}$/.test(String(saved.token || ""))) {
+      if (saved) clearStoredRoomLease();
+      return null;
+    }
+    return {
+      roomId: String(saved.roomId).slice(0, 80),
+      roomName: String(saved.roomName).slice(0, 80),
+      game: String(saved.game).slice(0, 30),
+      token: String(saved.token).slice(0, 100),
+      createdTs: Math.max(0, Number(saved.createdTs) || 0)
+    };
+  }
+  function storeRoomLease(lease) {
+    if (!lease || !me.nick) return;
+    try {
+      sessionStorage.setItem(ROOM_LEASE_STORAGE_KEY, JSON.stringify({
+        nick: me.nick,
+        roomId: lease.roomId,
+        roomName: lease.roomName,
+        game: lease.game,
+        token: lease.token,
+        createdTs: lease.createdTs || roomCreatedTs || Date.now()
+      }));
+    } catch (e) {}
+  }
+  function clearStoredRoomLease(roomId) {
+    try {
+      if (roomId) {
+        var saved = JSON.parse(sessionStorage.getItem(ROOM_LEASE_STORAGE_KEY) || "null");
+        if (saved && saved.roomId && saved.roomId !== roomId) return;
+      }
+      sessionStorage.removeItem(ROOM_LEASE_STORAGE_KEY);
+    } catch (e) {
+      try { sessionStorage.removeItem(ROOM_LEASE_STORAGE_KEY); } catch (_e) {}
+    }
+  }
   function roomLeaseAuth() { return { nick: me.nick, hash: sessionAuthHash }; }
   function roomLeaseToken() {
     var bytes = new Uint8Array(16);
@@ -375,13 +420,15 @@
     if (roomLeaseTimer) { clearInterval(roomLeaseTimer); roomLeaseTimer = null; }
   }
   function releaseOwnedRoomLease(roomId) {
-    if (!roomLease || roomLease.roomId !== roomId) return;
+    if (!roomLease || roomLease.roomId !== roomId) return Promise.resolve(null);
     var lease = roomLease;
     roomLease = null;
     stopRoomLeaseHeartbeat();
+    clearStoredRoomLease(roomId);
     if (window.Db && Db.releaseRoomLease) {
-      Promise.resolve(Db.releaseRoomLease(roomLeaseAuth(), lease)).catch(function () {});
+      return Promise.resolve(Db.releaseRoomLease(roomLeaseAuth(), lease)).catch(function () { return null; });
     }
+    return Promise.resolve(null);
   }
   async function renewOwnedRoomLease() {
     if (!roomLease || roomLease.roomId !== curRoomId || !window.Db || !Db.renewRoomLease) return;
@@ -392,12 +439,37 @@
     if (!roomLease || roomLease.token !== lease.token || !result || result.reason !== "lost") return;
     roomLease = null;
     stopRoomLeaseHeartbeat();
+    clearStoredRoomLease(lease.roomId);
     toast("이 계정의 방 소유권이 다른 접속으로 넘어가 방을 닫았어요", 4500);
     if (curRoomId === lease.roomId) leaveRoomToLobby();
   }
   function startRoomLeaseHeartbeat() {
     stopRoomLeaseHeartbeat();
     roomLeaseTimer = setInterval(renewOwnedRoomLease, 15000);
+  }
+  async function restoreOwnedRoomLease() {
+    if (roomLeaseRestorePending || roomLease || curRoomId) return;
+    var lease = readStoredRoomLease();
+    if (!lease || !window.Db || !Db.claimRoomLease || !sessionAuthHash) return;
+    roomLeaseRestorePending = true;
+    var claimed;
+    try { claimed = await Db.claimRoomLease(roomLeaseAuth(), lease); }
+    catch (e) { claimed = null; }
+    roomLeaseRestorePending = false;
+    if (!claimed || !claimed.ok) {
+      if (claimed && claimed.reason === "already_owned") clearStoredRoomLease(lease.roomId);
+      return;
+    }
+    roomLease = lease;
+    if (curRoomId) {
+      releaseOwnedRoomLease(lease.roomId);
+      return;
+    }
+    roomCreatedTs = lease.createdTs || Date.now();
+    if (enterRoom(lease.roomId, lease.game, lease.roomName)) {
+      startRoomLeaseHeartbeat();
+      toast("새로고침 전 방으로 돌아왔어요", 3200);
+    } else releaseOwnedRoomLease(lease.roomId);
   }
 
   function setLobbyConn(s) { var d = $("lobby-conn-dot"); if (d) d.className = "conn-dot " + s; }
@@ -407,7 +479,7 @@
     else if (s === "CHANNEL_ERROR" || s === "TIMED_OUT" || s === "CLOSED") setLobbyConn("off");
     else setLobbyConn("connecting");
   }
-  function onLobbyReady() { Net.sendLobby({ t: "lobby_hello", nick: me.nick }); loadLobbyChat(); refreshScores(); }
+  function onLobbyReady() { Net.sendLobby({ t: "lobby_hello", nick: me.nick }); loadLobbyChat(); refreshScores(); restoreOwnedRoomLease(); }
   function onLobbyPresence(list) {
     lobbyRoster = list || [];
     updateOnlineCounts();
@@ -683,6 +755,7 @@
   }
   async function createRoom(game, name) {
     if (!canSeeGame(game)) { toast("아직 테스트 중인 게임이에요"); return; }
+    if (roomLeaseRestorePending) { toast("새로고침 전 방을 확인하고 있어요"); return; }
     if (roomCreatePending) return;
     var id = "rm" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e4).toString(36);
     var title = (name && name.trim()) || (me.nick + "님의 방");
@@ -704,6 +777,8 @@
     }
     roomLease = lease;
     roomCreatedTs = Date.now();
+    lease.createdTs = roomCreatedTs;
+    storeRoomLease(lease);
     if (enterRoom(id, game, title)) {
       startRoomLeaseHeartbeat();
       recordActivity("room_create", { roomId: id, roomName: title, game: game });
