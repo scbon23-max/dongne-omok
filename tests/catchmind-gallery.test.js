@@ -12,8 +12,8 @@ const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 const migration = fs.readFileSync(path.join(root, "supabase", "migrations", "202607180001_catchmind_gallery.sql"), "utf8");
 const edgeFunction = fs.readFileSync(path.join(root, "supabase", "functions", "catchmind-gallery", "index.ts"), "utf8");
 
-test("gallery button follows ranking and ships a mobile gallery dialog", () => {
-  assert.match(index, /id="catch-rank-btn"[\s\S]*?id="catch-gallery-btn"[\s\S]*?id="catch-role-btn"/);
+test("gallery button precedes ranking and ships a mobile gallery dialog", () => {
+  assert.match(index, /id="catch-gallery-btn"[\s\S]*?id="catch-rank-btn"[\s\S]*?id="catch-role-btn"/);
   assert.match(index, /id="catch-gallery-backdrop"/);
   assert.match(index, /id="catch-gallery-recent-tab"/);
   assert.match(index, /id="catch-gallery-favorite-tab"/);
