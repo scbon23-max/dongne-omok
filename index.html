@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260720-relay-admin-preview-v1">
+<meta name="app-build" content="20260721-relay-waiting-simple-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -488,16 +488,21 @@
     <div id="relay-chat-overlay" class="chat-overlay relay-chat-overlay"></div>
 
     <section id="relay-idle" class="relay-stage">
-      <span class="relay-stage-kicker">RELAY DRAWING</span>
-      <h2 id="relay-idle-title">이어그리기 준비</h2>
-      <p id="relay-idle-copy">한 사람당 하나의 연쇄 앨범이 만들어져요</p>
-      <div id="relay-summary" class="relay-summary"></div>
-      <div id="relay-ready-list" class="relay-ready-list"></div>
-      <div class="relay-idle-actions">
-        <button id="relay-ready-btn" class="relay-ready-btn hidden" type="button" aria-pressed="false">레디</button>
-        <button id="relay-start-btn" class="relay-start-btn hidden" type="button">게임 시작</button>
+      <div class="relay-stage-main">
+        <span class="relay-stage-kicker">RELAY DRAWING</span>
+        <h2 id="relay-idle-title">이어그리기 준비</h2>
+        <p id="relay-idle-copy">문장과 그림을 번갈아 이어가요</p>
       </div>
-      <small>4~8명이 가장 재미있어요 · 최소 3명</small>
+      <div id="relay-lobby-roles" class="catch-lobby-roles relay-lobby-roles" aria-live="polite">
+        <div id="relay-lobby-participant-row" class="catch-lobby-role-row">
+          <span class="catch-lobby-role-label participant">참가 <b id="relay-lobby-participant-count">0</b>명</span>
+          <div id="relay-lobby-participants" class="catch-lobby-names"></div>
+        </div>
+        <div id="relay-lobby-spectator-row" class="catch-lobby-role-row">
+          <span class="catch-lobby-role-label spectator">관전 <b id="relay-lobby-spectator-count">0</b>명</span>
+          <div id="relay-lobby-spectators" class="catch-lobby-names"></div>
+        </div>
+      </div>
     </section>
 
     <section id="relay-text-panel" class="relay-text-panel hidden">
@@ -530,6 +535,11 @@
       </footer>
       <button id="relay-again-btn" class="relay-again-btn" type="button">다음 게임 준비</button>
     </section>
+  </div>
+
+  <div id="relay-idle-actions" class="relay-idle-actions hidden">
+    <button id="relay-ready-btn" class="relay-ready-btn hidden" type="button" aria-pressed="false">레디</button>
+    <button id="relay-start-btn" class="relay-start-btn hidden" type="button">게임 시작</button>
   </div>
 
   <div id="relay-tools" class="relay-tools hidden" aria-label="이어그리기 도구">

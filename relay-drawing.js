@@ -699,33 +699,38 @@ window.RelayDrawing = (function () {
   function renderIdle() {
     var participants = participantNicks();
     var host = api ? api.host() : "";
-    var summary = $("relay-summary");
-    if (summary) {
-      var steps = Math.max(MIN_PLAYERS, participants.length);
-      var minutes = Math.max(6, Math.round((Math.ceil(steps / 2) * DRAW_MS + Math.floor(steps / 2) * TEXT_MS) / 60000));
-      summary.innerHTML = '<div><span>진행 단계</span><strong>총 ' + steps + '단계</strong></div>'
-        + '<div><span>예상 시간</span><strong>약 ' + minutes + '분</strong></div>'
-        + '<div><span>문장 시간</span><strong>' + Math.round(TEXT_MS / 1000) + '초</strong></div>'
-        + '<div><span>그림 시간</span><strong>' + Math.round(DRAW_MS / 1000) + '초</strong></div>';
-    }
-    var readyList = $("relay-ready-list");
-    if (readyList) {
-      var readyGuests = participants.filter(function (nick) { return nick !== host && has(state.ready, nick); });
-      var waitingGuests = participants.filter(function (nick) { return nick !== host && !has(state.ready, nick); });
-      var spectatorNames = waitingSpectators().map(function (person) { return person.nick; });
-      var rows = [];
-      if (participants.indexOf(host) >= 0) rows.push({ names: host + " · 방장", state: "준비 완료", waiting: false });
-      if (readyGuests.length) rows.push({ names: readyGuests.join(", "), state: "준비 완료", waiting: false });
-      if (waitingGuests.length) rows.push({ names: waitingGuests.join(", "), state: "준비 중", waiting: true });
-      if (spectatorNames.length) rows.push({ names: spectatorNames.join(", "), state: "관전", waiting: true });
-      readyList.innerHTML = rows.map(function (row) {
-        return '<div class="relay-ready-row' + (row.waiting ? " waiting" : "") + '"><strong><i class="relay-ready-dot"></i>'
-          + esc(row.names) + '</strong><em>' + row.state + "</em></div>";
+    var allPeople = orderedPeople();
+    var participantPeople = allPeople.filter(function (person) { return !has(state.spectators, person.nick); });
+    var spectatorPeople = allPeople.filter(function (person) { return has(state.spectators, person.nick); });
+    function namesHtml(list, spectator) {
+      if (!list.length) return "";
+      return list.map(function (person) {
+        var away = !!person.away;
+        var crown = !away && person.nick === host
+          ? '<span class="catch-lobby-crown" title="방장" aria-label="방장">👑</span>'
+          : "";
+        var mine = person.nick === me().nick ? " mine" : "";
+        var cls = "catch-lobby-name" + (spectator ? " spectator" : "") + mine + (away ? " away" : "");
+        var readyBadge = !spectator && !away && person.nick !== host && has(state.ready, person.nick)
+          ? '<span class="catch-lobby-ready" title="레디" aria-label="레디">✓</span>'
+          : "";
+        var awayBadge = away ? '<span class="catch-lobby-away">자리비움</span>' : "";
+        return '<span class="' + cls + '"><b>' + esc(person.nick) + '</b>' + crown + readyBadge + awayBadge + "</span>";
       }).join("");
     }
+    var participantRow = $("relay-lobby-participant-row");
+    var spectatorRow = $("relay-lobby-spectator-row");
+    if ($("relay-lobby-participant-count")) $("relay-lobby-participant-count").textContent = participantPeople.length;
+    if ($("relay-lobby-spectator-count")) $("relay-lobby-spectator-count").textContent = spectatorPeople.length;
+    if ($("relay-lobby-participants")) $("relay-lobby-participants").innerHTML = namesHtml(participantPeople, false);
+    if ($("relay-lobby-spectators")) $("relay-lobby-spectators").innerHTML = namesHtml(spectatorPeople, true);
+    if (participantRow) participantRow.classList.toggle("empty", !participantPeople.length);
+    if (spectatorRow) spectatorRow.classList.toggle("empty", !spectatorPeople.length);
     var amHost = api && api.isHost();
     var readyButton = $("relay-ready-btn"), startButton = $("relay-start-btn");
-    toggleHidden(readyButton, amHost || has(state.spectators, me().nick));
+    var amSpectator = has(state.spectators, me().nick);
+    toggleHidden($("relay-idle-actions"), amSpectator);
+    toggleHidden(readyButton, amHost || amSpectator);
     toggleHidden(startButton, !amHost);
     if (readyButton) {
       var ready = has(state.ready, me().nick);
@@ -866,6 +871,7 @@ window.RelayDrawing = (function () {
     var active = isActivePhase();
     var idle = !active && state.phase !== "finished";
     toggleHidden($("relay-idle"), !idle);
+    toggleHidden($("relay-idle-actions"), !idle);
     toggleHidden($("relay-text-panel"), !(state.phase === "prompt" || state.phase === "caption"));
     toggleHidden($("relay-result-panel"), state.phase !== "finished");
     toggleHidden($("relay-tools"), state.phase !== "drawing");

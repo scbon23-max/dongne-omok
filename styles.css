@@ -749,14 +749,19 @@ body.relay-preview-mobile #relaygame {
   background: rgba(251,250,247,.97);
 }
 .relay-stage {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 0;
+  padding: 30px 22px 17px;
+  background: rgba(251,250,247,.97);
+}
+.relay-stage-main {
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  padding: 29px 20px 18px;
-  background:
-    radial-gradient(circle at 15% 15%, rgba(34,168,117,.12) 0 25px, transparent 26px),
-    radial-gradient(circle at 88% 47%, rgba(36,116,181,.10) 0 47px, transparent 48px),
-    rgba(251,250,247,.97);
+  align-items: center;
+  justify-content: center;
 }
 .relay-stage-kicker {
   color: var(--orange-dark);
@@ -772,105 +777,39 @@ body.relay-preview-mobile #relaygame {
   font-size: 27px;
   font-weight: 1000;
 }
-.relay-stage > p {
+.relay-stage-main > p {
   margin-top: 5px;
   color: #68818d;
   text-align: center;
   font-size: 12px;
   font-weight: 800;
 }
-.relay-summary {
-  margin-top: 20px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 7px;
-}
-.relay-summary > div {
-  padding: 10px;
-  border: 1px solid #e2e9eb;
-  border-radius: 8px;
-  background: rgba(255,255,255,.82);
-}
-.relay-summary span {
-  display: block;
-  color: #83949b;
-  font-size: 9px;
-  font-weight: 900;
-}
-.relay-summary strong {
-  display: block;
-  margin-top: 3px;
-  color: #173241;
-  font-size: 12px;
-  font-weight: 1000;
-}
-.relay-ready-list {
-  margin-top: 15px;
-  border-top: 1px solid #e0e7e9;
-}
-.relay-ready-row {
-  min-height: 40px;
-  display: grid;
-  grid-template-columns: minmax(0,1fr) auto;
-  align-items: center;
-  gap: 8px;
-  border-bottom: 1px solid #e9eeef;
-  font-size: 11.5px;
-}
-.relay-ready-row strong {
-  min-width: 0;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: #173241;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.relay-ready-row em {
-  color: #82939b;
-  font-size: 9.5px;
-  font-style: normal;
-  font-weight: 900;
-}
-.relay-ready-dot {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 auto;
-  display: inline-block;
-  border-radius: 50%;
-  background: var(--teal-light);
-}
-.relay-ready-row.waiting .relay-ready-dot { background: #c6d0d4; }
+.relay-lobby-roles { max-height: 90px; }
 .relay-idle-actions {
-  margin-top: auto;
-  display: grid;
-  grid-template-columns: 1fr;
+  order: 5;
+  width: 100%;
+  max-width: 420px;
+  margin: 7px auto 0;
+  display: flex;
   gap: 7px;
 }
 .relay-ready-btn,
 .relay-start-btn {
-  width: 100%;
-  height: 50px;
-  border: 0;
-  border-radius: 9px;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 46px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px 16px;
   background: var(--orange);
   color: #fff;
   font-size: 15px;
   font-weight: 1000;
 }
 .relay-ready-btn[aria-pressed="true"] {
-  border: 2px solid var(--teal);
-  background: #e8f4f2;
-  color: #24695e;
-}
-.relay-stage > small {
-  margin-top: 8px;
-  color: #92a0a6;
-  text-align: center;
-  font-size: 9.5px;
-  font-weight: 800;
+  border-color: var(--orange);
+  background: transparent;
+  color: var(--orange);
 }
 .relay-text-panel {
   display: flex;
@@ -1178,8 +1117,7 @@ body.relay-preview-mobile #relaygame {
 
 @media (max-height: 720px) {
   .relay-stage { padding-top: 19px; }
-  .relay-summary { margin-top: 13px; }
-  .relay-ready-row { min-height: 35px; }
+  .relay-lobby-roles { max-height: 80px; padding-top: 9px; }
   .relay-text-panel { padding-top: 18px; }
   .relay-text-panel h2 { font-size: 20px; }
   #relay-text-input { min-height: 88px; margin-top: 13px; }

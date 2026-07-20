@@ -252,6 +252,19 @@ test("Relay Drawing is registered as a separate non-ranked party game", () => {
   assert.match(styles, /\.game-screen\.relay-screen/);
 });
 
+test("Relay Drawing waiting screen mirrors the simple CatchMind participant footer", () => {
+  assert.match(index, /id="relay-lobby-roles" class="catch-lobby-roles relay-lobby-roles"/);
+  assert.match(index, /id="relay-lobby-participant-row" class="catch-lobby-role-row"/);
+  assert.match(index, /id="relay-lobby-spectator-row" class="catch-lobby-role-row"/);
+  assert.match(index, /id="relay-idle-actions" class="relay-idle-actions hidden"/);
+  assert.match(relayDrawing, /var cls = "catch-lobby-name"/);
+  assert.match(relayDrawing, /<span class="catch-lobby-ready"/);
+  assert.doesNotMatch(index, /id="relay-summary"/);
+  assert.doesNotMatch(index, /id="relay-ready-list"/);
+  assert.doesNotMatch(relayDrawing, /진행 단계|예상 시간|문장 시간|그림 시간/);
+  assert.doesNotMatch(styles, /\.relay-summary|\.relay-ready-row/);
+});
+
 test("Relay Drawing preview and creation entry are restricted to the authenticated owner admin", () => {
   for (const phase of ["waiting", "prompt", "drawing", "caption", "result"]) {
     assert.match(index, new RegExp('<option value="' + phase + '">'));
