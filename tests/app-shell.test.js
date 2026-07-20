@@ -193,7 +193,8 @@ test("Alkkagi reuses the Omok stone skins and redraws each entered room mode", (
 test("Alkkagi has a synchronized five-choice turn timer with short-game warnings", () => {
   assert.match(index, /id="alk-timer-box">∞<\/div>/);
   assert.match(index, /id="alk-timer-options"[\s\S]*data-sec="5"[\s\S]*data-sec="10"[\s\S]*data-sec="20"[\s\S]*data-sec="30"[\s\S]*data-sec="0"/);
-  assert.match(game, /timerSec: 10, moveDeadline: null, pausedRemainMs: null/);
+  assert.match(game, /timerSec: 5, moveDeadline: null, pausedRemainMs: null/);
+  assert.match(index, /id="alk-timer-options"[\s\S]*class="radio-chip active" data-sec="5"/);
   assert.match(game, /moveRemainMs: A\.moveDeadline \? Math\.max\(0, A\.moveDeadline - Date\.now\(\)\) : null/);
   assert.match(game, /case "alk_set_timer"/);
   assert.match(game, /case "alk_timer"/);

@@ -367,7 +367,7 @@
     seats: { black: null, white: null }, turn: "b", started: false, over: false, winner: null,
     seq: 0, gameSeq: 0, recorded: false, paused: false, winChatText: null,
     mapId: "base", mapObjects: [], mapMode: "random",
-    timerSec: 10, moveDeadline: null, pausedRemainMs: null
+    timerSec: 5, moveDeadline: null, pausedRemainMs: null
   };
   var alkInited = false;
   var alkGrace = { black: null, white: null };
@@ -643,7 +643,7 @@
     G.recorded = false; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.winChatText = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
     A.seats = { black: null, white: null }; A.turn = "b"; A.started = false; A.over = false; A.winner = null;
     A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; A.winChatText = null;
-    A.timerSec = 10; A.moveDeadline = null; A.pausedRemainMs = null;
+    A.timerSec = 5; A.moveDeadline = null; A.pausedRemainMs = null;
     pendingAlkState = null;
     alkSolo = false; omokSolo = false; omokAI.on = false; aiPending = false;
     A.mode = "knockout"; A.remain = null; A.score = null; A.mapId = "base"; A.mapObjects = []; A.mapMode = "random";
@@ -1195,7 +1195,7 @@
     A.seats = s.seats || { black: null, white: null }; A.turn = s.turn || "b";
     A.started = !!s.started; A.over = !!s.over; A.winner = s.winner || null; A.winChatText = s.winChatText || null; A.paused = !!s.paused;
     A.seq = s.seq || 0; A.gameSeq = s.gameSeq || 0;
-    A.timerSec = [0, 5, 10, 20, 30].indexOf(Number(s.timerSec)) >= 0 ? Number(s.timerSec) : 10;
+    A.timerSec = [0, 5, 10, 20, 30].indexOf(Number(s.timerSec)) >= 0 ? Number(s.timerSec) : 5;
     A.moveDeadline = typeof s.moveRemainMs === "number" ? Date.now() + s.moveRemainMs : (s.moveDeadline || null);
     A.pausedRemainMs = typeof s.pausedRemainMs === "number" ? s.pausedRemainMs : null;
     A.mode = s.mode || "knockout"; A.remain = s.remain || null; A.score = s.score || null;
