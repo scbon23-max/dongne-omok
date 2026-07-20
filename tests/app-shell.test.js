@@ -265,6 +265,21 @@ test("Relay Drawing waiting screen mirrors the simple CatchMind participant foot
   assert.doesNotMatch(styles, /\.relay-summary|\.relay-ready-row/);
 });
 
+test("Relay Drawing prompt screen keeps only the story form and two actions", () => {
+  assert.match(index, /id="relay-text-title">스토리 시작<\/h2>/);
+  assert.match(index, /id="relay-text-hint">나만의 간단한 이야기를 만들어요!<\/p>/);
+  assert.match(index, /id="relay-suggest-btn"[^>]*>자동 생성<\/button>/);
+  assert.match(index, /id="relay-text-submit"[^>]*>제출하기<\/button>/);
+  assert.doesNotMatch(index, /relay-text-kicker|relay-text-example/);
+  assert.match(relayDrawing, /\$\("relay-text-title"\)\.textContent = prompt\s*\?\s*"스토리 시작"/);
+  assert.match(relayDrawing, /\$\("relay-text-hint"\)\.textContent = prompt\s*\?\s*"나만의 간단한 이야기를 만들어요!"/);
+  assert.match(relayDrawing, /label\.textContent = "";\s*text\.textContent = "누군가가 그릴 문장 만들기"/);
+  assert.match(relayDrawing, /\$\("relay-text-count"\)\.classList\.toggle\("hidden", prompt\)/);
+  assert.match(relayDrawing, /\$\("relay-submit-status"\)\.classList\.toggle\("hidden", prompt\)/);
+  assert.match(styles, /\.relay-text-panel\.prompt #relay-text-input/);
+  assert.doesNotMatch(styles, /\.relay-text-kicker|\.relay-text-example/);
+});
+
 test("Relay Drawing preview and creation entry are restricted to the authenticated owner admin", () => {
   for (const phase of ["waiting", "prompt", "drawing", "caption", "result"]) {
     assert.match(index, new RegExp('<option value="' + phase + '">'));

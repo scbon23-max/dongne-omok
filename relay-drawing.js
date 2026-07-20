@@ -747,22 +747,26 @@ window.RelayDrawing = (function () {
     var prompt = state.phase === "prompt";
     var previous = previousEntry(me().nick);
     var input = $("relay-text-input");
-    if ($("relay-text-panel")) $("relay-text-panel").classList.toggle("caption", !prompt);
+    if ($("relay-text-panel")) {
+      $("relay-text-panel").classList.toggle("prompt", prompt);
+      $("relay-text-panel").classList.toggle("caption", !prompt);
+    }
     if (inputScope !== taskKey()) {
       inputScope = taskKey();
       if (input) input.value = "";
     }
-    if ($("relay-text-kicker")) $("relay-text-kicker").textContent = prompt ? "첫 번째 단계" : (state.stepIndex + 1) + "번째 단계";
     if ($("relay-text-title")) $("relay-text-title").textContent = prompt
-      ? "누군가 그림으로 그릴 문장을 만들어주세요"
+      ? "스토리 시작"
       : "이 그림은 무슨 상황일까요?";
     if ($("relay-text-hint")) $("relay-text-hint").textContent = prompt
-      ? "인물과 행동이 함께 있으면 그림이 더 재미있어져요."
+      ? "나만의 간단한 이야기를 만들어요!"
       : "이전 문장은 볼 수 없어요. 보이는 그림만 설명해주세요.";
-    if ($("relay-text-example")) $("relay-text-example").classList.toggle("hidden", !prompt);
     if ($("relay-suggest-btn")) $("relay-suggest-btn").classList.toggle("hidden", !prompt);
+    if ($("relay-suggest-btn")) $("relay-suggest-btn").textContent = "자동 생성";
+    if ($("relay-text-count")) $("relay-text-count").classList.toggle("hidden", prompt);
+    if ($("relay-submit-status")) $("relay-submit-status").classList.toggle("hidden", prompt);
     if ($("relay-text-submit")) {
-      $("relay-text-submit").textContent = prompt ? "이 문장으로 제출" : "이 설명으로 제출";
+      $("relay-text-submit").textContent = prompt ? "제출하기" : "이 설명으로 제출";
       $("relay-text-submit").disabled = mySubmitted();
     }
     if (input) input.disabled = mySubmitted();
@@ -774,7 +778,7 @@ window.RelayDrawing = (function () {
     var label = $("relay-task-label"), text = $("relay-task-text");
     if (!label || !text) return;
     if (state.phase === "prompt") {
-      label.textContent = "내 임무"; text.textContent = "재미있는 문장을 써주세요";
+      label.textContent = ""; text.textContent = "누군가가 그릴 문장 만들기";
     } else if (state.phase === "drawing") {
       var previous = previousEntry(me().nick);
       label.textContent = "받은 문장";
