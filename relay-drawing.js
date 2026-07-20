@@ -39,6 +39,7 @@ window.RelayDrawing = (function () {
   var inputScope = "";
   var pendingSubmitScope = "";
   var albumIndex = 0;
+  var previewMode = false;
 
   function freshState() {
     return {
@@ -205,6 +206,103 @@ window.RelayDrawing = (function () {
         (Number(raw.deadline) || null),
       submitted: Array.from(new Set(submitted))
     };
+  }
+
+  function normalizePreviewPhase(value) {
+    value = String(value || "").toLowerCase();
+    if (value === "idle") value = "waiting";
+    if (value === "finished") value = "result";
+    return ["waiting", "prompt", "drawing", "caption", "result"].indexOf(value) >= 0 ? value : "waiting";
+  }
+  function previewStroke(id, color, width, points) {
+    return {
+      id: id,
+      color: color,
+      width: width,
+      points: points.map(function (point) { return { x: point[0], y: point[1] }; })
+    };
+  }
+  function previewCircle(id, color, width, cx, cy, radius) {
+    var points = [];
+    for (var i = 0; i <= 28; i++) {
+      var angle = Math.PI * 2 * i / 28;
+      points.push([cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius]);
+    }
+    return previewStroke(id, color, width, points);
+  }
+  function previewDrawing(variant, author, step) {
+    var shift = (variant % 3) * 0.035;
+    var accent = ["#d9822b", "#2474b5", "#38a875"][variant % 3];
+    return {
+      kind: "drawing",
+      author: author,
+      step: step,
+      auto: false,
+      bg: CANVAS_BG,
+      strokes: sanitizeStrokes([
+        previewCircle("head-" + variant, accent, 12, 0.48 + shift, 0.45, 0.22),
+        previewStroke("ear-left-" + variant, accent, 12, [[0.32 + shift, 0.31], [0.34 + shift, 0.16], [0.43 + shift, 0.27]]),
+        previewStroke("ear-right-" + variant, accent, 12, [[0.53 + shift, 0.27], [0.63 + shift, 0.16], [0.65 + shift, 0.33]]),
+        previewCircle("eye-left-" + variant, "#17252f", 14, 0.41 + shift, 0.42, 0.012),
+        previewCircle("eye-right-" + variant, "#17252f", 14, 0.56 + shift, 0.42, 0.012),
+        previewStroke("mouth-" + variant, "#17252f", 8, [[0.46 + shift, 0.51], [0.49 + shift, 0.54], [0.52 + shift, 0.51]]),
+        previewStroke("body-" + variant, accent, 15, [[0.38 + shift, 0.66], [0.42 + shift, 0.58], [0.57 + shift, 0.58], [0.63 + shift, 0.78]]),
+        previewStroke("ground-" + variant, "#7f9aa6", 7, [[0.22, 0.79], [0.78, 0.79]])
+      ])
+    };
+  }
+  function buildPreviewChains(players) {
+    var prompts = [
+      "우주에서 라면을 배달하는 고양이",
+      "결혼식장에서 춤추는 펭귄",
+      "치킨을 훔치다 걸린 공룡",
+      "수영장에서 낮잠 자는 북극곰"
+    ];
+    var captions = [
+      "우주복을 입은 고양이가 배달 중이에요",
+      "신나게 춤추는 동물 같아요",
+      "간식을 들고 도망가는 공룡이에요",
+      "물가에서 쉬고 있는 북극곰이에요"
+    ];
+    var result = Object.create(null);
+    players.forEach(function (origin, index) {
+      result[origin] = [
+        { kind: "prompt", author: origin, step: 0, auto: false, text: prompts[index % prompts.length] },
+        previewDrawing(index, players[(index + 1) % players.length], 1),
+        { kind: "caption", author: players[(index + 2) % players.length], step: 2, auto: false, text: captions[index % captions.length] },
+        previewDrawing(index + 1, players[(index + 3) % players.length], 3)
+      ];
+    });
+    return result;
+  }
+  function setPreviewPhase(value) {
+    if (!api) return null;
+    var key = normalizePreviewPhase(value);
+    var selfNick = safeNick(me().nick) || "나";
+    var players = [selfNick, "민서", "서준", "지우"];
+    var phase = key === "waiting" ? "idle" : key === "result" ? "finished" : key;
+    var stepIndex = phase === "drawing" ? 1 : phase === "caption" ? 2 : phase === "finished" ? 3 : 0;
+    var submitted = phase === "prompt" ? ["민서", "서준"] :
+      phase === "drawing" ? ["민서"] : phase === "caption" ? ["민서", "서준", "지우"] : [];
+    state = {
+      phase: phase,
+      rev: state.rev + 1,
+      matchId: "relay-ui-preview",
+      players: phase === "idle" ? [] : players.slice(),
+      spectators: ["도윤"],
+      ready: phase === "idle" ? ["민서", "서준"] : [],
+      stepIndex: stepIndex,
+      totalSteps: players.length,
+      deadline: isActivePhase(phase) ? Date.now() + (phase === "drawing" ? 68000 : 34000) : null,
+      submitted: submitted
+    };
+    chains = buildPreviewChains(players);
+    taskScope = "";
+    inputScope = "";
+    pendingSubmitScope = "";
+    albumIndex = 0;
+    render();
+    return key;
   }
 
   function snapshot() {
@@ -888,11 +986,12 @@ window.RelayDrawing = (function () {
   function tick() {
     if (!api) return;
     renderTimer();
-    if (api.isHost() && isActivePhase() && state.deadline && Date.now() >= state.deadline) {
+    if (!previewMode && api.isHost() && isActivePhase() && state.deadline && Date.now() >= state.deadline) {
       hostFinishExpiredStep();
     }
   }
   function enter(nextApi) {
+    previewMode = false;
     api = nextApi;
     state = freshState();
     clearChains([]);
@@ -910,6 +1009,11 @@ window.RelayDrawing = (function () {
     tickId = setInterval(tick, 250);
     render();
   }
+  function enterPreview(nextApi, phase) {
+    enter(nextApi);
+    previewMode = true;
+    return setPreviewPhase(phase);
+  }
   function leave() {
     if (tickId) { clearInterval(tickId); tickId = null; }
     api = null;
@@ -921,6 +1025,7 @@ window.RelayDrawing = (function () {
     taskScope = "";
     inputScope = "";
     pendingSubmitScope = "";
+    previewMode = false;
   }
   function roomMeta() {
     if (state.phase === "finished") return { status: "끝", summary: state.players.length + "개 연쇄 앨범 공개" };
@@ -959,6 +1064,9 @@ window.RelayDrawing = (function () {
 
   var controller = {
     enter: enter,
+    enterPreview: enterPreview,
+    setPreviewPhase: setPreviewPhase,
+    normalizePreviewPhase: normalizePreviewPhase,
     leave: leave,
     onReady: onReady,
     onMessage: onMessage,
@@ -969,6 +1077,7 @@ window.RelayDrawing = (function () {
     renderPlayers: renderPlayers,
     render: render,
     rules: rules,
+    get previewMode() { return previewMode; },
     get state() { return state; }
   };
   if (window.__RELAY_DRAWING_TEST__) {
@@ -979,6 +1088,8 @@ window.RelayDrawing = (function () {
       sanitizeStrokes: sanitizeStrokes,
       assignmentOrigin: assignmentOrigin,
       phaseForStep: phaseForStep,
+      normalizePreviewPhase: normalizePreviewPhase,
+      buildPreviewChains: buildPreviewChains,
       expectedKind: expectedKind,
       allReady: allReady,
       hostStartMatch: hostStartMatch,

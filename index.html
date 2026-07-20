@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260720-relay-drawing-v1">
+<meta name="app-build" content="20260720-relay-admin-preview-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -440,6 +440,28 @@
 
 <!-- 이어그리기 게임 화면 -->
 <section id="relaygame" class="screen game-screen relay-screen hidden">
+  <nav id="relay-preview-toolbar" class="relay-preview-toolbar hidden" aria-label="이어그리기 UI 점검 도구">
+    <strong>UI 점검 모드</strong>
+    <div class="relay-preview-phase-controls">
+      <button id="relay-preview-prev" type="button" aria-label="이전 화면">←</button>
+      <label>
+        <select id="relay-preview-phase" aria-label="점검할 화면">
+          <option value="waiting">대기실</option>
+          <option value="prompt">문장 쓰기</option>
+          <option value="drawing">그림 그리기</option>
+          <option value="caption">그림 설명</option>
+          <option value="result">결과 공개</option>
+        </select>
+      </label>
+      <button id="relay-preview-next" type="button" aria-label="다음 화면">→</button>
+    </div>
+    <div class="relay-preview-viewport" aria-label="미리보기 화면 크기">
+      <button type="button" data-relay-preview-viewport="desktop">PC</button>
+      <button type="button" data-relay-preview-viewport="mobile">모바일</button>
+    </div>
+    <button id="relay-preview-exit" class="relay-preview-exit" type="button">점검 종료</button>
+  </nav>
+
   <header class="relay-statusbar">
     <strong id="relay-status">게임 대기 중</strong>
     <span id="relay-phase-name">이어그리기</span>
@@ -661,6 +683,7 @@
     <div class="modal-body menu-body" id="menu-main">
       <button id="menu-rules-btn" class="menu-item">📖 규칙</button>
       <button id="menu-sound-btn" class="menu-item">🔊 소리 켜짐</button>
+      <button id="relay-preview-menu-btn" class="menu-item admin-only">이어그리기 화면 점검</button>
       <button id="admin-btn" class="menu-item admin-only">관리자</button>
       <button id="activity-log-btn" class="menu-item admin-only">기록</button>
       <button id="logout-btn" class="menu-item logout">로그아웃</button>
@@ -671,7 +694,7 @@
       <button class="menu-item" data-rules="alk">알까기 규칙</button>
       <button class="menu-item" data-rules="terr">점령전 규칙</button>
       <button class="menu-item" data-rules="catchmind">캐치마인드 규칙</button>
-      <button class="menu-item" data-rules="relay">이어그리기 규칙</button>
+      <button class="menu-item admin-only" data-rules="relay">이어그리기 규칙</button>
     </div>
     <button class="btn-primary modal-ok" data-close>닫기</button>
   </div>

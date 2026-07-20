@@ -217,6 +217,7 @@ test("room creation hides territory mode and creates normal Alkkagi rooms direct
   assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay"\]\)/);
   assert.match(game, /var ENABLE_ALK_TERRITORY = false/);
   assert.match(game, /if \(id === "alk_terr" && !ENABLE_ALK_TERRITORY\) return false/);
+  assert.match(game, /if \(id === "relay" && !isGunaAdmin\(\)\) return false/);
   assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);
   assert.match(game, /if \(createGame === "alk" && ENABLE_ALK_TERRITORY\)[\s\S]*showCreateRoomStep\("alk-mode"\)/);
   assert.match(game, /createRoom\(createGame === "alk" \? "alk" : createGame, nm\)/);
@@ -249,6 +250,29 @@ test("Relay Drawing is registered as a separate non-ranked party game", () => {
   assert.match(index, /\{ src: "relay-drawing\.js" \}/);
   assert.match(relayDrawing, /window\.RelayDrawing\s*=/);
   assert.match(styles, /\.game-screen\.relay-screen/);
+});
+
+test("Relay Drawing preview and creation entry are restricted to the authenticated owner admin", () => {
+  for (const phase of ["waiting", "prompt", "drawing", "caption", "result"]) {
+    assert.match(index, new RegExp('<option value="' + phase + '">'));
+  }
+  assert.match(index, /id="relay-preview-toolbar"/);
+  assert.match(index, /id="relay-preview-menu-btn" class="menu-item admin-only"/);
+  assert.match(index, /class="menu-item admin-only" data-rules="relay"/);
+  assert.match(index, /data-relay-preview-viewport="desktop"/);
+  assert.match(index, /data-relay-preview-viewport="mobile"/);
+  assert.match(game, /var relayPreviewPhases = \["waiting", "prompt", "drawing", "caption", "result"\]/);
+  assert.match(game, /params\.has\("relay-preview"\)/);
+  assert.match(game, /if \(!phase \|\| !isGunaAdmin\(\) \|\| !window\.RelayDrawing/);
+  assert.match(game, /function isGunaAdmin\(\)\s*\{\s*return me\.isAdmin === true && me\.nick === ADMIN;/);
+  assert.match(game, /if \(startRelayUiPreview\(\)\) \{\s*logLoginOnce\(\);\s*return;/);
+  assert.match(game, /id === "relay" && !isGunaAdmin\(\)/);
+  assert.match(game, /RelayDrawing\.enterPreview\(previewApi, phase\)/);
+  assert.match(game, /if \(!startLocalAlkMapPreview\(\)\) tryAutoLogin\(\)/);
+  assert.match(relayDrawing, /enterPreview:\s*enterPreview/);
+  assert.match(relayDrawing, /setPreviewPhase:\s*setPreviewPhase/);
+  assert.match(styles, /body\.relay-preview-mobile #relaygame/);
+  assert.equal(fs.existsSync(path.join(root, "relay-drawing-mockups.html")), false);
 });
 
 test("room presence heals duplicate connections and active ghost speakers", () => {

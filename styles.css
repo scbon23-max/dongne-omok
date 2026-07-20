@@ -516,6 +516,85 @@ body:has(.cm-gallery-backdrop:not(.hidden)) { overflow: hidden; }
   -webkit-user-select: text;
   user-select: text;
 }
+.relay-preview-toolbar {
+  order: -1;
+  position: sticky;
+  top: 8px;
+  z-index: 30;
+  width: 100%;
+  max-width: 760px;
+  min-height: 48px;
+  margin: 0 auto 10px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(123,218,201,.28);
+  border-radius: 12px;
+  background: rgba(12,35,47,.96);
+  box-shadow: 0 8px 24px rgba(0,0,0,.28);
+  backdrop-filter: blur(12px);
+}
+.relay-preview-toolbar > strong {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 1000;
+}
+.relay-preview-phase-controls,
+.relay-preview-viewport {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.relay-preview-toolbar button,
+.relay-preview-toolbar select {
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: #24495b;
+  color: #eaf4f7;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.relay-preview-toolbar button {
+  min-width: 34px;
+  padding: 0 10px;
+}
+.relay-preview-toolbar select {
+  min-width: 104px;
+  padding: 0 28px 0 10px;
+}
+.relay-preview-toolbar button:hover,
+.relay-preview-toolbar button:focus-visible,
+.relay-preview-toolbar select:focus-visible {
+  outline: 2px solid var(--teal-light);
+  outline-offset: 1px;
+}
+.relay-preview-toolbar [data-relay-preview-viewport].active {
+  background: var(--teal);
+  color: #102c39;
+}
+.relay-preview-toolbar .relay-preview-exit {
+  background: var(--orange);
+  color: #fff;
+}
+body.relay-preview-mode {
+  min-width: 320px;
+  background: #081820;
+}
+body.relay-preview-mode #relaygame {
+  transition: width .18s ease, box-shadow .18s ease;
+}
+body.relay-preview-mobile #relaygame {
+  width: min(390px, 100%);
+  margin: 0 auto;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 20px 55px rgba(0,0,0,.42);
+}
 .relay-statusbar {
   order: 0;
   width: 100%;
@@ -1111,6 +1190,18 @@ body:has(.cm-gallery-backdrop:not(.hidden)) { overflow: hidden; }
   .relay-action-row .btn-flat { font-size: 10.5px; }
   .relay-tool { padding: 0 7px; font-size: 10.5px; }
   .relay-color, .relay-tool-icon { width: 34px; min-width: 34px; }
+}
+@media (max-width: 620px) {
+  .relay-preview-toolbar {
+    position: relative;
+    top: 0;
+    max-width: 420px;
+    flex-wrap: wrap;
+  }
+  .relay-preview-toolbar > strong {
+    width: 100%;
+    text-align: center;
+  }
 }
 
 /* ---------- 게임 헤더 ---------- */

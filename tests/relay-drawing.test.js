@@ -73,6 +73,22 @@ test("steps alternate prompt, drawing, and caption", () => {
   assert.equal(relay.expectedKind(4), "caption");
 });
 
+test("UI preview exposes every relay screen with complete sample chains", () => {
+  const relay = loadRelay();
+  const players = ["나", "민서", "서준", "지우"];
+
+  assert.equal(relay.normalizePreviewPhase("idle"), "waiting");
+  assert.equal(relay.normalizePreviewPhase("finished"), "result");
+  assert.equal(relay.normalizePreviewPhase("unknown"), "waiting");
+
+  const chains = relay.buildPreviewChains(players);
+  for (const origin of players) {
+    assert.equal(chains[origin].length, players.length);
+    assert.deepEqual(Array.from(chains[origin], (entry) => entry.kind), ["prompt", "drawing", "caption", "drawing"]);
+    assert.ok(chains[origin][1].strokes.length > 0);
+  }
+});
+
 test("incoming text and drawing entries are bounded and sanitized", () => {
   const relay = loadRelay();
   const longText = "<b>" + "가".repeat(80);

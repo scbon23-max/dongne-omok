@@ -87,6 +87,7 @@
   function activeController() { return gameController(curRoomGame || curGame); }
   function canSeeGame(id) {
     if (id === "alk_terr" && !ENABLE_ALK_TERRITORY) return false;
+    if (id === "relay" && !isGunaAdmin()) return false;
     return !!(window.GameCatalog ? GameCatalog.get(id) : id);
   }
   function visibleGameIds(ids) {
@@ -357,6 +358,10 @@
     hideGameScreens();
     $("lobby").classList.remove("hidden");
     document.body.classList.toggle("is-admin", me.isAdmin);
+    if (startRelayUiPreview()) {
+      logLoginOnce();
+      return;
+    }
     if (!lobbyConnected) { lobbyConnected = true; appConnect(); startRoomKeeper(); }
     renderRoomList();
     updateOnlineCounts(); renderLobbyOnline();
@@ -1089,6 +1094,140 @@
     alkMapStartAction = null;
     setAlkMapDialogStartMode(false);
     runAlkStartAction(action);
+  }
+  var relayPreviewPhases = ["waiting", "prompt", "drawing", "caption", "result"];
+  var relayPreviewBound = false;
+  function relayPreviewPeople() {
+    return [
+      { nick: me.nick, isAdmin: true, joinTs: 1 },
+      { nick: "민서", isAdmin: false, joinTs: 2 },
+      { nick: "서준", isAdmin: false, joinTs: 3 },
+      { nick: "지우", isAdmin: false, joinTs: 4 },
+      { nick: "도윤", isAdmin: false, joinTs: 5 }
+    ];
+  }
+  function requestedRelayPreviewPhase() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      if (!params.has("relay-preview")) return null;
+      return window.RelayDrawing && RelayDrawing.normalizePreviewPhase
+        ? RelayDrawing.normalizePreviewPhase(params.get("relay-preview"))
+        : "waiting";
+    } catch (e) {
+      return null;
+    }
+  }
+  function updateRelayPreviewUrl(phase, viewport) {
+    try {
+      var url = new URL(window.location.href);
+      url.searchParams.set("relay-preview", phase);
+      if (viewport === "mobile") url.searchParams.set("relay-viewport", "mobile");
+      else url.searchParams.delete("relay-viewport");
+      if (window.history && window.history.replaceState) window.history.replaceState(null, "", url.toString());
+    } catch (e) {}
+  }
+  function setRelayPreviewViewport(viewport, updateUrl) {
+    viewport = viewport === "mobile" ? "mobile" : "desktop";
+    document.body.classList.toggle("relay-preview-mobile", viewport === "mobile");
+    var buttons = document.querySelectorAll("[data-relay-preview-viewport]");
+    for (var i = 0; i < buttons.length; i++) {
+      var active = buttons[i].getAttribute("data-relay-preview-viewport") === viewport;
+      buttons[i].classList.toggle("active", active);
+      buttons[i].setAttribute("aria-pressed", active ? "true" : "false");
+    }
+    if (updateUrl) {
+      var select = $("relay-preview-phase");
+      updateRelayPreviewUrl(select ? select.value : "waiting", viewport);
+    }
+  }
+  function showRelayPreviewPhase(phase, updateUrl) {
+    if (!window.RelayDrawing || !RelayDrawing.setPreviewPhase) return;
+    phase = RelayDrawing.setPreviewPhase(phase) || "waiting";
+    var select = $("relay-preview-phase");
+    if (select) select.value = phase;
+    if (updateUrl) {
+      updateRelayPreviewUrl(phase, document.body.classList.contains("relay-preview-mobile") ? "mobile" : "desktop");
+    }
+    window.scrollTo(0, 0);
+  }
+  function stepRelayPreview(direction) {
+    var select = $("relay-preview-phase");
+    var current = select ? relayPreviewPhases.indexOf(select.value) : 0;
+    if (current < 0) current = 0;
+    current = (current + direction + relayPreviewPhases.length) % relayPreviewPhases.length;
+    showRelayPreviewPhase(relayPreviewPhases[current], true);
+  }
+  function exitRelayPreview() {
+    try {
+      var url = new URL(window.location.href);
+      url.searchParams.delete("relay-preview");
+      url.searchParams.delete("relay-viewport");
+      if (window.history && window.history.replaceState) window.history.replaceState(null, "", url.toString());
+      if (window.RelayDrawing && RelayDrawing.leave) RelayDrawing.leave();
+      $("relay-preview-toolbar").classList.add("hidden");
+      document.body.classList.remove("relay-preview-mode", "relay-preview-mobile", "is-host");
+      curGame = null;
+      curRoomGame = null;
+      curRoomTitle = "";
+      hostNick = null;
+      amHost = false;
+      showLobby();
+    } catch (e) {
+      window.location.reload();
+    }
+  }
+  function bindRelayPreviewToolbar() {
+    if (relayPreviewBound) return;
+    relayPreviewBound = true;
+    $("relay-preview-prev").addEventListener("click", function () { stepRelayPreview(-1); });
+    $("relay-preview-next").addEventListener("click", function () { stepRelayPreview(1); });
+    $("relay-preview-phase").addEventListener("change", function () { showRelayPreviewPhase(this.value, true); });
+    $("relay-preview-exit").addEventListener("click", exitRelayPreview);
+    var viewportButtons = document.querySelectorAll("[data-relay-preview-viewport]");
+    for (var i = 0; i < viewportButtons.length; i++) viewportButtons[i].addEventListener("click", function () {
+      setRelayPreviewViewport(this.getAttribute("data-relay-preview-viewport"), true);
+    });
+  }
+  function startRelayUiPreview() {
+    var phase = requestedRelayPreviewPhase();
+    if (!phase || !isGunaAdmin() || !window.RelayDrawing || !RelayDrawing.enterPreview || !$("relaygame")) return false;
+    curGame = "relay";
+    curRoomGame = "relay";
+    curRoomTitle = "이어그리기 UI 점검";
+    netMode = false;
+    amHost = true;
+    hostNick = me.nick;
+    $("entry").classList.add("hidden");
+    $("lobby").classList.add("hidden");
+    hideGameScreens();
+    $("relaygame").classList.remove("hidden");
+    $("relay-preview-toolbar").classList.remove("hidden");
+    document.body.classList.add("relay-preview-mode", "is-host");
+    var previewApi = {
+      me: function () { return { nick: me.nick, isAdmin: me.isAdmin }; },
+      roster: function () { return relayPreviewPeople(); },
+      isHost: function () { return true; },
+      host: function () { return me.nick; },
+      isNet: function () { return false; },
+      setHostEligible: function () {},
+      send: function () {},
+      sendChat: function () { toast("UI 점검 모드에서는 채팅을 보내지 않아요"); return false; },
+      toast: toast,
+      openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
+      openMenu: openMenu,
+      openRules: function () { showRules("relay"); },
+      leaveRoom: exitRelayPreview,
+      roomChanged: function () {}
+    };
+    RelayDrawing.enterPreview(previewApi, phase);
+    bindRelayPreviewToolbar();
+    var viewport = "desktop";
+    try {
+      viewport = new URLSearchParams(window.location.search).get("relay-viewport") === "mobile" ? "mobile" : "desktop";
+    } catch (e) {}
+    setRelayPreviewViewport(viewport, false);
+    $("relay-preview-phase").value = phase;
+    return true;
   }
   function startLocalAlkMapPreview() {
     var host = window.location.hostname;
@@ -5207,6 +5346,11 @@
     }
     syncMuteIcons();
     $("menu-sound-btn").addEventListener("click", toggleMute);
+    $("relay-preview-menu-btn").addEventListener("click", function () {
+      $("menu-modal").classList.add("hidden");
+      updateRelayPreviewUrl("waiting", "desktop");
+      startRelayUiPreview();
+    });
 
     // 자동로그인 등으로 로그인 클릭이 없어도, 첫 사용자 상호작용에 소리 활성화(브라우저 자동재생 정책 해제)
     function unlockAudio() {
