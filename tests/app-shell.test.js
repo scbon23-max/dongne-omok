@@ -190,6 +190,20 @@ test("Alkkagi reuses the Omok stone skins and redraws each entered room mode", (
   assert.match(game, /if \(game === "alk_terr" && window\.Alkkagi\) \{ A\.mode = "territory"; Alkkagi\.setMode\("territory"\); Alkkagi\.setStones\(\[\]\); \}/);
 });
 
+test("Alkkagi has a synchronized five-choice turn timer with short-game warnings", () => {
+  assert.match(index, /id="alk-timer-box">∞<\/div>/);
+  assert.match(index, /id="alk-timer-options"[\s\S]*data-sec="5"[\s\S]*data-sec="10"[\s\S]*data-sec="20"[\s\S]*data-sec="30"[\s\S]*data-sec="0"/);
+  assert.match(game, /timerSec: 10, moveDeadline: null, pausedRemainMs: null/);
+  assert.match(game, /moveRemainMs: A\.moveDeadline \? Math\.max\(0, A\.moveDeadline - Date\.now\(\)\) : null/);
+  assert.match(game, /case "alk_set_timer"/);
+  assert.match(game, /case "alk_timer"/);
+  assert.match(game, /function applyAlkTimerMessage\(msg\)/);
+  assert.match(game, /function hostAlkTimeout\(\)/);
+  assert.match(game, /var warningAt = A\.timerSec <= 10 \? 2 : 5/);
+  assert.match(game, /if \(remain !== lastAlkWarnSec\) \{ playSample\(warnBuffer\)/);
+  assert.match(game, /A\.started && window\.Alkkagi && Alkkagi\.isMoving\(\) \? "…" : "∞"/);
+});
+
 test("room creation hides territory mode and creates normal Alkkagi rooms directly", () => {
   assert.match(index, /id="create-game-step"/);
   assert.match(index, /id="create-alk-mode-step"/);

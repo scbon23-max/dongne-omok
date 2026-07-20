@@ -59,7 +59,7 @@
   var inoutBuffer = null, inoutLoading = false, prevNicks = [], joinedAt = 0, firstPresenceAt = 0;
   var displayRoster = [], awayMembers = {}, awayTimers = {}, explicitLeaves = {};
   var winBuffer = null, winLoading = false;
-  var warnBuffer = null, warnLoading = false, lastWarnSec = -1;
+  var warnBuffer = null, warnLoading = false, lastWarnSec = -1, lastAlkWarnSec = -1;
   var seatBuffer = null, seatLoading = false, lastRoomSoundAt = 0;
   var leaveBuffer = null, leaveLoading = false;
   var hitBuffer = null, hitLoading = false, lastHitAt = 0;
@@ -366,7 +366,8 @@
   var A = {
     seats: { black: null, white: null }, turn: "b", started: false, over: false, winner: null,
     seq: 0, gameSeq: 0, recorded: false, paused: false, winChatText: null,
-    mapId: "base", mapObjects: [], mapMode: "random"
+    mapId: "base", mapObjects: [], mapMode: "random",
+    timerSec: 10, moveDeadline: null, pausedRemainMs: null
   };
   var alkInited = false;
   var alkGrace = { black: null, white: null };
@@ -641,7 +642,10 @@
     G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = []; G.aiLevel = null;
     G.recorded = false; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.winChatText = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
     A.seats = { black: null, white: null }; A.turn = "b"; A.started = false; A.over = false; A.winner = null;
-    A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; A.winChatText = null; alkSolo = false; omokSolo = false; omokAI.on = false; aiPending = false;
+    A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; A.winChatText = null;
+    A.timerSec = 10; A.moveDeadline = null; A.pausedRemainMs = null;
+    pendingAlkState = null;
+    alkSolo = false; omokSolo = false; omokAI.on = false; aiPending = false;
     A.mode = "knockout"; A.remain = null; A.score = null; A.mapId = "base"; A.mapObjects = []; A.mapMode = "random";
     if (window.Alkkagi) { Alkkagi.setMode("knockout"); Alkkagi.setMapState("base", []); }
     winShownSeq = -1; liveSeq = -1; omokWinChatSeq = -1; alkWinChatSeq = -1; prevNicks = []; firstPresenceAt = 0; clearAwayRoster();
@@ -1112,6 +1116,8 @@
     if (!alkInited) { alkInited = true; Alkkagi.init({ onFlick: onAlkFlick, canFlick: alkCanFlick, onHit: playHit, onPlace: onAlkPlace }); }
     if (A.mode !== "territory" && !Alkkagi.getStones().length) Alkkagi.setStones(Alkkagi.layout());
     Alkkagi.setMeta(A.turn, A.seats, A.started, A.over, A.winner);
+    startDisplayTimer();
+    if (amHost || !netMode) startHostTimer();
     syncAlkMapPreviewUI();
     renderAlkUI();
   }
@@ -1137,6 +1143,7 @@
     Alkkagi.setStones(Alkkagi.layout());
     clearAlkGrace();
     A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.recorded = true; A.paused = false; A.winChatText = null;
+    A.moveDeadline = A.timerSec ? Date.now() + A.timerSec * 1000 : null; A.pausedRemainMs = null;
     A.gameSeq++; A.seq++;
     Alkkagi.setMeta("b", A.seats, true, false, null);
     broadcastAlk(); renderAlkUI();
@@ -1158,6 +1165,7 @@
     A.seats = { black: me.nick, white: me.nick };
     clearAlkGrace();
     A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.recorded = true; A.paused = false; A.winChatText = null;
+    A.moveDeadline = A.timerSec ? Date.now() + A.timerSec * 1000 : null; A.pausedRemainMs = null;
     A.gameSeq++; A.seq++;
     Alkkagi.setMode("territory"); Alkkagi.setStones([]); Alkkagi.spawnActive("b");
     Alkkagi.setMeta("b", A.seats, true, false, null);
@@ -1168,18 +1176,28 @@
     return {
       seats: A.seats, turn: A.turn, started: A.started, over: A.over, winner: A.winner,
       winChatText: A.winChatText, paused: A.paused, seq: A.seq, gameSeq: A.gameSeq,
+      timerSec: A.timerSec, moveDeadline: A.moveDeadline,
+      moveRemainMs: A.moveDeadline ? Math.max(0, A.moveDeadline - Date.now()) : null,
+      pausedRemainMs: A.pausedRemainMs,
       mode: A.mode, remain: A.remain, score: A.score,
       mapId: A.mapId || "base", mapObjects: Alkkagi.getMapObjects(), mapMode: A.mapMode === "fixed" ? "fixed" : "random",
       stones: Alkkagi.getStones()
     };
   }
   function broadcastAlk() { if (netMode) Net.send({ t: "alk_state", state: alkSnapshot() }); }
+  var pendingAlkState = null;
   function applyAlkState(s) {
     if (!s || (typeof s.seq === "number" && s.seq < A.seq)) return;
-    if (window.Alkkagi && Alkkagi.isMoving()) return;
+    if (window.Alkkagi && Alkkagi.isMoving()) {
+      if (!pendingAlkState || (Number(s.seq) || 0) >= (Number(pendingAlkState.seq) || 0)) pendingAlkState = s;
+      return;
+    }
     A.seats = s.seats || { black: null, white: null }; A.turn = s.turn || "b";
     A.started = !!s.started; A.over = !!s.over; A.winner = s.winner || null; A.winChatText = s.winChatText || null; A.paused = !!s.paused;
     A.seq = s.seq || 0; A.gameSeq = s.gameSeq || 0;
+    A.timerSec = [0, 5, 10, 20, 30].indexOf(Number(s.timerSec)) >= 0 ? Number(s.timerSec) : 10;
+    A.moveDeadline = typeof s.moveRemainMs === "number" ? Date.now() + s.moveRemainMs : (s.moveDeadline || null);
+    A.pausedRemainMs = typeof s.pausedRemainMs === "number" ? s.pausedRemainMs : null;
     A.mode = s.mode || "knockout"; A.remain = s.remain || null; A.score = s.score || null;
     A.mapId = s.mapId || "base"; A.mapObjects = s.mapObjects || []; A.mapMode = s.mapMode === "fixed" ? "fixed" : "random";
     if (window.Alkkagi) {
@@ -1188,7 +1206,12 @@
       Alkkagi.setStones(s.stones || []);
       Alkkagi.setMeta(A.turn, A.seats, A.started, A.over, A.winner);
     }
+    if (A.started && !A.over && !A.paused && A.timerSec && !A.moveDeadline) {
+      A.moveDeadline = Date.now() + A.timerSec * 1000;
+    }
+    syncTimerChips();
     renderAlkUI();
+    updateAlkTimerUI();
   }
   function requestAlkSeat(nick, seat) { if (!netMode) { hostAlkSeat(nick, nick, seat); return; } Net.send({ t: "alk_seat", by: me.nick, nick: nick, seat: seat }); }
   function hostAlkSeat(by, nick, seat) {
@@ -1203,12 +1226,12 @@
     if (A.started && !A.over && (!A.seats.black || !A.seats.white)) {
       var wonColor = A.seats.black ? "b" : (A.seats.white ? "w" : null);
       if (self && wonColor && oldSeats.black && oldSeats.white && oldSeats.black !== oldSeats.white) {
-        A.over = true; A.started = false; A.winner = wonColor; A.recorded = true;
+        A.over = true; A.started = false; A.winner = wonColor; A.recorded = true; A.moveDeadline = null; A.pausedRemainMs = null;
         if (window.Db && !alkSolo) Db.recordAlkGame(oldSeats.black, oldSeats.white, wonColor === "b" ? "black" : "white", (A.mode === "territory") ? "alk_terr" : "alk");
         var wn = wonColor === "b" ? oldSeats.black : oldSeats.white, ln = wonColor === "b" ? oldSeats.white : oldSeats.black;
         Net.send({ t: "chat", nick: "__sys", text: ln + "님이 나가서 " + wn + "님 승리 (기권)" });
         setTimeout(refreshScores, 800);
-      } else { A.started = false; A.over = false; A.winner = null; }
+      } else { A.started = false; A.over = false; A.winner = null; A.moveDeadline = null; A.pausedRemainMs = null; }
     }
     A.seq++;
     Alkkagi.setMeta(A.turn, A.seats, A.started, A.over, A.winner);
@@ -1245,7 +1268,8 @@
       Alkkagi.setMode("knockout"); Alkkagi.setStones(Alkkagi.layout());
     }
     clearAlkGrace();
-    A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.winChatText = null; A.recorded = false; A.paused = false; A.gameSeq++; A.seq++;
+    A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.winChatText = null; A.recorded = false; A.paused = false;
+    A.moveDeadline = A.timerSec ? Date.now() + A.timerSec * 1000 : null; A.pausedRemainMs = null; A.gameSeq++; A.seq++;
     beginReqCtx = null; $("begin-modal").classList.add("hidden");
     Alkkagi.setMeta("b", A.seats, true, false, null);
     broadcastAlk(); renderAlkUI();
@@ -1264,11 +1288,13 @@
   function hostAlkFlick(nick, idx, vx, vy, px) {
     if (netMode && !amHost) return;
     if (!A.started || A.over || Alkkagi.isMoving()) return;
+    if (A.timerSec && A.moveDeadline && Date.now() >= A.moveDeadline) { hostAlkTimeout(); return; }
     var seatNick = A.turn === "b" ? A.seats.black : A.seats.white;
     if (seatNick !== nick) return;
     if (A.mode === "territory" && px != null) Alkkagi.placeActive(px);
     var st = Alkkagi.getStones()[idx];
     if (!st || !st.alive || st.c !== A.turn) return;
+    A.moveDeadline = null;
     var sim = Alkkagi.simulate(idx, vx, vy);
     var fin;
     if (A.mode === "territory") {
@@ -1302,9 +1328,12 @@
   var alkMoveQueue = [];
   function onAlkMove(idx, vx, vy, fin) {
     if (window.Alkkagi && Alkkagi.isMoving()) { alkMoveQueue.push([idx, vx, vy, fin]); return; }
+    A.moveDeadline = null;
+    updateAlkTimerUI();
     Alkkagi.runFlick(idx, vx, vy, function () {
       if (fin) {
         A.turn = fin.turn; A.over = fin.over; A.winner = fin.winner; A.winChatText = fin.winChatText || null; A.started = !fin.over;
+        A.moveDeadline = (!fin.over && A.timerSec) ? Date.now() + A.timerSec * 1000 : null;
         if (fin.seq) A.seq = Math.max(A.seq, fin.seq);
         A.mapId = fin.mapId || A.mapId || "base"; A.mapObjects = fin.mapObjects || A.mapObjects || [];
         Alkkagi.setMapState(A.mapId, A.mapObjects);
@@ -1318,6 +1347,11 @@
         if (fin.over) setTimeout(refreshScores, 800);
       }
       renderAlkUI();
+      updateAlkTimerUI();
+      if (pendingAlkState) {
+        var queuedState = pendingAlkState; pendingAlkState = null;
+        applyAlkState(queuedState);
+      }
       if (alkMoveQueue.length) { var n = alkMoveQueue.shift(); onAlkMove(n[0], n[1], n[2], n[3]); }
     });
   }
@@ -1347,15 +1381,36 @@
       }
     });
     var shouldPause = !!(alkGrace.black || alkGrace.white);
-    if (shouldPause !== A.paused) { A.paused = shouldPause; changed = true; }
+    if (shouldPause !== A.paused) {
+      if (shouldPause) {
+        A.pausedRemainMs = A.moveDeadline ? Math.max(0, A.moveDeadline - Date.now()) : null;
+        A.moveDeadline = null;
+      } else {
+        A.moveDeadline = A.timerSec && A.started && !A.over
+          ? Date.now() + (A.pausedRemainMs != null ? A.pausedRemainMs : A.timerSec * 1000)
+          : null;
+        A.pausedRemainMs = null;
+      }
+      A.paused = shouldPause; changed = true;
+    }
     if (changed) { A.seq++; if (window.Alkkagi) Alkkagi.setMeta(A.turn, A.seats, A.started, A.over, A.winner); broadcastAlk(); }
     renderAlkUI();
   }
   function onAlkGraceExpire(col) {
     if (!amHost) { alkGrace[col] = null; return; }
+    var wasPaused = A.paused;
     alkGrace[col] = null;
-    if (A.seats[col] && !rosterHas(A.seats[col])) { A.seats[col] = null; A.started = false; A.over = false; A.winner = null; }
+    if (A.seats[col] && !rosterHas(A.seats[col])) {
+      A.seats[col] = null; A.started = false; A.over = false; A.winner = null;
+      A.moveDeadline = null; A.pausedRemainMs = null;
+    }
     A.paused = !!(alkGrace.black || alkGrace.white);
+    if (wasPaused && !A.paused && A.started && !A.over) {
+      A.moveDeadline = A.timerSec
+        ? Date.now() + (A.pausedRemainMs != null ? A.pausedRemainMs : A.timerSec * 1000)
+        : null;
+      A.pausedRemainMs = null;
+    }
     A.seq++;
     if (window.Alkkagi) Alkkagi.setMeta(A.turn, A.seats, A.started, A.over, A.winner);
     broadcastAlk(); renderAlkUI();
@@ -1643,8 +1698,16 @@
         hostReconcileSeats();
         startHostTimer();
       } else if (isAlkFamily(curGame)) {
+        var recoveredAlkTimer = false;
+        if (becameHost && A.started && !A.over && !A.paused && A.timerSec &&
+            (!A.moveDeadline || A.moveDeadline <= Date.now())) {
+          A.moveDeadline = Date.now() + A.timerSec * 1000;
+          A.seq++;
+          recoveredAlkTimer = true;
+        }
         hostReconcileAlkSeats();
-        stopHostTimer();
+        if (recoveredAlkTimer) broadcastAlk();
+        startHostTimer();
       } else {
         stopHostTimer();
       }
@@ -1761,6 +1824,8 @@
       case "alk_place": if (msg.nick !== me.nick && window.Alkkagi && A.mode === "territory") { Alkkagi.placeActive(msg.x); renderAlkUI(); } break;
       case "alk_flick": if (amHost) hostAlkFlick(msg.nick, msg.idx, msg.vx, msg.vy, msg.px); break;
       case "alk_move": onAlkMove(msg.idx, msg.vx, msg.vy, msg.fin); break;
+      case "alk_set_timer": if (amHost && (msg.by === ADMIN || msg.by === hostNick)) setAlkTimer(msg.sec); break;
+      case "alk_timer": if (msg.by === hostNick || msg.by === ADMIN) applyAlkTimerMessage(msg); break;
       case "move": if (amHost) hostApplyMove(msg.nick, msg.r, msg.c); break;
       case "begin_req": if (msg.to === me.nick) showBeginModal("omok", msg.from, msg.gseq); break;
       case "begin_res": onBeginResponse("omok", msg); break;
@@ -2467,6 +2532,11 @@
     if (!(amHost || !netMode)) return;
     hostTimerId = setInterval(function () {
       if (netMode && !amHost) return;
+      if (isAlkFamily(curGame)) {
+        if (!A.started || A.over || A.paused || !A.timerSec || !A.moveDeadline || Alkkagi.isMoving()) return;
+        if (Date.now() >= A.moveDeadline) hostAlkTimeout();
+        return;
+      }
       if (!G.started || G.over || G.paused || !G.timerSec || !G.moveDeadline) return;
       if (Date.now() >= G.moveDeadline) {
         if (omokAI.on && G.turn === omokAI.color) cancelAiSearch();
@@ -2483,8 +2553,9 @@
   function stopHostTimer() { if (hostTimerId) { clearInterval(hostTimerId); hostTimerId = null; } }
   function startDisplayTimer() {
     if (dispTimerId) clearInterval(dispTimerId);
-    dispTimerId = setInterval(updateTimerUI, 250);
+    dispTimerId = setInterval(function () { updateTimerUI(); updateAlkTimerUI(); }, 250);
     updateTimerUI();
+    updateAlkTimerUI();
   }
   function updateTimerUI() {
     var box = $("timer-box"); if (!box) return;
@@ -2516,9 +2587,90 @@
     if (amHost || !netMode) broadcastState();
     updateTimerUI();
   }
+  function hostAlkTimeout() {
+    if (!(amHost || !netMode) || !A.started || A.over || A.paused || Alkkagi.isMoving()) return;
+    var timedOutTurn = A.turn;
+    A.turn = A.turn === "b" ? "w" : "b";
+    A.mapObjects = Alkkagi.advanceMapTurn((A.seq + 1) + ":timeout:" + timedOutTurn, A.mapObjects);
+    Alkkagi.setMapState(A.mapId, A.mapObjects);
+    if (A.mode === "territory" && A.remain) {
+      var stones = Alkkagi.getStones().filter(function (stone) { return !stone.active; });
+      A.remain[timedOutTurn] = Math.max(0, A.remain[timedOutTurn] - 1);
+      A.over = A.remain.b === 0 && A.remain.w === 0;
+      A.started = !A.over;
+      if (A.over) {
+        A.score = territoryScoreOf(stones);
+        A.winner = A.score.b + TERR_KOMI > A.score.w ? "b" : "w";
+        A.winChatText = alkWinChatText(A.winner);
+      }
+      Alkkagi.setStones(stones);
+      if (!A.over) Alkkagi.spawnActive(A.turn);
+    }
+    A.moveDeadline = A.started && A.timerSec ? Date.now() + A.timerSec * 1000 : null;
+    A.pausedRemainMs = null;
+    A.seq++;
+    Alkkagi.setMeta(A.turn, A.seats, A.started, A.over, A.winner);
+    if (A.over && !alkSolo) recordAlkResult();
+    broadcastAlk(); renderAlkUI(); updateAlkTimerUI();
+    toast("시간 초과 — 차례가 넘어갑니다");
+  }
+  function updateAlkTimerUI() {
+    var box = $("alk-timer-box"); if (!box) return;
+    if (A.paused) { box.textContent = "⏸ 대기"; box.classList.remove("urgent"); lastAlkWarnSec = -1; return; }
+    if (!A.timerSec || A.over || !A.moveDeadline) {
+      box.textContent = A.started && window.Alkkagi && Alkkagi.isMoving() ? "…" : "∞";
+      box.classList.remove("urgent"); lastAlkWarnSec = -1; return;
+    }
+    var remain = Math.max(0, Math.ceil((A.moveDeadline - Date.now()) / 1000));
+    var warningAt = A.timerSec <= 10 ? 2 : 5;
+    box.textContent = remain + "초";
+    box.classList.toggle("urgent", remain <= warningAt);
+    var onTurnNick = A.turn === "b" ? A.seats.black : A.seats.white;
+    var myTurn = !!onTurnNick && onTurnNick === me.nick && isAlkFamily(curGame);
+    if (myTurn && remain >= 1 && remain <= warningAt) {
+      if (remain !== lastAlkWarnSec) { playSample(warnBuffer); lastAlkWarnSec = remain; }
+    } else {
+      lastAlkWarnSec = -1;
+    }
+  }
+  function setAlkTimer(sec) {
+    sec = Number(sec);
+    if ([0, 5, 10, 20, 30].indexOf(sec) < 0) return;
+    A.timerSec = sec;
+    if (A.paused) {
+      A.pausedRemainMs = sec ? sec * 1000 : null;
+      A.moveDeadline = null;
+    } else {
+      A.moveDeadline = sec && A.started && !A.over && !Alkkagi.isMoving() ? Date.now() + sec * 1000 : null;
+    }
+    A.seq++;
+    syncTimerChips();
+    if (netMode && amHost) {
+      Net.send({
+        t: "alk_timer", by: me.nick, sec: A.timerSec, seq: A.seq,
+        moveRemainMs: A.moveDeadline ? Math.max(0, A.moveDeadline - Date.now()) : null
+      });
+    }
+    updateAlkTimerUI();
+  }
+  function applyAlkTimerMessage(msg) {
+    if (!msg || (typeof msg.seq === "number" && msg.seq < A.seq)) return;
+    var sec = Number(msg.sec);
+    if ([0, 5, 10, 20, 30].indexOf(sec) < 0) return;
+    A.timerSec = sec;
+    A.seq = Math.max(A.seq, Number(msg.seq) || 0);
+    A.moveDeadline = typeof msg.moveRemainMs === "number"
+      ? Date.now() + msg.moveRemainMs
+      : (sec && A.started && !A.over && !A.paused && !Alkkagi.isMoving() ? Date.now() + sec * 1000 : null);
+    if (A.paused) A.pausedRemainMs = sec ? sec * 1000 : null;
+    syncTimerChips();
+    updateAlkTimerUI();
+  }
   function syncTimerChips() {
     var chips = document.querySelectorAll("#timer-options .radio-chip");
     for (var i = 0; i < chips.length; i++) chips[i].classList.toggle("active", parseInt(chips[i].getAttribute("data-sec"), 10) === G.timerSec);
+    var alkChips = document.querySelectorAll("#alk-timer-options .radio-chip");
+    for (var j = 0; j < alkChips.length; j++) alkChips[j].classList.toggle("active", parseInt(alkChips[j].getAttribute("data-sec"), 10) === A.timerSec);
   }
   function syncPauseButton() {
     var btn = $("pause-toggle"); if (!btn) return;
@@ -2527,7 +2679,17 @@
     btn.disabled = !G.started || G.over;
   }
   function canSetTimer() { return !netMode || amHost || me.isAdmin; }
-  function requestSetTimer(sec) {
+  function requestSetTimer(sec, game) {
+    if (game === "alk") {
+      if (!netMode || amHost) { setAlkTimer(sec); return; }
+      if (me.isAdmin) {
+        A.timerSec = sec; syncTimerChips(); updateAlkTimerUI();
+        Net.send({ t: "alk_set_timer", by: me.nick, sec: sec });
+        return;
+      }
+      toast("방장이나 관리자만 시간을 바꿀 수 있어요");
+      return;
+    }
     if (!netMode || amHost) { setTimer(sec); return; }
     if (me.isAdmin) { G.timerSec = sec; syncTimerChips(); updateTimerUI(); Net.send({ t: "set_timer", by: me.nick, sec: sec }); return; }
     toast("방장이나 관리자만 시간을 바꿀 수 있어요");
@@ -2546,6 +2708,13 @@
     var next = !G.manualPaused;
     if (!netMode || amHost) { setManualPause(next); return; }
     if (me.isAdmin) { Net.send({ t: "toggle_pause", by: me.nick, paused: next }); return; }
+  }
+  function openTimerSettings(game) {
+    var alk = game === "alk";
+    $("timer-options").classList.toggle("hidden", alk);
+    $("alk-timer-options").classList.toggle("hidden", !alk);
+    $("pause-toggle").classList.toggle("hidden", alk);
+    syncTimerChips(); syncPauseButton(); openModal("settings-modal");
   }
 
   // ---------- 이름/자리/차례 ----------
@@ -4871,7 +5040,11 @@
     $("omok-instant-replay").addEventListener("click", startInstantReplay);
     $("omok-win-rank").addEventListener("click", function () { openRank("omok"); });
     $("timer-box").addEventListener("click", function () {
-      if (canSetTimer()) { syncTimerChips(); syncPauseButton(); openModal("settings-modal"); }
+      if (canSetTimer()) openTimerSettings("omok");
+      else toast("방장이나 관리자만 시간을 바꿀 수 있어요");
+    });
+    $("alk-timer-box").addEventListener("click", function () {
+      if (canSetTimer()) openTimerSettings("alk");
       else toast("방장이나 관리자만 시간을 바꿀 수 있어요");
     });
     $("chip-black").addEventListener("click", function () { onSeatChipTap("black"); });
@@ -4944,9 +5117,9 @@
     var overlays = document.querySelectorAll(".modal-overlay");
     for (var j = 0; j < overlays.length; j++) overlays[j].addEventListener("click", function (e) { if (e.target === this) { if (this.id === "begin-modal") beginReqCtx = null; if (this.id === "swap-modal") swapReqCtx = null; this.classList.add("hidden"); } });
 
-    var chips = document.querySelectorAll("#timer-options .radio-chip");
+    var chips = document.querySelectorAll("#timer-options .radio-chip, #alk-timer-options .radio-chip");
     for (var k = 0; k < chips.length; k++) chips[k].addEventListener("click", function () {
-      requestSetTimer(parseInt(this.getAttribute("data-sec"), 10));
+      requestSetTimer(parseInt(this.getAttribute("data-sec"), 10), this.closest("#alk-timer-options") ? "alk" : "omok");
     });
     $("pause-toggle").addEventListener("click", requestTogglePause);
 

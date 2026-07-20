@@ -238,6 +238,7 @@
 <section id="alkgame" class="screen game-screen hidden">
   <div class="players-bar">
     <div class="player-chip" id="alk-chipB"><span class="stone-dot black"></span><span class="player-name"><span id="alk-name-black">탭해서 앉기</span></span><span class="chip-cnt" id="alk-cntB">5</span></div>
+    <div class="timer-box" id="alk-timer-box">∞</div>
     <div class="player-chip right" id="alk-chipW"><span class="chip-cnt" id="alk-cntW">5</span><span class="player-name"><span id="alk-name-white">탭해서 앉기</span></span><span class="stone-dot white"></span></div>
   </div>
 
@@ -617,6 +618,13 @@
           <button class="radio-chip" data-sec="60">1분</button>
           <button class="radio-chip" data-sec="120">2분</button>
           <button class="radio-chip" data-sec="0">무한</button>
+        </div>
+        <div class="radio-row hidden" id="alk-timer-options">
+          <button class="radio-chip" data-sec="5">5초</button>
+          <button class="radio-chip active" data-sec="10">10초</button>
+          <button class="radio-chip" data-sec="20">20초</button>
+          <button class="radio-chip" data-sec="30">30초</button>
+          <button class="radio-chip" data-sec="0">무제한</button>
         </div>
         <button class="pause-chip" id="pause-toggle" type="button">일시정지</button>
       </div>
