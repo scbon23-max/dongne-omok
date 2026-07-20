@@ -34,11 +34,11 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260719-catchmind-color-slots-v1">
+<meta name="app-build" content="20260720-relay-drawing-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
-<meta property="og:description" content="닉네임 넣고 바로 한 판! 실시간 오목·알까기·캐치마인드·랭킹·채팅">
+<meta property="og:description" content="닉네임 넣고 바로 한 판! 실시간 오목·알까기·캐치마인드·이어그리기·랭킹·채팅">
 <meta property="og:image" content="https://scbon23-max.github.io/dongne-omok/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -438,6 +438,97 @@
   </div>
 </section>
 
+<!-- 이어그리기 게임 화면 -->
+<section id="relaygame" class="screen game-screen relay-screen hidden">
+  <header class="relay-statusbar">
+    <strong id="relay-status">게임 대기 중</strong>
+    <span id="relay-phase-name">이어그리기</span>
+  </header>
+
+  <div id="relay-roster" class="relay-roster" aria-label="이어그리기 참가자"></div>
+
+  <div class="action-row slim relay-action-row">
+    <button id="relay-rules-btn" class="btn-flat">📖 규칙</button>
+    <button id="relay-role-btn" class="btn-flat relay-role-btn" type="button" aria-pressed="false">관전하기</button>
+    <button id="relay-people-btn" class="btn-flat"><span id="relay-online-num">0</span>명</button>
+    <button id="relay-leave-btn" class="btn-flat">나가기</button>
+    <button id="relay-menu-btn" class="btn-flat menu-dots">⋯</button>
+  </div>
+
+  <div id="relay-progress" class="relay-progress" aria-label="이어그리기 진행 단계"></div>
+
+  <div class="relay-board-wrap">
+    <div class="relay-wordbar">
+      <div class="relay-word-main"><span id="relay-task-label">진행</span><strong id="relay-task-text">문장 ↔ 그림</strong></div>
+      <div id="relay-timer" class="relay-timer">--</div>
+    </div>
+    <canvas id="relay-board" width="720" height="720" aria-label="이어그리기 그림판"></canvas>
+    <div id="relay-chat-overlay" class="chat-overlay relay-chat-overlay"></div>
+
+    <section id="relay-idle" class="relay-stage">
+      <span class="relay-stage-kicker">RELAY DRAWING</span>
+      <h2 id="relay-idle-title">이어그리기 준비</h2>
+      <p id="relay-idle-copy">한 사람당 하나의 연쇄 앨범이 만들어져요</p>
+      <div id="relay-summary" class="relay-summary"></div>
+      <div id="relay-ready-list" class="relay-ready-list"></div>
+      <div class="relay-idle-actions">
+        <button id="relay-ready-btn" class="relay-ready-btn hidden" type="button" aria-pressed="false">레디</button>
+        <button id="relay-start-btn" class="relay-start-btn hidden" type="button">게임 시작</button>
+      </div>
+      <small>4~8명이 가장 재미있어요 · 최소 3명</small>
+    </section>
+
+    <section id="relay-text-panel" class="relay-text-panel hidden">
+      <span id="relay-text-kicker" class="relay-text-kicker">첫 번째 단계</span>
+      <h2 id="relay-text-title">누군가 그림으로 그릴 문장을 만들어주세요</h2>
+      <p id="relay-text-hint">인물과 행동이 함께 있으면 그림이 더 재미있어져요.</p>
+      <textarea id="relay-text-input" maxlength="40" placeholder="예: 우주에서 라면을 배달하는 고양이"></textarea>
+      <span id="relay-text-count" class="relay-text-count">0 / 40자</span>
+      <div id="relay-text-example" class="relay-text-example">
+        <strong>좋은 문장의 예</strong>
+        <p>“결혼식에서 춤추는 펭귄”<br>“치킨을 훔치다 걸린 공룡”</p>
+      </div>
+      <div class="relay-text-actions">
+        <button id="relay-suggest-btn" class="relay-secondary" type="button">주제 추천</button>
+        <button id="relay-text-submit" class="relay-primary" type="button">이 문장으로 제출</button>
+      </div>
+      <span id="relay-submit-status" class="relay-submit-status"></span>
+    </section>
+
+    <section id="relay-result-panel" class="relay-result-panel hidden">
+      <header class="relay-result-head">
+        <span id="relay-album-kicker">첫 번째 연쇄</span>
+        <h2 id="relay-album-title">처음과 끝이 이렇게 달라졌어요</h2>
+        <p id="relay-album-meta"></p>
+      </header>
+      <div id="relay-chain" class="relay-chain"></div>
+      <footer class="relay-result-actions">
+        <button id="relay-album-prev" class="relay-secondary" type="button">이전 앨범</button>
+        <button id="relay-album-next" class="relay-primary" type="button">다음 앨범</button>
+      </footer>
+      <button id="relay-again-btn" class="relay-again-btn" type="button">다음 게임 준비</button>
+    </section>
+  </div>
+
+  <div id="relay-tools" class="relay-tools hidden" aria-label="이어그리기 도구">
+    <button class="relay-tool active" type="button" data-relay-tool="pen">펜</button>
+    <button class="relay-tool" type="button" data-relay-tool="eraser">지우개</button>
+    <button class="relay-color active" type="button" data-relay-color="#17252f" aria-label="검정"><span style="background:#17252f"></span></button>
+    <button class="relay-color" type="button" data-relay-color="#d23b3b" aria-label="빨강"><span style="background:#d23b3b"></span></button>
+    <button class="relay-color" type="button" data-relay-color="#2474b5" aria-label="파랑"><span style="background:#2474b5"></span></button>
+    <button id="relay-undo-btn" class="relay-tool relay-tool-icon" type="button" aria-label="마지막 선 되돌리기">↶</button>
+    <button id="relay-clear-btn" class="relay-tool relay-tool-icon" type="button" aria-label="그림 모두 지우기">⌫</button>
+  </div>
+
+  <button id="relay-draw-submit" class="relay-draw-submit hidden" type="button">그림 제출하기</button>
+
+  <div id="relay-chat-row" class="relay-chat-row">
+    <input id="relay-chat-input" class="chat-input" type="text" maxlength="80" placeholder="채팅 입력" autocomplete="off">
+  </div>
+
+  <div class="room-strip" id="room-strip-relay"></div>
+</section>
+
 <!-- 캐치마인드 경기 결과 팝업 -->
 <div id="catch-result-backdrop" class="cm-result-backdrop hidden" aria-hidden="true">
   <section class="cm-result-dialog" role="dialog" aria-modal="true" aria-labelledby="catch-result-title">
@@ -580,6 +671,7 @@
       <button class="menu-item" data-rules="alk">알까기 규칙</button>
       <button class="menu-item" data-rules="terr">점령전 규칙</button>
       <button class="menu-item" data-rules="catchmind">캐치마인드 규칙</button>
+      <button class="menu-item" data-rules="relay">이어그리기 규칙</button>
     </div>
     <button class="btn-primary modal-ok" data-close>닫기</button>
   </div>
@@ -834,6 +926,7 @@
     { src: "game-catalog.js" },
     { src: "catchmind-words.js" },
     { src: "catchmind.js" },
+    { src: "relay-drawing.js" },
     { src: "game.js" }
   ];
 

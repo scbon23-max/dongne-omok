@@ -12,6 +12,7 @@ const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
 const net = fs.readFileSync(path.join(root, "net.js"), "utf8");
 const alkkagi = fs.readFileSync(path.join(root, "alkkagi.js"), "utf8");
 const catchmind = fs.readFileSync(path.join(root, "catchmind.js"), "utf8");
+const relayDrawing = fs.readFileSync(path.join(root, "relay-drawing.js"), "utf8");
 const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 const inlineScripts = Array.from(index.matchAll(/<script>([\s\S]*?)<\/script>/g), (match) => match[1]);
 const shellSource = inlineScripts.find((source) => source.includes("window.AppShell ="));
@@ -37,6 +38,7 @@ test("the app shell versions every local runtime asset from one build", () => {
     "game-catalog.js",
     "catchmind-words.js",
     "catchmind.js",
+    "relay-drawing.js",
     "game.js"
   ];
   for (const file of files) assert.match(index, new RegExp('\\{ src: "' + file.replace(".", "\\.") + '" \\}'));
@@ -83,10 +85,11 @@ test("the app shell loads local scripts sequentially with the same revision", ()
   assert.equal(styles[0].href, "styles.css?v=" + encodeURIComponent(version));
   assert.equal(scripts[0].src, "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2");
 
-  while (scripts.length < 15) scripts[scripts.length - 1].onload();
+  while (scripts.length < 16) scripts[scripts.length - 1].onload();
   assert.equal(scripts[1].src, "config.js?v=" + encodeURIComponent(version));
   assert.equal(scripts[5].src, "pro-hint-explain.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[14].src, "game.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[14].src, "relay-drawing.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[15].src, "game.js?v=" + encodeURIComponent(version));
 });
 
 test("room entry is not blocked by an HTML and JavaScript build label mismatch", () => {
@@ -211,7 +214,7 @@ test("room creation hides territory mode and creates normal Alkkagi rooms direct
   assert.match(index, /id="create-step-back"/);
   assert.match(index, /id="create-mode-confirm"/);
   assert.match(index, /data-game="alk"[\s\S]*data-game="alk_terr"/);
-  assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind"\]\)/);
+  assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay"\]\)/);
   assert.match(game, /var ENABLE_ALK_TERRITORY = false/);
   assert.match(game, /if \(id === "alk_terr" && !ENABLE_ALK_TERRITORY\) return false/);
   assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);
@@ -229,9 +232,23 @@ test("room creation hides territory mode and creates normal Alkkagi rooms direct
   [
     "assets/game-icon-alkkagi.svg",
     "assets/game-icon-catchmind.svg",
+    "assets/game-icon-relay.svg",
     "assets/alkkagi-mode-normal.svg",
     "assets/alkkagi-mode-territory.svg"
   ].forEach((asset) => assert.equal(fs.existsSync(path.join(root, asset)), true));
+});
+
+test("Relay Drawing is registered as a separate non-ranked party game", () => {
+  const catalog = fs.readFileSync(path.join(root, "game-catalog.js"), "utf8");
+
+  assert.match(catalog, /relay:\s*\{[\s\S]*family:\s*"relay"[\s\S]*rankable:\s*false[\s\S]*controller:\s*"RelayDrawing"/);
+  assert.match(index, /id="relaygame"/);
+  assert.match(index, /id="relay-board"/);
+  assert.match(index, /id="relay-text-panel"/);
+  assert.match(index, /id="relay-result-panel"/);
+  assert.match(index, /\{ src: "relay-drawing\.js" \}/);
+  assert.match(relayDrawing, /window\.RelayDrawing\s*=/);
+  assert.match(styles, /\.game-screen\.relay-screen/);
 });
 
 test("room presence heals duplicate connections and active ghost speakers", () => {

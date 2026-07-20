@@ -160,7 +160,7 @@
           if (ctrl && ctrl.onMessage) ctrl.onMessage(msg);
         }
       },
-      sendChat: function (text) { sendChatText(activeFamily(), text); },
+      sendChat: function (text) { return sendChatText(activeFamily(), text); },
       relayChat: function (nick, text, overlaySide) {
         nick = String(nick || "").slice(0, 40);
         text = String(text || "").trim().slice(0, 80);
@@ -179,6 +179,7 @@
       openRank: function () { openRank(curRoomGame || curGame); },
       openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
       openMenu: openMenu,
+      openRules: function () { showRules(curRoomGame || curGame); },
       leaveRoom: requestLeaveRoom,
       roomChanged: broadcastRoomOpen,
       galleryAuth: function () { return { nick: me.nick, hash: sessionAuthHash }; },
@@ -802,7 +803,7 @@
   function requestLeaveRoom() {
     var ctrl = activeController();
     if (ctrl && ctrl.isBusy && ctrl.isBusy()) {
-      if ($("leaveroom-text")) $("leaveroom-text").innerHTML = "캐치마인드가 진행 중이에요.<br>나가면 이번 게임 점수는 더 이상 얻지 못해요.";
+      if ($("leaveroom-text")) $("leaveroom-text").innerHTML = gameName(curRoomGame) + "가 진행 중이에요.<br>나가면 이번 게임에 계속 참여할 수 없어요.";
       if ($("leaveroom-yes")) $("leaveroom-yes").textContent = "게임에서 나가기";
       openModal("leaveroom-modal");
       return;
@@ -4296,16 +4297,17 @@
   function renderCreateGameOptions(selected) {
     var box = $("create-game"); if (!box) return selected || "omok";
     if (selected === "alk_terr") selected = "alk";
-    var ids = visibleGameIds(["omok", "alk", "catchmind"]);
+    var ids = visibleGameIds(["omok", "alk", "catchmind", "relay"]);
     if (ids.indexOf(selected) < 0) selected = ids[0] || "omok";
     box.innerHTML = ids.map(function (id) {
       var label = gameName(id);
       var desc = id === "omok" ? "렌주룰로 즐기는 1:1 대국"
         : id === "alk" ? "돌을 튕겨 겨루는 실시간 대결"
-        : "그리고 맞히는 단체 그림 퀴즈";
+        : id === "catchmind" ? "그리고 맞히는 단체 그림 퀴즈"
+        : "문장과 그림을 번갈아 이어가기";
       var icon = id === "omok"
         ? '<span class="create-game-icon omok" aria-hidden="true"></span>'
-        : '<img class="create-game-icon" src="' + localAssetUrl(id === "alk" ? "assets/game-icon-alkkagi.svg" : "assets/game-icon-catchmind.svg") + '" alt="">';
+        : '<img class="create-game-icon" src="' + localAssetUrl(id === "alk" ? "assets/game-icon-alkkagi.svg" : id === "catchmind" ? "assets/game-icon-catchmind.svg" : "assets/game-icon-relay.svg") + '" alt="">';
       return '<button class="create-game-option' + (id === selected ? ' active' : '') + '" data-game="' + esc(id) + '" type="button" aria-pressed="' + (id === selected ? 'true' : 'false') + '">'
         + icon + '<span class="create-game-copy"><span class="create-game-name">' + esc(label) + '</span><span class="create-game-desc">' + esc(desc) + '</span></span></button>';
     }).join("");

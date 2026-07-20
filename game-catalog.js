@@ -63,10 +63,26 @@ window.GameCatalog = (function () {
       onlineListId: null,
       onlineNumId: "catch-online-num",
       onlineTotalId: null
+    },
+    relay: {
+      id: "relay",
+      family: "relay",
+      name: "이어그리기",
+      rankName: "이어그리기",
+      rankable: false,
+      controller: "RelayDrawing",
+      screenId: "relaygame",
+      roomStripId: "room-strip-relay",
+      chatLogId: null,
+      chatInputId: "relay-chat-input",
+      chatOverlayId: "relay-chat-overlay",
+      onlineListId: null,
+      onlineNumId: "relay-online-num",
+      onlineTotalId: null
     }
   };
 
-  var order = ["omok", "alk", "alk_terr", "catchmind"];
+  var order = ["omok", "alk", "alk_terr", "catchmind", "relay"];
 
   function get(id) {
     return defs[id] || null;
