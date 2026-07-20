@@ -104,8 +104,86 @@ test("incoming text and drawing entries are bounded and sanitized", () => {
 
   assert.equal(text.text.length, relay.limits.maxText);
   assert.equal(drawing.strokes[0].color, "#17252f");
-  assert.equal(drawing.strokes[0].width, 70);
+  assert.equal(drawing.strokes[0].width, 90);
   assert.deepEqual(Object.assign({}, drawing.strokes[0].points[0]), { x: 0, y: 1 });
+});
+
+test("the five-second cue plays once for each active relay task", () => {
+  class FixedDate extends Date { static now() { return 5000; } }
+  const timer = {
+    textContent: "",
+    classList: {
+      remove() {},
+      toggle() {}
+    }
+  };
+  const relay = loadRelay({
+    Date: FixedDate,
+    document: {
+      getElementById(id) { return id === "relay-timer" ? timer : null; }
+    }
+  });
+  let warnings = 0;
+  relay.setApi({
+    me() { return { nick: "A" }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }]; },
+    isHost() { return false; },
+    host() { return "B"; },
+    playWarning() { warnings++; }
+  });
+  relay.setState({
+    phase: "prompt",
+    rev: 1,
+    matchId: "relay-warning",
+    players: ["A", "B", "C"],
+    spectators: [],
+    ready: [],
+    stepIndex: 0,
+    totalSteps: 3,
+    deadline: 10000,
+    submitted: []
+  });
+
+  relay.tick();
+  relay.tick();
+  assert.equal(timer.textContent, "00:05");
+  assert.equal(warnings, 1);
+});
+
+test("timeout submission preserves the participant's latest text", () => {
+  const draft = "마지막에 적고 있던 문장";
+  const input = { value: draft, disabled: false };
+  const relay = loadRelay({
+    document: {
+      getElementById(id) { return id === "relay-text-input" ? input : null; }
+    }
+  });
+  const sent = [];
+  relay.setApi({
+    me() { return { nick: "A" }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }]; },
+    isHost() { return false; },
+    host() { return "B"; },
+    send(message) { sent.push(message); },
+    toast() {}
+  });
+  relay.setState({
+    phase: "prompt",
+    rev: 1,
+    matchId: "relay-auto-submit",
+    players: ["A", "B", "C"],
+    spectators: [],
+    ready: [],
+    stepIndex: 0,
+    totalSteps: 3,
+    deadline: Date.now() - 1,
+    submitted: []
+  });
+
+  assert.equal(relay.autoSubmitCurrentState(), true);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].entry.text, draft);
+  assert.equal(sent[0].entry.auto, true);
 });
 
 test("a host starts only with three players and all guests ready", () => {

@@ -268,16 +268,50 @@ test("Relay Drawing waiting screen mirrors the simple CatchMind participant foot
 test("Relay Drawing prompt screen keeps only the story form and two actions", () => {
   assert.match(index, /id="relay-text-title">스토리 시작<\/h2>/);
   assert.match(index, /id="relay-text-hint">나만의 간단한 이야기를 만들어요!<\/p>/);
+  assert.match(index, /id="relay-text-input" type="text"/);
   assert.match(index, /id="relay-suggest-btn"[^>]*>자동 생성<\/button>/);
   assert.match(index, /id="relay-text-submit"[^>]*>제출하기<\/button>/);
-  assert.doesNotMatch(index, /relay-text-kicker|relay-text-example/);
-  assert.match(relayDrawing, /\$\("relay-text-title"\)\.textContent = prompt\s*\?\s*"스토리 시작"/);
-  assert.match(relayDrawing, /\$\("relay-text-hint"\)\.textContent = prompt\s*\?\s*"나만의 간단한 이야기를 만들어요!"/);
+  assert.doesNotMatch(index, /relay-text-kicker|relay-text-example|relay-text-count|relay-submit-status/);
+  assert.match(relayDrawing, /\$\("relay-text-title"\)\.textContent = "스토리 시작"/);
+  assert.match(relayDrawing, /\$\("relay-text-hint"\)\.textContent = "나만의 간단한 이야기를 만들어요!"/);
   assert.match(relayDrawing, /label\.textContent = "";\s*text\.textContent = "누군가가 그릴 문장 만들기"/);
-  assert.match(relayDrawing, /\$\("relay-text-count"\)\.classList\.toggle\("hidden", prompt\)/);
-  assert.match(relayDrawing, /\$\("relay-submit-status"\)\.classList\.toggle\("hidden", prompt\)/);
   assert.match(styles, /\.relay-text-panel\.prompt #relay-text-input/);
   assert.doesNotMatch(styles, /\.relay-text-kicker|\.relay-text-example/);
+});
+
+test("Relay Drawing uses the CatchMind tool row and unobstructed caption form", () => {
+  assert.match(index, /id="relay-tools" class="catch-tools relay-tools hidden"/);
+  assert.match(index, /data-relay-tool="pen"[^>]*>✏️<\/button>/);
+  assert.match(index, /data-relay-tool="eraser"[^>]*>🧽<\/button>/);
+  assert.match(index, /id="relay-bg-btn"/);
+  assert.match(index, /id="relay-palette" class="catch-palette relay-palette hidden"/);
+  assert.match(index, /id="relay-caption-row" class="relay-caption-row hidden"[\s\S]*id="relay-caption-input"[\s\S]*id="relay-caption-submit"/);
+  assert.match(relayDrawing, /toggleHidden\(\$\("relay-text-panel"\), state\.phase !== "prompt"\)/);
+  assert.match(relayDrawing, /toggleHidden\(\$\("relay-caption-row"\), state\.phase !== "caption"\)/);
+  assert.match(styles, /\.relay-caption-row\s*\{[\s\S]*order:\s*5/);
+  assert.doesNotMatch(styles, /\.relay-text-panel\.caption/);
+});
+
+test("Relay Drawing results grow with history and keep the three-button chat dock visible", () => {
+  assert.doesNotMatch(index, /relay-result-head|relay-album-kicker|relay-album-title|relay-album-meta/);
+  assert.match(index, /id="relay-result-panel"[\s\S]*id="relay-chain"/);
+  assert.match(index, /id="relay-result-dock"[\s\S]*id="relay-album-prev"[\s\S]*id="relay-album-next"[\s\S]*id="relay-again-btn"[\s\S]*id="relay-result-chat-input"/);
+  assert.match(relayDrawing, /var authorLabel = entry\.kind === "drawing" \? "그린 사람" : "쓴 사람"/);
+  assert.match(relayDrawing, /<b><small>' \+ authorLabel \+ '<\/small>' \+ esc\(entry\.author\)/);
+  assert.match(styles, /\.relay-board-wrap\.result-mode #relay-board/);
+  assert.match(styles, /\.relay-chain\s*\{[\s\S]*overflow:\s*visible/);
+  assert.match(styles, /\.relay-result-dock\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(styles, /\.relay-result-actions\s*\{[\s\S]*grid-template-columns:\s*repeat\(3/);
+});
+
+test("Relay Drawing warns at five seconds and auto-submits the current draft", () => {
+  assert.match(game, /playWarning:\s*function \(\) \{\s*initAudio\(\);\s*playSample\(warnBuffer\)/);
+  assert.match(relayDrawing, /seconds > 0 && seconds <= 5 && warningScope !== taskKey\(\)/);
+  assert.match(relayDrawing, /api\.playWarning\(\)/);
+  assert.match(relayDrawing, /function autoSubmitCurrentState\(\)/);
+  assert.match(relayDrawing, /bg:\s*canvasBg,\s*strokes:\s*sanitizeStrokes\(localStrokes\),\s*auto:\s*true/);
+  assert.match(relayDrawing, /text:\s*safeText\(input && input\.value, MAX_TEXT\) \|\| "시간 안에 작성하지 못했어요"/);
+  assert.match(relayDrawing, /now >= state\.deadline \+ AUTO_SUBMIT_GRACE_MS/);
 });
 
 test("Relay Drawing preview and creation entry are restricted to the authenticated owner admin", () => {

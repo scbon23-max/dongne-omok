@@ -10,8 +10,15 @@ window.RelayDrawing = (function () {
   var MAX_POINTS_PER_STROKE = 700;
   var MAX_CANVAS_POINTS = 5000;
   var CANVAS_BG = "#ffffff";
-  var PEN_WIDTH = 8;
-  var ERASER_WIDTH = 70;
+  var AUTO_SUBMIT_GRACE_MS = 1200;
+  var PEN_COLORS = ["#17252f", "#d23b3b"];
+  var PEN_WIDTHS = [8, 24];
+  var ERASER_WIDTH = 90;
+  var PALETTE_COLORS = [
+    "#17252f", "#4b5563", "#9ca3af", "#ffffff", "#7c4a2d", "#d23b3b",
+    "#be123c", "#f97316", "#facc15", "#84cc16", "#22c55e", "#14b8a6",
+    "#06b6d4", "#38bdf8", "#2474b5", "#4338ca", "#8b5cf6", "#ec4899"
+  ];
   var SUGGESTIONS = [
     "우주에서 라면을 배달하는 고양이",
     "결혼식에서 춤추는 펭귄",
@@ -34,10 +41,14 @@ window.RelayDrawing = (function () {
   var currentStroke = null;
   var localStrokes = [];
   var selectedTool = "pen";
-  var selectedColor = "#17252f";
+  var selectedColorSlot = 0;
+  var selectedColor = PEN_COLORS[0];
+  var paletteTarget = "pen";
+  var canvasBg = CANVAS_BG;
   var taskScope = "";
   var inputScope = "";
   var pendingSubmitScope = "";
+  var warningScope = "";
   var albumIndex = 0;
   var previewMode = false;
 
@@ -139,6 +150,10 @@ window.RelayDrawing = (function () {
     value = String(value || "").toLowerCase();
     return /^#[0-9a-f]{6}$/.test(value) ? value : "#17252f";
   }
+  function safeCanvasBg(value) {
+    value = String(value || "").toLowerCase();
+    return /^#[0-9a-f]{6}$/.test(value) ? value : CANVAS_BG;
+  }
   function safePoint(raw) {
     if (!raw) return null;
     var x = Number(raw.x), y = Number(raw.y);
@@ -161,7 +176,7 @@ window.RelayDrawing = (function () {
       out.push({
         id: safeText(item.id, 80) || ("stroke-" + out.length),
         color: safeColor(item.color),
-        width: clamp(Number(item.width) || PEN_WIDTH, 3, ERASER_WIDTH),
+        width: clamp(Number(item.width) || PEN_WIDTHS[0], 3, ERASER_WIDTH),
         points: points
       });
     }
@@ -177,7 +192,7 @@ window.RelayDrawing = (function () {
       auto: !!raw.auto
     };
     if (kind === "drawing") {
-      entry.bg = CANVAS_BG;
+      entry.bg = safeCanvasBg(raw.bg);
       entry.strokes = sanitizeStrokes(raw.strokes);
     } else {
       entry.text = safeText(raw.text, MAX_TEXT) || (entry.auto ? "시간 안에 작성하지 못했어요" : "");
@@ -489,9 +504,12 @@ window.RelayDrawing = (function () {
     missing.forEach(function (nick) { hostAcceptSubmission(nick, fallbackEntry(nick), true); });
     hostAdvanceStep();
   }
+  function textInputForPhase() {
+    return state.phase === "caption" ? $("relay-caption-input") : $("relay-text-input");
+  }
   function submitText() {
     if (!api || (state.phase !== "prompt" && state.phase !== "caption") || !has(state.players, me().nick) || mySubmitted()) return;
-    var input = $("relay-text-input");
+    var input = textInputForPhase();
     var text = safeText(input && input.value, MAX_TEXT);
     if (!text) {
       api.toast("문장을 먼저 적어주세요");
@@ -519,9 +537,33 @@ window.RelayDrawing = (function () {
       matchId: state.matchId,
       stepIndex: state.stepIndex,
       nick: me().nick,
-      entry: { kind: "drawing", bg: CANVAS_BG, strokes: sanitizeStrokes(localStrokes) }
+      entry: { kind: "drawing", bg: canvasBg, strokes: sanitizeStrokes(localStrokes) }
     });
     render();
+  }
+  function autoSubmitCurrentState() {
+    if (!api || !isActivePhase() || !has(state.players, me().nick) || mySubmitted()) return false;
+    var entry;
+    if (state.phase === "drawing") {
+      entry = { kind: "drawing", bg: canvasBg, strokes: sanitizeStrokes(localStrokes), auto: true };
+    } else {
+      var input = textInputForPhase();
+      entry = {
+        kind: expectedKind(state.stepIndex),
+        text: safeText(input && input.value, MAX_TEXT) || "시간 안에 작성하지 못했어요",
+        auto: true
+      };
+    }
+    pendingSubmitScope = taskKey();
+    api.send({
+      t: "relay_submit",
+      matchId: state.matchId,
+      stepIndex: state.stepIndex,
+      nick: me().nick,
+      entry: entry
+    });
+    render();
+    return true;
   }
 
   function onMessage(msg) {
@@ -590,7 +632,7 @@ window.RelayDrawing = (function () {
       targetCtx.lineCap = "round";
       targetCtx.lineJoin = "round";
       targetCtx.strokeStyle = stroke.color || "#17252f";
-      targetCtx.lineWidth = (stroke.width || PEN_WIDTH) * (metrics.width / 720);
+      targetCtx.lineWidth = (stroke.width || PEN_WIDTHS[0]) * (metrics.width / 720);
       targetCtx.moveTo(points[0].x * metrics.width, points[0].y * metrics.height);
       if (points.length === 1) {
         targetCtx.lineTo(points[0].x * metrics.width + .01, points[0].y * metrics.height + .01);
@@ -601,7 +643,7 @@ window.RelayDrawing = (function () {
     });
     targetCtx.restore();
   }
-  function redrawLocal() { paintStrokes(ctx, canvas, localStrokes, CANVAS_BG); }
+  function redrawLocal() { paintStrokes(ctx, canvas, localStrokes, canvasBg); }
   function showPreviousDrawing() {
     var previous = previousEntry(me().nick);
     if (previous && previous.kind === "drawing") paintStrokes(ctx, canvas, previous.strokes, previous.bg);
@@ -611,16 +653,20 @@ window.RelayDrawing = (function () {
     var scope = taskKey();
     if (taskScope === scope) return;
     taskScope = scope;
+    warningScope = "";
     drawing = false;
     currentStroke = null;
     if (state.phase === "drawing") {
       localStrokes = [];
+      canvasBg = CANVAS_BG;
       redrawLocal();
     } else if (state.phase === "caption") {
       localStrokes = [];
+      canvasBg = CANVAS_BG;
       showPreviousDrawing();
     } else {
       localStrokes = [];
+      canvasBg = CANVAS_BG;
       paintStrokes(ctx, canvas, [], CANVAS_BG);
     }
   }
@@ -636,12 +682,13 @@ window.RelayDrawing = (function () {
   }
   function pointerDown(event) {
     if (!canDraw() || localStrokes.length >= MAX_STROKES) return;
+    setPaletteOpen(false);
     drawing = true;
     if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
     currentStroke = {
       id: me().nick + "-" + Date.now().toString(36) + "-" + localStrokes.length,
-      color: selectedTool === "eraser" ? CANVAS_BG : selectedColor,
-      width: selectedTool === "eraser" ? ERASER_WIDTH : PEN_WIDTH,
+      color: selectedTool === "eraser" ? canvasBg : selectedColor,
+      width: selectedTool === "eraser" ? ERASER_WIDTH : PEN_WIDTHS[selectedColorSlot],
       points: [canvasPoint(event)]
     };
     localStrokes.push(currentStroke);
@@ -744,34 +791,31 @@ window.RelayDrawing = (function () {
     }
   }
   function renderTextTask() {
-    var prompt = state.phase === "prompt";
-    var previous = previousEntry(me().nick);
     var input = $("relay-text-input");
-    if ($("relay-text-panel")) {
-      $("relay-text-panel").classList.toggle("prompt", prompt);
-      $("relay-text-panel").classList.toggle("caption", !prompt);
-    }
+    if ($("relay-text-panel")) $("relay-text-panel").classList.add("prompt");
     if (inputScope !== taskKey()) {
       inputScope = taskKey();
       if (input) input.value = "";
     }
-    if ($("relay-text-title")) $("relay-text-title").textContent = prompt
-      ? "스토리 시작"
-      : "이 그림은 무슨 상황일까요?";
-    if ($("relay-text-hint")) $("relay-text-hint").textContent = prompt
-      ? "나만의 간단한 이야기를 만들어요!"
-      : "이전 문장은 볼 수 없어요. 보이는 그림만 설명해주세요.";
-    if ($("relay-suggest-btn")) $("relay-suggest-btn").classList.toggle("hidden", !prompt);
+    if ($("relay-text-title")) $("relay-text-title").textContent = "스토리 시작";
+    if ($("relay-text-hint")) $("relay-text-hint").textContent = "나만의 간단한 이야기를 만들어요!";
     if ($("relay-suggest-btn")) $("relay-suggest-btn").textContent = "자동 생성";
-    if ($("relay-text-count")) $("relay-text-count").classList.toggle("hidden", prompt);
-    if ($("relay-submit-status")) $("relay-submit-status").classList.toggle("hidden", prompt);
     if ($("relay-text-submit")) {
-      $("relay-text-submit").textContent = prompt ? "제출하기" : "이 설명으로 제출";
+      $("relay-text-submit").textContent = mySubmitted() ? "제출 완료" : "제출하기";
       $("relay-text-submit").disabled = mySubmitted();
     }
     if (input) input.disabled = mySubmitted();
-    if (!prompt && (!previous || previous.kind !== "drawing")) {
-      if ($("relay-text-hint")) $("relay-text-hint").textContent = "전달받은 그림을 불러오는 중이에요.";
+  }
+  function renderCaptionTask() {
+    var input = $("relay-caption-input");
+    if (inputScope !== taskKey()) {
+      inputScope = taskKey();
+      if (input) input.value = "";
+    }
+    if (input) input.disabled = mySubmitted();
+    if ($("relay-caption-submit")) {
+      $("relay-caption-submit").disabled = mySubmitted();
+      $("relay-caption-submit").textContent = mySubmitted() ? "제출 완료" : "제출하기";
     }
   }
   function renderWordbar() {
@@ -784,9 +828,9 @@ window.RelayDrawing = (function () {
       label.textContent = "받은 문장";
       text.textContent = previous && previous.text ? previous.text : "문장을 불러오는 중";
     } else if (state.phase === "caption") {
-      label.textContent = "내 임무"; text.textContent = "그림을 한 문장으로 설명하세요";
+      label.textContent = ""; text.textContent = "그림을 한 문장으로 설명하세요";
     } else if (state.phase === "finished") {
-      label.textContent = "결과"; text.textContent = "연쇄 앨범 공개";
+      label.textContent = ""; text.textContent = "";
     } else {
       label.textContent = "진행"; text.textContent = "문장 ↔ 그림";
     }
@@ -794,40 +838,41 @@ window.RelayDrawing = (function () {
   function renderTimer() {
     var timer = $("relay-timer");
     if (!timer) return;
-    if (!state.deadline || !isActivePhase()) { timer.textContent = "--"; return; }
+    if (!state.deadline || !isActivePhase()) {
+      timer.textContent = "--";
+      timer.classList.remove("urgent");
+      return;
+    }
     var seconds = Math.max(0, Math.ceil((state.deadline - Date.now()) / 1000));
     timer.textContent = Math.floor(seconds / 60).toString().padStart(2, "0") + ":" + (seconds % 60).toString().padStart(2, "0");
-  }
-  function renderSubmitStatus() {
-    var status = $("relay-submit-status");
-    if (!status) return;
-    status.textContent = mySubmitted()
-      ? "제출 완료 · 다른 참가자를 기다리는 중"
-      : state.submitted.length + " / " + state.players.length + "명 제출 완료";
+    timer.classList.toggle("urgent", seconds > 0 && seconds <= 5);
+    if (seconds > 0 && seconds <= 5 && warningScope !== taskKey()) {
+      warningScope = taskKey();
+      if (!previewMode && api && api.playWarning) api.playWarning();
+    }
   }
   function renderResults() {
     if (!state.players.length) return;
     albumIndex = clamp(albumIndex, 0, state.players.length - 1);
     var origin = state.players[albumIndex];
     var chain = chains[origin] || [];
-    if ($("relay-album-kicker")) $("relay-album-kicker").textContent = (albumIndex + 1) + " / " + state.players.length + " · " + origin + "에서 시작";
-    if ($("relay-album-meta")) $("relay-album-meta").textContent = "문장과 그림이 어떻게 달라졌는지 확인해보세요";
     var box = $("relay-chain");
     if (!box) return;
     box.innerHTML = chain.map(function (entry, index) {
       if (!entry) return "";
       var label = entry.kind === "prompt" ? "시작 문장" : entry.kind === "drawing" ? "그림" : "그림 설명";
+      var authorLabel = entry.kind === "drawing" ? "그린 사람" : "쓴 사람";
       var cls = "relay-chain-item" + (entry.kind === "prompt" ? " prompt" : "");
       var content = entry.kind === "drawing"
         ? '<div class="relay-chain-drawing"><canvas width="480" height="480" data-relay-result-step="' + index + '"></canvas></div>'
-        : '<div class="relay-chain-copy"><div class="relay-chain-meta"><span>' + label + '</span><b>' + esc(entry.author) + '</b></div>'
+        : '<div class="relay-chain-copy"><div class="relay-chain-meta"><span>' + label + '</span><b><small>' + authorLabel + '</small>' + esc(entry.author) + '</b></div>'
           + '<strong>' + esc(entry.text || "내용 없음") + '</strong></div>';
       if (entry.kind === "drawing") {
-        content = '<div class="relay-chain-copy"><div class="relay-chain-meta"><span>' + label + '</span><b>' + esc(entry.author) + '</b></div></div>' + content;
+        content = '<div class="relay-chain-copy"><div class="relay-chain-meta"><span>' + label + '</span><b><small>' + authorLabel + '</small>' + esc(entry.author) + '</b></div></div>' + content;
       }
       return '<article class="' + cls + '">' + content + "</article>";
     }).join("");
-    if (!chain.length) box.innerHTML = '<p class="relay-submit-status">앨범 내용을 불러오는 중이에요.</p>';
+    if (!chain.length) box.innerHTML = '<p class="relay-chain-empty">앨범 내용을 불러오는 중이에요.</p>';
     var canvases = box.querySelectorAll("[data-relay-result-step]");
     for (var i = 0; i < canvases.length; i++) {
       var step = Number(canvases[i].getAttribute("data-relay-result-step"));
@@ -841,9 +886,15 @@ window.RelayDrawing = (function () {
     }
     if ($("relay-again-btn")) {
       if (api && api.isHost()) {
-        $("relay-again-btn").textContent = allReady(participantNicks()) ? "다음 게임 시작" : "참가자 준비 기다리는 중";
+        $("relay-again-btn").textContent = "게임 시작";
+        $("relay-again-btn").disabled = !allReady(participantNicks());
+        $("relay-again-btn").setAttribute("aria-pressed", "false");
       } else {
-        $("relay-again-btn").textContent = has(state.ready, me().nick) ? "레디 취소" : "다음 게임 준비";
+        var spectator = has(state.spectators, me().nick);
+        var ready = has(state.ready, me().nick);
+        $("relay-again-btn").textContent = spectator ? "관전 중" : ready ? "레디 취소" : "레디";
+        $("relay-again-btn").disabled = spectator;
+        $("relay-again-btn").setAttribute("aria-pressed", ready ? "true" : "false");
       }
     }
   }
@@ -874,13 +925,19 @@ window.RelayDrawing = (function () {
     renderTimer();
     var active = isActivePhase();
     var idle = !active && state.phase !== "finished";
+    var finished = state.phase === "finished";
+    if ($("relaygame")) $("relaygame").classList.toggle("result-active", finished);
+    if ($("relay-board-wrap")) $("relay-board-wrap").classList.toggle("result-mode", finished);
     toggleHidden($("relay-idle"), !idle);
     toggleHidden($("relay-idle-actions"), !idle);
-    toggleHidden($("relay-text-panel"), !(state.phase === "prompt" || state.phase === "caption"));
-    toggleHidden($("relay-result-panel"), state.phase !== "finished");
+    toggleHidden($("relay-text-panel"), state.phase !== "prompt");
+    toggleHidden($("relay-caption-row"), state.phase !== "caption");
+    toggleHidden($("relay-result-panel"), !finished);
+    toggleHidden($("relay-result-dock"), !finished);
     toggleHidden($("relay-tools"), state.phase !== "drawing");
+    if (state.phase !== "drawing") setPaletteOpen(false);
     toggleHidden($("relay-draw-submit"), state.phase !== "drawing");
-    toggleHidden($("relay-chat-row"), active);
+    toggleHidden($("relay-chat-row"), !idle);
     if ($("relay-status")) $("relay-status").textContent = active
       ? (state.stepIndex + 1) + " / " + state.totalSteps + " 단계"
       : state.phase === "finished" ? "게임 종료" : "게임 대기 중";
@@ -892,10 +949,9 @@ window.RelayDrawing = (function () {
       $("relay-role-btn").disabled = !canChangeRole();
     }
     if (idle) renderIdle();
-    if (state.phase === "prompt" || state.phase === "caption") {
+    if (state.phase === "prompt") {
       renderTextTask();
-      renderSubmitStatus();
-    }
+    } else if (state.phase === "caption") renderCaptionTask();
     if (state.phase === "drawing") {
       if ($("relay-draw-submit")) {
         $("relay-draw-submit").disabled = mySubmitted();
@@ -906,14 +962,84 @@ window.RelayDrawing = (function () {
     syncToolButtons();
   }
 
+  function colorSlotFromButton(button, fallback) {
+    var raw = button ? Number(button.getAttribute("data-relay-color-slot")) : NaN;
+    return isFinite(raw) ? clamp(Math.floor(raw), 0, PEN_COLORS.length - 1) : fallback;
+  }
+  function updateColorButtons() {
+    var colors = document.querySelectorAll("[data-relay-color]");
+    for (var i = 0; i < colors.length; i++) {
+      var slot = colorSlotFromButton(colors[i], i);
+      var color = PEN_COLORS[slot] || PEN_COLORS[0];
+      colors[i].setAttribute("data-relay-color", color);
+      colors[i].setAttribute("aria-controls", "relay-palette");
+      colors[i].setAttribute("aria-haspopup", "true");
+      var chip = colors[i].querySelector("span");
+      if (chip) chip.style.background = color;
+    }
+  }
+  function setPaletteOpen(open) {
+    var palette = $("relay-palette");
+    if (palette) palette.classList.toggle("hidden", !open);
+    var colors = document.querySelectorAll("[data-relay-color]");
+    for (var i = 0; i < colors.length; i++) {
+      var expanded = !!open && paletteTarget === "pen" &&
+        colorSlotFromButton(colors[i], i) === selectedColorSlot;
+      colors[i].setAttribute("aria-expanded", expanded ? "true" : "false");
+    }
+    if ($("relay-bg-btn")) $("relay-bg-btn").classList.toggle("active", !!open && paletteTarget === "bg");
+  }
+  function buildPaletteUi() {
+    var palette = $("relay-palette");
+    if (!palette || palette.children.length) return;
+    PALETTE_COLORS.forEach(function (color) {
+      var swatch = document.createElement("button");
+      swatch.className = "catch-palette-color relay-palette-color";
+      swatch.type = "button";
+      swatch.setAttribute("data-relay-palette-color", color);
+      swatch.setAttribute("aria-label", color);
+      swatch.style.background = color;
+      palette.appendChild(swatch);
+    });
+  }
+  function selectColorSlot(slot) {
+    selectedColorSlot = clamp(Math.floor(Number(slot) || 0), 0, PEN_COLORS.length - 1);
+    selectedColor = PEN_COLORS[selectedColorSlot] || PEN_COLORS[0];
+    selectedTool = "pen";
+    paletteTarget = "pen";
+    syncToolButtons();
+  }
+  function applyPaletteColor(color) {
+    if (!canDraw()) {
+      setPaletteOpen(false);
+      return;
+    }
+    color = safeColor(color);
+    if (paletteTarget === "bg") {
+      canvasBg = color;
+      selectedTool = "pen";
+      redrawLocal();
+    } else {
+      PEN_COLORS[selectedColorSlot] = color;
+      selectedColor = color;
+      selectedTool = "pen";
+    }
+    setPaletteOpen(false);
+    syncToolButtons();
+  }
   function syncToolButtons() {
+    updateColorButtons();
     var tools = document.querySelectorAll("[data-relay-tool]");
     for (var i = 0; i < tools.length; i++) {
-      tools[i].classList.toggle("active", tools[i].getAttribute("data-relay-tool") === selectedTool);
+      var active = tools[i].getAttribute("data-relay-tool") === selectedTool;
+      tools[i].classList.toggle("active", active);
+      tools[i].setAttribute("aria-pressed", active ? "true" : "false");
     }
     var colors = document.querySelectorAll("[data-relay-color]");
     for (var j = 0; j < colors.length; j++) {
-      colors[j].classList.toggle("active", colors[j].getAttribute("data-relay-color") === selectedColor && selectedTool === "pen");
+      var colorActive = colorSlotFromButton(colors[j], j) === selectedColorSlot && selectedTool === "pen";
+      colors[j].classList.toggle("active", colorActive);
+      colors[j].setAttribute("aria-pressed", colorActive ? "true" : "false");
     }
   }
   function bind() {
@@ -935,13 +1061,14 @@ window.RelayDrawing = (function () {
       if (api && api.openRules) api.openRules();
       else if (api) api.openMenu();
     });
-    $("relay-text-input").addEventListener("input", function () {
-      if ($("relay-text-count")) $("relay-text-count").textContent = this.value.length + " / " + MAX_TEXT + "자";
-    });
     $("relay-text-input").addEventListener("keydown", function (event) {
-      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") submitText();
+      if (event.key === "Enter" && !event.isComposing) submitText();
     });
     $("relay-text-submit").addEventListener("click", submitText);
+    $("relay-caption-input").addEventListener("keydown", function (event) {
+      if (event.key === "Enter" && !event.isComposing) submitText();
+    });
+    $("relay-caption-submit").addEventListener("click", submitText);
     $("relay-suggest-btn").addEventListener("click", function () {
       var input = $("relay-text-input");
       if (!input || input.disabled) return;
@@ -964,15 +1091,34 @@ window.RelayDrawing = (function () {
     var tools = document.querySelectorAll("[data-relay-tool]");
     for (var i = 0; i < tools.length; i++) tools[i].addEventListener("click", function () {
       selectedTool = this.getAttribute("data-relay-tool");
+      setPaletteOpen(false);
       syncToolButtons();
     });
     var colors = document.querySelectorAll("[data-relay-color]");
     for (var j = 0; j < colors.length; j++) colors[j].addEventListener("click", function () {
-      selectedColor = safeColor(this.getAttribute("data-relay-color"));
+      var slot = colorSlotFromButton(this, 0);
+      var palette = $("relay-palette");
+      var paletteOpen = !!palette && !palette.classList.contains("hidden");
+      var shouldClose = paletteOpen && paletteTarget === "pen" && selectedColorSlot === slot;
+      selectColorSlot(slot);
+      setPaletteOpen(!shouldClose);
+    });
+    $("relay-bg-btn").addEventListener("click", function () {
+      paletteTarget = "bg";
       selectedTool = "pen";
       syncToolButtons();
+      var palette = $("relay-palette");
+      setPaletteOpen(!palette || palette.classList.contains("hidden"));
+    });
+    var paletteColors = document.querySelectorAll("[data-relay-palette-color]");
+    for (var k = 0; k < paletteColors.length; k++) paletteColors[k].addEventListener("click", function () {
+      applyPaletteColor(this.getAttribute("data-relay-palette-color"));
     });
     $("relay-chat-input").addEventListener("keydown", function (event) {
+      if (event.key !== "Enter" || event.isComposing || !api) return;
+      if (api.sendChat(this.value)) this.value = "";
+    });
+    $("relay-result-chat-input").addEventListener("keydown", function (event) {
       if (event.key !== "Enter" || event.isComposing || !api) return;
       if (api.sendChat(this.value)) this.value = "";
     });
@@ -996,7 +1142,11 @@ window.RelayDrawing = (function () {
   function tick() {
     if (!api) return;
     renderTimer();
-    if (!previewMode && api.isHost() && isActivePhase() && state.deadline && Date.now() >= state.deadline) {
+    var now = Date.now();
+    if (!previewMode && isActivePhase() && state.deadline && now >= state.deadline) {
+      autoSubmitCurrentState();
+    }
+    if (!previewMode && api.isHost() && isActivePhase() && state.deadline && now >= state.deadline + AUTO_SUBMIT_GRACE_MS) {
       hostFinishExpiredStep();
     }
   }
@@ -1008,10 +1158,13 @@ window.RelayDrawing = (function () {
     taskScope = "";
     inputScope = "";
     pendingSubmitScope = "";
+    warningScope = "";
     albumIndex = 0;
+    canvasBg = CANVAS_BG;
     canvas = $("relay-board");
     ctx = canvas ? canvas.getContext("2d") : null;
     if (canvas) {
+      buildPaletteUi();
       bind();
       paintStrokes(ctx, canvas, [], CANVAS_BG);
     }
@@ -1035,6 +1188,9 @@ window.RelayDrawing = (function () {
     taskScope = "";
     inputScope = "";
     pendingSubmitScope = "";
+    warningScope = "";
+    canvasBg = CANVAS_BG;
+    setPaletteOpen(false);
     previewMode = false;
   }
   function roomMeta() {
@@ -1064,7 +1220,7 @@ window.RelayDrawing = (function () {
         + '<section class="cm-rule-section"><h3>2. 제출 시간</h3><ul class="cm-rule-list">'
         + '<li>문장과 설명은 <b>40초</b>, 그림은 <b>80초</b> 안에 제출해요.</li>'
         + '<li>모두 일찍 제출하면 기다리지 않고 바로 다음 단계로 넘어가요.</li>'
-        + '<li>시간 안에 제출하지 못한 단계는 빈 내용으로 이어집니다.</li>'
+        + '<li>시간이 끝나면 작성하거나 그리던 마지막 상태가 자동으로 제출돼요.</li>'
         + '</ul></section>'
         + '<section class="cm-rule-section"><h3>3. 결과 앨범</h3><p>마지막에는 각 시작 문장이 어떻게 변했는지 연쇄 앨범으로 차례대로 감상합니다. 그림 실력보다 서로의 오해를 즐기는 게임이에요.</p></section>'
         + '<p class="cm-rule-muted">최소 3명부터 시작할 수 있고 4~8명을 권장합니다. 게임 중 들어온 사람은 관전하고 다음 게임부터 참여해요.</p>'
@@ -1106,6 +1262,8 @@ window.RelayDrawing = (function () {
       hostAcceptSubmission: hostAcceptSubmission,
       hostAdvanceStep: hostAdvanceStep,
       hostFinishExpiredStep: hostFinishExpiredStep,
+      autoSubmitCurrentState: autoSubmitCurrentState,
+      tick: tick,
       storeEntry: storeEntry,
       onMessage: onMessage,
       snapshot: snapshot,
@@ -1117,6 +1275,7 @@ window.RelayDrawing = (function () {
       limits: {
         textMs: TEXT_MS,
         drawMs: DRAW_MS,
+        autoSubmitGraceMs: AUTO_SUBMIT_GRACE_MS,
         minPlayers: MIN_PLAYERS,
         maxPlayers: MAX_PLAYERS,
         maxText: MAX_TEXT,

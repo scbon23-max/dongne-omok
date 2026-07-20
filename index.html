@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260721-relay-prompt-simple-v1">
+<meta name="app-build" content="20260721-relay-flow-polish-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -479,7 +479,7 @@
 
   <div id="relay-progress" class="relay-progress" aria-label="이어그리기 진행 단계"></div>
 
-  <div class="relay-board-wrap">
+  <div id="relay-board-wrap" class="relay-board-wrap">
     <div class="relay-wordbar">
       <div class="relay-word-main"><span id="relay-task-label">진행</span><strong id="relay-task-text">문장 ↔ 그림</strong></div>
       <div id="relay-timer" class="relay-timer">--</div>
@@ -508,28 +508,21 @@
     <section id="relay-text-panel" class="relay-text-panel hidden">
       <h2 id="relay-text-title">스토리 시작</h2>
       <p id="relay-text-hint">나만의 간단한 이야기를 만들어요!</p>
-      <textarea id="relay-text-input" maxlength="40" placeholder="예: 우주에서 라면을 배달하는 고양이"></textarea>
-      <span id="relay-text-count" class="relay-text-count">0 / 40자</span>
+      <input id="relay-text-input" type="text" maxlength="40" placeholder="예: 우주에서 라면을 배달하는 고양이" autocomplete="off">
       <div class="relay-text-actions">
         <button id="relay-suggest-btn" class="relay-secondary" type="button">자동 생성</button>
         <button id="relay-text-submit" class="relay-primary" type="button">제출하기</button>
       </div>
-      <span id="relay-submit-status" class="relay-submit-status"></span>
     </section>
 
     <section id="relay-result-panel" class="relay-result-panel hidden">
-      <header class="relay-result-head">
-        <span id="relay-album-kicker">첫 번째 연쇄</span>
-        <h2 id="relay-album-title">처음과 끝이 이렇게 달라졌어요</h2>
-        <p id="relay-album-meta"></p>
-      </header>
       <div id="relay-chain" class="relay-chain"></div>
-      <footer class="relay-result-actions">
-        <button id="relay-album-prev" class="relay-secondary" type="button">이전 앨범</button>
-        <button id="relay-album-next" class="relay-primary" type="button">다음 앨범</button>
-      </footer>
-      <button id="relay-again-btn" class="relay-again-btn" type="button">다음 게임 준비</button>
     </section>
+  </div>
+
+  <div id="relay-caption-row" class="relay-caption-row hidden">
+    <input id="relay-caption-input" type="text" maxlength="40" placeholder="그림을 한 문장으로 설명하세요" autocomplete="off">
+    <button id="relay-caption-submit" type="button">제출하기</button>
   </div>
 
   <div id="relay-idle-actions" class="relay-idle-actions hidden">
@@ -537,20 +530,32 @@
     <button id="relay-start-btn" class="relay-start-btn hidden" type="button">게임 시작</button>
   </div>
 
-  <div id="relay-tools" class="relay-tools hidden" aria-label="이어그리기 도구">
-    <button class="relay-tool active" type="button" data-relay-tool="pen">펜</button>
-    <button class="relay-tool" type="button" data-relay-tool="eraser">지우개</button>
-    <button class="relay-color active" type="button" data-relay-color="#17252f" aria-label="검정"><span style="background:#17252f"></span></button>
-    <button class="relay-color" type="button" data-relay-color="#d23b3b" aria-label="빨강"><span style="background:#d23b3b"></span></button>
-    <button class="relay-color" type="button" data-relay-color="#2474b5" aria-label="파랑"><span style="background:#2474b5"></span></button>
-    <button id="relay-undo-btn" class="relay-tool relay-tool-icon" type="button" aria-label="마지막 선 되돌리기">↶</button>
-    <button id="relay-clear-btn" class="relay-tool relay-tool-icon" type="button" aria-label="그림 모두 지우기">⌫</button>
+  <div id="relay-tools" class="catch-tools relay-tools hidden" aria-label="이어그리기 도구">
+    <button class="catch-tool catch-tool-icon relay-tool active" type="button" data-relay-tool="pen" aria-label="펜">✏️</button>
+    <button class="catch-tool catch-tool-icon relay-tool" type="button" data-relay-tool="eraser" aria-label="지우개">🧽</button>
+    <button id="relay-clear-btn" class="catch-tool catch-tool-icon relay-tool relay-tool-icon" type="button" aria-label="그림 모두 지우기">🗑️</button>
+    <button id="relay-bg-btn" class="catch-tool catch-tool-icon relay-tool relay-tool-icon" type="button" aria-label="배경색">▣</button>
+    <button class="catch-color relay-color active" type="button" data-catch-color-slot="0" data-relay-color-slot="0" data-relay-color="#17252f" aria-label="일반 펜 색상"><span style="background:#17252f"></span></button>
+    <button class="catch-color relay-color" type="button" data-catch-color-slot="1" data-relay-color-slot="1" data-relay-color="#d23b3b" aria-label="굵은 펜 색상"><span style="background:#d23b3b"></span></button>
+    <button id="relay-undo-btn" class="catch-tool catch-tool-icon relay-tool relay-tool-icon" type="button" aria-label="마지막 선 되돌리기">↶</button>
   </div>
+  <div id="relay-palette" class="catch-palette relay-palette hidden" aria-label="이어그리기 색상 팔레트"></div>
 
   <button id="relay-draw-submit" class="relay-draw-submit hidden" type="button">그림 제출하기</button>
 
   <div id="relay-chat-row" class="relay-chat-row">
     <input id="relay-chat-input" class="chat-input" type="text" maxlength="80" placeholder="채팅 입력" autocomplete="off">
+  </div>
+
+  <div id="relay-result-dock" class="relay-result-dock hidden">
+    <div class="relay-result-actions">
+      <button id="relay-album-prev" class="relay-secondary" type="button">이전 앨범</button>
+      <button id="relay-album-next" class="relay-secondary" type="button">다음 앨범</button>
+      <button id="relay-again-btn" class="relay-primary" type="button" aria-pressed="false">레디</button>
+    </div>
+    <div class="relay-result-chat-row">
+      <input id="relay-result-chat-input" class="chat-input" type="text" maxlength="80" placeholder="채팅 입력" autocomplete="off">
+    </div>
   </div>
 
   <div class="room-strip" id="room-strip-relay"></div>

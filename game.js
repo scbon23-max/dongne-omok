@@ -176,6 +176,10 @@
       showChat: function (nick, text, overlaySide) {
         addChatTo("catchmind", nick, text, true, overlaySide === "right" ? "right" : "");
       },
+      playWarning: function () {
+        initAudio();
+        playSample(warnBuffer);
+      },
       toast: toast,
       openRank: function () { openRank(curRoomGame || curGame); },
       openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
@@ -1212,6 +1216,7 @@
       setHostEligible: function () {},
       send: function () {},
       sendChat: function () { toast("UI 점검 모드에서는 채팅을 보내지 않아요"); return false; },
+      playWarning: function () {},
       toast: toast,
       openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
       openMenu: openMenu,
