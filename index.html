@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260721-relay-album-scroll-v1">
+<meta name="app-build" content="20260721-relay-waiting-visual-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -129,6 +129,7 @@
       <span id="lobby-online-count">온라인 0명</span>
     </div>
     <div class="hdr-right">
+      <button id="lobby-relay-gallery-btn" class="hdr-btn admin-only" type="button" aria-label="이어그리기 앨범">▤ 이어앨범</button>
       <button id="lobby-catch-gallery-btn" class="hdr-btn" type="button" aria-label="캐치마인드 갤러리">▧ 갤러리</button>
       <button id="lobby-rank-btn" class="hdr-btn">🏅 전체랭킹</button>
       <button id="lobby-menu-btn" class="hdr-btn menu-dots">⋯</button>
@@ -471,6 +472,7 @@
 
   <div class="action-row slim relay-action-row">
     <button id="relay-rules-btn" class="btn-flat">📖 규칙</button>
+    <button id="relay-gallery-btn" class="btn-flat" type="button">▤ 앨범</button>
     <button id="relay-role-btn" class="btn-flat relay-role-btn" type="button" aria-pressed="false">관전하기</button>
     <button id="relay-people-btn" class="btn-flat"><span id="relay-online-num">0</span>명</button>
     <button id="relay-leave-btn" class="btn-flat">나가기</button>
@@ -489,6 +491,13 @@
 
     <section id="relay-idle" class="relay-stage">
       <div class="relay-stage-main">
+        <div class="relay-wait-mark" aria-hidden="true">
+          <span class="relay-wait-route"></span>
+          <span class="relay-wait-paper one"><i class="relay-wait-lines short"></i></span>
+          <span class="relay-wait-paper two"><span class="relay-wait-doodle"><i></i><i></i><i></i></span></span>
+          <span class="relay-wait-paper three"><i class="relay-wait-lines"></i></span>
+          <span class="relay-wait-arrow"></span>
+        </div>
         <span class="relay-stage-kicker">RELAY DRAWING</span>
         <h2 id="relay-idle-title">이어그리기 준비</h2>
         <p id="relay-idle-copy">문장과 그림을 번갈아 이어가요</p>
@@ -509,15 +518,16 @@
       <h2 id="relay-text-title">스토리 시작</h2>
       <p id="relay-text-hint">나만의 간단한 이야기를 만들어요!</p>
       <input id="relay-text-input" type="text" maxlength="40" placeholder="예: 우주에서 라면을 배달하는 고양이" autocomplete="off">
-      <div class="relay-text-actions">
-        <button id="relay-suggest-btn" class="relay-secondary" type="button">자동 생성</button>
-        <button id="relay-text-submit" class="relay-primary" type="button">제출하기</button>
-      </div>
     </section>
 
     <section id="relay-result-panel" class="relay-result-panel hidden">
       <div id="relay-chain" class="relay-chain"></div>
     </section>
+  </div>
+
+  <div id="relay-prompt-actions" class="relay-text-actions relay-prompt-actions hidden">
+    <button id="relay-suggest-btn" class="relay-secondary" type="button">자동 생성</button>
+    <button id="relay-text-submit" class="relay-primary" type="button">제출하기</button>
   </div>
 
   <div id="relay-caption-row" class="relay-caption-row hidden">
@@ -549,8 +559,11 @@
 
   <div id="relay-result-dock" class="relay-result-dock hidden">
     <div class="relay-result-actions">
-      <button id="relay-album-prev" class="relay-secondary" type="button">이전 앨범</button>
-      <button id="relay-album-next" class="relay-secondary" type="button">다음 앨범</button>
+      <div class="relay-album-nav" aria-label="앨범 이동">
+        <button id="relay-album-prev" class="relay-secondary" type="button" aria-label="이전 앨범">‹ 이전</button>
+        <output id="relay-album-position" aria-live="polite">1 / 1</output>
+        <button id="relay-album-next" class="relay-secondary" type="button" aria-label="다음 앨범">다음 ›</button>
+      </div>
       <button id="relay-again-btn" class="relay-primary" type="button" aria-pressed="false">레디</button>
     </div>
     <div class="relay-result-chat-row">
@@ -629,6 +642,36 @@
         <strong id="catch-gallery-preview-word"></strong>
         <span id="catch-gallery-preview-meta"></span>
       </div>
+    </div>
+  </section>
+</div>
+
+<!-- 이어그리기 앨범 갤러리 -->
+<div id="relay-gallery-backdrop" class="cm-gallery-backdrop relay-gallery-backdrop hidden" aria-hidden="true">
+  <section class="cm-gallery-dialog relay-gallery-dialog" role="dialog" aria-modal="true" aria-labelledby="relay-gallery-title">
+    <header class="cm-gallery-head relay-gallery-head">
+      <div>
+        <span>이어그리기</span>
+        <h2 id="relay-gallery-title">앨범 갤러리</h2>
+      </div>
+      <button id="relay-gallery-close" class="cm-gallery-close" type="button" aria-label="앨범 갤러리 닫기">✕</button>
+    </header>
+
+    <div id="relay-gallery-status" class="cm-gallery-status" aria-live="polite">앨범을 불러오는 중이에요</div>
+    <div id="relay-gallery-scroll" class="cm-gallery-scroll">
+      <div id="relay-gallery-grid" class="cm-gallery-grid relay-gallery-grid"></div>
+      <button id="relay-gallery-more" class="cm-gallery-more hidden" type="button">더 보기</button>
+    </div>
+
+    <div id="relay-gallery-preview" class="relay-gallery-preview hidden" aria-hidden="true">
+      <header class="relay-gallery-preview-head">
+        <div>
+          <strong id="relay-gallery-preview-title"></strong>
+          <span id="relay-gallery-preview-meta"></span>
+        </div>
+        <button id="relay-gallery-preview-close" type="button" aria-label="앨범 닫기">✕</button>
+      </header>
+      <div id="relay-gallery-preview-chain" class="relay-gallery-preview-chain"></div>
     </div>
   </section>
 </div>

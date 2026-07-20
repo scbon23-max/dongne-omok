@@ -144,6 +144,38 @@ window.Db = (function () {
       favorite: !!favorite
     });
   }
+  async function relayGalleryInvoke(action, auth, payload) {
+    if (!sb || !sb.functions || !sb.functions.invoke) return { ok: false, reason: "unavailable" };
+    auth = auth || {};
+    payload = payload || {};
+    var body = Object.assign({}, payload, {
+      action: action,
+      auth: {
+        nick: String(auth.nick || "").slice(0, 40),
+        hash: String(auth.hash || "").slice(0, 128)
+      }
+    });
+    if (!body.auth.nick || !body.auth.hash) return { ok: false, reason: "auth" };
+    var response = await sb.functions.invoke("relay-gallery", { body: body });
+    if (response.error) return { ok: false, reason: "network", msg: response.error.message || String(response.error) };
+    return response.data && typeof response.data === "object"
+      ? response.data
+      : { ok: false, reason: "invalid_response" };
+  }
+  async function saveRelayAlbum(auth, album) {
+    return relayGalleryInvoke("save", auth, album);
+  }
+  async function getRelayAlbums(auth, offset, limit) {
+    return relayGalleryInvoke("list", auth, {
+      offset: Math.max(0, Math.floor(Number(offset) || 0)),
+      limit: Math.max(1, Math.min(20, Math.floor(Number(limit) || 10)))
+    });
+  }
+  async function getRelayAlbum(auth, albumId) {
+    return relayGalleryInvoke("detail", auth, {
+      albumId: Math.max(0, Math.floor(Number(albumId) || 0))
+    });
+  }
   async function roomLeaseInvoke(action, auth, lease) {
     if (!sb || !sb.functions || !sb.functions.invoke) return { ok: false, reason: "unavailable" };
     auth = auth || {};
@@ -276,6 +308,7 @@ window.Db = (function () {
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
     recordGame: recordGame, recordAlkGame: recordAlkGame, recordCatchmindMatch: recordCatchmindMatch,
     saveCatchmindDrawing: saveCatchmindDrawing, getCatchmindGallery: getCatchmindGallery, toggleCatchmindFavorite: toggleCatchmindFavorite,
+    saveRelayAlbum: saveRelayAlbum, getRelayAlbums: getRelayAlbums, getRelayAlbum: getRelayAlbum,
     claimRoomLease: claimRoomLease, renewRoomLease: renewRoomLease, releaseRoomLease: releaseRoomLease,
     getGames: getGames, getGamesByType: getGamesByType,
     getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves, deleteGame: deleteGame,

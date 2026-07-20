@@ -253,6 +253,9 @@ test("Relay Drawing is registered as a separate non-ranked party game", () => {
 });
 
 test("Relay Drawing waiting screen mirrors the simple CatchMind participant footer", () => {
+  assert.match(index, /class="relay-wait-mark"[\s\S]*class="relay-wait-route"[\s\S]*class="relay-wait-paper one"[\s\S]*class="relay-wait-paper two"[\s\S]*class="relay-wait-paper three"[\s\S]*class="relay-wait-arrow"/);
+  assert.match(styles, /\.relay-wait-route\s*\{[\s\S]*border-top:\s*3px dashed #f6a27f/);
+  assert.match(styles, /\.relay-wait-paper\.two::before\s*\{[^}]*background:\s*var\(--teal\)/);
   assert.match(index, /id="relay-lobby-roles" class="catch-lobby-roles relay-lobby-roles"/);
   assert.match(index, /id="relay-lobby-participant-row" class="catch-lobby-role-row"/);
   assert.match(index, /id="relay-lobby-spectator-row" class="catch-lobby-role-row"/);
@@ -266,16 +269,22 @@ test("Relay Drawing waiting screen mirrors the simple CatchMind participant foot
 });
 
 test("Relay Drawing prompt screen keeps only the story form and two actions", () => {
+  const promptPanel = index.match(/<section id="relay-text-panel"[\s\S]*?<\/section>/)[0];
   assert.match(index, /id="relay-text-title">스토리 시작<\/h2>/);
   assert.match(index, /id="relay-text-hint">나만의 간단한 이야기를 만들어요!<\/p>/);
   assert.match(index, /id="relay-text-input" type="text"/);
+  assert.match(index, /id="relay-prompt-actions" class="relay-text-actions relay-prompt-actions hidden"/);
   assert.match(index, /id="relay-suggest-btn"[^>]*>자동 생성<\/button>/);
   assert.match(index, /id="relay-text-submit"[^>]*>제출하기<\/button>/);
+  assert.doesNotMatch(promptPanel, /relay-text-actions|relay-suggest-btn|relay-text-submit/);
   assert.doesNotMatch(index, /relay-text-kicker|relay-text-example|relay-text-count|relay-submit-status/);
   assert.match(relayDrawing, /\$\("relay-text-title"\)\.textContent = "스토리 시작"/);
   assert.match(relayDrawing, /\$\("relay-text-hint"\)\.textContent = "나만의 간단한 이야기를 만들어요!"/);
   assert.match(relayDrawing, /label\.textContent = "";\s*text\.textContent = "누군가가 그릴 문장 만들기"/);
+  assert.match(relayDrawing, /toggleHidden\(\$\("relay-prompt-actions"\), state\.phase !== "prompt"\)/);
   assert.match(styles, /\.relay-text-panel\.prompt #relay-text-input/);
+  assert.match(styles, /\.relay-text-panel\.prompt\s*\{[\s\S]*justify-content:\s*center[\s\S]*padding:\s*24px 22px 30px/);
+  assert.match(styles, /\.relay-prompt-actions\s*\{[\s\S]*order:\s*5[\s\S]*max-width:\s*420px/);
   assert.doesNotMatch(styles, /\.relay-text-kicker|\.relay-text-example/);
 });
 
@@ -292,19 +301,24 @@ test("Relay Drawing uses the CatchMind tool row and unobstructed caption form", 
   assert.doesNotMatch(styles, /\.relay-text-panel\.caption/);
 });
 
-test("Relay Drawing results grow with history and keep the three-button chat dock visible", () => {
+test("Relay Drawing results grow with history and keep the album navigator and ready action visible", () => {
   assert.doesNotMatch(index, /relay-result-head|relay-album-kicker|relay-album-title|relay-album-meta/);
   assert.match(index, /id="relay-result-panel"[\s\S]*id="relay-chain"/);
-  assert.match(index, /id="relay-result-dock"[\s\S]*id="relay-album-prev"[\s\S]*id="relay-album-next"[\s\S]*id="relay-again-btn"[\s\S]*id="relay-result-chat-input"/);
+  assert.match(index, /id="relay-result-dock"[\s\S]*class="relay-album-nav"[\s\S]*id="relay-album-prev"[\s\S]*id="relay-album-position"[\s\S]*id="relay-album-next"[\s\S]*id="relay-again-btn"[\s\S]*id="relay-result-chat-input"/);
   assert.match(relayDrawing, /relay-chain-meta"><b>' \+ esc\(entry\.author\) \+ '<\/b>/);
   assert.doesNotMatch(relayDrawing, /var label = entry\.kind|authorLabel|<b><small>/);
   assert.match(styles, /\.relay-board-wrap\.result-mode #relay-board/);
   assert.match(styles, /\.relay-chain\s*\{[\s\S]*overflow:\s*visible/);
   assert.match(styles, /\.relay-result-panel\s*\{[\s\S]*background:\s*transparent/);
   assert.match(styles, /\.relay-chain-copy > strong\s*\{[\s\S]*font-size:\s*16px/);
+  assert.match(relayDrawing, /class="relay-chain-copy relay-chain-text"/);
+  assert.match(styles, /\.relay-chain-text\s*\{[\s\S]*display:\s*flex[\s\S]*align-items:\s*center/);
+  assert.match(styles, /\.relay-chain-text > strong\s*\{[\s\S]*margin-top:\s*0[\s\S]*text-overflow:\s*ellipsis[\s\S]*white-space:\s*nowrap/);
   assert.doesNotMatch(styles, /\.relay-chain-item::before|\.relay-chain-item:not\(:last-child\)::after|\.relay-chain-meta span|\.relay-chain-meta b small/);
   assert.match(styles, /\.relay-result-dock\s*\{[\s\S]*position:\s*fixed/);
-  assert.match(styles, /\.relay-result-actions\s*\{[\s\S]*grid-template-columns:\s*repeat\(3/);
+  assert.match(styles, /\.relay-result-actions\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 2fr\) minmax\(0, 1fr\)/);
+  assert.match(styles, /\.relay-album-nav\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\)/);
+  assert.match(relayDrawing, /relay-album-position"\)\.textContent = \(albumIndex \+ 1\) \+ " \/ " \+ state\.players\.length/);
   assert.match(relayDrawing, /function scrollAlbumToTop\(\)[\s\S]*window\.scrollTo\(\{ top: 0, left: 0, behavior: "auto" \}\)/);
   assert.match(relayDrawing, /relay-album-prev[\s\S]*renderResults\(\);\s*scrollAlbumToTop\(\)/);
   assert.match(relayDrawing, /relay-album-next[\s\S]*renderResults\(\);\s*scrollAlbumToTop\(\)/);

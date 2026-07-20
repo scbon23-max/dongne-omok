@@ -200,6 +200,18 @@
         if (!window.Db || !Db.toggleCatchmindFavorite) return Promise.resolve({ ok: false, reason: "unavailable" });
         return Promise.resolve(Db.toggleCatchmindFavorite({ nick: me.nick, hash: sessionAuthHash }, drawingId, favorite));
       },
+      saveRelayAlbum: function (album) {
+        if (!window.Db || !Db.saveRelayAlbum) return Promise.resolve({ ok: false, reason: "unavailable" });
+        return Promise.resolve(Db.saveRelayAlbum({ nick: me.nick, hash: sessionAuthHash }, album));
+      },
+      loadRelayAlbums: function (offset, limit) {
+        if (!window.Db || !Db.getRelayAlbums) return Promise.resolve({ ok: false, reason: "unavailable", rows: [] });
+        return Promise.resolve(Db.getRelayAlbums({ nick: me.nick, hash: sessionAuthHash }, offset, limit));
+      },
+      loadRelayAlbum: function (albumId) {
+        if (!window.Db || !Db.getRelayAlbum) return Promise.resolve({ ok: false, reason: "unavailable" });
+        return Promise.resolve(Db.getRelayAlbum({ nick: me.nick, hash: sessionAuthHash }, albumId));
+      },
       recordMatch: function (matchId, results) {
         if (!window.Db || !Db.recordCatchmindMatch) return Promise.resolve(null);
         return Promise.resolve(Db.recordCatchmindMatch(matchId, results));
@@ -5293,6 +5305,10 @@
     $("lobby-catch-gallery-btn").addEventListener("click", function () {
       if (window.CatchMind && CatchMind.openGallery) CatchMind.openGallery(controllerApi());
       else toast("갤러리를 열 수 없어요");
+    });
+    $("lobby-relay-gallery-btn").addEventListener("click", function () {
+      if (window.RelayDrawing && RelayDrawing.openGallery) RelayDrawing.openGallery(controllerApi());
+      else toast("앨범 갤러리를 열 수 없어요");
     });
     $("lobby-rank-btn").addEventListener("click", function () { openRank("all"); });
     $("lobby-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendLobbyChat(); });

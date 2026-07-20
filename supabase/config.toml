@@ -1,5 +1,8 @@
 [functions.catchmind-gallery]
 verify_jwt = false
 
+[functions.relay-gallery]
+verify_jwt = false
+
 [functions.room-lease]
 verify_jwt = false

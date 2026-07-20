@@ -9,33 +9,123 @@ window.RelayDrawing = (function () {
   var MAX_STROKES = 160;
   var MAX_POINTS_PER_STROKE = 700;
   var MAX_CANVAS_POINTS = 5000;
+  var POINT_PRECISION = 10000;
+  var SITUATION_RATIO = 0.15;
   var CANVAS_BG = "#ffffff";
   var AUTO_SUBMIT_GRACE_MS = 1200;
   var PEN_COLORS = ["#17252f", "#d23b3b"];
   var PEN_WIDTHS = [8, 24];
   var ERASER_WIDTH = 90;
+  var GALLERY_IMAGE_SIZE = 480;
+  var GALLERY_IMAGE_QUALITY = 0.72;
+  var GALLERY_IMAGE_MAX_BYTES = 153600;
+  var GALLERY_PAGE_SIZE = 10;
   var PALETTE_COLORS = [
     "#17252f", "#4b5563", "#9ca3af", "#ffffff", "#7c4a2d", "#d23b3b",
     "#be123c", "#f97316", "#facc15", "#84cc16", "#22c55e", "#14b8a6",
     "#06b6d4", "#38bdf8", "#2474b5", "#4338ca", "#8b5cf6", "#ec4899"
   ];
-  var SUGGESTIONS = [
-    "춤추는 고양이",
-    "달리는 펭귄",
-    "요리하는 로봇",
-    "자는 공룡",
-    "노래하는 문어",
-    "웃는 유령",
-    "수영하는 토끼",
-    "책 읽는 곰",
-    "축구하는 강아지",
-    "점프하는 코끼리",
-    "낚시하는 북극곰",
-    "그림 그리는 원숭이",
-    "우는 아기",
-    "청소하는 마녀",
-    "날아가는 돼지",
-    "박수치는 왕"
+  // 캐치마인드 단어장 중 누구나 바로 떠올릴 수 있는 소재만 골라 조합한다.
+  var PROMPT_CHARACTERS = [
+    "강아지", "고양이", "토끼", "햄스터", "다람쥐", "고슴도치", "수달", "너구리",
+    "여우", "곰", "북극곰", "판다", "코알라", "캥거루", "코끼리", "기린",
+    "얼룩말", "하마", "사자", "호랑이", "사슴", "염소", "양", "소",
+    "돼지", "말", "원숭이", "고릴라", "물개", "돌고래", "고래", "펭귄",
+    "오리", "병아리", "닭", "독수리", "부엉이", "참새", "개구리", "거북이",
+    "문어", "오징어", "상어", "금붕어", "나비", "꿀벌", "공룡", "용",
+    "로봇", "외계인", "유령", "마법사", "해적", "왕", "공주", "왕자",
+    "아기", "어린이", "학생", "선생님", "요리사", "의사", "소방관", "경찰관",
+    "운동선수", "우주비행사", "할머니", "할아버지", "산타", "눈사람",
+    "치타", "표범", "늑대", "코뿔소", "악어", "카멜레온", "도마뱀", "뱀",
+    "앵무새", "공작새", "플라밍고", "백조", "갈매기", "까마귀", "딱따구리", "타조",
+    "칠면조", "라쿤", "미어캣", "알파카", "라마", "낙타", "당나귀", "조랑말",
+    "송아지", "아기돼지", "아기오리", "아기곰", "해달", "비버", "두더지", "스컹크",
+    "나무늘보", "개미핥기", "박쥐", "북극여우", "순록", "고라니", "멧돼지", "들소",
+    "물소", "바다거북", "해마", "불가사리", "해파리", "꽃게", "새우", "복어",
+    "가오리", "참치", "연어", "고등어", "조개", "달팽이", "애벌레", "개미",
+    "무당벌레", "잠자리", "사마귀", "매미", "메뚜기", "반딧불이", "지렁이", "거미",
+    "장수풍뎅이", "사슴벌레", "엄마", "아빠", "누나", "형", "언니", "오빠",
+    "동생", "친구", "탐정", "발명가", "과학자", "화가", "작가", "사진가",
+    "가수", "배우", "무용수", "피아니스트", "기타리스트", "드러머", "마술사", "광대",
+    "농부", "어부", "목수", "우체부", "택배기사", "버스기사", "기차기관사", "비행기조종사",
+    "선장", "잠수부", "등산가", "축구선수", "야구선수", "농구선수", "수영선수", "스케이트선수",
+    "태권도선수", "제빵사", "미용사", "수의사", "간호사", "치과의사", "약사", "기자",
+    "아나운서", "유치원선생님", "경비원", "구조대원", "군인", "닌자", "기사", "요정",
+    "천사", "도깨비", "좀비", "뱀파이어", "슈퍼영웅", "악당", "인어", "거인",
+    "난쟁이", "장난감병정"
+  ];
+  var PROMPT_ACTIONS = [
+    "춤추는", "노래하는", "달리는", "점프하는", "웃는", "우는", "자는", "기지개 켜는",
+    "손 흔드는", "박수치는", "인사하는", "숨는", "날아가는", "수영하는", "산책하는", "등산하는",
+    "책 읽는", "편지 쓰는", "그림 그리는", "사진 찍는", "공부하는", "요리하는", "청소하는", "설거지하는",
+    "빨래하는", "양치하는", "세수하는", "화장하는", "머리 빗는", "쇼핑하는", "선물 주는", "꽃 심는",
+    "빵 굽는", "케이크 만드는", "라면 먹는", "아이스크림 먹는", "수박 먹는", "우유 마시는", "주스 마시는", "커피 마시는",
+    "자전거 타는", "버스 타는", "기차 타는", "배 타는", "스케이트 타는", "썰매 타는", "그네 타는", "미끄럼틀 타는",
+    "축구하는", "농구하는", "야구하는", "볼링하는", "줄넘기하는", "낚시하는", "캠핑하는", "소풍 가는",
+    "피아노 치는", "기타 치는", "드럼 치는", "풍선 부는", "연 날리는", "비눗방울 부는", "눈사람 만드는", "모래성 쌓는",
+    "우산 쓰는", "모자 쓰는", "안경 쓰는", "목도리 두르는", "꽃다발 든", "보물 찾는", "별 보는", "달 구경하는",
+    "하품하는", "재채기하는", "딸꾹질하는", "윙크하는", "코 고는", "꿈꾸는", "놀라는", "화내는",
+    "부끄러워하는", "고민하는", "응원하는", "축하하는", "포옹하는", "악수하는", "손잡고 걷는", "뒤돌아보는",
+    "엎드려 있는", "누워 있는", "의자에 앉은", "한 발로 서 있는", "빙글빙글 도는", "살금살금 걷는", "빨리 뛰는", "넘어지는",
+    "미끄러지는", "공중제비 도는", "벽을 오르는", "나무에 매달린", "파도 타는", "스키 타는", "스노보드 타는", "롤러스케이트 타는",
+    "킥보드 타는", "오토바이 타는", "자동차 운전하는", "비행기 타는", "열기구 타는", "잠수함 타는", "로켓 타는", "말을 타는",
+    "낙타 타는", "서핑하는", "스노클링하는", "물장구치는", "다이빙하는", "배드민턴 치는", "탁구 치는", "테니스 치는",
+    "배구하는", "골프 치는", "양궁하는", "태권도하는", "권투하는", "요가하는", "체조하는", "훌라후프 돌리는",
+    "팔굽혀펴기 하는", "역기 드는", "달리기 시합하는", "공 던지는", "공 받는", "골 넣는", "홈런 치는", "응원봉 흔드는",
+    "마이크 잡은", "지휘하는", "바이올린 켜는", "트럼펫 부는", "하모니카 부는", "플루트 부는", "색소폰 부는", "첼로 켜는",
+    "북 치는", "탬버린 흔드는", "춤 연습하는", "연극하는", "마술 부리는", "인형극 하는", "종이접기 하는", "색칠하는",
+    "찰흙으로 만드는", "블록 쌓는", "퍼즐 맞추는", "일기 쓰는", "만화책 보는", "신문 읽는", "지도 보는", "숙제하는",
+    "컴퓨터 하는", "게임하는", "전화하는", "영상 통화하는", "음악 듣는", "텔레비전 보는", "영화 보는", "알람 끄는",
+    "시계 보는", "가방 싸는", "신발 신는", "옷 갈아입는", "단추 잠그는", "넥타이 매는", "이불 덮는", "침대 정리하는",
+    "창문 여는", "문 두드리는", "초인종 누르는", "계단 오르는", "엘리베이터 타는", "길 건너는", "버스 기다리는", "표 사는",
+    "여행 가는", "길 잃은", "지도 들고 있는", "여행 가방 끄는", "장 보는", "계산하는", "음식 배달하는", "택배 나르는",
+    "편지 배달하는", "꽃에 물 주는", "나무 심는", "낙엽 쓸어 모으는", "눈 치우는", "자동차 닦는", "반려동물 산책시키는", "물고기 밥 주는"
+  ];
+  var PROMPT_SITUATIONS = [
+    "비 오는 날", "눈 오는 날", "바람 부는 날", "햇살 좋은 아침에", "깜깜한 밤에",
+    "무더운 여름날", "추운 겨울날", "안개 낀 아침에", "노을 지는 저녁에", "별이 빛나는 밤에",
+    "무지개 뜬 날", "천둥 치는 날", "벚꽃 피는 봄날", "낙엽 지는 가을날", "보름달 뜬 밤에",
+    "새해 첫날에", "주말 아침에", "한낮에", "해 뜨기 전에", "해 질 무렵에",
+    "비가 그친 뒤에", "첫눈 오는 날", "구름 많은 날", "더운 오후에", "선선한 저녁에",
+
+    "집 거실에서", "부엌에서", "침실에서", "베란다에서", "옥상에서",
+    "학교 교실에서", "학교 운동장에서", "학교 복도에서", "도서관에서", "미술실에서",
+    "음악실에서", "과학실에서", "체육관에서", "급식실에서", "공원에서",
+    "놀이터에서", "동네 골목에서", "시장 한가운데서", "마트에서", "빵집에서",
+    "카페에서", "식당에서", "편의점에서", "미용실에서", "병원에서",
+    "약국에서", "우체국에서", "은행에서", "소방서 앞에서", "경찰서 앞에서",
+    "버스 정류장에서", "지하철역에서", "기차역에서", "공항에서", "주차장에서",
+    "엘리베이터 안에서", "계단에서", "횡단보도 앞에서", "다리 위에서", "광장에서",
+    "영화관에서", "공연장에서", "박물관에서", "미술관에서", "수족관에서",
+    "동물원에서", "놀이공원에서", "운동장에서", "수영장에서", "스케이트장에서",
+
+    "숲속에서", "나무 아래서", "꽃밭에서", "잔디밭에서", "산책로에서",
+    "강가에서", "호숫가에서", "연못가에서", "폭포 앞에서", "계곡에서",
+    "산꼭대기에서", "언덕 위에서", "동굴 안에서", "사막에서", "오아시스에서",
+    "들판에서", "농장에서", "논밭에서", "과수원에서", "바닷가에서",
+    "모래사장에서", "바닷속에서", "작은 섬에서", "무인도에서", "배 위에서",
+    "등대 앞에서", "항구에서", "캠핑장에서", "텐트 안에서", "눈밭에서",
+    "얼음 호수에서", "구름 위에서", "하늘 위에서", "우주에서", "달나라에서",
+    "별나라에서", "로켓 안에서", "비행기 안에서", "기차 안에서", "버스 안에서",
+    "자동차 안에서", "자전거 도로에서", "시골길에서", "산길에서", "해변 도로에서",
+    "낯선 도시에서", "여행지에서", "호텔에서", "온천에서", "야영장에서",
+
+    "생일 파티에서", "크리스마스 아침에", "소풍 가서", "운동회에서", "졸업식에서",
+    "입학식에서", "결혼식에서", "축제에서", "불꽃놀이를 보며", "콘서트에서",
+    "야구장에서", "축구장에서", "농구장에서", "여름 캠프에서", "바자회에서",
+    "장기 자랑에서", "학교 축제에서", "가족 모임에서", "친구 집에서", "명절 아침에",
+    "어린이날에", "할로윈 밤에", "눈싸움하다가", "물놀이하다가", "보물찾기 중에",
+    "숨바꼭질하다가", "술래잡기하다가", "여행을 떠나서", "길을 잃고", "버스를 기다리며",
+    "기차를 기다리며", "비행기를 기다리며", "줄을 서서", "사진을 찍다가", "선물을 열다가",
+    "케이크 앞에서", "풍선을 들고", "꽃다발을 들고", "우산을 쓰고", "도시락을 들고",
+
+    "잠옷을 입고", "교복을 입고", "한복을 입고", "우비를 입고", "수영복을 입고",
+    "우주복을 입고", "마법사 옷을 입고", "해적 옷을 입고", "왕관을 쓰고", "커다란 모자를 쓰고",
+    "선글라스를 쓰고", "목도리를 두르고", "장화를 신고", "슬리퍼를 신고", "가방을 메고",
+    "배낭을 메고", "망원경을 들고", "지도를 들고", "손전등을 들고", "풍선을 타고",
+    "구름을 타고", "썰매를 타고", "열기구를 타고", "작은 배를 타고", "커다란 상자 안에서",
+    "선물 상자 옆에서", "장난감 가게에서", "사탕 가게에서", "꽃가게에서", "서점에서",
+    "문구점에서", "사진관에서", "세탁소에서", "분수대 앞에서", "시계탑 앞에서"
   ];
 
   var api = null;
@@ -59,6 +149,39 @@ window.RelayDrawing = (function () {
   var warningScope = "";
   var albumIndex = 0;
   var previewMode = false;
+  var lastSuggestion = "";
+  var gallerySavedMatches = Object.create(null);
+  var galleryRows = [];
+  var galleryOffset = 0;
+  var galleryTotal = 0;
+  var galleryHasMore = false;
+  var galleryLoading = false;
+  var galleryError = "";
+  var galleryRequestToken = 0;
+  var galleryDetailToken = 0;
+  var galleryBound = false;
+
+  function randomItem(list, random) {
+    return list[Math.floor(random() * list.length)];
+  }
+  function buildPromptSuggestion(random) {
+    random = typeof random === "function" ? random : Math.random;
+    var includeSituation = random() < SITUATION_RATIO;
+    var action = randomItem(PROMPT_ACTIONS, random);
+    var character = randomItem(PROMPT_CHARACTERS, random);
+    var prompt = action + " " + character;
+    if (includeSituation) prompt = randomItem(PROMPT_SITUATIONS, random) + " " + prompt;
+    return prompt.slice(0, MAX_TEXT);
+  }
+  function nextPromptSuggestion(random) {
+    var next = "";
+    for (var attempt = 0; attempt < 6; attempt++) {
+      next = buildPromptSuggestion(random);
+      if (next !== lastSuggestion) break;
+    }
+    lastSuggestion = next;
+    return next;
+  }
 
   function freshState() {
     return {
@@ -166,7 +289,10 @@ window.RelayDrawing = (function () {
     if (!raw) return null;
     var x = Number(raw.x), y = Number(raw.y);
     if (!isFinite(x) || !isFinite(y)) return null;
-    return { x: clamp(x, 0, 1), y: clamp(y, 0, 1) };
+    return {
+      x: Math.round(clamp(x, 0, 1) * POINT_PRECISION) / POINT_PRECISION,
+      y: Math.round(clamp(y, 0, 1) * POINT_PRECISION) / POINT_PRECISION
+    };
   }
   function sanitizeStrokes(raw) {
     if (!Array.isArray(raw)) return [];
@@ -498,6 +624,7 @@ window.RelayDrawing = (function () {
       state.rev++;
       albumIndex = 0;
       sendState(false);
+      saveFinishedAlbums();
       return;
     }
     state.stepIndex = nextStep;
@@ -650,6 +777,79 @@ window.RelayDrawing = (function () {
       targetCtx.stroke();
     });
     targetCtx.restore();
+  }
+  function galleryBlob(entry, quality) {
+    return new Promise(function (resolve, reject) {
+      if (!document.createElement) { reject(new Error("canvas unavailable")); return; }
+      var output = document.createElement("canvas");
+      output.width = GALLERY_IMAGE_SIZE;
+      output.height = GALLERY_IMAGE_SIZE;
+      var outputCtx = output.getContext && output.getContext("2d");
+      if (!outputCtx || !output.toBlob) { reject(new Error("image export unavailable")); return; }
+      paintStrokes(outputCtx, output, entry.strokes || [], entry.bg || CANVAS_BG);
+      output.toBlob(function (blob) {
+        if (blob) resolve(blob);
+        else reject(new Error("image export failed"));
+      }, "image/webp", quality);
+    });
+  }
+  async function compactGalleryBlob(entry) {
+    var blob = await galleryBlob(entry, GALLERY_IMAGE_QUALITY);
+    if (blob.size > GALLERY_IMAGE_MAX_BYTES) blob = await galleryBlob(entry, 0.58);
+    if (!blob.size || blob.size > GALLERY_IMAGE_MAX_BYTES) throw new Error("image too large");
+    return blob;
+  }
+  async function blobBase64(blob) {
+    var bytes = new Uint8Array(await blob.arrayBuffer());
+    var binary = "";
+    for (var i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+    }
+    return window.btoa(binary);
+  }
+  async function savedAlbumEntry(entry, index) {
+    if (entry.kind !== "drawing") {
+      return { stepIndex: index, kind: entry.kind, author: entry.author, text: entry.text || "내용 없음" };
+    }
+    var blob = await compactGalleryBlob(entry);
+    return {
+      stepIndex: index,
+      kind: "drawing",
+      author: entry.author,
+      mimeType: "image/webp",
+      byteSize: blob.size,
+      imageBase64: await blobBase64(blob)
+    };
+  }
+  async function saveFinishedAlbums() {
+    if (previewMode || !api || !api.isHost() || !api.saveRelayAlbum || state.phase !== "finished" || !state.matchId) return;
+    var matchId = state.matchId;
+    if (gallerySavedMatches[matchId]) return;
+    gallerySavedMatches[matchId] = true;
+    var galleryApi = api;
+    var players = state.players.slice();
+    var albums = players.map(function (origin) {
+      return { origin: origin, entries: (chains[origin] || []).slice() };
+    });
+    for (var albumAt = 0; albumAt < albums.length; albumAt++) {
+      var album = albums[albumAt];
+      if (album.entries.length !== players.length || album.entries.some(function (entry) { return !entry; })) continue;
+      try {
+        var entries = [];
+        for (var entryAt = 0; entryAt < album.entries.length; entryAt++) {
+          entries.push(await savedAlbumEntry(album.entries[entryAt], entryAt));
+        }
+        var result = await galleryApi.saveRelayAlbum({
+          matchId: matchId,
+          origin: album.origin,
+          playerCount: players.length,
+          entries: entries
+        });
+        if (!result || !result.ok) throw new Error(result && (result.msg || result.reason) || "save failed");
+      } catch (error) {
+        if (window.console && console.warn) console.warn("Relay gallery save failed:", error);
+      }
+    }
   }
   function redrawLocal() { paintStrokes(ctx, canvas, localStrokes, canvasBg); }
   function showPreviousDrawing() {
@@ -871,8 +1071,8 @@ window.RelayDrawing = (function () {
       var cls = "relay-chain-item" + (entry.kind === "prompt" ? " prompt" : "");
       var content = entry.kind === "drawing"
         ? '<div class="relay-chain-drawing"><canvas width="480" height="480" data-relay-result-step="' + index + '"></canvas></div>'
-        : '<div class="relay-chain-copy"><div class="relay-chain-meta"><b>' + esc(entry.author) + '</b></div>'
-          + '<strong>' + esc(entry.text || "내용 없음") + '</strong></div>';
+        : '<div class="relay-chain-copy relay-chain-text"><div class="relay-chain-meta"><b>' + esc(entry.author) + '</b></div>'
+          + '<strong title="' + esc(entry.text || "내용 없음") + '">' + esc(entry.text || "내용 없음") + '</strong></div>';
       if (entry.kind === "drawing") {
         content = '<div class="relay-chain-copy"><div class="relay-chain-meta"><b>' + esc(entry.author) + '</b></div></div>' + content;
       }
@@ -888,7 +1088,10 @@ window.RelayDrawing = (function () {
     if ($("relay-album-prev")) $("relay-album-prev").disabled = state.players.length < 2;
     if ($("relay-album-next")) {
       $("relay-album-next").disabled = state.players.length < 2;
-      $("relay-album-next").textContent = albumIndex === state.players.length - 1 ? "첫 앨범으로" : "다음 앨범";
+    }
+    if ($("relay-album-position")) {
+      $("relay-album-position").textContent = (albumIndex + 1) + " / " + state.players.length;
+      $("relay-album-position").setAttribute("aria-label", (albumIndex + 1) + "번째 앨범, 전체 " + state.players.length + "개");
     }
     if ($("relay-again-btn")) {
       if (api && api.isHost()) {
@@ -903,6 +1106,181 @@ window.RelayDrawing = (function () {
         $("relay-again-btn").setAttribute("aria-pressed", ready ? "true" : "false");
       }
     }
+  }
+
+  function galleryTime(value) {
+    var time = new Date(value || 0);
+    if (isNaN(time.getTime())) return "";
+    var now = new Date();
+    if (time.toDateString() === now.toDateString()) {
+      return String(time.getHours()).padStart(2, "0") + ":" + String(time.getMinutes()).padStart(2, "0");
+    }
+    return (time.getMonth() + 1) + "." + time.getDate();
+  }
+  function renderGallery() {
+    var grid = $("relay-gallery-grid");
+    var status = $("relay-gallery-status");
+    var more = $("relay-gallery-more");
+    if (!grid || !status) return;
+    if (galleryLoading && !galleryRows.length) {
+      status.textContent = "앨범을 불러오는 중이에요";
+      grid.innerHTML = "";
+    } else if (galleryError) {
+      status.textContent = galleryError;
+      grid.innerHTML = '<div class="cm-gallery-empty">앨범 갤러리를 열 수 없어요.<br>잠시 뒤 다시 시도해주세요.</div>';
+    } else {
+      status.textContent = "최근 앨범 " + galleryTotal + "개 · 최대 100개 보관";
+      grid.innerHTML = galleryRows.length ? galleryRows.map(function (row) {
+        var id = Math.max(0, Math.floor(Number(row.id) || 0));
+        var cover = esc(row.coverUrl || "");
+        var startText = esc(row.startText || "내용 없음");
+        var origin = esc(row.origin || "알 수 없음");
+        var coverHtml = cover
+          ? '<img src="' + cover + '" alt="' + startText + ' 앨범 대표 그림" loading="lazy">'
+          : '<span class="relay-gallery-no-cover">그림 없음</span>';
+        return '<article class="cm-gallery-item relay-gallery-item">'
+          + '<div class="cm-gallery-media relay-gallery-media"><button class="cm-gallery-thumb relay-gallery-cover" type="button" data-relay-gallery-open="' + id + '" aria-label="' + startText + ' 앨범 보기">'
+          + coverHtml + '</button></div>'
+          + '<div class="cm-gallery-copy relay-gallery-copy"><strong>' + startText + '</strong><span>'
+          + origin + '의 앨범 · ' + Math.max(0, Math.floor(Number(row.entryCount) || 0)) + '단계 · ' + esc(galleryTime(row.createdAt))
+          + '</span></div></article>';
+      }).join("") : '<div class="cm-gallery-empty">아직 저장된 앨범이 없어요.<br>완성한 이어그리기 앨범이 여기에 모여요.</div>';
+    }
+    if (more) {
+      more.classList.toggle("hidden", !galleryHasMore);
+      more.disabled = galleryLoading;
+      more.textContent = galleryLoading ? "불러오는 중…" : "더 보기";
+    }
+  }
+  async function loadGallery(reset) {
+    if (!api || !api.loadRelayAlbums || galleryLoading) return;
+    if (reset) {
+      galleryRows = [];
+      galleryOffset = 0;
+      galleryTotal = 0;
+      galleryHasMore = false;
+      galleryError = "";
+    }
+    galleryLoading = true;
+    var token = ++galleryRequestToken;
+    renderGallery();
+    try {
+      var result = await api.loadRelayAlbums(galleryOffset, GALLERY_PAGE_SIZE);
+      if (token !== galleryRequestToken) return;
+      if (!result || !result.ok) throw new Error(result && (result.msg || result.reason) || "load failed");
+      var rows = Array.isArray(result.rows) ? result.rows : [];
+      galleryRows = reset ? rows : galleryRows.concat(rows);
+      galleryOffset = galleryRows.length;
+      galleryTotal = clamp(Math.floor(Number(result.total) || galleryRows.length), 0, 100);
+      galleryHasMore = !!result.hasMore;
+    } catch (error) {
+      if (token === galleryRequestToken) {
+        galleryRows = [];
+        galleryHasMore = false;
+        galleryError = "앨범을 불러오지 못했어요. 잠시 뒤 다시 열어주세요.";
+      }
+    } finally {
+      if (token === galleryRequestToken) {
+        galleryLoading = false;
+        renderGallery();
+      }
+    }
+  }
+  function galleryRow(id) {
+    id = Number(id);
+    for (var i = 0; i < galleryRows.length; i++) {
+      if (Number(galleryRows[i].id) === id) return galleryRows[i];
+    }
+    return null;
+  }
+  function renderGalleryDetail(album) {
+    var chain = $("relay-gallery-preview-chain");
+    if (!chain) return;
+    var entries = album && Array.isArray(album.entries) ? album.entries : [];
+    chain.innerHTML = entries.length ? entries.map(function (entry) {
+      var author = esc(entry.author || "알 수 없음");
+      if (entry.kind === "drawing") {
+        var imageUrl = esc(entry.imageUrl || "");
+        return '<article class="relay-chain-item"><div class="relay-chain-copy"><div class="relay-chain-meta"><b>' + author + '</b></div></div>'
+          + '<div class="relay-chain-drawing"><img class="relay-gallery-entry-image" src="' + imageUrl + '" alt="' + author + '님의 그림" loading="lazy"></div></article>';
+      }
+      var text = esc(entry.text || "내용 없음");
+      return '<article class="relay-chain-item"><div class="relay-chain-copy relay-chain-text"><div class="relay-chain-meta"><b>' + author + '</b></div>'
+        + '<strong>' + text + '</strong></div></article>';
+    }).join("") : '<div class="relay-gallery-detail-error">앨범 내용을 찾을 수 없어요.</div>';
+  }
+  async function openGalleryDetail(id) {
+    var row = galleryRow(id);
+    var preview = $("relay-gallery-preview");
+    var chain = $("relay-gallery-preview-chain");
+    if (!row || !preview || !chain || !api || !api.loadRelayAlbum) return;
+    preview.classList.remove("hidden");
+    preview.setAttribute("aria-hidden", "false");
+    $("relay-gallery-preview-title").textContent = row.startText || "이어그리기 앨범";
+    $("relay-gallery-preview-meta").textContent = (row.origin || "알 수 없음") + "의 앨범 · " + galleryTime(row.createdAt);
+    chain.innerHTML = '<div class="relay-gallery-detail-loading">앨범 내용을 불러오는 중이에요</div>';
+    var token = ++galleryDetailToken;
+    try {
+      var result = await api.loadRelayAlbum(row.id);
+      if (token !== galleryDetailToken) return;
+      if (!result || !result.ok || !result.album) throw new Error("load failed");
+      var album = result.album;
+      $("relay-gallery-preview-title").textContent = album.startText || row.startText || "이어그리기 앨범";
+      $("relay-gallery-preview-meta").textContent = (album.origin || row.origin || "알 수 없음") + "의 앨범 · " + galleryTime(album.createdAt || row.createdAt);
+      renderGalleryDetail(album);
+      chain.scrollTop = 0;
+    } catch (error) {
+      if (token === galleryDetailToken) chain.innerHTML = '<div class="relay-gallery-detail-error">앨범 내용을 불러오지 못했어요.<br>잠시 뒤 다시 열어주세요.</div>';
+    }
+  }
+  function closeGalleryDetail() {
+    galleryDetailToken++;
+    var preview = $("relay-gallery-preview");
+    if (preview) {
+      preview.classList.add("hidden");
+      preview.setAttribute("aria-hidden", "true");
+    }
+    var chain = $("relay-gallery-preview-chain");
+    if (chain) chain.innerHTML = "";
+  }
+  function bindGallery() {
+    if (galleryBound) return;
+    galleryBound = true;
+    var openButton = $("relay-gallery-btn");
+    var closeButton = $("relay-gallery-close");
+    var backdrop = $("relay-gallery-backdrop");
+    var more = $("relay-gallery-more");
+    var grid = $("relay-gallery-grid");
+    var detailClose = $("relay-gallery-preview-close");
+    if (openButton) openButton.addEventListener("click", function () { openGallery(); });
+    if (closeButton) closeButton.addEventListener("click", closeGallery);
+    if (backdrop) backdrop.addEventListener("click", function (event) { if (event.target === backdrop) closeGallery(); });
+    if (more) more.addEventListener("click", function () { loadGallery(false); });
+    if (detailClose) detailClose.addEventListener("click", closeGalleryDetail);
+    if (grid) grid.addEventListener("click", function (event) {
+      var button = event.target.closest && event.target.closest("[data-relay-gallery-open]");
+      if (button) openGalleryDetail(button.getAttribute("data-relay-gallery-open"));
+    });
+  }
+  function openGallery(nextApi) {
+    if (nextApi) api = nextApi;
+    bindGallery();
+    var backdrop = $("relay-gallery-backdrop");
+    if (!backdrop) return;
+    closeGalleryDetail();
+    backdrop.classList.remove("hidden");
+    backdrop.setAttribute("aria-hidden", "false");
+    loadGallery(true);
+  }
+  function closeGallery() {
+    galleryRequestToken++;
+    galleryLoading = false;
+    var backdrop = $("relay-gallery-backdrop");
+    if (backdrop) {
+      backdrop.classList.add("hidden");
+      backdrop.setAttribute("aria-hidden", "true");
+    }
+    closeGalleryDetail();
   }
   function scrollAlbumToTop() {
     if (!window.scrollTo) return;
@@ -945,6 +1323,7 @@ window.RelayDrawing = (function () {
     toggleHidden($("relay-idle"), !idle);
     toggleHidden($("relay-idle-actions"), !idle);
     toggleHidden($("relay-text-panel"), state.phase !== "prompt");
+    toggleHidden($("relay-prompt-actions"), state.phase !== "prompt");
     toggleHidden($("relay-caption-row"), state.phase !== "caption");
     toggleHidden($("relay-result-panel"), !finished);
     toggleHidden($("relay-result-dock"), !finished);
@@ -1086,7 +1465,7 @@ window.RelayDrawing = (function () {
     $("relay-suggest-btn").addEventListener("click", function () {
       var input = $("relay-text-input");
       if (!input || input.disabled) return;
-      var next = SUGGESTIONS[Math.floor(Math.random() * SUGGESTIONS.length)];
+      var next = nextPromptSuggestion();
       input.value = next;
       input.dispatchEvent(new Event("input"));
       input.focus();
@@ -1184,6 +1563,7 @@ window.RelayDrawing = (function () {
       bind();
       paintStrokes(ctx, canvas, [], CANVAS_BG);
     }
+    bindGallery();
     if (tickId) clearInterval(tickId);
     tickId = setInterval(tick, 250);
     render();
@@ -1259,6 +1639,7 @@ window.RelayDrawing = (function () {
     renderPlayers: renderPlayers,
     render: render,
     rules: rules,
+    openGallery: openGallery,
     get previewMode() { return previewMode; },
     get state() { return state; }
   };
@@ -1270,6 +1651,7 @@ window.RelayDrawing = (function () {
       sanitizeStrokes: sanitizeStrokes,
       assignmentOrigin: assignmentOrigin,
       phaseForStep: phaseForStep,
+      buildPromptSuggestion: buildPromptSuggestion,
       normalizePreviewPhase: normalizePreviewPhase,
       buildPreviewChains: buildPreviewChains,
       expectedKind: expectedKind,
@@ -1297,6 +1679,12 @@ window.RelayDrawing = (function () {
         maxText: MAX_TEXT,
         maxStrokes: MAX_STROKES,
         maxPoints: MAX_CANVAS_POINTS
+      },
+      promptParts: {
+        characters: PROMPT_CHARACTERS.slice(),
+        actions: PROMPT_ACTIONS.slice(),
+        situations: PROMPT_SITUATIONS.slice(),
+        situationRatio: SITUATION_RATIO
       }
     };
   }

@@ -73,18 +73,52 @@ test("steps alternate prompt, drawing, and caption", () => {
   assert.equal(relay.expectedKind(4), "caption");
 });
 
-test("automatic story prompts stay to one simple character action", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "relay-drawing.js"), "utf8");
-  const block = source.match(/var SUGGESTIONS = \[([\s\S]*?)\];/);
-  assert.ok(block);
-  const suggestions = Array.from(block[1].matchAll(/"([^"]+)"/g), (match) => match[1]);
+test("drawing coordinates are compact enough for the realtime payload limit", () => {
+  const relay = loadRelay();
+  const source = Array.from({ length: 8 }, (_, strokeIndex) => ({
+    id: "stroke-" + strokeIndex,
+    color: "#17252f",
+    width: 8,
+    points: Array.from({ length: 625 }, (_, pointIndex) => ({
+      x: (pointIndex + 0.123456789) / 625,
+      y: (strokeIndex + pointIndex + 0.987654321) / 633
+    }))
+  }));
+  const compact = relay.sanitizeStrokes(source);
+  const bytes = Buffer.byteLength(JSON.stringify({ entry: { kind: "drawing", strokes: compact } }));
 
-  assert.ok(suggestions.length >= 12);
-  assert.ok(suggestions.every((prompt) => prompt.length <= 11));
-  assert.ok(suggestions.includes("춤추는 고양이"));
-  assert.ok(suggestions.includes("책 읽는 곰"));
-  assert.ok(!suggestions.some((prompt) => prompt.includes("결혼식") || prompt.includes("지하철") || prompt.includes("놀이공원")));
-  assert.match(source, /SUGGESTIONS\[Math\.floor\(Math\.random\(\) \* SUGGESTIONS\.length\)\]/);
+  assert.equal(compact[0].points[0].x, 0.0002);
+  assert.ok(bytes < 200 * 1024, `expected a safe realtime payload, got ${bytes} bytes`);
+});
+
+test("automatic story prompts combine broad, easy character and action vocabularies", () => {
+  const relay = loadRelay();
+  const parts = relay.promptParts;
+
+  assert.equal(parts.characters.length, 200);
+  assert.equal(parts.actions.length, 200);
+  assert.equal(parts.situations.length, 200);
+  assert.equal(new Set(parts.characters).size, parts.characters.length);
+  assert.equal(new Set(parts.actions).size, parts.actions.length);
+  assert.equal(new Set(parts.situations).size, parts.situations.length);
+  assert.equal(parts.situationRatio, 0.15);
+  assert.ok(parts.characters.includes("고양이"));
+  assert.ok(parts.characters.includes("로봇"));
+  assert.ok(parts.actions.includes("춤추는"));
+  assert.ok(parts.actions.includes("책 읽는"));
+  assert.ok(parts.situations.includes("비 오는 날"));
+
+  const baseValues = [0.8, 0, 0];
+  const base = relay.buildPromptSuggestion(() => baseValues.shift() ?? 0);
+  assert.equal(base, "춤추는 강아지");
+
+  const situationValues = [0.1, 0, 0, 0];
+  const situation = relay.buildPromptSuggestion(() => situationValues.shift() ?? 0);
+  assert.equal(situation, "비 오는 날 춤추는 강아지");
+  assert.ok(base.length <= relay.limits.maxText);
+  assert.ok(situation.length <= relay.limits.maxText);
+  assert.ok(parts.characters.length * parts.actions.length >= 40000);
+  assert.equal(parts.characters.length * parts.actions.length * parts.situations.length, 8000000);
 });
 
 test("UI preview exposes every relay screen with complete sample chains", () => {
