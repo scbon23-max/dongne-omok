@@ -9,6 +9,7 @@ const vm = require("node:vm");
 const root = path.join(__dirname, "..");
 const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
+const net = fs.readFileSync(path.join(root, "net.js"), "utf8");
 const alkkagi = fs.readFileSync(path.join(root, "alkkagi.js"), "utf8");
 const catchmind = fs.readFileSync(path.join(root, "catchmind.js"), "utf8");
 const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
@@ -216,4 +217,15 @@ test("room creation hides territory mode and creates normal Alkkagi rooms direct
     "assets/alkkagi-mode-normal.svg",
     "assets/alkkagi-mode-territory.svg"
   ].forEach((asset) => assert.equal(fs.existsSync(path.join(root, asset)), true));
+});
+
+test("room presence heals duplicate connections and active ghost speakers", () => {
+  assert.match(net, /presenceCount: row\.count/);
+  assert.match(net, /startRoomPresenceHeartbeat\(\)/);
+  assert.match(net, /channel\.track\(myMeta\)/);
+  assert.match(net, /roomPresenceT = setInterval[\s\S]*15000/);
+  assert.match(game, /Number\(stillConnected\.presenceCount\) > 1/);
+  assert.match(game, /function noteActiveRoomSpeaker\(nick\)/);
+  assert.match(game, /noteActiveRoomSpeaker\(msg\.nick\);\s*addChatTo/);
+  assert.match(game, /inferredFromActivity: true/);
 });

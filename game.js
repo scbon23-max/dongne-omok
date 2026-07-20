@@ -1569,6 +1569,19 @@
   }
   function completeExplicitLeave(nick) {
     if (!nick) return;
+    var stillConnected = null;
+    for (var i = 0; i < roster.length; i++) {
+      if (roster[i] && roster[i].nick === nick) { stillConnected = roster[i]; break; }
+    }
+    if (stillConnected && Number(stillConnected.presenceCount) > 1) {
+      delete explicitLeaves[nick];
+      if (awayTimers[nick]) { clearTimeout(awayTimers[nick]); delete awayTimers[nick]; }
+      delete awayMembers[nick];
+      buildDisplayRoster();
+      renderPresenceUI();
+      renderPlayersList();
+      return;
+    }
     var wasShown = !!findDisplayMember(nick);
     explicitLeaves[nick] = Date.now() + 5000;
     if (awayTimers[nick]) { clearTimeout(awayTimers[nick]); delete awayTimers[nick]; }
@@ -1578,6 +1591,19 @@
     renderPresenceUI();
     renderPlayersList();
     if (amHost && curRoomId) broadcastRoomOpen();
+  }
+  function noteActiveRoomSpeaker(nick) {
+    if (!nick || nick === "__sys" || nick === me.nick) return;
+    delete explicitLeaves[nick];
+    if (awayTimers[nick]) { clearTimeout(awayTimers[nick]); delete awayTimers[nick]; }
+    delete awayMembers[nick];
+    if (!rosterHas(nick)) {
+      awayMembers[nick] = { nick: nick, joinTs: Date.now(), away: false, inferredFromActivity: true };
+      awayTimers[nick] = setTimeout(function () { expireAway(nick); }, GRACE_MS);
+    }
+    buildDisplayRoster();
+    renderPresenceUI();
+    renderPlayersList();
   }
 
   function onPresence(list) {
@@ -1748,6 +1774,7 @@
         var chatGame = gameFamily(msg.game || "omok"), chatCtrl = gameController(chatGame);
         if (msg.nick !== me.nick && msg.relayBy !== me.nick
             && (!chatCtrl || !chatCtrl.canChat || chatCtrl.canChat(msg.nick))) {
+          noteActiveRoomSpeaker(msg.nick);
           addChatTo(chatGame, msg.nick, msg.text, true, msg.overlaySide === "right" ? "right" : "");
         }
         break;

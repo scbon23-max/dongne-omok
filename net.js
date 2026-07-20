@@ -4,9 +4,22 @@ window.Net = (function () {
 
   function clubId() { return (window.OMOK_CONFIG && window.OMOK_CONFIG.ROOM) || "main"; }
   function rosterOf(ch) {
-    var st = ch.presenceState(), arr = [];
-    Object.keys(st).forEach(function (k) { var m = st[k]; if (m && m.length) arr.push(m[m.length - 1]); });
-    return arr;
+    var st = ch.presenceState(), byNick = {};
+    Object.keys(st).forEach(function (key) {
+      var metas = st[key];
+      if (!metas || !metas.length) return;
+      metas.forEach(function (meta) {
+        if (!meta || !meta.nick) return;
+        var row = byNick[meta.nick] || { count: 0, meta: null };
+        row.count++;
+        if (!row.meta || (Number(meta.joinTs) || 0) >= (Number(row.meta.joinTs) || 0)) row.meta = meta;
+        byNick[meta.nick] = row;
+      });
+    });
+    return Object.keys(byNick).map(function (nick) {
+      var row = byNick[nick];
+      return Object.assign({}, row.meta, { presenceCount: row.count });
+    });
   }
   function backoff(tries) { return Math.min(1000 * Math.pow(2, tries), 15000); }
   function isDead(status) { return status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED"; }
@@ -49,7 +62,7 @@ window.Net = (function () {
   function trackLobby(m) { lobbyMeta = m; if (enabled && lobbyCh) lobbyCh.track(m); }
 
   // ── 방 채널 (방에 들어갈 때만, 나가면 떠남) ──
-  var channel = null, myMeta = null, handlers = {}, curRoom = null, roomGen = 0, roomWant = false, roomTries = 0, roomReT = null, roomReady = false, roomPending = [];
+  var channel = null, myMeta = null, handlers = {}, curRoom = null, roomGen = 0, roomWant = false, roomTries = 0, roomReT = null, roomReady = false, roomPending = [], roomPresenceT = null;
   function init(roomId, meta, hs) {
     if (!enabled) { handlers = hs || {}; if (handlers.onStatus) handlers.onStatus("LOCAL"); return false; }
     leaveRoom();
@@ -61,6 +74,7 @@ window.Net = (function () {
   function openRoom() {
     var gen = ++roomGen;
     roomReady = false;
+    stopRoomPresenceHeartbeat();
     if (channel) { try { window.SB.removeChannel(channel); } catch (e) {} channel = null; }
     channel = window.SB.channel("room:" + curRoom, {
       config: { broadcast: { self: true }, presence: { key: myMeta.nick } }
@@ -72,9 +86,19 @@ window.Net = (function () {
     channel.subscribe(function (status) {
       if (gen !== roomGen) return;
       if (handlers.onStatus) handlers.onStatus(status);
-      if (status === "SUBSCRIBED") { roomTries = 0; roomReady = true; channel.track(myMeta); flushRoom(); if (handlers.onReady) handlers.onReady(); }
-      else if (isDead(status)) { roomReady = false; reconnectRoom(); }
+      if (status === "SUBSCRIBED") { roomTries = 0; roomReady = true; channel.track(myMeta); startRoomPresenceHeartbeat(); flushRoom(); if (handlers.onReady) handlers.onReady(); }
+      else if (isDead(status)) { roomReady = false; stopRoomPresenceHeartbeat(); reconnectRoom(); }
     });
+  }
+  function stopRoomPresenceHeartbeat() {
+    if (roomPresenceT) { clearInterval(roomPresenceT); roomPresenceT = null; }
+  }
+  function startRoomPresenceHeartbeat() {
+    stopRoomPresenceHeartbeat();
+    roomPresenceT = setInterval(function () {
+      if (!roomReady || !channel || !myMeta) return;
+      try { channel.track(myMeta); } catch (e) {}
+    }, 15000);
   }
   function reconnectRoom() {
     if (!roomWant || roomReT) return;
@@ -87,6 +111,7 @@ window.Net = (function () {
   function track(m) { myMeta = m; if (enabled && channel) channel.track(m); }
   function leaveRoom() {
     roomWant = false; roomGen++; roomReady = false; roomPending = [];
+    stopRoomPresenceHeartbeat();
     if (roomReT) { clearTimeout(roomReT); roomReT = null; }
     if (channel) { try { window.SB.removeChannel(channel); } catch (e) {} }
     channel = null; curRoom = null; handlers = {};
