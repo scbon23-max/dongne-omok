@@ -20,14 +20,22 @@ window.RelayDrawing = (function () {
     "#06b6d4", "#38bdf8", "#2474b5", "#4338ca", "#8b5cf6", "#ec4899"
   ];
   var SUGGESTIONS = [
-    "우주에서 라면을 배달하는 고양이",
-    "결혼식에서 춤추는 펭귄",
-    "치킨을 훔치다 걸린 공룡",
-    "지하철에서 마술을 하는 문어",
-    "놀이공원에 간 로봇 가족",
-    "비 오는 날 우산을 파는 개구리",
-    "달에서 떡볶이를 먹는 토끼",
-    "수영장에서 낮잠 자는 북극곰"
+    "춤추는 고양이",
+    "달리는 펭귄",
+    "요리하는 로봇",
+    "자는 공룡",
+    "노래하는 문어",
+    "웃는 유령",
+    "수영하는 토끼",
+    "책 읽는 곰",
+    "축구하는 강아지",
+    "점프하는 코끼리",
+    "낚시하는 북극곰",
+    "그림 그리는 원숭이",
+    "우는 아기",
+    "청소하는 마녀",
+    "날아가는 돼지",
+    "박수치는 왕"
   ];
 
   var api = null;
@@ -860,15 +868,13 @@ window.RelayDrawing = (function () {
     if (!box) return;
     box.innerHTML = chain.map(function (entry, index) {
       if (!entry) return "";
-      var label = entry.kind === "prompt" ? "시작 문장" : entry.kind === "drawing" ? "그림" : "그림 설명";
-      var authorLabel = entry.kind === "drawing" ? "그린 사람" : "쓴 사람";
       var cls = "relay-chain-item" + (entry.kind === "prompt" ? " prompt" : "");
       var content = entry.kind === "drawing"
         ? '<div class="relay-chain-drawing"><canvas width="480" height="480" data-relay-result-step="' + index + '"></canvas></div>'
-        : '<div class="relay-chain-copy"><div class="relay-chain-meta"><span>' + label + '</span><b><small>' + authorLabel + '</small>' + esc(entry.author) + '</b></div>'
+        : '<div class="relay-chain-copy"><div class="relay-chain-meta"><b>' + esc(entry.author) + '</b></div>'
           + '<strong>' + esc(entry.text || "내용 없음") + '</strong></div>';
       if (entry.kind === "drawing") {
-        content = '<div class="relay-chain-copy"><div class="relay-chain-meta"><span>' + label + '</span><b><small>' + authorLabel + '</small>' + esc(entry.author) + '</b></div></div>' + content;
+        content = '<div class="relay-chain-copy"><div class="relay-chain-meta"><b>' + esc(entry.author) + '</b></div></div>' + content;
       }
       return '<article class="' + cls + '">' + content + "</article>";
     }).join("");
@@ -896,6 +902,14 @@ window.RelayDrawing = (function () {
         $("relay-again-btn").disabled = spectator;
         $("relay-again-btn").setAttribute("aria-pressed", ready ? "true" : "false");
       }
+    }
+  }
+  function scrollAlbumToTop() {
+    if (!window.scrollTo) return;
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    } catch (error) {
+      window.scrollTo(0, 0);
     }
   }
   function renderPlayers(box, hint) {
@@ -1126,11 +1140,13 @@ window.RelayDrawing = (function () {
       if (!state.players.length) return;
       albumIndex = (albumIndex - 1 + state.players.length) % state.players.length;
       renderResults();
+      scrollAlbumToTop();
     });
     $("relay-album-next").addEventListener("click", function () {
       if (!state.players.length) return;
       albumIndex = (albumIndex + 1) % state.players.length;
       renderResults();
+      scrollAlbumToTop();
     });
     $("relay-again-btn").addEventListener("click", function () {
       if (!api) return;

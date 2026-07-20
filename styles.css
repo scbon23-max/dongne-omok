@@ -979,14 +979,13 @@ body.relay-preview-mobile #relaygame {
   display: flex;
   flex-direction: column;
   overflow: visible;
-  background: #fbfaf7;
-  border-radius: 8px;
+  background: transparent;
 }
 .relay-chain {
   flex: 0 0 auto;
   min-height: auto;
   overflow: visible;
-  padding: 14px 15px 3px 32px;
+  padding: 4px 0 0;
 }
 .relay-chain-empty {
   margin: 0 0 11px;
@@ -999,70 +998,35 @@ body.relay-preview-mobile #relaygame {
   font-weight: 900;
 }
 .relay-chain-item {
-  position: relative;
-  margin-bottom: 11px;
+  margin-bottom: 12px;
   border: 1px solid #dfe7ea;
   border-radius: 9px;
   background: #fff;
   box-shadow: 0 2px 8px rgba(24,50,64,.06);
 }
-.relay-chain-item::before {
-  content: "";
-  position: absolute;
-  left: -18px;
-  top: 18px;
-  width: 9px;
-  height: 9px;
-  border: 3px solid #fbfaf7;
-  border-radius: 50%;
-  background: var(--teal);
-  box-shadow: 0 0 0 1px #bfcdd1;
-}
-.relay-chain-item.prompt::before { background: var(--orange); }
-.relay-chain-item:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  left: -14px;
-  top: 30px;
-  width: 2px;
-  height: calc(100% + 12px);
-  background: #cfdadd;
-}
-.relay-chain-copy { padding: 10px 11px; }
+.relay-chain-copy { padding: 11px 13px 12px; }
 .relay-chain-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.relay-chain-meta span {
-  color: #718892;
-  font-size: 9px;
-  font-weight: 1000;
+  justify-content: flex-start;
 }
 .relay-chain-meta b {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
   border-radius: 999px;
-  padding: 5px 8px;
+  padding: 5px 9px;
   background: #173241;
   color: #fff;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 1000;
   box-shadow: 0 2px 5px rgba(23,50,65,.16);
 }
-.relay-chain-meta b small {
-  color: var(--teal-light);
-  font-size: 8px;
-  font-weight: 1000;
-}
 .relay-chain-copy > strong {
   display: block;
-  margin-top: 5px;
+  margin-top: 8px;
   color: #173241;
-  font-size: 13.5px;
-  line-height: 1.4;
+  font-size: 16px;
+  line-height: 1.45;
   font-weight: 1000;
 }
 .relay-chain-drawing {

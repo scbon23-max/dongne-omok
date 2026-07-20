@@ -73,6 +73,20 @@ test("steps alternate prompt, drawing, and caption", () => {
   assert.equal(relay.expectedKind(4), "caption");
 });
 
+test("automatic story prompts stay to one simple character action", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "relay-drawing.js"), "utf8");
+  const block = source.match(/var SUGGESTIONS = \[([\s\S]*?)\];/);
+  assert.ok(block);
+  const suggestions = Array.from(block[1].matchAll(/"([^"]+)"/g), (match) => match[1]);
+
+  assert.ok(suggestions.length >= 12);
+  assert.ok(suggestions.every((prompt) => prompt.length <= 11));
+  assert.ok(suggestions.includes("춤추는 고양이"));
+  assert.ok(suggestions.includes("책 읽는 곰"));
+  assert.ok(!suggestions.some((prompt) => prompt.includes("결혼식") || prompt.includes("지하철") || prompt.includes("놀이공원")));
+  assert.match(source, /SUGGESTIONS\[Math\.floor\(Math\.random\(\) \* SUGGESTIONS\.length\)\]/);
+});
+
 test("UI preview exposes every relay screen with complete sample chains", () => {
   const relay = loadRelay();
   const players = ["나", "민서", "서준", "지우"];

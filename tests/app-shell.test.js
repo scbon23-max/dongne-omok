@@ -296,12 +296,18 @@ test("Relay Drawing results grow with history and keep the three-button chat doc
   assert.doesNotMatch(index, /relay-result-head|relay-album-kicker|relay-album-title|relay-album-meta/);
   assert.match(index, /id="relay-result-panel"[\s\S]*id="relay-chain"/);
   assert.match(index, /id="relay-result-dock"[\s\S]*id="relay-album-prev"[\s\S]*id="relay-album-next"[\s\S]*id="relay-again-btn"[\s\S]*id="relay-result-chat-input"/);
-  assert.match(relayDrawing, /var authorLabel = entry\.kind === "drawing" \? "그린 사람" : "쓴 사람"/);
-  assert.match(relayDrawing, /<b><small>' \+ authorLabel \+ '<\/small>' \+ esc\(entry\.author\)/);
+  assert.match(relayDrawing, /relay-chain-meta"><b>' \+ esc\(entry\.author\) \+ '<\/b>/);
+  assert.doesNotMatch(relayDrawing, /var label = entry\.kind|authorLabel|<b><small>/);
   assert.match(styles, /\.relay-board-wrap\.result-mode #relay-board/);
   assert.match(styles, /\.relay-chain\s*\{[\s\S]*overflow:\s*visible/);
+  assert.match(styles, /\.relay-result-panel\s*\{[\s\S]*background:\s*transparent/);
+  assert.match(styles, /\.relay-chain-copy > strong\s*\{[\s\S]*font-size:\s*16px/);
+  assert.doesNotMatch(styles, /\.relay-chain-item::before|\.relay-chain-item:not\(:last-child\)::after|\.relay-chain-meta span|\.relay-chain-meta b small/);
   assert.match(styles, /\.relay-result-dock\s*\{[\s\S]*position:\s*fixed/);
   assert.match(styles, /\.relay-result-actions\s*\{[\s\S]*grid-template-columns:\s*repeat\(3/);
+  assert.match(relayDrawing, /function scrollAlbumToTop\(\)[\s\S]*window\.scrollTo\(\{ top: 0, left: 0, behavior: "auto" \}\)/);
+  assert.match(relayDrawing, /relay-album-prev[\s\S]*renderResults\(\);\s*scrollAlbumToTop\(\)/);
+  assert.match(relayDrawing, /relay-album-next[\s\S]*renderResults\(\);\s*scrollAlbumToTop\(\)/);
 });
 
 test("Relay Drawing warns at five seconds and auto-submits the current draft", () => {
