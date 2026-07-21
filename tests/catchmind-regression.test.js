@@ -1758,7 +1758,7 @@ test("a new host restarts safely if the private word cannot be recovered", () =>
   assert.ok(sent.some(message => message.t === "cm_secret" && message.to === "B"));
 });
 
-test("spectators cannot submit the exact answer but can use the lounge chat", () => {
+test("spectators can say the exact answer inside the hidden lounge chat", () => {
   const api = loadCatchMind();
   const sent = [];
   const shown = [];
@@ -1785,10 +1785,14 @@ test("spectators cannot submit the exact answer but can use the lounge chat", ()
   api.setSecretWord("사과");
 
   api.hostSpectatorInput({ nick: "S", text: "사과", matchId: "match-a", roundIndex: 0 });
-  assert.ok(sent.some(message => message.t === "cm_notice" && message.to === "S"));
+  const answerMessage = sent.find(message => message.t === "cm_group_chat" && message.text === "사과");
+  assert.ok(answerMessage);
+  assert.equal(answerMessage.nick, "S");
+  assert.equal(answerMessage.group, "lounge");
+  assert.equal(sent.some(message => message.t === "cm_notice"), false);
 
   api.hostSpectatorInput({ nick: "S", text: "멋진 그림", matchId: "match-a", roundIndex: 0 });
-  const loungeMessage = sent.find(message => message.t === "cm_group_chat");
+  const loungeMessage = sent.find(message => message.t === "cm_group_chat" && message.text === "멋진 그림");
   assert.ok(loungeMessage);
   assert.equal(loungeMessage.nick, "S");
   assert.equal(loungeMessage.group, "lounge");

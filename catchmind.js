@@ -906,18 +906,6 @@ window.CatchMind = (function () {
     var group = chatGroupFor(nick);
     if (group !== "players" && group !== "lounge") return;
     if (state.phase === "drawing" && group === "players") return;
-    if (state.phase === "drawing" && !has(state.queue, nick) && secretWord
-        && normalize(text) === normalize(secretWord)) {
-      if (nick === me().nick) api.toast("관전자는 정답을 입력할 수 없어요");
-      else api.send({
-        t: "cm_notice",
-        from: me().nick,
-        to: nick,
-        matchId: state.matchId,
-        roundIndex: state.roundIndex
-      });
-      return;
-    }
     if (canViewChatGroup(me().nick, group) && api.showChat) api.showChat(nick, text, chatOverlaySide(group));
     api.send({
       t: "cm_group_chat",
@@ -1374,11 +1362,6 @@ window.CatchMind = (function () {
     else if (msg.t === "cm_group_chat") receiveMatchChat(msg);
     else if (msg.t === "cm_secret_req") answerSecretRecovery(msg);
     else if (msg.t === "cm_secret_restore") hostRestoreSecret(msg);
-    else if (msg.t === "cm_notice") {
-      if (api && msg.from === api.host() && msg.to === me().nick && msg.matchId === state.matchId && msg.roundIndex === state.roundIndex) {
-        api.toast("관전자는 정답을 입력할 수 없어요");
-      }
-    }
     else if (msg.t === "cm_chat_ack") {
       if (api && api.showChat && msg.from === api.host() && msg.to === me().nick && msg.nick === me().nick
           && msg.matchId === state.matchId && msg.roundIndex === state.roundIndex) {
@@ -3183,7 +3166,7 @@ window.CatchMind = (function () {
         + '<p class="cm-rule-muted">따라서 빠른 정답은 이번 경기의 승리에 유리하고, 시즌 랭킹은 꾸준히 정답을 맞히고 이해하기 좋은 그림을 그릴수록 유리해요.</p></section>'
         + '<section class="cm-rule-section"><h3>4. 알아두기</h3>'
         + '<ul class="cm-rule-list">'
-        + '<li>관전자는 정답을 입력할 수 없고 관전자끼리 채팅할 수 있어요.</li>'
+        + '<li>관전자와 이미 정답을 맞힌 참가자는 전용 채팅에서 정답을 포함해 자유롭게 이야기할 수 있어요. 게임 중인 참가자에게는 이 채팅이 보이지 않아요.</li>'
         + '<li>정답을 맞힌 참가자는 다음 턴 전까지 관전자 채팅에 함께 참여해요.</li>'
         + '<li>출제자의 연결이 끊기면 게임이 최대 <b>15초</b> 멈춰요. 돌아오면 이어서 진행하고, 돌아오지 않으면 다음 차례로 넘어가요.</li>'
         + '</ul></section></div>'
