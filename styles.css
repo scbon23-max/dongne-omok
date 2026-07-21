@@ -1029,6 +1029,153 @@ body.relay-preview-mobile #relaygame {
 .relay-text-panel.prompt {
   justify-content: center;
   padding: 24px 22px 30px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 8% 16%, rgba(56,198,176,.10) 0 38px, transparent 39px),
+    radial-gradient(circle at 95% 86%, rgba(243,97,42,.08) 0 54px, transparent 55px),
+    rgba(251,250,247,.98);
+}
+.relay-text-panel.prompt::before {
+  content: "";
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: 19px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--orange) 0 31%, transparent 31% 36%, var(--teal) 36% 68%, transparent 68% 73%, #f0b84b 73% 100%);
+  opacity: .72;
+}
+.relay-text-panel.prompt > * {
+  position: relative;
+  z-index: 1;
+}
+.relay-prompt-mark {
+  position: relative;
+  width: 224px;
+  height: 96px;
+  flex: 0 0 auto;
+  align-self: center;
+  margin: 0 auto 8px;
+}
+.relay-prompt-route {
+  position: absolute;
+  z-index: 0;
+  left: 40px;
+  right: 40px;
+  top: 48px;
+  border-top: 3px dashed rgba(243,97,42,.46);
+  transform: rotate(-3deg);
+}
+.relay-prompt-card {
+  position: absolute;
+  z-index: 2;
+  top: 7px;
+  width: 82px;
+  height: 78px;
+  overflow: hidden;
+  border: 1px solid #d7e1e5;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(23,50,65,.13);
+}
+.relay-prompt-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 7px;
+}
+.relay-prompt-copy-card {
+  left: 14px;
+  transform: rotate(-7deg);
+}
+.relay-prompt-copy-card::before { background: var(--orange); }
+.relay-prompt-copy-card i {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  height: 5px;
+  border-radius: 5px;
+  background: #dce6e9;
+}
+.relay-prompt-copy-card i:nth-child(1) { top: 25px; right: 25px; }
+.relay-prompt-copy-card i:nth-child(2) { top: 40px; }
+.relay-prompt-copy-card i:nth-child(3) { top: 55px; right: 32px; }
+.relay-prompt-picture-card {
+  right: 14px;
+  transform: rotate(7deg);
+}
+.relay-prompt-picture-card::before { background: var(--teal); }
+.relay-prompt-sun {
+  position: absolute;
+  top: 21px;
+  right: 14px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #f0b84b;
+}
+.relay-prompt-hill {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 12px;
+  height: 28px;
+  border-radius: 50% 55% 8px 8px;
+  background: rgba(56,198,176,.23);
+  transform: rotate(-3deg);
+}
+.relay-prompt-person {
+  position: absolute;
+  left: 27px;
+  top: 29px;
+  width: 10px;
+  height: 10px;
+  border: 3px solid #173241;
+  border-radius: 50%;
+  box-shadow: 0 14px 0 -2px #173241;
+}
+.relay-prompt-person::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 19px;
+  width: 15px;
+  height: 3px;
+  border-radius: 3px;
+  background: #173241;
+  transform: rotate(-24deg);
+}
+.relay-prompt-transfer {
+  position: absolute;
+  z-index: 3;
+  left: 101px;
+  top: 45px;
+  width: 22px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--orange);
+  transform: rotate(-4deg);
+}
+.relay-prompt-transfer::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: -4px;
+  width: 9px;
+  height: 9px;
+  border-top: 4px solid var(--orange);
+  border-right: 4px solid var(--orange);
+  transform: rotate(45deg);
+}
+.relay-prompt-kicker {
+  align-self: center;
+  color: var(--orange-dark);
+  font-size: 10px;
+  font-weight: 1000;
+  letter-spacing: .08em;
 }
 .relay-text-panel h2 {
   margin-top: 7px;
@@ -1046,11 +1193,13 @@ body.relay-preview-mobile #relaygame {
   font-weight: 800;
 }
 .relay-text-panel.prompt h2 {
-  margin-top: 0;
+  margin-top: 6px;
+  text-align: center;
   font-size: 25px;
 }
 .relay-text-panel.prompt > p {
   margin-top: 6px;
+  text-align: center;
 }
 #relay-text-input {
   width: 100%;
@@ -1322,9 +1471,11 @@ body.relay-preview-mobile #relaygame {
   max-width: min(420px, calc(100vw - 24px));
   margin: 0;
   padding: 8px;
-  border: 1px solid rgba(207,224,231,.18);
+  border: 1px solid rgba(207,224,231,.24);
   border-radius: 11px;
-  background: var(--navy-2);
+  background: rgba(18,52,69,.78);
+  -webkit-backdrop-filter: blur(12px) saturate(115%);
+  backdrop-filter: blur(12px) saturate(115%);
   box-shadow: 0 -8px 24px rgba(5,22,31,.3);
 }
 .relay-result-chat-row {
@@ -1350,6 +1501,8 @@ body.relay-preview-mobile #relaygame {
   .relay-wait-mark { margin-bottom: 6px; transform: scale(.84); }
   .relay-lobby-roles { max-height: 80px; padding-top: 9px; }
   .relay-text-panel { padding-top: 18px; }
+  .relay-prompt-mark { height: 82px; margin-bottom: 2px; transform: scale(.84); }
+  .relay-prompt-kicker { margin-top: -3px; }
   .relay-text-panel h2 { font-size: 20px; }
   #relay-text-input { height: 44px; min-height: 44px; margin-top: 13px; }
 }

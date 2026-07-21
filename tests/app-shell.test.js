@@ -272,6 +272,9 @@ test("Relay Drawing prompt screen keeps only the story form and two actions", ()
   const promptPanel = index.match(/<section id="relay-text-panel"[\s\S]*?<\/section>/)[0];
   assert.match(index, /id="relay-text-title">스토리 시작<\/h2>/);
   assert.match(index, /id="relay-text-hint">나만의 간단한 이야기를 만들어요!<\/p>/);
+  assert.match(index, /class="relay-prompt-mark"/);
+  assert.match(index, /class="relay-prompt-card relay-prompt-copy-card"/);
+  assert.match(index, /class="relay-prompt-card relay-prompt-picture-card"/);
   assert.match(index, /id="relay-text-input" type="text"/);
   assert.match(index, /id="relay-prompt-actions" class="relay-text-actions relay-prompt-actions hidden"/);
   assert.match(index, /id="relay-suggest-btn"[^>]*>자동 생성<\/button>/);
@@ -316,6 +319,7 @@ test("Relay Drawing results grow with history and keep the album navigator and r
   assert.match(styles, /\.relay-chain-text > strong\s*\{[\s\S]*margin-top:\s*0[\s\S]*text-overflow:\s*ellipsis[\s\S]*white-space:\s*nowrap/);
   assert.doesNotMatch(styles, /\.relay-chain-item::before|\.relay-chain-item:not\(:last-child\)::after|\.relay-chain-meta span|\.relay-chain-meta b small/);
   assert.match(styles, /\.relay-result-dock\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(styles, /\.relay-result-dock\s*\{[\s\S]*background:\s*rgba\(18,52,69,\.78\)[\s\S]*backdrop-filter:\s*blur\(12px\)/);
   assert.match(styles, /\.relay-result-actions\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 2fr\) minmax\(0, 1fr\)/);
   assert.match(styles, /\.relay-album-nav\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\)/);
   assert.match(relayDrawing, /relay-album-position"\)\.textContent = \(albumIndex \+ 1\) \+ " \/ " \+ state\.players\.length/);

@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260721-lobby-gallery-label-v1">
+<meta name="app-build" content="20260721-relay-prompt-result-glass-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -515,6 +515,17 @@
     </section>
 
     <section id="relay-text-panel" class="relay-text-panel hidden">
+      <div class="relay-prompt-mark" aria-hidden="true">
+        <span class="relay-prompt-route"></span>
+        <span class="relay-prompt-card relay-prompt-copy-card"><i></i><i></i><i></i></span>
+        <span class="relay-prompt-transfer"></span>
+        <span class="relay-prompt-card relay-prompt-picture-card">
+          <i class="relay-prompt-sun"></i>
+          <i class="relay-prompt-hill"></i>
+          <i class="relay-prompt-person"></i>
+        </span>
+      </div>
+      <span class="relay-prompt-kicker">STORY START</span>
       <h2 id="relay-text-title">스토리 시작</h2>
       <p id="relay-text-hint">나만의 간단한 이야기를 만들어요!</p>
       <input id="relay-text-input" type="text" maxlength="40" placeholder="예: 우주에서 라면을 배달하는 고양이" autocomplete="off">
