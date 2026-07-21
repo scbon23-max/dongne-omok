@@ -2000,6 +2000,56 @@ test("a spectator can switch back to participant before the match", () => {
   assert.deepEqual(Array.from(api.desiredParticipantNicks()), ["A", "B", "C"]);
 });
 
+test("the host can move other players between participant and spectator from the top strip", () => {
+  const strip = fakeElement();
+  const toasts = [];
+  const api = loadCatchMind({ elements: { "catch-score-strip": strip } });
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A", joinTs: 1 }, { nick: "B", joinTs: 2 }, { nick: "C", joinTs: 3 }]; },
+    send() {},
+    roomChanged() {},
+    toast(message) { toasts.push(message); }
+  });
+  api.getState().ready = ["B"];
+  api.renderScores();
+
+  assert.match(strip.innerHTML, /data-catch-role-nick="B"/);
+  assert.doesNotMatch(strip.innerHTML, /data-catch-role-nick="A"/);
+  assert.equal(api.hostTogglePlayerRole("B"), true);
+  assert.deepEqual(Array.from(api.getState().spectators), ["B"]);
+  assert.deepEqual(Array.from(api.getState().ready), []);
+  assert.match(strip.innerHTML, /class="[^"]*spectator[^"]*host-manageable[^"]*"[^>]*data-catch-role-nick="B"/);
+  assert.ok(toasts.some(message => message.includes("B님을 관전")));
+
+  assert.equal(api.hostTogglePlayerRole("B"), true);
+  assert.deepEqual(Array.from(api.getState().spectators), []);
+  assert.ok(toasts.some(message => message.includes("B님을 참가")));
+  assert.equal(api.hostTogglePlayerRole("A"), false);
+
+  api.getState().phase = "countdown";
+  assert.equal(api.hostTogglePlayerRole("C"), false);
+  assert.ok(toasts.some(message => message.includes("게임 시작 전이나 종료 후")));
+});
+
+test("non-hosts cannot use the host player role control", () => {
+  const api = loadCatchMind();
+  api.setApi({
+    isHost() { return false; },
+    host() { return "A"; },
+    me() { return { nick: "B", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }]; },
+    send() {},
+    roomChanged() {},
+    toast() {}
+  });
+
+  assert.equal(api.hostTogglePlayerRole("C"), false);
+  assert.deepEqual(Array.from(api.getState().spectators), []);
+});
+
 test("a host yields room authority when switching to spectator", () => {
   const eligibility = [];
   const toasts = [];

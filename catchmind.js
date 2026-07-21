@@ -1040,6 +1040,20 @@ window.CatchMind = (function () {
     });
   }
 
+  function hostTogglePlayerRole(nick) {
+    if (!api || !api.isHost()) return false;
+    if (!canChangeRole()) {
+      api.toast("게임 시작 전이나 종료 후에 바꿀 수 있어요");
+      return false;
+    }
+    nick = safeNick(nick);
+    if (!nick || nick === me().nick || !has(activeNicks(), nick)) return false;
+    var spectating = !has(state.spectators || [], nick);
+    if (!hostSetSpectatorPreference(nick, spectating)) return false;
+    api.toast(nick + "님을 " + (spectating ? "관전" : "참가") + "으로 변경했어요");
+    return true;
+  }
+
   function validRoundMessage(msg) {
     return state.phase === "drawing" && !state.pauseKind
       && msg.matchId === state.matchId && msg.roundIndex === state.roundIndex
@@ -2007,14 +2021,17 @@ window.CatchMind = (function () {
     box.innerHTML = ordered.map(function (nick) {
       var person = peopleByNick[nick] || {};
       var isAway = !!person.away;
-      var isParticipant = !!participantSet[nick];
+      var isParticipant = canChangeRole()
+        ? !has(state.spectators || [], nick) && !isAway
+        : !!participantSet[nick];
+      var wasParticipant = !!participantSet[nick];
       var isCorrect = state.phase === "drawing" && !!state.correct[nick];
       var classes = [];
       if (nick === state.drawer) classes.push("drawer");
       if (isCorrect) classes.push("correct");
       if (!isParticipant) classes.push("spectator");
       if (isAway) classes.push("away");
-      var score = isParticipant && state.queue.length
+      var score = wasParticipant && state.queue.length
         ? '<span class="catch-inline-score">' + (state.scores[nick] || 0) + '점</span>'
         : "";
       var badge = isCorrect ? ' <em>정답</em>' : "";
@@ -2022,7 +2039,12 @@ window.CatchMind = (function () {
         ? ' <span class="catch-host-crown" title="방장" aria-label="방장">👑</span>'
         : "";
       var awayBadge = isAway ? ' <i class="catch-away-tag">자리비움</i>' : "";
-      return '<span class="' + classes.join(" ") + '"><b>' + esc(nick) + '</b>' + crown + awayBadge + badge + score + '</span>';
+      var manageable = api && api.isHost && api.isHost() && canChangeRole() && nick !== me().nick && !isAway;
+      var roleAttrs = manageable
+        ? ' role="button" tabindex="0" data-catch-role-nick="' + esc(nick) + '" aria-label="' + esc(nick) + '님 ' + (isParticipant ? '관전' : '참가') + '으로 전환" title="눌러서 ' + (isParticipant ? '관전' : '참가') + '으로 전환"'
+        : "";
+      if (manageable) classes.push("host-manageable");
+      return '<span class="' + classes.join(" ") + '"' + roleAttrs + '><b>' + esc(nick) + '</b>' + crown + awayBadge + badge + score + '</span>';
     }).join("");
   }
 
@@ -2926,7 +2948,22 @@ window.CatchMind = (function () {
     setupToolButtons();
     buildPaletteUi();
     updateColorButtons();
-    bindHorizontalDrag($("catch-score-strip"));
+    var scoreStrip = $("catch-score-strip");
+    bindHorizontalDrag(scoreStrip);
+    if (scoreStrip) {
+      scoreStrip.addEventListener("click", function (event) {
+        var target = event.target.closest("[data-catch-role-nick]");
+        if (!target || !scoreStrip.contains(target)) return;
+        hostTogglePlayerRole(target.getAttribute("data-catch-role-nick"));
+      });
+      scoreStrip.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        var target = event.target.closest("[data-catch-role-nick]");
+        if (!target || !scoreStrip.contains(target)) return;
+        event.preventDefault();
+        hostTogglePlayerRole(target.getAttribute("data-catch-role-nick"));
+      });
+    }
     canvas.addEventListener("pointerdown", pointerDown);
     canvas.addEventListener("pointermove", pointerMove);
     canvas.addEventListener("pointerup", pointerUp);
@@ -3191,6 +3228,7 @@ window.CatchMind = (function () {
       hostSetReady: hostSetReady,
       toggleReady: toggleReady,
       hostSetSpectatorPreference: hostSetSpectatorPreference,
+      hostTogglePlayerRole: hostTogglePlayerRole,
       toggleRolePreference: toggleRolePreference,
       tick: tick,
       brushWidth: brushWidth,

@@ -156,6 +156,10 @@ body {
 .catch-score-strip > span.correct { border-color: rgba(79, 216, 197, .55); }
 .catch-score-strip > span.spectator { opacity: .52; background: rgba(22,56,74,.36); border-color: rgba(207,224,231,.1); color: #8fa6b2; }
 .catch-score-strip > span.away { opacity: .58; background: rgba(14,42,58,.62); border-color: rgba(207,224,231,.12); color: #8fa6b2; }
+.catch-score-strip > span.host-manageable { cursor: pointer; transition: border-color .15s ease, background .15s ease, transform .15s ease; }
+.catch-score-strip > span.host-manageable:hover { border-color: rgba(56,198,176,.72); background: rgba(33,78,96,.9); }
+.catch-score-strip > span.host-manageable:active { transform: translateY(1px) scale(.98); }
+.catch-score-strip > span.host-manageable:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 .catch-score-strip b { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #eaf2f6; font-weight: 900; }
 .catch-score-strip > span.drawer b { color: #fff; }
 .catch-score-strip > span.spectator b { color: #9fb2bd; font-weight: 800; }
