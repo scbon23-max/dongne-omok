@@ -20,6 +20,10 @@ window.RelayDrawing = (function () {
   var GALLERY_IMAGE_QUALITY = 0.72;
   var GALLERY_IMAGE_MAX_BYTES = 153600;
   var GALLERY_PAGE_SIZE = 10;
+  var WAITING_BGM_SRC = "assets/catchmind-bgm.mp3";
+  var WAITING_BGM_VOLUME = 0.04;
+  var GAME_BGM_SRC = "assets/catchmind-start.mp3";
+  var GAME_BGM_VOLUME = 1;
   var PALETTE_COLORS = [
     "#17252f", "#4b5563", "#9ca3af", "#ffffff", "#7c4a2d", "#d23b3b",
     "#be123c", "#f97316", "#facc15", "#84cc16", "#22c55e", "#14b8a6",
@@ -143,6 +147,11 @@ window.RelayDrawing = (function () {
   var selectedColor = PEN_COLORS[0];
   var paletteTarget = "pen";
   var canvasBg = CANVAS_BG;
+  var waitingBgmEl = null;
+  var waitingBgmPlayPending = false;
+  var gameBgmEl = null;
+  var gameBgmPlayPending = false;
+  var lastGameBgmMatchId = null;
   var taskScope = "";
   var inputScope = "";
   var pendingSubmitScope = "";
@@ -235,6 +244,114 @@ window.RelayDrawing = (function () {
   function isActivePhase(phase) {
     phase = phase || state.phase;
     return phase === "prompt" || phase === "drawing" || phase === "caption";
+  }
+  function isSoundMuted() {
+    try { return localStorage.getItem("omok_mute") === "1"; }
+    catch (error) { return false; }
+  }
+  function ensureWaitingBgm() {
+    if (waitingBgmEl) return waitingBgmEl;
+    if (typeof document === "undefined" || !document.createElement) return null;
+    waitingBgmEl = document.createElement("audio");
+    waitingBgmEl.src = WAITING_BGM_SRC;
+    waitingBgmEl.loop = true;
+    waitingBgmEl.preload = "auto";
+    waitingBgmEl.volume = WAITING_BGM_VOLUME;
+    waitingBgmEl.setAttribute("playsinline", "");
+    waitingBgmEl.setAttribute("webkit-playsinline", "");
+    waitingBgmEl.style.display = "none";
+    if (document.body) document.body.appendChild(waitingBgmEl);
+    return waitingBgmEl;
+  }
+  function stopWaitingBgm(reset) {
+    waitingBgmPlayPending = false;
+    if (!waitingBgmEl) return;
+    try {
+      waitingBgmEl.pause();
+      if (reset) waitingBgmEl.currentTime = 0;
+    } catch (error) {}
+  }
+  function playWaitingBgm() {
+    var el = ensureWaitingBgm();
+    if (!el || !el.paused || waitingBgmPlayPending) return;
+    waitingBgmPlayPending = true;
+    el.volume = WAITING_BGM_VOLUME;
+    var play = el.play();
+    if (play && play.then) {
+      play.then(function () { waitingBgmPlayPending = false; })
+        .catch(function () { waitingBgmPlayPending = false; });
+    } else {
+      waitingBgmPlayPending = false;
+    }
+  }
+  function ensureGameBgm() {
+    if (gameBgmEl) return gameBgmEl;
+    if (typeof Audio === "undefined") return null;
+    try {
+      gameBgmEl = new Audio(GAME_BGM_SRC);
+      gameBgmEl.preload = "auto";
+      gameBgmEl.volume = GAME_BGM_VOLUME;
+      gameBgmEl.loop = true;
+      gameBgmEl.setAttribute("playsinline", "");
+      gameBgmEl.setAttribute("webkit-playsinline", "");
+      return gameBgmEl;
+    } catch (error) {
+      return null;
+    }
+  }
+  function stopGameBgm(reset) {
+    gameBgmPlayPending = false;
+    if (!gameBgmEl) return;
+    try {
+      gameBgmEl.pause();
+      if (reset) gameBgmEl.currentTime = 0;
+    } catch (error) {}
+  }
+  function playGameBgm() {
+    var matchId = state.matchId;
+    if (!matchId || gameBgmPlayPending) return;
+    var el = ensureGameBgm();
+    if (!el) return;
+    var isNewMatch = lastGameBgmMatchId !== matchId;
+    if (!isNewMatch && !el.paused) return;
+    try {
+      if (isNewMatch) {
+        el.pause();
+        el.currentTime = 0;
+      }
+      lastGameBgmMatchId = matchId;
+      el.volume = GAME_BGM_VOLUME;
+      el.loop = true;
+      gameBgmPlayPending = true;
+      var play = el.play();
+      if (play && play.then) {
+        play.then(function () { gameBgmPlayPending = false; })
+          .catch(function () { gameBgmPlayPending = false; });
+      } else {
+        gameBgmPlayPending = false;
+      }
+    } catch (error) {
+      gameBgmPlayPending = false;
+    }
+  }
+  function syncAudio() {
+    if (!api || previewMode) {
+      stopWaitingBgm(false);
+      stopGameBgm(false);
+      return;
+    }
+    if (isSoundMuted()) {
+      stopWaitingBgm(false);
+      stopGameBgm(false);
+      return;
+    }
+    if (isActivePhase()) {
+      stopWaitingBgm(false);
+      playGameBgm();
+      return;
+    }
+    stopGameBgm(true);
+    playWaitingBgm();
   }
   function phaseForStep(step) {
     if (step === 0) return "prompt";
@@ -1310,6 +1427,7 @@ window.RelayDrawing = (function () {
   }
   function render() {
     if (!api) return;
+    syncAudio();
     syncCanvasForTask();
     renderRoster();
     renderProgress();
@@ -1536,6 +1654,7 @@ window.RelayDrawing = (function () {
 
   function tick() {
     if (!api) return;
+    syncAudio();
     renderTimer();
     var now = Date.now();
     if (!previewMode && isActivePhase() && state.deadline && now >= state.deadline) {
@@ -1545,8 +1664,8 @@ window.RelayDrawing = (function () {
       hostFinishExpiredStep();
     }
   }
-  function enter(nextApi) {
-    previewMode = false;
+  function enter(nextApi, asPreview) {
+    previewMode = !!asPreview;
     api = nextApi;
     state = freshState();
     clearChains([]);
@@ -1554,6 +1673,8 @@ window.RelayDrawing = (function () {
     inputScope = "";
     pendingSubmitScope = "";
     warningScope = "";
+    lastGameBgmMatchId = null;
+    stopGameBgm(true);
     albumIndex = 0;
     canvasBg = CANVAS_BG;
     canvas = $("relay-board");
@@ -1569,11 +1690,13 @@ window.RelayDrawing = (function () {
     render();
   }
   function enterPreview(nextApi, phase) {
-    enter(nextApi);
-    previewMode = true;
+    enter(nextApi, true);
     return setPreviewPhase(phase);
   }
   function leave() {
+    stopWaitingBgm(true);
+    stopGameBgm(true);
+    lastGameBgmMatchId = null;
     if (tickId) { clearInterval(tickId); tickId = null; }
     api = null;
     state = freshState();
@@ -1640,6 +1763,15 @@ window.RelayDrawing = (function () {
     render: render,
     rules: rules,
     openGallery: openGallery,
+    syncAudio: syncAudio,
+    stopWaitingBgm: stopWaitingBgm,
+    stopGameBgm: stopGameBgm,
+    audioConfig: {
+      waitingSrc: WAITING_BGM_SRC,
+      waitingVolume: WAITING_BGM_VOLUME,
+      gameSrc: GAME_BGM_SRC,
+      gameVolume: GAME_BGM_VOLUME
+    },
     get previewMode() { return previewMode; },
     get state() { return state; }
   };
@@ -1659,6 +1791,15 @@ window.RelayDrawing = (function () {
       hostStartMatch: hostStartMatch,
       hostAcceptSubmission: hostAcceptSubmission,
       hostAdvanceStep: hostAdvanceStep,
+      syncAudio: syncAudio,
+      stopWaitingBgm: stopWaitingBgm,
+      stopGameBgm: stopGameBgm,
+      audioConfig: {
+        waitingSrc: WAITING_BGM_SRC,
+        waitingVolume: WAITING_BGM_VOLUME,
+        gameSrc: GAME_BGM_SRC,
+        gameVolume: GAME_BGM_VOLUME
+      },
       hostFinishExpiredStep: hostFinishExpiredStep,
       autoSubmitCurrentState: autoSubmitCurrentState,
       tick: tick,

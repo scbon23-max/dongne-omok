@@ -7,6 +7,7 @@
   // Keep the unfinished territory mode code available for future development,
   // but hide every user-facing entry point until it is ready.
   var ENABLE_ALK_TERRITORY = false;
+  var ENABLE_RELAY = false;
 
   var G = {
     board: Renju.emptyBoard(),
@@ -87,6 +88,7 @@
   function activeController() { return gameController(curRoomGame || curGame); }
   function canSeeGame(id) {
     if (id === "alk_terr" && !ENABLE_ALK_TERRITORY) return false;
+    if (id === "relay" && !ENABLE_RELAY) return false;
     return !!(window.GameCatalog ? GameCatalog.get(id) : id);
   }
   function visibleGameIds(ids) {
@@ -5362,6 +5364,8 @@
       soundMuted = !soundMuted;
       localStorage.setItem("omok_mute", soundMuted ? "1" : "0");
       syncMuteIcons();
+      var ctrl = activeController();
+      if (ctrl && ctrl.syncAudio) ctrl.syncAudio();
       if (!soundMuted) { initAudio(); playStone(); }
     }
     syncMuteIcons();

@@ -216,8 +216,9 @@ test("room creation hides territory mode and creates normal Alkkagi rooms direct
   assert.match(index, /data-game="alk"[\s\S]*data-game="alk_terr"/);
   assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay"\]\)/);
   assert.match(game, /var ENABLE_ALK_TERRITORY = false/);
+  assert.match(game, /var ENABLE_RELAY = false/);
   assert.match(game, /if \(id === "alk_terr" && !ENABLE_ALK_TERRITORY\) return false/);
-  assert.doesNotMatch(game, /if \(id === "relay" && !isGunaAdmin\(\)\) return false/);
+  assert.match(game, /if \(id === "relay" && !ENABLE_RELAY\) return false/);
   assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);
   assert.match(game, /if \(createGame === "alk" && ENABLE_ALK_TERRITORY\)[\s\S]*showCreateRoomStep\("alk-mode"\)/);
   assert.match(game, /createRoom\(createGame === "alk" \? "alk" : createGame, nm\)/);
@@ -338,14 +339,14 @@ test("Relay Drawing warns at five seconds and auto-submits the current draft", (
   assert.match(relayDrawing, /now >= state\.deadline \+ AUTO_SUBMIT_GRACE_MS/);
 });
 
-test("Relay Drawing is public while its UI preview remains restricted to the authenticated owner admin", () => {
+test("Relay Drawing is paused publicly while its UI preview remains restricted to the authenticated owner admin", () => {
   for (const phase of ["waiting", "prompt", "drawing", "caption", "result"]) {
     assert.match(index, new RegExp('<option value="' + phase + '">'));
   }
   assert.match(index, /id="relay-preview-toolbar"/);
   assert.match(index, /id="relay-preview-menu-btn" class="menu-item admin-only"/);
-  assert.match(index, /class="menu-item" data-rules="relay"/);
-  assert.match(index, /id="lobby-relay-gallery-btn" class="hdr-btn"/);
+  assert.match(index, /class="menu-item hidden" data-rules="relay"/);
+  assert.match(index, /id="lobby-relay-gallery-btn" class="hdr-btn hidden"/);
   assert.match(index, /data-relay-preview-viewport="desktop"/);
   assert.match(index, /data-relay-preview-viewport="mobile"/);
   assert.match(game, /var relayPreviewPhases = \["waiting", "prompt", "drawing", "caption", "result"\]/);
@@ -353,7 +354,7 @@ test("Relay Drawing is public while its UI preview remains restricted to the aut
   assert.match(game, /if \(!phase \|\| !isGunaAdmin\(\) \|\| !window\.RelayDrawing/);
   assert.match(game, /function isGunaAdmin\(\)\s*\{\s*return me\.isAdmin === true && me\.nick === ADMIN;/);
   assert.match(game, /if \(startRelayUiPreview\(\)\) \{\s*logLoginOnce\(\);\s*return;/);
-  assert.doesNotMatch(game, /id === "relay" && !isGunaAdmin\(\)/);
+  assert.match(game, /id === "relay" && !ENABLE_RELAY/);
   assert.match(game, /RelayDrawing\.enterPreview\(previewApi, phase\)/);
   assert.match(game, /if \(!startLocalAlkMapPreview\(\)\) tryAutoLogin\(\)/);
   assert.match(relayDrawing, /enterPreview:\s*enterPreview/);

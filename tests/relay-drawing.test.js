@@ -17,6 +17,8 @@ function loadRelay(options) {
   const context = {
     window: windowObject,
     document,
+    Audio: options.Audio,
+    localStorage: options.localStorage || { getItem() { return "0"; } },
     console,
     Date: options.Date || Date,
     Event: function Event(type) { this.type = type; },
@@ -119,6 +121,104 @@ test("automatic story prompts combine broad, easy character and action vocabular
   assert.ok(situation.length <= relay.limits.maxText);
   assert.ok(parts.characters.length * parts.actions.length >= 40000);
   assert.equal(parts.characters.length * parts.actions.length * parts.situations.length, 8000000);
+});
+
+test("relay drawing reuses CatchMind waiting and game music at identical volumes", async () => {
+  function media(src) {
+    return {
+      src: src || "",
+      paused: true,
+      currentTime: 0,
+      volume: 0,
+      loop: false,
+      preload: "",
+      style: {},
+      playCount: 0,
+      pauseCount: 0,
+      setAttribute() {},
+      play() {
+        this.paused = false;
+        this.playCount++;
+        return Promise.resolve();
+      },
+      pause() {
+        this.paused = true;
+        this.pauseCount++;
+      }
+    };
+  }
+
+  const waiting = media();
+  const game = media();
+  function FakeAudio(src) {
+    game.src = src;
+    return game;
+  }
+  const relay = loadRelay({
+    Audio: FakeAudio,
+    localStorage: { getItem() { return "0"; } },
+    document: {
+      createElement(tag) {
+        assert.equal(tag, "audio");
+        return waiting;
+      },
+      body: { appendChild() {} }
+    }
+  });
+  relay.setApi({ me() { return { nick: "A" }; } });
+  const state = relay.freshState();
+  relay.setState(state);
+
+  relay.syncAudio();
+  await Promise.resolve();
+  assert.equal(waiting.src, "assets/catchmind-bgm.mp3");
+  assert.equal(waiting.volume, 0.04);
+  assert.equal(waiting.loop, true);
+  assert.equal(waiting.playCount, 1);
+
+  waiting.currentTime = 18;
+  state.phase = "prompt";
+  state.matchId = "relay-one";
+  relay.syncAudio();
+  await Promise.resolve();
+  assert.equal(waiting.paused, true);
+  assert.equal(waiting.currentTime, 18);
+  assert.equal(game.src, "assets/catchmind-start.mp3");
+  assert.equal(game.volume, 1);
+  assert.equal(game.loop, true);
+  assert.equal(game.playCount, 1);
+
+  state.phase = "drawing";
+  relay.syncAudio();
+  state.phase = "caption";
+  relay.syncAudio();
+  assert.equal(game.playCount, 1);
+
+  game.currentTime = 21;
+  game.pause();
+  relay.syncAudio();
+  await Promise.resolve();
+  assert.equal(game.playCount, 2);
+  assert.equal(game.currentTime, 21);
+
+  state.phase = "finished";
+  relay.syncAudio();
+  await Promise.resolve();
+  assert.equal(game.paused, true);
+  assert.equal(game.currentTime, 0);
+  assert.equal(waiting.playCount, 2);
+  assert.equal(waiting.currentTime, 18);
+
+  state.phase = "prompt";
+  state.matchId = "relay-two";
+  relay.syncAudio();
+  await Promise.resolve();
+  assert.equal(game.playCount, 3);
+  assert.equal(game.currentTime, 0);
+  assert.equal(relay.audioConfig.waitingSrc, "assets/catchmind-bgm.mp3");
+  assert.equal(relay.audioConfig.waitingVolume, 0.04);
+  assert.equal(relay.audioConfig.gameSrc, "assets/catchmind-start.mp3");
+  assert.equal(relay.audioConfig.gameVolume, 1);
 });
 
 test("UI preview exposes every relay screen with complete sample chains", () => {
