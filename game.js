@@ -87,7 +87,6 @@
   function activeController() { return gameController(curRoomGame || curGame); }
   function canSeeGame(id) {
     if (id === "alk_terr" && !ENABLE_ALK_TERRITORY) return false;
-    if (id === "relay" && !isGunaAdmin()) return false;
     return !!(window.GameCatalog ? GameCatalog.get(id) : id);
   }
   function visibleGameIds(ids) {
