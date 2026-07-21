@@ -13,6 +13,7 @@ const net = fs.readFileSync(path.join(root, "net.js"), "utf8");
 const alkkagi = fs.readFileSync(path.join(root, "alkkagi.js"), "utf8");
 const catchmind = fs.readFileSync(path.join(root, "catchmind.js"), "utf8");
 const relayDrawing = fs.readFileSync(path.join(root, "relay-drawing.js"), "utf8");
+const territoryRush = fs.readFileSync(path.join(root, "territory-rush.js"), "utf8");
 const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 const inlineScripts = Array.from(index.matchAll(/<script>([\s\S]*?)<\/script>/g), (match) => match[1]);
 const shellSource = inlineScripts.find((source) => source.includes("window.AppShell ="));
@@ -39,6 +40,7 @@ test("the app shell versions every local runtime asset from one build", () => {
     "catchmind-words.js",
     "catchmind.js",
     "relay-drawing.js",
+    "territory-rush.js",
     "game.js"
   ];
   for (const file of files) assert.match(index, new RegExp('\\{ src: "' + file.replace(".", "\\.") + '" \\}'));
@@ -85,11 +87,12 @@ test("the app shell loads local scripts sequentially with the same revision", ()
   assert.equal(styles[0].href, "styles.css?v=" + encodeURIComponent(version));
   assert.equal(scripts[0].src, "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2");
 
-  while (scripts.length < 16) scripts[scripts.length - 1].onload();
+  while (scripts.length < 17) scripts[scripts.length - 1].onload();
   assert.equal(scripts[1].src, "config.js?v=" + encodeURIComponent(version));
   assert.equal(scripts[5].src, "pro-hint-explain.js?v=" + encodeURIComponent(version));
   assert.equal(scripts[14].src, "relay-drawing.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[15].src, "game.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[15].src, "territory-rush.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[16].src, "game.js?v=" + encodeURIComponent(version));
 });
 
 test("room entry is not blocked by an HTML and JavaScript build label mismatch", () => {
@@ -208,17 +211,19 @@ test("Alkkagi has a synchronized five-choice turn timer with short-game warnings
   assert.match(game, /A\.started && window\.Alkkagi && Alkkagi\.isMoving\(\) \? "…" : "∞"/);
 });
 
-test("room creation hides territory mode and creates normal Alkkagi rooms directly", () => {
+test("room creation hides unfinished modes and creates normal Alkkagi rooms directly", () => {
   assert.match(index, /id="create-game-step"/);
   assert.match(index, /id="create-alk-mode-step"/);
   assert.match(index, /id="create-step-back"/);
   assert.match(index, /id="create-mode-confirm"/);
   assert.match(index, /data-game="alk"[\s\S]*data-game="alk_terr"/);
-  assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay"\]\)/);
+  assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay", "territory"\]\)/);
   assert.match(game, /var ENABLE_ALK_TERRITORY = false/);
   assert.match(game, /var ENABLE_RELAY = false/);
+  assert.match(game, /var ENABLE_TERRITORY_RUSH = false/);
   assert.match(game, /if \(id === "alk_terr" && !ENABLE_ALK_TERRITORY\) return false/);
   assert.match(game, /if \(id === "relay" && !ENABLE_RELAY\) return false/);
+  assert.match(game, /if \(id === "territory" && !ENABLE_TERRITORY_RUSH && !isGunaAdmin\(\)\) return false/);
   assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);
   assert.match(game, /if \(createGame === "alk" && ENABLE_ALK_TERRITORY\)[\s\S]*showCreateRoomStep\("alk-mode"\)/);
   assert.match(game, /createRoom\(createGame === "alk" \? "alk" : createGame, nm\)/);
@@ -235,9 +240,26 @@ test("room creation hides territory mode and creates normal Alkkagi rooms direct
     "assets/game-icon-alkkagi.svg",
     "assets/game-icon-catchmind.svg",
     "assets/game-icon-relay.svg",
+    "assets/game-icon-territory.svg",
     "assets/alkkagi-mode-normal.svg",
     "assets/alkkagi-mode-territory.svg"
   ].forEach((asset) => assert.equal(fs.existsSync(path.join(root, asset)), true));
+});
+
+test("Territory Rush is wired as an owner-only non-ranked controller game", () => {
+  const catalog = fs.readFileSync(path.join(root, "game-catalog.js"), "utf8");
+
+  assert.match(catalog, /territory:\s*\{[\s\S]*family:\s*"territory"[\s\S]*rankable:\s*false[\s\S]*controller:\s*"TerritoryRush"/);
+  assert.match(index, /id="territorygame"/);
+  assert.match(index, /id="territory-board"/);
+  assert.match(index, /id="territory-minimap"/);
+  assert.match(index, /id="territory-lobby"/);
+  assert.match(index, /id="territory-finished"/);
+  assert.match(index, /\{ src: "territory-rush\.js" \}/);
+  assert.match(territoryRush, /window\.TerritoryRush\s*=/);
+  assert.match(game, /function expireAway\(nick\)[\s\S]*ctrl\.onPresence\(displayRoster\.slice\(\), \{ expiredNick: nick \}\)/);
+  assert.match(styles, /\.game-screen\.territory-screen/);
+  assert.match(styles, /#territory-board/);
 });
 
 test("Relay Drawing is registered as a separate non-ranked party game", () => {

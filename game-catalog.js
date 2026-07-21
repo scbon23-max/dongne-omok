@@ -79,10 +79,26 @@ window.GameCatalog = (function () {
       onlineListId: null,
       onlineNumId: "relay-online-num",
       onlineTotalId: null
+    },
+    territory: {
+      id: "territory",
+      family: "territory",
+      name: "영역 넓히기",
+      rankName: "영역 넓히기",
+      rankable: false,
+      controller: "TerritoryRush",
+      screenId: "territorygame",
+      roomStripId: "room-strip-territory",
+      chatLogId: null,
+      chatInputId: null,
+      chatOverlayId: null,
+      onlineListId: null,
+      onlineNumId: "territory-people-count",
+      onlineTotalId: null
     }
   };
 
-  var order = ["omok", "alk", "alk_terr", "catchmind", "relay"];
+  var order = ["omok", "alk", "alk_terr", "catchmind", "relay", "territory"];
 
   function get(id) {
     return defs[id] || null;

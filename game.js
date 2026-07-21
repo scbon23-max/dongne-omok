@@ -8,6 +8,7 @@
   // but hide every user-facing entry point until it is ready.
   var ENABLE_ALK_TERRITORY = false;
   var ENABLE_RELAY = false;
+  var ENABLE_TERRITORY_RUSH = false;
 
   var G = {
     board: Renju.emptyBoard(),
@@ -89,6 +90,7 @@
   function canSeeGame(id) {
     if (id === "alk_terr" && !ENABLE_ALK_TERRITORY) return false;
     if (id === "relay" && !ENABLE_RELAY) return false;
+    if (id === "territory" && !ENABLE_TERRITORY_RUSH && !isGunaAdmin()) return false;
     return !!(window.GameCatalog ? GameCatalog.get(id) : id);
   }
   function visibleGameIds(ids) {
@@ -147,6 +149,7 @@
       isHost: function () { return !netMode || amHost; },
       host: function () { return hostNick || me.nick; },
       isNet: function () { return netMode; },
+      isConnected: function () { return !netMode || connected; },
       setHostEligible: function (eligible) {
         eligible = !!eligible;
         if (roomHostEligible === eligible) return;
@@ -1635,6 +1638,11 @@
     else if (s === "LOCAL") setConn("local");
     else if (s === "CHANNEL_ERROR" || s === "TIMED_OUT" || s === "CLOSED") { connected = false; setConn("off"); }
     else setConn("connecting");
+    var ctrl = activeController();
+    if (ctrl && ctrl.onConnection) {
+      if (s === "SUBSCRIBED" || s === "LOCAL") ctrl.onConnection(true, s);
+      else if (s === "CHANNEL_ERROR" || s === "TIMED_OUT" || s === "CLOSED") ctrl.onConnection(false, s);
+    }
   }
   function setConn(s) {
     var d = $("conn-dot"); if (!d) return;
@@ -1771,6 +1779,8 @@
     buildDisplayRoster();
     announceRoomLeave(nick);
     renderPresenceUI();
+    var ctrl = activeController();
+    if (ctrl && ctrl.onPresence) ctrl.onPresence(displayRoster.slice(), { expiredNick: nick });
     renderPlayersList();
     if (amHost && curRoomId) broadcastRoomOpen();
   }
@@ -4454,17 +4464,22 @@
   function renderCreateGameOptions(selected) {
     var box = $("create-game"); if (!box) return selected || "omok";
     if (selected === "alk_terr") selected = "alk";
-    var ids = visibleGameIds(["omok", "alk", "catchmind", "relay"]);
+    var ids = visibleGameIds(["omok", "alk", "catchmind", "relay", "territory"]);
     if (ids.indexOf(selected) < 0) selected = ids[0] || "omok";
     box.innerHTML = ids.map(function (id) {
       var label = gameName(id);
       var desc = id === "omok" ? "렌주룰로 즐기는 1:1 대국"
         : id === "alk" ? "돌을 튕겨 겨루는 실시간 대결"
         : id === "catchmind" ? "그리고 맞히는 단체 그림 퀴즈"
-        : "문장과 그림을 번갈아 이어가기";
+        : id === "relay" ? "문장과 그림을 번갈아 이어가기"
+        : "선을 이어 내 영역을 넓히는 실시간 대결";
+      var iconSrc = id === "alk" ? "assets/game-icon-alkkagi.svg"
+        : id === "catchmind" ? "assets/game-icon-catchmind.svg"
+        : id === "relay" ? "assets/game-icon-relay.svg"
+        : "assets/game-icon-territory.svg";
       var icon = id === "omok"
         ? '<span class="create-game-icon omok" aria-hidden="true"></span>'
-        : '<img class="create-game-icon" src="' + localAssetUrl(id === "alk" ? "assets/game-icon-alkkagi.svg" : id === "catchmind" ? "assets/game-icon-catchmind.svg" : "assets/game-icon-relay.svg") + '" alt="">';
+        : '<img class="create-game-icon" src="' + localAssetUrl(iconSrc) + '" alt="">';
       return '<button class="create-game-option' + (id === selected ? ' active' : '') + '" data-game="' + esc(id) + '" type="button" aria-pressed="' + (id === selected ? 'true' : 'false') + '">'
         + icon + '<span class="create-game-copy"><span class="create-game-name">' + esc(label) + '</span><span class="create-game-desc">' + esc(desc) + '</span></span></button>';
     }).join("");
