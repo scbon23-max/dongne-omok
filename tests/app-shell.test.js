@@ -211,7 +211,7 @@ test("Alkkagi has a synchronized five-choice turn timer with short-game warnings
   assert.match(game, /A\.started && window\.Alkkagi && Alkkagi\.isMoving\(\) \? "…" : "∞"/);
 });
 
-test("room creation hides unfinished modes and creates normal Alkkagi rooms directly", () => {
+test("room creation hides unfinished modes and limits Territory Rush creation to the admin", () => {
   assert.match(index, /id="create-game-step"/);
   assert.match(index, /id="create-alk-mode-step"/);
   assert.match(index, /id="create-step-back"/);
@@ -220,10 +220,12 @@ test("room creation hides unfinished modes and creates normal Alkkagi rooms dire
   assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay", "territory"\]\)/);
   assert.match(game, /var ENABLE_ALK_TERRITORY = false/);
   assert.match(game, /var ENABLE_RELAY = false/);
-  assert.match(game, /var ENABLE_TERRITORY_RUSH = false/);
   assert.match(game, /if \(id === "alk_terr" && !ENABLE_ALK_TERRITORY\) return false/);
   assert.match(game, /if \(id === "relay" && !ENABLE_RELAY\) return false/);
-  assert.match(game, /if \(id === "territory" && !ENABLE_TERRITORY_RUSH && !isGunaAdmin\(\)\) return false/);
+  assert.doesNotMatch(game, /if \(id === "territory"[^\n]+return false/);
+  assert.match(game, /function canCreateGame\(id\)[\s\S]*def\.createAdminOnly && !isGunaAdmin\(\)/);
+  assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay", "territory"\]\)\.filter\(canCreateGame\)/);
+  assert.match(game, /if \(!canCreateGame\(game\)\) \{ toast\("땅따먹기 방은 관리자만 만들 수 있어요"\); return; \}/);
   assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);
   assert.match(game, /if \(createGame === "alk" && ENABLE_ALK_TERRITORY\)[\s\S]*showCreateRoomStep\("alk-mode"\)/);
   assert.match(game, /createRoom\(createGame === "alk" \? "alk" : createGame, nm\)/);
@@ -249,7 +251,7 @@ test("room creation hides unfinished modes and creates normal Alkkagi rooms dire
 test("Territory Rush is wired as an owner-only non-ranked controller game", () => {
   const catalog = fs.readFileSync(path.join(root, "game-catalog.js"), "utf8");
 
-  assert.match(catalog, /territory:\s*\{[\s\S]*family:\s*"territory"[\s\S]*rankable:\s*false[\s\S]*controller:\s*"TerritoryRush"/);
+  assert.match(catalog, /territory:\s*\{[\s\S]*family:\s*"territory"[\s\S]*rankable:\s*false[\s\S]*createAdminOnly:\s*true[\s\S]*maxRoomMembers:\s*10[\s\S]*maxPlayers:\s*8[\s\S]*controller:\s*"TerritoryRush"/);
   assert.match(catalog, /territory:\s*\{[\s\S]*name:\s*"땅따먹기"[\s\S]*rankName:\s*"땅따먹기"/);
   assert.match(index, /id="territorygame"/);
   assert.match(index, /id="territory-board"/);
@@ -258,6 +260,14 @@ test("Territory Rush is wired as an owner-only non-ranked controller game", () =
   assert.match(index, /id="territory-finished"/);
   assert.match(index, /\{ src: "territory-rush\.js" \}/);
   assert.match(territoryRush, /window\.TerritoryRush\s*=/);
+  assert.match(game, /function roomHasSpace\(roomId, game, notify\)[\s\S]*Number\(room\.count\)[\s\S]*방이 가득 찼어요/);
+  assert.match(game, /if \(!roomHasSpace\(roomId, game, true\)\) return false/);
+  assert.match(game, /roomCount \+ "\/" \+ roomLimit \+ "명"/);
+  assert.equal(fs.existsSync(path.join(root, "assets", "territory-rush-bgm.mp3")), true);
+  assert.ok(fs.statSync(path.join(root, "assets", "territory-rush-bgm.mp3")).size > 1000000);
+  assert.match(territoryRush, /GAME_BGM_SRC = "assets\/territory-rush-bgm\.mp3"/);
+  assert.match(territoryRush, /DEATH_SFX_SRC = "assets\/catchmind-countdown\.wav"/);
+  assert.match(territoryRush, /function syncRemoteDeathCues\(previous, next\)/);
   assert.match(game, /function expireAway\(nick\)[\s\S]*ctrl\.onPresence\(displayRoster\.slice\(\), \{ expiredNick: nick \}\)/);
   assert.match(styles, /\.game-screen\.territory-screen/);
   assert.match(styles, /#territory-board/);

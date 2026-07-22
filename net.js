@@ -63,6 +63,7 @@ window.Net = (function () {
 
   // ── 방 채널 (방에 들어갈 때만, 나가면 떠남) ──
   var channel = null, myMeta = null, handlers = {}, curRoom = null, roomGen = 0, roomWant = false, roomTries = 0, roomReT = null, roomReady = false, roomPending = [], roomPresenceT = null;
+  var directChannels = Object.create(null), directWanted = Object.create(null), directTries = Object.create(null);
   function init(roomId, meta, hs) {
     if (!enabled) { handlers = hs || {}; if (handlers.onStatus) handlers.onStatus("LOCAL"); return false; }
     leaveRoom();
@@ -109,9 +110,98 @@ window.Net = (function () {
   function flushRoom() { if (!channel) return; var q = roomPending; roomPending = []; for (var i = 0; i < q.length; i++) { try { channel.send({ type: "broadcast", event: "m", payload: q[i] }); } catch (e) {} } }
   function send(o) { if (!enabled) return; if (roomReady && channel) { channel.send({ type: "broadcast", event: "m", payload: o }); } else if (roomPending.length < 50) { roomPending.push(o); } }
   function track(m) { myMeta = m; if (enabled && channel) channel.track(m); }
+  function directNick(value) { return String(value == null ? "" : value).trim().slice(0, 40); }
+  function directTopic(nick) { return "room-input:" + curRoom + ":" + encodeURIComponent(nick); }
+  function closeDirectInput(nick) {
+    var entry = directChannels[nick];
+    if (!entry) return;
+    if (entry.retry) clearTimeout(entry.retry);
+    if (entry.channel) { try { window.SB.removeChannel(entry.channel); } catch (e) {} }
+    delete directChannels[nick];
+  }
+  function openDirectInput(nick) {
+    nick = directNick(nick);
+    if (!enabled || !roomWant || !curRoom || !nick) return null;
+    if (directChannels[nick]) return directChannels[nick];
+    var entry = { channel: null, ready: false, pending: [], retry: null };
+    var ch = window.SB.channel(directTopic(nick), { config: { broadcast: { self: false } } });
+    entry.channel = ch;
+    directChannels[nick] = entry;
+    ch.on("broadcast", { event: "m" }, function (packet) {
+      if (handlers.onMessage) handlers.onMessage(packet.payload);
+    });
+    ch.subscribe(function (status) {
+      if (directChannels[nick] !== entry) return;
+      if (status === "SUBSCRIBED") {
+        directTries[nick] = 0;
+        entry.ready = true;
+        var pending = entry.pending;
+        entry.pending = [];
+        pending.forEach(function (payload) {
+          try { ch.send({ type: "broadcast", event: "m", payload: payload }); } catch (e) {}
+        });
+      } else if (isDead(status)) {
+        entry.ready = false;
+        if (entry.retry || !directWanted[nick]) return;
+        var delay = backoff(directTries[nick] || 0);
+        directTries[nick] = (directTries[nick] || 0) + 1;
+        entry.retry = setTimeout(function () {
+          entry.retry = null;
+          if (directChannels[nick] !== entry || !directWanted[nick] || !roomWant) return;
+          closeDirectInput(nick);
+          openDirectInput(nick);
+        }, delay);
+      }
+    });
+    return entry;
+  }
+  function syncDirectInputs(nicks, selfNick, hostMode) {
+    if (!enabled || !roomWant || !curRoom) return false;
+    selfNick = directNick(selfNick || (myMeta && myMeta.nick));
+    var allowed = Object.create(null);
+    (Array.isArray(nicks) ? nicks : []).forEach(function (nick) {
+      nick = directNick(nick);
+      if (nick) allowed[nick] = true;
+    });
+    var wanted = Object.create(null);
+    if (hostMode) {
+      Object.keys(allowed).forEach(function (nick) { if (nick !== selfNick) wanted[nick] = true; });
+    } else if (selfNick && allowed[selfNick]) {
+      wanted[selfNick] = true;
+    }
+    directWanted = wanted;
+    Object.keys(directChannels).forEach(function (nick) { if (!wanted[nick]) closeDirectInput(nick); });
+    Object.keys(wanted).forEach(openDirectInput);
+    return true;
+  }
+  function sendDirectInput(payload) {
+    if (!enabled || !roomWant || !curRoom) return false;
+    var nick = directNick(myMeta && myMeta.nick);
+    if (!nick) return false;
+    directWanted[nick] = true;
+    var entry = openDirectInput(nick);
+    if (!entry) return false;
+    if (!entry.ready) {
+      entry.pending = [payload];
+      return true;
+    }
+    try {
+      entry.channel.send({ type: "broadcast", event: "m", payload: payload });
+      return true;
+    } catch (e) {
+      entry.pending = [payload];
+      return true;
+    }
+  }
+  function closeAllDirectInputs() {
+    directWanted = Object.create(null);
+    Object.keys(directChannels).forEach(closeDirectInput);
+    directTries = Object.create(null);
+  }
   function leaveRoom() {
     roomWant = false; roomGen++; roomReady = false; roomPending = [];
     stopRoomPresenceHeartbeat();
+    closeAllDirectInputs();
     if (roomReT) { clearTimeout(roomReT); roomReT = null; }
     if (channel) { try { window.SB.removeChannel(channel); } catch (e) {} }
     channel = null; curRoom = null; handlers = {};
@@ -122,6 +212,7 @@ window.Net = (function () {
     get room() { return curRoom; },
     initLobby: initLobby, sendLobby: sendLobby, trackLobby: trackLobby,
     resyncLobby: function () { if (enabled && lobbyWant) openLobby(); },
-    init: init, send: send, track: track, leaveRoom: leaveRoom
+    init: init, send: send, track: track, leaveRoom: leaveRoom,
+    syncDirectInputs: syncDirectInputs, sendDirectInput: sendDirectInput
   };
 })();

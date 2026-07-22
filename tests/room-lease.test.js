@@ -30,6 +30,9 @@ test("room leases atomically limit each account to one owned room", () => {
   assert.match(edge, /body\.action === "claim"/);
   assert.match(edge, /body\.action === "renew"/);
   assert.match(edge, /body\.action === "release"/);
+  assert.match(edge, /\.select\("nickname,is_admin"\)/);
+  assert.match(edge, /game === "territory" && \(!account\.isAdmin \|\| nick !== TERRITORY_ADMIN\)/);
+  assert.match(edge, /reason: "forbidden"/);
 });
 
 test("room creation claims, renews, and releases the account lease", () => {
@@ -43,6 +46,7 @@ test("a refresh restores the same owned room instead of leaving an invisible lea
   assert.match(game, /ROOM_LEASE_STORAGE_KEY = "dongne_owned_room_lease_v1"/);
   assert.match(game, /sessionStorage\.setItem\(ROOM_LEASE_STORAGE_KEY/);
   assert.match(game, /async function restoreOwnedRoomLease\(\)/);
+  assert.match(game, /if \(!canCreateGame\(lease\.game\)\) \{ clearStoredRoomLease\(lease\.roomId\); return; \}/);
   assert.match(game, /claimed = await Db\.claimRoomLease\(roomLeaseAuth\(\), lease\)/);
   assert.match(game, /enterRoom\(lease\.roomId, lease\.game, lease\.roomName\)/);
   assert.match(game, /toast\("새로고침 전 방으로 돌아왔어요"/);

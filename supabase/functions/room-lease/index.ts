@@ -5,6 +5,7 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+const TERRITORY_ADMIN = "구나";
 
 function response(body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -23,11 +24,14 @@ async function verifyAccount(client: ReturnType<typeof createClient>, auth: Reco
   if (!nick || !/^[0-9a-f]{64}$/.test(hash)) return null;
   const { data, error } = await client
     .from("accounts")
-    .select("nickname")
+    .select("nickname,is_admin")
     .eq("nickname", nick)
     .eq("pw_hash", hash)
     .maybeSingle();
-  return error || !data ? null : nick;
+  return error || !data ? null : {
+    nick: safeText(data.nickname, 40),
+    isAdmin: data.is_admin === true,
+  };
 }
 
 Deno.serve(async (request) => {
@@ -45,8 +49,9 @@ Deno.serve(async (request) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) return response({ ok: false, reason: "server_config" });
   const client = createClient(url, serviceKey, { auth: { persistSession: false } });
-  const nick = await verifyAccount(client, body.auth as Record<string, unknown> | undefined);
-  if (!nick) return response({ ok: false, reason: "auth" });
+  const account = await verifyAccount(client, body.auth as Record<string, unknown> | undefined);
+  if (!account) return response({ ok: false, reason: "auth" });
+  const nick = account.nick;
 
   const roomId = safeText(body.roomId, 80);
   const token = safeText(body.token, 100);
@@ -58,6 +63,9 @@ Deno.serve(async (request) => {
     const roomName = safeText(body.roomName, 80);
     const game = safeText(body.game, 30);
     if (!roomName || !game) return response({ ok: false, reason: "invalid_room" });
+    if (game === "territory" && (!account.isAdmin || nick !== TERRITORY_ADMIN)) {
+      return response({ ok: false, reason: "forbidden" });
+    }
     const { data, error } = await client.rpc("claim_room_lease", {
       p_nickname: nick,
       p_room_id: roomId,

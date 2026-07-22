@@ -4,11 +4,10 @@
   var SIZE = Renju.SIZE, BLACK = Renju.BLACK, WHITE = Renju.WHITE;
   var TERR_KOMI = 1.5;
   var APP_REFRESH_KEY = "dongne_games_app_refresh";
-  // Keep the unfinished territory mode code available for future development,
-  // but hide every user-facing entry point until it is ready.
+  // Keep unfinished modes hidden until they are ready. Territory rooms remain
+  // discoverable so guests can join an admin-created test room.
   var ENABLE_ALK_TERRITORY = false;
   var ENABLE_RELAY = false;
-  var ENABLE_TERRITORY_RUSH = false;
 
   var G = {
     board: Renju.emptyBoard(),
@@ -90,8 +89,24 @@
   function canSeeGame(id) {
     if (id === "alk_terr" && !ENABLE_ALK_TERRITORY) return false;
     if (id === "relay" && !ENABLE_RELAY) return false;
-    if (id === "territory" && !ENABLE_TERRITORY_RUSH && !isGunaAdmin()) return false;
     return !!(window.GameCatalog ? GameCatalog.get(id) : id);
+  }
+  function canCreateGame(id) {
+    if (!canSeeGame(id)) return false;
+    var def = gameDef(id);
+    return !(def && def.createAdminOnly && !isGunaAdmin());
+  }
+  function roomMemberLimit(id) {
+    var def = gameDef(id);
+    var limit = def && Math.floor(Number(def.maxRoomMembers));
+    return limit > 0 ? limit : 0;
+  }
+  function roomHasSpace(roomId, game, notify) {
+    var limit = roomMemberLimit(game);
+    var room = rooms && rooms[roomId];
+    if (!limit || !room || Math.max(0, Number(room.count) || 0) < limit) return true;
+    if (notify) toast("방이 가득 찼어요 (" + limit + "/" + limit + ")");
+    return false;
   }
   function visibleGameIds(ids) {
     return ids.filter(canSeeGame);
@@ -164,6 +179,12 @@
           var ctrl = activeController();
           if (ctrl && ctrl.onMessage) ctrl.onMessage(msg);
         }
+      },
+      sendHostInput: function (msg) {
+        return !!(netMode && Net.sendDirectInput && Net.sendDirectInput(msg));
+      },
+      syncHostInputs: function (nicks) {
+        if (netMode && Net.syncDirectInputs) Net.syncDirectInputs(nicks, me.nick, amHost);
       },
       sendChat: function (text) { return sendChatText(activeFamily(), text); },
       relayChat: function (nick, text, overlaySide) {
@@ -487,13 +508,14 @@
     if (roomLeaseRestorePending || roomLease || curRoomId) return;
     var lease = readStoredRoomLease();
     if (!lease || !window.Db || !Db.claimRoomLease || !sessionAuthHash) return;
+    if (!canCreateGame(lease.game)) { clearStoredRoomLease(lease.roomId); return; }
     roomLeaseRestorePending = true;
     var claimed;
     try { claimed = await Db.claimRoomLease(roomLeaseAuth(), lease); }
     catch (e) { claimed = null; }
     roomLeaseRestorePending = false;
     if (!claimed || !claimed.ok) {
-      if (claimed && claimed.reason === "already_owned") clearStoredRoomLease(lease.roomId);
+      if (claimed && (claimed.reason === "already_owned" || claimed.reason === "forbidden")) clearStoredRoomLease(lease.roomId);
       return;
     }
     roomLease = lease;
@@ -597,6 +619,9 @@
     if (!list.length) { box.innerHTML = '<div class="room-empty">아직 열린 방이 없어요. 방을 만들어 보세요!</div>'; return; }
     box.innerHTML = list.map(function (r) {
       var gname = gameName(r.game);
+      var roomLimit = roomMemberLimit(r.game);
+      var roomCount = Math.max(0, Number(r.count) || 0);
+      var roomCountText = roomLimit ? roomCount + "/" + roomLimit + "명" : roomCount + "명";
       var seats = [roomSeatName(r.black, r), roomSeatName(r.white, r)].filter(Boolean);
       var who = r.summary ? esc(r.summary) : (seats.length ? seats.map(esc).join(" vs ") : "빈 자리");
       var playing = r.status === "게임중";
@@ -607,7 +632,7 @@
         + '<span class="room-name">' + esc(r.name || "방") + '</span></div>'
         + '<div class="room-meta"><span class="room-status ' + (playing ? "playing" : "waiting") + '">' + esc(r.status) + '</span>'
         + '<span class="room-dot">·</span><span class="room-who">' + who + '</span>'
-        + '<span class="room-dot">·</span><span class="room-cnt">' + (r.count || 0) + '명</span></div>'
+        + '<span class="room-dot">·</span><span class="room-cnt">' + roomCountText + '</span></div>'
         + '</div>'
         + '<button class="room-enter">' + act + '</button></div>';
     }).join("");
@@ -643,6 +668,7 @@
   function switchRoom(id) {
     if (!id || id === curRoomId) return;
     var r = rooms[id]; if (!r) return;
+    if (!roomHasSpace(r.id, r.game, true)) return;
     if (inActiveGame()) { toast("게임 중엔 다른 방으로 이동할 수 없어요"); return; }
     var wasAlone = !netMode || roster.length <= 1, wasHostHere = amHost, leavingId = curRoomId;
     var leavingActivity = currentRoomActivity();
@@ -748,6 +774,7 @@
 
   function enterRoom(roomId, game, title) {
     if (!canSeeGame(game)) { toast("아직 테스트 중인 게임이에요"); return false; }
+    if (!roomHasSpace(roomId, game, true)) return false;
     var target;
     try { target = roomEntryTarget(game); }
     catch (error) {
@@ -796,6 +823,7 @@
   }
   async function createRoom(game, name) {
     if (!canSeeGame(game)) { toast("아직 테스트 중인 게임이에요"); return; }
+    if (!canCreateGame(game)) { toast("땅따먹기 방은 관리자만 만들 수 있어요"); return; }
     if (roomLeaseRestorePending) { toast("새로고침 전 방을 확인하고 있어요"); return; }
     if (roomCreatePending) return;
     var id = "rm" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e4).toString(36);
@@ -813,6 +841,8 @@
     if (!claimed || !claimed.ok) {
       if (claimed && claimed.reason === "already_owned") {
         toast("이 계정으로 이미 만든 방이 있어요 · " + (claimed.roomName || "기존 방"), 4500);
+      } else if (claimed && claimed.reason === "forbidden") {
+        toast("땅따먹기 방은 관리자만 만들 수 있어요");
       } else toast("방 생성 확인에 실패했어요. 잠시 후 다시 시도해주세요");
       return;
     }
@@ -4464,7 +4494,7 @@
   function renderCreateGameOptions(selected) {
     var box = $("create-game"); if (!box) return selected || "omok";
     if (selected === "alk_terr") selected = "alk";
-    var ids = visibleGameIds(["omok", "alk", "catchmind", "relay", "territory"]);
+    var ids = visibleGameIds(["omok", "alk", "catchmind", "relay", "territory"]).filter(canCreateGame);
     if (ids.indexOf(selected) < 0) selected = ids[0] || "omok";
     box.innerHTML = ids.map(function (id) {
       var label = gameName(id);

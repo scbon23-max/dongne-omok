@@ -6,12 +6,14 @@ window.TerritoryRush = (function () {
   var CELL_COUNT = WORLD_W * WORLD_H;
   var MATCH_MS = 90000;
   var STEP_MS = 50;
-  var FRAME_MS = 250;
-  var FULL_MIN_MS = 300;
+  var FRAME_MS = 400;
+  var FULL_MIN_MS = 400;
+  var INPUT_SEND_MS = 300;
   var OWNER_RECOVERY_MS = 1800;
   var RESPAWN_MS = 1800;
   var SPEED = 7.4;
   var TURN_SPEED = Math.PI * 4;
+  var ARENA_INSET = .9;
   var TRAIL_WIDTH = .64;
   var TRAIL_COLLISION_RADIUS = TRAIL_WIDTH / 2;
   var TRAIL_HEAD_GRACE = TRAIL_COLLISION_RADIUS + .08;
@@ -19,6 +21,7 @@ window.TerritoryRush = (function () {
   var MAX_VISUAL_TRAIL_POINTS = 180;
   var VISUAL_TRAIL_SCALE = 20;
   var MAX_PLAYERS = 8;
+  var MAX_ROOM_MEMBERS = 10;
   var MAX_TRAIL = 360;
   var LAYER_SCALE = 4;
   var BASE_RADIUS = 4;
@@ -27,6 +30,10 @@ window.TerritoryRush = (function () {
   var SPAWN_MARGIN = 7;
   var INITIAL_SPAWN_MIN_DISTANCE = 18;
   var RESPAWN_PLAYER_DISTANCE = 14;
+  var GAME_BGM_SRC = "assets/territory-rush-bgm.mp3";
+  var GAME_BGM_VOLUME = .05;
+  var DEATH_SFX_SRC = "assets/catchmind-countdown.wav";
+  var DEATH_SFX_VOLUME = 1;
   var COLORS = ["#ff756d", "#43c7a0", "#ffc857", "#7f8cff", "#ef72b3", "#42b8d5", "#9bc95b", "#f49b52"];
   var TERRITORY_COLORS = ["#ff6f73", "#35cfa1", "#ffc54a", "#7585ff", "#f36bae", "#34bfdf", "#8dcc4d", "#ff9950"];
   var MASCOTS = ["🐱", "🐻", "🐰", "🐥", "🐶", "🦊", "🐼", "🐹"];
@@ -52,6 +59,9 @@ window.TerritoryRush = (function () {
   var inputSeqByNick = Object.create(null);
   var inputAtByNick = Object.create(null);
   var lastInputAt = 0;
+  var pendingInput = null;
+  var pendingInputTimer = null;
+  var desiredInputAngle = null;
   var syncRequestedAt = 0;
   var helloPending = false;
   var syncReplyAtByNick = Object.create(null);
@@ -82,6 +92,12 @@ window.TerritoryRush = (function () {
   var ownerLayerDirty = true;
   var countsRev = -1;
   var cachedCounts = [];
+  var gameBgmEl = null;
+  var gameBgmPlayPending = false;
+  var lastGameBgmMatchId = "";
+  var deathSfxEl = null;
+  var playedDeathCues = Object.create(null);
+  var roomOverflowNotified = Object.create(null);
 
   resetGrid();
 
@@ -223,6 +239,7 @@ window.TerritoryRush = (function () {
       trail: (player.trail || []).slice(0, MAX_TRAIL),
       path: compactVisualTrail(player),
       deadUntil: Number(player.deadUntil) || 0,
+      deathSeq: clamp(Math.floor(Number(player.deathSeq) || 0), 0, 9999),
       kills: clamp(Number(player.kills) || 0, 0, 999),
       retired: !!player.retired,
       away: !!player.away
@@ -257,6 +274,7 @@ window.TerritoryRush = (function () {
         trail: trail,
         path: sanitizeVisualTrail(raw.path),
         deadUntil: Math.max(0, Number(raw.deadUntil) || 0),
+        deathSeq: clamp(Math.floor(Number(raw.deathSeq) || 0), 0, 9999),
         kills: clamp(Number(raw.kills) || 0, 0, 999),
         retired: !!raw.retired,
         away: !!raw.away,
@@ -594,6 +612,7 @@ window.TerritoryRush = (function () {
       trail: [],
       path: [],
       deadUntil: 0,
+      deathSeq: 0,
       kills: 0,
       retired: false,
       away: false,
@@ -652,10 +671,12 @@ window.TerritoryRush = (function () {
     clearTerritory(player.id);
     clearTrail(player);
     player.deadUntil = now + RESPAWN_MS;
+    player.deathSeq = clamp((Number(player.deathSeq) || 0) + 1, 0, 9999);
     player.lastCell = -1;
     if (attacker && attacker !== player) attacker.kills++;
     state.rev++;
     fullPending = true;
+    announceDeath(player);
   }
 
   function recallPlayer(player, now) {
@@ -883,7 +904,8 @@ window.TerritoryRush = (function () {
     var fromY = player.y;
     var nx = fromX + Math.cos(player.angle) * SPEED * dt;
     var ny = fromY + Math.sin(player.angle) * SPEED * dt;
-    if (!inside(Math.floor(nx), Math.floor(ny))) { eliminate(player, null, now); return; }
+    nx = clamp(nx, ARENA_INSET, WORLD_W - ARENA_INSET);
+    ny = clamp(ny, ARENA_INSET, WORLD_H - ARENA_INSET);
     if (!resolveTrailCollisions(player, fromX, fromY, nx, ny, now)) return;
     player.x = nx;
     player.y = ny;
@@ -941,9 +963,15 @@ window.TerritoryRush = (function () {
     if (!parsed) return false;
     sourceHost = safeNick(sourceHost);
     var hostChanged = !!sourceHost && sourceHost !== authoritativeHost;
-    var resetVisualTimeline = hostChanged || parsed.state.matchId !== state.matchId || parsed.state.frameSeq < state.frameSeq;
+    var matchChanged = parsed.state.matchId !== state.matchId;
+    var resetVisualTimeline = hostChanged || matchChanged || parsed.state.frameSeq < state.frameSeq;
     if (state.matchId && parsed.state.matchId === state.matchId && parsed.state.rev < state.rev
         && !authorityYielded && !hostChanged) return false;
+    syncRemoteDeathCues(state, parsed.state);
+    if (matchChanged || parsed.state.phase !== "playing") {
+      clearPendingInput();
+      if (matchChanged) desiredInputAngle = null;
+    }
     state = parsed.state;
     if (resetVisualTimeline) visualTrails = Object.create(null);
     if (sourceHost) authoritativeHost = sourceHost;
@@ -959,6 +987,7 @@ window.TerritoryRush = (function () {
     rebuildTrailOwner();
     mergeVisualPlayers();
     syncHostEligibility();
+    if (hostChanged && !matchChanged) queueDesiredInputForNewHost();
     render();
     return true;
   }
@@ -973,11 +1002,14 @@ window.TerritoryRush = (function () {
       if (!ownerSyncMissingSince) ownerSyncMissingSince = nowMs();
       requestSync();
     }
-    parsed.state.ownerRev = state.ownerRev;
-    state = parsed.state;
     sourceHost = safeNick(sourceHost);
+    var hostChanged = !!sourceHost && sourceHost !== authoritativeHost;
+    parsed.state.ownerRev = state.ownerRev;
+    syncRemoteDeathCues(state, parsed.state);
+    state = parsed.state;
     if (sourceHost) authoritativeHost = sourceHost;
     syncHostEligibility();
+    if (hostChanged) queueDesiredInputForNewHost();
     rebuildTrailOwner();
     mergeVisualPlayers();
     render();
@@ -1005,20 +1037,51 @@ window.TerritoryRush = (function () {
     var legacyDirection = typeof direction === "string" && DIRECTIONS[direction] ? direction : "";
     if (!active || state.phase !== "playing" || (!legacyDirection && !validAngle(direction))) return false;
     var now = nowMs();
-    if (now - lastInputAt < 90) return false;
     var mine = playerByNick(me().nick);
     if (!mine || mine.retired || mine.deadUntil || mine.bot) return false;
     if (legacyDirection && (reverseDirection(mine.dir, legacyDirection) || sameDirection(mine.dir, legacyDirection))) return false;
     var angle = requestedAngle(direction, requestedAngle(mine.targetAngle, requestedAngle(mine.angle, directionAngle(mine.dir))));
     if (!legacyDirection && Math.abs(angleDelta(requestedAngle(mine.targetAngle, mine.angle), angle)) < .035) return false;
-    var seq = ++inputSeq;
-    lastInputAt = now;
     mine.targetAngle = angle;
     mine.dir = legacyDirection || nearestDirection(angle);
-    inputSeqByNick[mine.nick] = seq;
+    desiredInputAngle = angle;
     if (api.isHost()) return true;
-    api.send({ t: "tr_input", by: mine.nick, nick: mine.nick, matchId: state.matchId, seq: seq, dir: mine.dir, angle: Math.round(angle * 1000) / 1000 });
+    pendingInput = { angle: angle, matchId: state.matchId };
+    if (now - lastInputAt >= INPUT_SEND_MS) flushPendingInput();
+    else if (!pendingInputTimer) pendingInputTimer = setTimeout(flushPendingInput, INPUT_SEND_MS - (now - lastInputAt));
     return true;
+  }
+
+  function clearPendingInput() {
+    if (pendingInputTimer) { clearTimeout(pendingInputTimer); pendingInputTimer = null; }
+    pendingInput = null;
+  }
+
+  function flushPendingInput() {
+    if (pendingInputTimer) { clearTimeout(pendingInputTimer); pendingInputTimer = null; }
+    var queued = pendingInput;
+    pendingInput = null;
+    if (!queued || !active || state.phase !== "playing" || queued.matchId !== state.matchId || !api || api.isHost()) return false;
+    var mine = playerByNick(me().nick);
+    if (!mine || mine.retired || mine.deadUntil || mine.bot) return false;
+    var angle = requestedAngle(queued.angle, requestedAngle(mine.targetAngle, mine.angle));
+    var seq = ++inputSeq;
+    lastInputAt = nowMs();
+    mine.targetAngle = angle;
+    mine.dir = nearestDirection(angle);
+    inputSeqByNick[mine.nick] = seq;
+    var message = { t: "tr_input", by: mine.nick, nick: mine.nick, matchId: state.matchId, seq: seq, dir: mine.dir, angle: Math.round(angle * 1000) / 1000 };
+    if (!api.sendHostInput || !api.sendHostInput(message)) api.send(message);
+    return true;
+  }
+
+  function queueDesiredInputForNewHost() {
+    if (!active || !api || api.isHost() || state.phase !== "playing" || !validAngle(desiredInputAngle)) return;
+    var mine = playerByNick(me().nick);
+    if (!mine || mine.retired || mine.deadUntil || mine.bot) return;
+    pendingInput = { angle: desiredInputAngle, matchId: state.matchId };
+    if (pendingInputTimer) clearTimeout(pendingInputTimer);
+    pendingInputTimer = setTimeout(flushPendingInput, INPUT_SEND_MS);
   }
 
   function hostSetReady(nick, ready) {
@@ -1045,6 +1108,10 @@ window.TerritoryRush = (function () {
     if (!api || !api.isHost() || (state.phase !== "idle" && state.phase !== "finished")) return false;
     nick = safeNick(nick);
     if (!nick || !has(activeNicks(), nick)) return false;
+    if (!spectator && has(state.spectators, nick) && participantNicks().length >= MAX_PLAYERS) {
+      if (api.toast) api.toast("동시 플레이는 8명까지 가능해요");
+      return false;
+    }
     state.spectators = state.spectators.filter(function (name) { return name !== nick; });
     state.ready = state.ready.filter(function (name) { return name !== nick; });
     if (spectator) state.spectators.push(nick);
@@ -1069,6 +1136,12 @@ window.TerritoryRush = (function () {
     var awaitingOwner = state.phase === "playing" && (wantedOwnerRev > state.ownerRev || needsAuthoritySync);
     var yieldedDuringMatch = state.phase === "playing" && authorityYielded;
     api.setHostEligible(!has(state.spectators, me().nick) && !awaitingOwner && !yieldedDuringMatch);
+    if (api.syncHostInputs) {
+      var inputNicks = state.phase === "playing"
+        ? state.players.filter(function (player) { return !player.bot && !player.retired && !player.away; }).map(function (player) { return player.nick; })
+        : participantNicks();
+      api.syncHostInputs(inputNicks);
+    }
   }
 
   function recoverMissingOwner() {
@@ -1103,6 +1176,7 @@ window.TerritoryRush = (function () {
     inputSeqByNick = Object.create(null);
     inputAtByNick = Object.create(null);
     lastInputAt = 0;
+    desiredInputAngle = null;
     state.phase = "playing";
     state.rev++;
     state.frameSeq = 0;
@@ -1111,6 +1185,7 @@ window.TerritoryRush = (function () {
     state.deadline = nowMs() + MATCH_MS;
     state.ready = [];
     state.winner = "";
+    playedDeathCues = Object.create(null);
     var initialSpawns = allocateInitialSpawns(entries.length);
     state.players = entries.map(function (entry, index) {
       return makePlayer(index, entry.nick, entry.bot, entries.length, initialSpawns[index]);
@@ -1213,6 +1288,11 @@ window.TerritoryRush = (function () {
       case "tr_input":
         if (!api || !api.isHost() || message.matchId !== state.matchId || message.by !== message.nick) return true;
         applyDirection(playerByNick(message.nick), validAngle(message.angle) ? message.angle : message.dir, message.seq);
+        return true;
+      case "tr_room_full":
+        if (!api || message.by !== api.host()) return true;
+        if (api.toast) api.toast("땅따먹기 방은 10명까지 들어올 수 있어요");
+        if (api.leaveRoom) setTimeout(function () { if (api && api.leaveRoom) api.leaveRoom(); }, 0);
         return true;
       case "tr_ready_req":
         if (api && api.isHost() && message.by === message.nick) hostSetReady(message.nick, !!message.ready);
@@ -1359,6 +1439,7 @@ window.TerritoryRush = (function () {
   }
 
   function render() {
+    syncAudio();
     var root = $("territorygame");
     if (!root || !api) return;
     if (state.phase !== "playing" && Object.keys(pressedKeys).length) pressedKeys = Object.create(null);
@@ -1986,6 +2067,20 @@ window.TerritoryRush = (function () {
         render();
         return;
       }
+      Object.keys(roomOverflowNotified).forEach(function (nick) {
+        if (!has(shownList, nick)) delete roomOverflowNotified[nick];
+      });
+      shownPeople.slice(MAX_ROOM_MEMBERS).forEach(function (person) {
+        var nick = safeNick(person.nick);
+        if (!nick || roomOverflowNotified[nick]) return;
+        roomOverflowNotified[nick] = true;
+        api.send({ t: "tr_room_full", by: me().nick, to: nick });
+      });
+      activeList.filter(function (nick) { return !has(state.spectators, nick); }).slice(MAX_PLAYERS).forEach(function (nick) {
+        state.spectators.push(nick);
+        state.ready = state.ready.filter(function (name) { return name !== nick; });
+        changed = true;
+      });
       if (state.phase === "playing") {
         activeList.forEach(function (nick) {
           if (!playerByNick(nick) && !has(state.spectators, nick)) { state.spectators.push(nick); changed = true; }
@@ -2104,7 +2199,132 @@ window.TerritoryRush = (function () {
     };
   }
 
-  function syncAudio() {}
+  function isSoundMuted() {
+    try { return localStorage.getItem("omok_mute") === "1"; }
+    catch (error) { return false; }
+  }
+
+  function ensureGameBgm() {
+    if (gameBgmEl) return gameBgmEl;
+    if (typeof Audio === "undefined") return null;
+    try {
+      gameBgmEl = new Audio(GAME_BGM_SRC);
+      gameBgmEl.preload = "auto";
+      gameBgmEl.volume = GAME_BGM_VOLUME;
+      gameBgmEl.loop = true;
+      gameBgmEl.setAttribute("playsinline", "");
+      gameBgmEl.setAttribute("webkit-playsinline", "");
+      return gameBgmEl;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function stopGameBgm(reset) {
+    gameBgmPlayPending = false;
+    if (!gameBgmEl) return;
+    try {
+      gameBgmEl.pause();
+      if (reset) gameBgmEl.currentTime = 0;
+    } catch (error) {}
+  }
+
+  function playGameBgm() {
+    var matchId = state.matchId;
+    if (!matchId || gameBgmPlayPending) return;
+    var el = ensureGameBgm();
+    if (!el) return;
+    var isNewMatch = lastGameBgmMatchId !== matchId;
+    if (!isNewMatch && !el.paused) return;
+    try {
+      if (isNewMatch) {
+        el.pause();
+        el.currentTime = 0;
+      }
+      lastGameBgmMatchId = matchId;
+      el.volume = GAME_BGM_VOLUME;
+      el.loop = true;
+      gameBgmPlayPending = true;
+      var play = el.play();
+      if (play && play.then) {
+        play.then(function () { gameBgmPlayPending = false; })
+          .catch(function () { gameBgmPlayPending = false; });
+      } else {
+        gameBgmPlayPending = false;
+      }
+    } catch (error) {
+      gameBgmPlayPending = false;
+    }
+  }
+
+  function ensureDeathSfx() {
+    if (deathSfxEl) return deathSfxEl;
+    if (typeof Audio === "undefined") return null;
+    try {
+      deathSfxEl = new Audio(DEATH_SFX_SRC);
+      deathSfxEl.preload = "auto";
+      deathSfxEl.volume = DEATH_SFX_VOLUME;
+      deathSfxEl.setAttribute("playsinline", "");
+      return deathSfxEl;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function deathCue(matchId, nick, deadUntil) {
+    return [String(matchId || ""), safeNick(nick), Math.floor(Number(deadUntil) || 0)].join(":");
+  }
+
+  function playDeathSfx(cue) {
+    cue = String(cue || "");
+    if (!cue || playedDeathCues[cue]) return false;
+    playedDeathCues[cue] = true;
+    if (isSoundMuted()) return false;
+    var el = ensureDeathSfx();
+    if (!el) return false;
+    try {
+      el.pause();
+      el.currentTime = 0;
+      el.volume = DEATH_SFX_VOLUME;
+      var play = el.play();
+      if (play && play.catch) play.catch(function () {});
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function announceDeath(player) {
+    if (!player || !player.nick || !player.deadUntil || !state.matchId) return;
+    var cue = deathCue(state.matchId, player.nick, player.deadUntil);
+    playDeathSfx(cue);
+  }
+
+  function syncRemoteDeathCues(previous, next) {
+    if (!previous || !next || previous.matchId !== next.matchId || next.phase !== "playing") return;
+    var prior = Object.create(null);
+    (previous.players || []).forEach(function (player) { prior[player.nick] = Math.floor(Number(player.deathSeq) || 0); });
+    (next.players || []).forEach(function (player) {
+      var deadUntil = Math.floor(Number(player.deadUntil) || 0);
+      var deathSeq = Math.floor(Number(player.deathSeq) || 0);
+      if (deadUntil > nowMs() && deathSeq > (prior[player.nick] || 0)) playDeathSfx(deathCue(next.matchId, player.nick, deadUntil));
+    });
+  }
+
+  function syncAudio() {
+    if (!api || state.phase !== "playing") {
+      stopGameBgm(true);
+      return;
+    }
+    if (isSoundMuted()) {
+      stopGameBgm(false);
+      if (deathSfxEl) {
+        try { deathSfxEl.pause(); deathSfxEl.currentTime = 0; } catch (error) {}
+      }
+      return;
+    }
+    playGameBgm();
+  }
 
   function enter(nextApi) {
     leave();
@@ -2118,16 +2338,22 @@ window.TerritoryRush = (function () {
     inputSeq = 0;
     inputSeqByNick = Object.create(null);
     inputAtByNick = Object.create(null);
+    clearPendingInput();
+    desiredInputAngle = null;
     syncReplyAtByNick = Object.create(null);
     helloPending = false;
     lastInputAt = 0;
     lastWarnMatchId = "";
+    playedDeathCues = Object.create(null);
+    roomOverflowNotified = Object.create(null);
     wantedOwnerRev = 0;
     ownerSyncMissingSince = 0;
     authoritativeHost = "";
     authorityYielded = false;
     needsAuthoritySync = false;
     lastFullSentAt = 0;
+    ensureGameBgm();
+    ensureDeathSfx();
     if (!bindDom()) throw new Error("땅따먹기 화면을 찾을 수 없습니다.");
     resizeCanvases();
     startLoops();
@@ -2136,6 +2362,16 @@ window.TerritoryRush = (function () {
   }
 
   function leave() {
+    if (api && api.syncHostInputs) api.syncHostInputs([]);
+    clearPendingInput();
+    desiredInputAngle = null;
+    stopGameBgm(true);
+    if (deathSfxEl) {
+      try { deathSfxEl.pause(); deathSfxEl.currentTime = 0; } catch (error) {}
+    }
+    lastGameBgmMatchId = "";
+    playedDeathCues = Object.create(null);
+    roomOverflowNotified = Object.create(null);
     active = false;
     stopLoops();
     if (resizeTimer) { clearTimeout(resizeTimer); resizeTimer = null; }
@@ -2213,6 +2449,10 @@ window.TerritoryRush = (function () {
       hostTick: hostTick,
       hostSetReady: hostSetReady,
       hostSetSpectator: hostSetSpectator,
+      eliminate: eliminate,
+      syncAudio: syncAudio,
+      playDeathSfx: playDeathSfx,
+      applyFrame: applyFrame,
       snapshot: snapshot,
       setApi: function (nextApi) { api = nextApi; },
       setState: function (nextState) { state = nextState; },
@@ -2237,6 +2477,9 @@ window.TerritoryRush = (function () {
         matchMs: MATCH_MS,
         stepMs: STEP_MS,
         frameMs: FRAME_MS,
+        fullMinMs: FULL_MIN_MS,
+        inputSendMs: INPUT_SEND_MS,
+        arenaInset: ARENA_INSET,
         trailWidth: TRAIL_WIDTH,
         trailCollisionRadius: TRAIL_COLLISION_RADIUS,
         trailHeadGrace: TRAIL_HEAD_GRACE,
@@ -2244,13 +2487,18 @@ window.TerritoryRush = (function () {
         maxVisualTrailPoints: MAX_VISUAL_TRAIL_POINTS,
         visualTrailScale: VISUAL_TRAIL_SCALE,
         maxPlayers: MAX_PLAYERS,
+        maxRoomMembers: MAX_ROOM_MEMBERS,
         maxTrail: MAX_TRAIL,
         baseRadius: BASE_RADIUS,
         spawnClearance: SPAWN_CLEARANCE,
         preservedSpawnClearance: PRESERVED_SPAWN_CLEARANCE,
         spawnMargin: SPAWN_MARGIN,
         initialSpawnMinDistance: INITIAL_SPAWN_MIN_DISTANCE,
-        respawnPlayerDistance: RESPAWN_PLAYER_DISTANCE
+        respawnPlayerDistance: RESPAWN_PLAYER_DISTANCE,
+        gameBgmSrc: GAME_BGM_SRC,
+        gameBgmVolume: GAME_BGM_VOLUME,
+        deathSfxSrc: DEATH_SFX_SRC,
+        deathSfxVolume: DEATH_SFX_VOLUME
       }
     };
   }

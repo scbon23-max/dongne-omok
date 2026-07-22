@@ -20,13 +20,16 @@ function fakeApi(nicks) {
   const fixture = {
     sent,
     people,
+    toasts: [],
     eligible: [],
     hostMode: true,
     connected: true,
     hostNick: nicks[0]
   };
+  fixture.meNick = nicks[0];
+  fixture.leaveCount = 0;
   fixture.api = {
-      me() { return { nick: nicks[0], isAdmin: true }; },
+      me() { return { nick: fixture.meNick, isAdmin: fixture.meNick === "구나" }; },
       roster() { return fixture.people.slice(); },
       isHost() { return fixture.hostMode; },
       host() { return fixture.hostNick; },
@@ -34,7 +37,8 @@ function fakeApi(nicks) {
       send(message) { sent.push(message); },
       setHostEligible(value) { fixture.eligible.push(value); },
       roomChanged() {},
-      toast() {},
+      toast(message) { fixture.toasts.push(message); },
+      leaveRoom() { fixture.leaveCount++; },
       playWarning() {}
   };
   return fixture;
@@ -114,6 +118,63 @@ test("analog input turns and moves naturally at an arbitrary angle", () => {
   assert.ok(player.x > startX);
   assert.ok(player.y > startY);
   assert.ok(Math.abs(engine.angleDelta(player.angle, target)) < Math.abs(engine.angleDelta(startAngle, target)));
+});
+
+test("the arena edge contains players instead of eliminating them", () => {
+  const inset = engine.constants.arenaInset;
+  const cases = [
+    { x: inset + 0.02, y: 45, angle: Math.PI },
+    { x: engine.constants.width - inset - 0.02, y: 45, angle: 0 },
+    { x: 30, y: inset + 0.02, angle: -Math.PI / 2 },
+    { x: 30, y: engine.constants.height - inset - 0.02, angle: Math.PI / 2 }
+  ];
+
+  for (const edge of cases) {
+    const player = engine.makePlayer(0, "edge-player", false, 2);
+    player.x = edge.x;
+    player.y = edge.y;
+    player.angle = edge.angle;
+    player.targetAngle = edge.angle;
+    player.lastCell = Math.floor(edge.y) * engine.constants.width + Math.floor(edge.x);
+    const state = engine.freshState();
+    state.players = [player];
+    engine.setState(state);
+    engine.resetGrid();
+
+    engine.advancePlayer(player, engine.constants.stepMs / 1000, Date.now());
+
+    assert.equal(player.deadUntil, 0);
+    assert.ok(player.x >= inset && player.x <= engine.constants.width - inset);
+    assert.ok(player.y >= inset && player.y <= engine.constants.height - inset);
+  }
+});
+
+test("diagonal movement slides along the arena edge without growing a stopped trail", () => {
+  const inset = engine.constants.arenaInset;
+  const player = engine.makePlayer(0, "wall-slider", false, 2);
+  player.x = engine.constants.width - inset - 0.01;
+  player.y = 40;
+  player.angle = Math.PI / 4;
+  player.targetAngle = Math.PI / 4;
+  player.lastCell = Math.floor(player.y) * engine.constants.width + Math.floor(player.x);
+  const state = engine.freshState();
+  state.players = [player];
+  engine.setState(state);
+  engine.resetGrid();
+  const startY = player.y;
+
+  engine.advancePlayer(player, engine.constants.stepMs / 1000, Date.now());
+
+  assert.equal(player.x, engine.constants.width - inset);
+  assert.ok(player.y > startY);
+  assert.equal(player.deadUntil, 0);
+
+  player.angle = 0;
+  player.targetAngle = 0;
+  const trailLength = player.trail.length;
+  for (let step = 0; step < 5; step++) engine.advancePlayer(player, engine.constants.stepMs / 1000, Date.now() + step);
+  assert.equal(player.trail.length, trailLength);
+  assert.equal(player.deadUntil, 0);
 });
 
 test("diagonal movement keeps trail cells connected for territory capture", () => {
@@ -546,17 +607,128 @@ test("multiplayer start waits for every non-host participant to be ready", () =>
   assert.equal(engine.getState().players.some((player) => player.bot), false);
 });
 
+test("a ten-member room keeps eight active slots and places the last two in spectator mode", () => {
+  const nicks = ["구나", "참가1", "참가2", "참가3", "참가4", "참가5", "참가6", "참가7", "참가8", "참가9"];
+  const fake = fakeApi(nicks);
+  engine.setApi(fake.api);
+  engine.setState(engine.freshState());
+
+  controller.onPresence(fake.people, { forceFull: true });
+
+  assert.deepEqual(Array.from(engine.getState().spectators), ["참가8", "참가9"]);
+  assert.equal(engine.hostSetSpectator("참가8", false), false);
+  assert.equal(fake.toasts.at(-1), "동시 플레이는 8명까지 가능해요");
+});
+
+test("a simultaneous eleventh arrival is sent back to the lobby", async () => {
+  const nicks = ["구나", "참가1", "참가2", "참가3", "참가4", "참가5", "참가6", "참가7", "참가8", "참가9", "참가10"];
+  const fake = fakeApi(nicks);
+  engine.setApi(fake.api);
+  engine.setState(engine.freshState());
+
+  controller.onPresence(fake.people, { forceFull: true });
+  const rejection = fake.sent.find((message) => message.t === "tr_room_full");
+  assert.ok(rejection);
+  assert.equal(rejection.to, "참가10");
+
+  fake.hostMode = false;
+  fake.meNick = "참가10";
+  controller.onMessage(rejection);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(fake.leaveCount, 1);
+  assert.equal(fake.toasts.at(-1), "땅따먹기 방은 10명까지 들어올 수 있어요");
+});
+
 test("runtime constants keep realtime traffic below the room broadcast cap", () => {
   assert.equal(engine.constants.stepMs, 50);
-  assert.equal(engine.constants.frameMs, 250);
+  assert.equal(engine.constants.frameMs, 400);
+  assert.equal(engine.constants.fullMinMs, 400);
+  assert.equal(engine.constants.inputSendMs, 300);
   assert.equal(engine.constants.maxPlayers, 8);
+  assert.equal(engine.constants.maxRoomMembers, 10);
   assert.ok(engine.constants.maxTrail <= 360);
   assert.equal(engine.constants.cells, 72 * 108);
-  assert.match(source, /t: "tr_input"/);
+  assert.match(source, /api\.sendHostInput\(message\)/);
+  assert.match(source, /if \(hostChanged && !matchChanged\) queueDesiredInputForNewHost\(\)/);
+  assert.match(source, /pendingInputTimer = setTimeout\(flushPendingInput, INPUT_SEND_MS\)/);
   assert.match(source, /t: "tr_frame"/);
   assert.match(source, /t: "tr_sync_req"/);
-  assert.match(source, /now - lastInputAt < 90/);
+  const stateMessagesPerSecond = 1000 / engine.constants.frameMs * (engine.constants.maxRoomMembers + 1);
+  const inputMessagesPerSecond = 1000 / engine.constants.inputSendMs * (engine.constants.maxPlayers - 1) * 2;
+  assert.ok(stateMessagesPerSecond + inputMessagesPerSecond < 80);
   assert.doesNotMatch(source, /setInterval\([^,]+,\s*(?:1\d\d|[1-9]\d)\)/);
+});
+
+test("Territory Rush loops its match BGM and derives the CatchMind death cue from synced state", async () => {
+  const audio = [];
+  class FakeAudio {
+    constructor(src) {
+      this.src = src;
+      this.paused = true;
+      this.currentTime = 0;
+      this.playCount = 0;
+      audio.push(this);
+    }
+    setAttribute() {}
+    pause() { this.paused = true; }
+    play() {
+      this.paused = false;
+      this.playCount++;
+      return Promise.resolve();
+    }
+  }
+  context.Audio = FakeAudio;
+  context.localStorage = { getItem() { return null; } };
+
+  const fake = fakeApi(["구나", "민서"]);
+  const state = engine.freshState();
+  state.phase = "playing";
+  state.matchId = "audio-match";
+  state.deadline = Date.now() + 60000;
+  const player = engine.makePlayer(0, "구나", false, 2);
+  state.players = [player];
+  engine.setApi(fake.api);
+  engine.setState(state);
+
+  engine.syncAudio();
+  await Promise.resolve();
+  const bgm = audio.find((item) => item.src === engine.constants.gameBgmSrc);
+  assert.ok(bgm);
+  assert.equal(bgm.loop, true);
+  assert.equal(bgm.volume, engine.constants.gameBgmVolume);
+  assert.equal(bgm.playCount, 1);
+  engine.syncAudio();
+  assert.equal(bgm.playCount, 1);
+
+  engine.eliminate(player, null, Date.now());
+  const death = audio.find((item) => item.src === engine.constants.deathSfxSrc);
+  assert.ok(death);
+  assert.equal(death.volume, 1);
+  assert.equal(death.playCount, 1);
+  assert.equal(fake.sent.some((message) => message.t === "tr_death"), false);
+
+  const remoteState = engine.freshState();
+  remoteState.phase = "playing";
+  remoteState.matchId = "remote-audio-match";
+  remoteState.deadline = Date.now() + 60000;
+  remoteState.players = [engine.makePlayer(0, "민서", false, 2)];
+  engine.setState(remoteState);
+  const frame = engine.snapshot(false);
+  frame.frameSeq = 1;
+  frame.players[0].deadUntil = Date.now() + 1800;
+  frame.players[0].deathSeq = 1;
+  engine.applyFrame(frame, "구나");
+  assert.equal(death.playCount, 2);
+  const duplicate = engine.snapshot(false);
+  duplicate.frameSeq = 2;
+  duplicate.players[0].deadUntil += 1000;
+  engine.applyFrame(duplicate, "구나");
+  assert.equal(death.playCount, 2);
+
+  engine.getState().phase = "finished";
+  engine.syncAudio();
+  assert.equal(bgm.paused, true);
+  assert.equal(bgm.currentTime, 0);
 });
 
 test("territories and trails render as bright flat colors without outlines", () => {
