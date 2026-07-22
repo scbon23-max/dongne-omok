@@ -83,8 +83,8 @@ window.GameCatalog = (function () {
     territory: {
       id: "territory",
       family: "territory",
-      name: "영역 넓히기",
-      rankName: "영역 넓히기",
+      name: "땅따먹기",
+      rankName: "땅따먹기",
       rankable: false,
       controller: "TerritoryRush",
       screenId: "territorygame",

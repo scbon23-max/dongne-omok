@@ -250,6 +250,7 @@ test("Territory Rush is wired as an owner-only non-ranked controller game", () =
   const catalog = fs.readFileSync(path.join(root, "game-catalog.js"), "utf8");
 
   assert.match(catalog, /territory:\s*\{[\s\S]*family:\s*"territory"[\s\S]*rankable:\s*false[\s\S]*controller:\s*"TerritoryRush"/);
+  assert.match(catalog, /territory:\s*\{[\s\S]*name:\s*"땅따먹기"[\s\S]*rankName:\s*"땅따먹기"/);
   assert.match(index, /id="territorygame"/);
   assert.match(index, /id="territory-board"/);
   assert.match(index, /id="territory-minimap"/);
@@ -260,6 +261,9 @@ test("Territory Rush is wired as an owner-only non-ranked controller game", () =
   assert.match(game, /function expireAway\(nick\)[\s\S]*ctrl\.onPresence\(displayRoster\.slice\(\), \{ expiredNick: nick \}\)/);
   assert.match(styles, /\.game-screen\.territory-screen/);
   assert.match(styles, /#territory-board/);
+  assert.match(styles, /\.territory-panel\s*\{[\s\S]*inset:\s*0;[\s\S]*width:\s*100%;[\s\S]*height:\s*100%;[\s\S]*border-radius:\s*0;/);
+  assert.match(styles, /\.territory-panel-content\s*\{[^}]*flex:\s*0 0 auto;[^}]*margin:\s*auto 0;/);
+  assert.doesNotMatch(index, /territory-lobby-art|territory-kicker|영역 넓히기/);
 });
 
 test("Relay Drawing is registered as a separate non-ranked party game", () => {

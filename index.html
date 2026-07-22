@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260722-territory-rush-v1">
+<meta name="app-build" content="20260722-land-grab-v2">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -585,10 +585,10 @@
   <div class="room-strip" id="room-strip-relay"></div>
 </section>
 
-<!-- 영역 넓히기 게임 화면 -->
+<!-- 땅따먹기 게임 화면 -->
 <section id="territorygame" class="screen game-screen territory-screen hidden">
   <div id="territory-stage" class="territory-stage">
-    <canvas id="territory-board" width="720" height="1080" aria-label="내 색의 영역을 넓히는 실시간 경기장"></canvas>
+    <canvas id="territory-board" width="720" height="1080" aria-label="내 색으로 땅을 차지하는 실시간 경기장"></canvas>
 
     <div class="territory-utility" aria-label="방 메뉴">
       <button id="territory-rules-btn" type="button">규칙</button>
@@ -618,37 +618,31 @@
     <div id="territory-risk" class="territory-risk" aria-live="polite">내 땅은 안전해요</div>
 
     <section id="territory-lobby" class="territory-panel territory-lobby">
-      <div class="territory-lobby-art" aria-hidden="true">
-        <span class="territory-route"></span>
-        <span class="territory-mascot"><i></i><b></b></span>
-        <span class="territory-flag"></span>
-        <span class="territory-flower one"></span>
-        <span class="territory-flower two"></span>
-      </div>
-      <span class="territory-kicker">TERRITORY RUSH</span>
-      <h2 id="territory-lobby-title">영역 넓히기 준비</h2>
-      <p id="territory-lobby-copy">밖으로 나갔다 내 땅으로 돌아오면 영역이 넓어져요</p>
+      <div class="territory-panel-content">
+        <h2 id="territory-lobby-title">땅따먹기</h2>
 
-      <div class="territory-role-list" aria-live="polite">
-        <div><span>참가</span><div id="territory-participants"></div></div>
-        <div><span>관전</span><div id="territory-spectators"></div></div>
-      </div>
+        <div class="territory-role-list" aria-live="polite">
+          <div><span>참가</span><div id="territory-participants"></div></div>
+          <div><span>관전</span><div id="territory-spectators"></div></div>
+        </div>
 
-      <div class="territory-lobby-actions">
-        <button id="territory-role-btn" class="territory-secondary" type="button" aria-pressed="false">관전하기</button>
-        <button id="territory-ready-btn" class="territory-secondary hidden" type="button" aria-pressed="false">레디</button>
-        <button id="territory-start-btn" class="territory-primary hidden" type="button">연습 시작</button>
+        <div class="territory-lobby-actions">
+          <button id="territory-role-btn" class="territory-secondary" type="button" aria-pressed="false">관전하기</button>
+          <button id="territory-ready-btn" class="territory-secondary hidden" type="button" aria-pressed="false">레디</button>
+          <button id="territory-start-btn" class="territory-primary hidden" type="button">연습 시작</button>
+        </div>
       </div>
     </section>
 
     <section id="territory-finished" class="territory-panel territory-finished hidden">
-      <span class="territory-kicker">MATCH FINISHED</span>
-      <h2 id="territory-finished-title">경기 결과</h2>
-      <div id="territory-finished-list" class="territory-finished-list"></div>
-      <button id="territory-again-btn" class="territory-primary" type="button" aria-pressed="false">다시 준비</button>
+      <div class="territory-panel-content">
+        <h2 id="territory-finished-title">경기 결과</h2>
+        <div id="territory-finished-list" class="territory-finished-list"></div>
+        <button id="territory-again-btn" class="territory-primary" type="button" aria-pressed="false">다시 준비</button>
+      </div>
     </section>
 
-    <div class="territory-swipe-hint" aria-hidden="true"><span>↕</span> 화면을 밀어 방향 전환</div>
+    <div class="territory-swipe-hint" aria-hidden="true"><span>↗</span> 원하는 방향으로 밀어 이동</div>
   </div>
 
   <div class="room-strip" id="room-strip-territory"></div>
@@ -828,7 +822,7 @@
       <button class="menu-item" data-rules="terr">점령전 규칙</button>
       <button class="menu-item" data-rules="catchmind">캐치마인드 규칙</button>
       <button class="menu-item hidden" data-rules="relay">이어그리기 규칙</button>
-      <button class="menu-item admin-only" data-rules="territory">영역 넓히기 규칙</button>
+      <button class="menu-item admin-only" data-rules="territory">땅따먹기 규칙</button>
     </div>
     <button class="btn-primary modal-ok" data-close>닫기</button>
   </div>

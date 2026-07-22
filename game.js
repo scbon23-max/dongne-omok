@@ -4472,7 +4472,7 @@
         : id === "alk" ? "돌을 튕겨 겨루는 실시간 대결"
         : id === "catchmind" ? "그리고 맞히는 단체 그림 퀴즈"
         : id === "relay" ? "문장과 그림을 번갈아 이어가기"
-        : "선을 이어 내 영역을 넓히는 실시간 대결";
+        : "선을 이어 내 땅을 차지하는 실시간 대결";
       var iconSrc = id === "alk" ? "assets/game-icon-alkkagi.svg"
         : id === "catchmind" ? "assets/game-icon-catchmind.svg"
         : id === "relay" ? "assets/game-icon-relay.svg"

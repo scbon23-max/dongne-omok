@@ -90,6 +90,46 @@ test("direction input rejects a direct reversal", () => {
   assert.equal(engine.applyDirection(player, "right", 3), false);
 });
 
+test("analog input turns and moves naturally at an arbitrary angle", () => {
+  const player = engine.makePlayer(0, "analog-player", false, 2);
+  const startX = player.x;
+  const startY = player.y;
+  const startAngle = player.angle;
+  const target = Math.PI / 4;
+  engine.resetGrid();
+
+  assert.equal(engine.applyDirection(player, target, 1), true);
+  assert.ok(Math.abs(engine.angleDelta(player.targetAngle, target)) < 0.001);
+
+  engine.advancePlayer(player, engine.constants.stepMs / 1000, Date.now());
+
+  assert.ok(player.x > startX);
+  assert.ok(player.y > startY);
+  assert.ok(Math.abs(engine.angleDelta(player.angle, target)) < Math.abs(engine.angleDelta(startAngle, target)));
+});
+
+test("diagonal movement keeps trail cells connected for territory capture", () => {
+  const player = engine.makePlayer(0, "diagonal-player", false, 2);
+  const width = engine.constants.width;
+  player.x = 20.9;
+  player.y = 20.9;
+  player.angle = Math.PI / 4;
+  player.targetAngle = Math.PI / 4;
+  player.lastCell = 20 * width + 20;
+  player.trail = [];
+  engine.resetGrid();
+
+  engine.advancePlayer(player, engine.constants.stepMs / 1000, Date.now());
+
+  assert.equal(player.trail.length, 2);
+  const cells = [20 * width + 20, ...player.trail];
+  const start = { x: 20, y: 20 };
+  const bridge = { x: cells[1] % width, y: Math.floor(cells[1] / width) };
+  const end = { x: cells[2] % width, y: Math.floor(cells[2] / width) };
+  assert.equal(Math.abs(start.x - bridge.x) + Math.abs(start.y - bridge.y), 1);
+  assert.equal(Math.abs(bridge.x - end.x) + Math.abs(bridge.y - end.y), 1);
+});
+
 test("a solo host starts a 90-second match with three local bots", () => {
   const fake = fakeApi(["구나"]);
   engine.setApi(fake.api);
@@ -123,6 +163,7 @@ test("multiplayer start waits for every non-host participant to be ready", () =>
 });
 
 test("runtime constants keep realtime traffic below the room broadcast cap", () => {
+  assert.equal(engine.constants.stepMs, 50);
   assert.equal(engine.constants.frameMs, 250);
   assert.equal(engine.constants.maxPlayers, 8);
   assert.ok(engine.constants.maxTrail <= 360);
@@ -130,6 +171,7 @@ test("runtime constants keep realtime traffic below the room broadcast cap", () 
   assert.match(source, /t: "tr_input"/);
   assert.match(source, /t: "tr_frame"/);
   assert.match(source, /t: "tr_sync_req"/);
+  assert.match(source, /now - lastInputAt < 90/);
   assert.doesNotMatch(source, /setInterval\([^,]+,\s*(?:1\d\d|[1-9]\d)\)/);
 });
 
