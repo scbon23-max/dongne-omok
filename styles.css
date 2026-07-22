@@ -2197,18 +2197,18 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   transform: none;
   transform-origin: right center;
   min-width: 88px;
-  height: 36px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 5px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  padding: 0 9px;
+  border: 1px solid var(--territory-ui-line);
+  border-radius: 8px;
+  background: var(--territory-ui-bg);
+  box-shadow: 0 4px 14px rgba(0,0,0,.2);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   color: var(--territory-ui-text);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
@@ -2238,7 +2238,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .territory-scoreboard {
   top: calc(max(8px, env(safe-area-inset-top)) + 44px);
   left: max(8px, env(safe-area-inset-left));
-  width: min(210px, calc(100% - 128px));
+  width: min(147px, calc(100% - 128px));
   display: grid;
   gap: 7px;
   padding: 10px 11px;
@@ -2379,7 +2379,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-game-option[data-game="territory"].active { background: rgba(47,184,158,.18); }
 
 @media (max-width: 360px) {
-  .territory-scoreboard { width: min(204px, calc(100% - 116px)); padding: 8px 9px; font-size: 14px; }
+  .territory-scoreboard { width: min(143px, calc(100% - 116px)); padding: 8px 9px; font-size: 14px; }
   .territory-rank-number,
   .territory-rank strong { font-size: 14px; }
   .territory-minimap-shell { width: 88px; }

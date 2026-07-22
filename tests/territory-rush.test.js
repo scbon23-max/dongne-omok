@@ -14,6 +14,24 @@ vm.runInContext(source, context, { filename: "territory-rush.js" });
 const controller = windowObject.TerritoryRush;
 const engine = controller._test;
 
+test("movement speed is twenty percent faster", () => {
+  assert.equal(engine.constants.speed, 8.88);
+  const player = engine.makePlayer(0, "speed-check", false, 2);
+  player.x = 20;
+  player.y = 20;
+  player.angle = 0;
+  player.targetAngle = 0;
+  player.lastCell = 20 * engine.constants.width + 20;
+  const state = engine.freshState();
+  state.players = [player];
+  engine.setState(state);
+  engine.resetGrid();
+
+  engine.advancePlayer(player, engine.constants.stepMs / 1000, Date.now());
+
+  assert.ok(Math.abs(player.x - (20 + 8.88 * engine.constants.stepMs / 1000)) < 1e-9);
+});
+
 function fakeApi(nicks) {
   const sent = [];
   const people = nicks.map((nick, index) => ({ nick, joinTs: index + 1 }));

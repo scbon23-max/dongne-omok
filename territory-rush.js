@@ -11,7 +11,7 @@ window.TerritoryRush = (function () {
   var INPUT_SEND_MS = 300;
   var OWNER_RECOVERY_MS = 1800;
   var RESPAWN_MS = 1800;
-  var SPEED = 7.4;
+  var SPEED = 8.88;
   var TURN_SPEED = Math.PI * 4;
   var ARENA_INSET = .9;
   var TRAIL_WIDTH = .64;
@@ -2479,6 +2479,7 @@ window.TerritoryRush = (function () {
         frameMs: FRAME_MS,
         fullMinMs: FULL_MIN_MS,
         inputSendMs: INPUT_SEND_MS,
+        speed: SPEED,
         arenaInset: ARENA_INSET,
         trailWidth: TRAIL_WIDTH,
         trailCollisionRadius: TRAIL_COLLISION_RADIUS,

@@ -276,13 +276,14 @@ test("Territory Rush is wired as an owner-only non-ranked controller game", () =
   assert.doesNotMatch(index, /territory-lobby-art|territory-kicker|영역 넓히기/);
   assert.doesNotMatch(index, /id="territory-(?:rules-btn|event|risk)"/);
   assert.doesNotMatch(territoryRush, /function announce\(|territory-event|territory-risk/);
-  assert.match(styles, /\.territory-time\s*\{[^}]*right:\s*max\(8px, env\(safe-area-inset-right\)\);[^}]*left:\s*auto;[^}]*transform:\s*none;[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/);
+  assert.match(styles, /\.territory-time\s*\{[^}]*right:\s*max\(8px, env\(safe-area-inset-right\)\);[^}]*height:\s*34px;[^}]*border:\s*1px solid var\(--territory-ui-line\);[^}]*border-radius:\s*8px;[^}]*background:\s*var\(--territory-ui-bg\);[^}]*box-shadow:\s*0 4px 14px rgba\(0,0,0,\.2\);/);
   assert.match(styles, /\.territory-minimap-shell\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/);
   assert.match(styles, /#territory-minimap\s*\{[^}]*border-radius:\s*0;[^}]*background:\s*transparent;[^}]*opacity:\s*\.68;/);
   assert.match(styles, /\.territory-utility\s*\{[^}]*grid-template-columns:\s*repeat\(3, auto\)/);
   assert.match(styles, /\.territory-scoreboard\s*\{[^}]*background:\s*rgba\(14,42,58,\.36\);[^}]*font-size:\s*15px;/);
+  assert.match(styles, /\.territory-scoreboard\s*\{[^}]*width:\s*min\(147px, calc\(100% - 128px\)\);/);
   assert.match(styles, /\.territory-rank-number\s*\{[^}]*font-size:\s*15px;[^}]*font-weight:\s*1000;/);
-  assert.match(styles, /@media \(max-width: 360px\)[\s\S]*\.territory-scoreboard\s*\{[^}]*font-size:\s*14px;/);
+  assert.match(styles, /@media \(max-width: 360px\)[\s\S]*\.territory-scoreboard\s*\{[^}]*width:\s*min\(143px, calc\(100% - 116px\)\);[^}]*font-size:\s*14px;/);
   const scoreboardSource = territoryRush.match(/function renderScoreboard\(\) \{([\s\S]*?)\n  \}\n\n  function renderFinished/)[1];
   assert.match(scoreboardSource, /territory-rank-number/);
   assert.doesNotMatch(scoreboardSource, /territory-dot|MASCOTS/);
