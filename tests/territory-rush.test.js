@@ -130,6 +130,91 @@ test("diagonal movement keeps trail cells connected for territory capture", () =
   assert.equal(Math.abs(bridge.x - end.x) + Math.abs(bridge.y - end.y), 1);
 });
 
+test("continuous visual trails stay straight without rewriting their settled prefix", () => {
+  const points = [];
+  for (let step = 0; step <= 40; step++) {
+    const x = step * 0.25;
+    engine.appendVisualTrailPoint(points, x, x * 0.5);
+  }
+
+  assert.equal(points.length, 2);
+  assert.equal(points[0].x, 0);
+  assert.equal(points[0].y, 0);
+  assert.equal(points[1].x, 10);
+  assert.equal(points[1].y, 5);
+});
+
+test("continuous visual trails preserve even a short deliberate corner", () => {
+  const points = [];
+  for (let step = 0; step <= 4; step++) engine.appendVisualTrailPoint(points, step * 0.25, 0);
+  for (let step = 1; step <= 4; step++) engine.appendVisualTrailPoint(points, 1, step * 0.25);
+
+  assert.equal(points.length, 3);
+  assert.equal(points[1].x, 1);
+  assert.equal(points[1].y, 0);
+  assert.equal(points[2].x, 1);
+  assert.equal(points[2].y, 1);
+});
+
+test("a lagging visual player never draws a trail ahead and back again", () => {
+  const settled = [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 4 }];
+
+  const halfway = engine.visibleTrailPoints(settled, { x: 4, y: 2 });
+  assert.equal(halfway.length, 3);
+  assert.equal(halfway.at(-1).x, 4);
+  assert.equal(halfway.at(-1).y, 2);
+  assert.equal(halfway.some((point) => point.x === 4 && point.y === 4), false);
+
+  const beforeTurn = engine.visibleTrailPoints(settled, { x: 2, y: 0 });
+  assert.equal(beforeTurn.length, 2);
+  assert.equal(beforeTurn.at(-1).x, 2);
+  assert.equal(beforeTurn.at(-1).y, 0);
+});
+
+test("a backgrounded visual player can safely catch up across the full path", () => {
+  const settled = Array.from({ length: 61 }, (_, x) => ({ x, y: 0 }));
+  const visible = engine.visibleTrailPoints(settled, { x: 5, y: 0 });
+
+  assert.equal(visible.at(-1).x, 5);
+  assert.ok(visible.every((point) => point.x <= 5));
+});
+
+test("short reconstructed trails keep collision-cell corners", () => {
+  const width = engine.constants.width;
+  const keys = [10 * width + 10, 10 * width + 11, 11 * width + 11];
+  const rebuilt = engine.rebuiltVisualTrailPoints(keys);
+
+  assert.equal(rebuilt.length, 3);
+  assert.equal(rebuilt[1].x, 11.5);
+  assert.equal(rebuilt[1].y, 10.5);
+});
+
+test("compact visual paths preserve arbitrary straight lines across a reconnect", () => {
+  const points = [];
+  for (let step = 0; step <= 80; step++) {
+    const x = 5 + step * 0.2;
+    engine.appendVisualTrailPoint(points, x, 8 + (x - 5) * 0.25);
+  }
+
+  const packed = engine.encodeVisualTrail(points);
+  const restored = engine.decodeVisualTrail(packed);
+
+  assert.equal(points.length, 2);
+  assert.equal(packed.length, 4);
+  assert.equal(restored.length, 2);
+  assert.ok(Math.abs(restored[0].x - 5) <= 0.05);
+  assert.ok(Math.abs(restored.at(-1).y - 12) <= 0.05);
+});
+
+test("incoming visual paths are bounded before entering room state", () => {
+  const oversized = Array.from({ length: engine.constants.maxVisualTrailPoints * 4 + 3 }, (_, index) => index % 2 ? 999999 : -999999);
+  const safe = engine.sanitizeVisualTrail(oversized);
+
+  assert.equal(safe.length, engine.constants.maxVisualTrailPoints * 2);
+  assert.equal(safe.length % 2, 0);
+  assert.ok(safe.every((value) => Number.isInteger(value) && value >= 0));
+});
+
 test("a solo host starts a 90-second match with three local bots", () => {
   const fake = fakeApi(["구나"]);
   engine.setApi(fake.api);
@@ -194,6 +279,8 @@ test("territories and trails render as bright flat colors without outlines", () 
   assert.match(trailSource, /ctx\.strokeStyle = TERRITORY_COLORS\[player\.id\]/);
   assert.equal((trailSource.match(/ctx\.stroke\(\);/g) || []).length, 1);
   assert.doesNotMatch(trailSource, /rgba\(|shadow|outline/i);
+  assert.doesNotMatch(trailSource, /quadraticCurveTo/);
+  assert.match(trailSource, /ctx\.lineTo/);
 
   const minimapSource = source.match(/function paintMinimap\(\) \{([\s\S]*?)\n  \}\n\n  function renderLoop/)[1];
   assert.match(minimapSource, /miniCtx\.globalAlpha = 1;\s*miniCtx\.imageSmoothingEnabled[\s\S]*?miniCtx\.drawImage\(territoryLayer/);
@@ -214,7 +301,13 @@ test("worst-case territory and trail snapshots stay compact", () => {
   });
   engine.setState(state);
 
-  assert.ok(Buffer.byteLength(JSON.stringify(engine.snapshot(false))) < 100000);
+  const frame = engine.snapshot(false);
+  assert.ok(frame.players.every((player) => player.path.length <= engine.constants.maxVisualTrailPoints * 2));
+  assert.ok(Buffer.byteLength(JSON.stringify(frame)) < 100000);
+
+  engine.getOwner().set(grid);
+  assert.ok(Buffer.byteLength(JSON.stringify(engine.snapshot(true))) < 100000);
+  engine.resetGrid();
 });
 
 test("a disconnected host yields instead of broadcasting stale state", () => {

@@ -12,6 +12,9 @@ window.TerritoryRush = (function () {
   var RESPAWN_MS = 1800;
   var SPEED = 7.4;
   var TURN_SPEED = Math.PI * 4;
+  var TRAIL_SAMPLE_TOLERANCE = .06;
+  var MAX_VISUAL_TRAIL_POINTS = 180;
+  var VISUAL_TRAIL_SCALE = 20;
   var MAX_PLAYERS = 8;
   var MAX_TRAIL = 360;
   var LAYER_SCALE = 4;
@@ -210,6 +213,7 @@ window.TerritoryRush = (function () {
       angle: Math.round(angle * 1000) / 1000,
       targetAngle: Math.round(targetAngle * 1000) / 1000,
       trail: (player.trail || []).slice(0, MAX_TRAIL),
+      path: compactVisualTrail(player),
       deadUntil: Number(player.deadUntil) || 0,
       kills: clamp(Number(player.kills) || 0, 0, 999),
       retired: !!player.retired,
@@ -243,6 +247,7 @@ window.TerritoryRush = (function () {
         angle: angle,
         targetAngle: validAngle(raw.targetAngle) ? normalizeAngle(raw.targetAngle) : angle,
         trail: trail,
+        path: sanitizeVisualTrail(raw.path),
         deadUntil: Math.max(0, Number(raw.deadUntil) || 0),
         kills: clamp(Number(raw.kills) || 0, 0, 999),
         retired: !!raw.retired,
@@ -273,7 +278,6 @@ window.TerritoryRush = (function () {
 
   function rebuildTrailOwner() {
     trailOwner.fill(-1);
-    visualTrails = Object.create(null);
     state.players.forEach(function (player) {
       (player.trail || []).forEach(function (key) {
         if (key >= 0 && key < CELL_COUNT) trailOwner[key] = player.id;
@@ -293,6 +297,8 @@ window.TerritoryRush = (function () {
           angle: validAngle(player.angle) ? player.angle : directionAngle(player.dir)
         };
       }
+      if (player.trail && player.trail.length) syncVisualTrail(player);
+      else delete visualTrails[key];
     });
     Object.keys(visualPlayers).forEach(function (key) {
       if (!keep[key]) {
@@ -423,6 +429,7 @@ window.TerritoryRush = (function () {
       angle: angle,
       targetAngle: angle,
       trail: [],
+      path: [],
       deadUntil: 0,
       kills: 0,
       retired: false,
@@ -449,6 +456,7 @@ window.TerritoryRush = (function () {
       if (trailOwner[key] === player.id) trailOwner[key] = -1;
     }
     player.trail.length = 0;
+    player.path = [];
     delete visualTrails[player.nick];
   }
 
@@ -612,6 +620,8 @@ window.TerritoryRush = (function () {
       if (crossed[i] === player.lastCell) continue;
       if (!enterPlayerCell(player, crossed[i], now)) return;
     }
+    if (player.trail.length) syncVisualTrail(player, fromX, fromY);
+    else delete visualTrails[player.nick];
   }
 
   function territoryCounts() {
@@ -659,9 +669,11 @@ window.TerritoryRush = (function () {
     if (!parsed) return false;
     sourceHost = safeNick(sourceHost);
     var hostChanged = !!sourceHost && sourceHost !== authoritativeHost;
+    var resetVisualTimeline = hostChanged || parsed.state.matchId !== state.matchId || parsed.state.frameSeq < state.frameSeq;
     if (state.matchId && parsed.state.matchId === state.matchId && parsed.state.rev < state.rev
         && !authorityYielded && !hostChanged) return false;
     state = parsed.state;
+    if (resetVisualTimeline) visualTrails = Object.create(null);
     if (sourceHost) authoritativeHost = sourceHost;
     owner.set(parsed.owner);
     wantedOwnerRev = state.ownerRev;
@@ -1259,24 +1271,169 @@ window.TerritoryRush = (function () {
     return points.filter(function (_point, index) { return !!keep[index]; });
   }
 
-  function trailPoints(player) {
-    var trail = player.trail || [];
-    if (!trail.length) return [];
-    var first = trail[0];
-    var last = trail[trail.length - 1];
-    var cached = visualTrails[player.nick];
-    if (cached && cached.length === trail.length && cached.first === first && cached.last === last) return cached.points;
-    var points = trail.map(function (key) {
+  function sanitizeVisualTrail(raw) {
+    if (!Array.isArray(raw)) return [];
+    var length = Math.min(raw.length - raw.length % 2, MAX_VISUAL_TRAIL_POINTS * 2);
+    var maxX = Math.floor((WORLD_W - .001) * VISUAL_TRAIL_SCALE);
+    var maxY = Math.floor((WORLD_H - .001) * VISUAL_TRAIL_SCALE);
+    var packed = [];
+    for (var i = 0; i < length; i += 2) {
+      var x = Number(raw[i]);
+      var y = Number(raw[i + 1]);
+      if (!isFinite(x) || !isFinite(y)) continue;
+      packed.push(clamp(Math.round(x), 0, maxX), clamp(Math.round(y), 0, maxY));
+    }
+    return packed;
+  }
+
+  function decodeVisualTrail(raw) {
+    var packed = sanitizeVisualTrail(raw);
+    var points = [];
+    for (var i = 0; i < packed.length; i += 2) {
+      points.push({ x: packed[i] / VISUAL_TRAIL_SCALE, y: packed[i + 1] / VISUAL_TRAIL_SCALE });
+    }
+    return points;
+  }
+
+  function limitVisualTrailPoints(points) {
+    var compact = (points || []).slice();
+    var tolerance = TRAIL_SAMPLE_TOLERANCE * 1.5;
+    while (compact.length > MAX_VISUAL_TRAIL_POINTS && tolerance <= 1.2) {
+      compact = simplifyTrailPoints(compact, tolerance);
+      tolerance *= 1.6;
+    }
+    if (compact.length <= MAX_VISUAL_TRAIL_POINTS) return compact;
+    var sampled = [];
+    for (var i = 0; i < MAX_VISUAL_TRAIL_POINTS; i++) {
+      sampled.push(compact[Math.round(i * (compact.length - 1) / (MAX_VISUAL_TRAIL_POINTS - 1))]);
+    }
+    return sampled;
+  }
+
+  function encodeVisualTrail(points) {
+    var compact = limitVisualTrailPoints(points);
+    var packed = [];
+    for (var i = 0; i < compact.length; i++) {
+      packed.push(
+        clamp(Math.round(compact[i].x * VISUAL_TRAIL_SCALE), 0, Math.floor((WORLD_W - .001) * VISUAL_TRAIL_SCALE)),
+        clamp(Math.round(compact[i].y * VISUAL_TRAIL_SCALE), 0, Math.floor((WORLD_H - .001) * VISUAL_TRAIL_SCALE))
+      );
+    }
+    return packed;
+  }
+
+  function compactVisualTrail(player) {
+    if (!player || !player.trail || !player.trail.length) return [];
+    var cache = visualTrails[player.nick];
+    var points = cache && cache.points ? cache.points : decodeVisualTrail(player.path);
+    if (!points.length) points = rebuiltVisualTrailPoints(player.trail);
+    var compact = limitVisualTrailPoints(points);
+    if (cache && compact.length !== cache.points.length) cache.points = compact;
+    return encodeVisualTrail(compact);
+  }
+
+  function appendVisualTrailPoint(points, x, y) {
+    if (!isFinite(x) || !isFinite(y)) return points;
+    var next = { x: Number(x), y: Number(y) };
+    if (!points.length) { points.push(next); return points; }
+    var last = points[points.length - 1];
+    var dx = next.x - last.x;
+    var dy = next.y - last.y;
+    if (dx * dx + dy * dy < .0004) {
+      points[points.length - 1] = next;
+      return points;
+    }
+    if (points.length >= 2) {
+      var start = points[points.length - 2];
+      var forward = (last.x - start.x) * dx + (last.y - start.y) * dy;
+      if (forward >= 0 && pointDistanceToSegmentSquared(last, start, next) <= TRAIL_SAMPLE_TOLERANCE * TRAIL_SAMPLE_TOLERANCE) {
+        points[points.length - 1] = next;
+        return points;
+      }
+    }
+    points.push(next);
+    return points;
+  }
+
+  function rebuiltVisualTrailPoints(trail) {
+    return (trail || []).map(function (key) {
       return { x: key % WORLD_W + .5, y: Math.floor(key / WORLD_W) + .5 };
     });
-    points = simplifyTrailPoints(points, .46);
-    visualTrails[player.nick] = { length: trail.length, first: first, last: last, points: points };
-    return points;
+  }
+
+  function visualTrailContinues(cache, trail) {
+    return !!(cache && cache.matchId === state.matchId && cache.first === trail[0]
+      && cache.trailLength > 0 && cache.trailLength <= trail.length
+      && trail[cache.trailLength - 1] === cache.lastKey);
+  }
+
+  function syncVisualTrail(player, startX, startY) {
+    var trail = player.trail || [];
+    if (!trail.length) { delete visualTrails[player.nick]; return null; }
+    var cache = visualTrails[player.nick];
+    var networkPath = Array.isArray(player.path) && player.path.length ? player.path : null;
+    if (networkPath && api && !api.isHost() && (!cache || cache.networkPath !== networkPath)) {
+      var networkPoints = decodeVisualTrail(networkPath);
+      if (networkPoints.length) {
+        cache = visualTrails[player.nick] = {
+          matchId: state.matchId,
+          first: trail[0],
+          trailLength: trail.length,
+          lastKey: trail[trail.length - 1],
+          points: networkPoints,
+          networkPath: networkPath
+        };
+      }
+    }
+    if (!visualTrailContinues(cache, trail)) {
+      var hasStart = isFinite(startX) && isFinite(startY);
+      var decodedPath = decodeVisualTrail(player.path);
+      var points = hasStart ? [{ x: Number(startX), y: Number(startY) }]
+        : (decodedPath.length ? decodedPath : rebuiltVisualTrailPoints(trail));
+      if (!hasStart && points.length > 1) points[points.length - 1] = { x: player.x, y: player.y };
+      cache = visualTrails[player.nick] = {
+        matchId: state.matchId,
+        first: trail[0],
+        trailLength: trail.length,
+        lastKey: trail[trail.length - 1],
+        points: points
+      };
+    }
+    appendVisualTrailPoint(cache.points, player.x, player.y);
+    if (cache.points.length > MAX_VISUAL_TRAIL_POINTS) cache.points = limitVisualTrailPoints(cache.points);
+    cache.trailLength = trail.length;
+    cache.lastKey = trail[trail.length - 1];
+    return cache;
+  }
+
+  function visibleTrailPoints(points, endpoint) {
+    if (!points || !points.length) return [];
+    if (!endpoint || !isFinite(endpoint.x) || !isFinite(endpoint.y) || points.length === 1) return points.slice();
+    var tail = points[points.length - 1];
+    if (Math.abs(tail.x - endpoint.x) <= .001 && Math.abs(tail.y - endpoint.y) <= .001) return points.slice();
+    var bestIndex = points.length - 2;
+    var bestDistance = Infinity;
+    for (var i = points.length - 2; i >= 0; i--) {
+      var distance = pointDistanceToSegmentSquared(endpoint, points[i], points[i + 1]);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = i;
+      }
+    }
+    var visible = points.slice(0, bestIndex + 1);
+    appendVisualTrailPoint(visible, endpoint.x, endpoint.y);
+    return visible;
+  }
+
+  function trailPoints(player, endpoint) {
+    var cache = syncVisualTrail(player);
+    return cache ? visibleTrailPoints(cache.points, endpoint) : [];
   }
 
   function drawTrail(player, view) {
     if (!player.trail.length) return;
-    var points = trailPoints(player);
+    var visual = visualPlayers[player.nick] || player;
+    var points = trailPoints(player, visual);
     if (!points.length) return;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -1284,18 +1441,8 @@ window.TerritoryRush = (function () {
     ctx.moveTo(screenX(points[0].x, view), screenY(points[0].y, view));
     for (var i = 1; i < points.length; i++) {
       var point = points[i];
-      if (i < points.length - 1) {
-        var next = points[i + 1];
-        ctx.quadraticCurveTo(
-          screenX(point.x, view), screenY(point.y, view),
-          screenX((point.x + next.x) / 2, view), screenY((point.y + next.y) / 2, view)
-        );
-      } else {
-        ctx.lineTo(screenX(point.x, view), screenY(point.y, view));
-      }
+      ctx.lineTo(screenX(point.x, view), screenY(point.y, view));
     }
-    var visual = visualPlayers[player.nick] || player;
-    ctx.lineTo(screenX(visual.x, view), screenY(visual.y, view));
     ctx.strokeStyle = TERRITORY_COLORS[player.id] || COLORS[player.id];
     ctx.lineWidth = Math.max(5, view.scale * .64);
     ctx.stroke();
@@ -1303,11 +1450,6 @@ window.TerritoryRush = (function () {
 
   function drawPlayer(player, view, now) {
     var visual = visualPlayers[player.nick] || player;
-    visual.x += (player.x - visual.x) * .24;
-    visual.y += (player.y - visual.y) * .24;
-    var playerAngle = requestedAngle(player.angle, directionAngle(player.dir));
-    if (!validAngle(visual.angle)) visual.angle = playerAngle;
-    visual.angle = normalizeAngle(visual.angle + angleDelta(visual.angle, playerAngle) * .24);
     var px = screenX(visual.x, view);
     var py = screenY(visual.y, view);
     if (px < -50 || px > view.width + 50 || py < -50 || py > view.height + 50 || player.retired) return;
@@ -1372,6 +1514,14 @@ window.TerritoryRush = (function () {
     ctx.clearRect(0, 0, view.width, view.height);
     drawArena(view);
     drawTerritories(view);
+    state.players.forEach(function (player) {
+      var visual = visualPlayers[player.nick] || player;
+      visual.x += (player.x - visual.x) * .24;
+      visual.y += (player.y - visual.y) * .24;
+      var playerAngle = requestedAngle(player.angle, directionAngle(player.dir));
+      if (!validAngle(visual.angle)) visual.angle = playerAngle;
+      visual.angle = normalizeAngle(visual.angle + angleDelta(visual.angle, playerAngle) * .24);
+    });
     state.players.forEach(function (player) { drawTrail(player, view); });
     state.players.forEach(function (player) { drawPlayer(player, view, now); });
   }
@@ -1790,6 +1940,13 @@ window.TerritoryRush = (function () {
       applyDirection: applyDirection,
       advancePlayer: advancePlayer,
       crossedCellKeys: crossedCellKeys,
+      simplifyTrailPoints: simplifyTrailPoints,
+      appendVisualTrailPoint: appendVisualTrailPoint,
+      rebuiltVisualTrailPoints: rebuiltVisualTrailPoints,
+      visibleTrailPoints: visibleTrailPoints,
+      sanitizeVisualTrail: sanitizeVisualTrail,
+      encodeVisualTrail: encodeVisualTrail,
+      decodeVisualTrail: decodeVisualTrail,
       normalizeAngle: normalizeAngle,
       angleDelta: angleDelta,
       reverseDirection: reverseDirection,
@@ -1820,6 +1977,9 @@ window.TerritoryRush = (function () {
         matchMs: MATCH_MS,
         stepMs: STEP_MS,
         frameMs: FRAME_MS,
+        trailSampleTolerance: TRAIL_SAMPLE_TOLERANCE,
+        maxVisualTrailPoints: MAX_VISUAL_TRAIL_POINTS,
+        visualTrailScale: VISUAL_TRAIL_SCALE,
         maxPlayers: MAX_PLAYERS,
         maxTrail: MAX_TRAIL
       }
