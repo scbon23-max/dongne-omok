@@ -66,7 +66,6 @@ window.TerritoryRush = (function () {
   var lastFullSentAt = 0;
   var lastWarnMatchId = "";
   var swipe = null;
-  var eventTimer = null;
   var resizeTimer = null;
   var canvas = null;
   var ctx = null;
@@ -476,31 +475,18 @@ window.TerritoryRush = (function () {
     }
   }
 
-  function announce(text, duration) {
-    var element = $("territory-event");
-    if (!element) return;
-    if (eventTimer) { clearTimeout(eventTimer); eventTimer = null; }
-    element.textContent = text;
-    element.classList.remove("hidden");
-    eventTimer = setTimeout(function () {
-      if (element) element.classList.add("hidden");
-      eventTimer = null;
-    }, duration || 1700);
-  }
-
   function capturePlayer(player) {
     if (!player.trail.length) return;
-    var gained = captureInto(owner, player.trail, player.id);
+    captureInto(owner, player.trail, player.id);
     clearTrail(player);
     state.ownerRev++;
     state.rev++;
     ownerLayerDirty = true;
     countsRev = -1;
     fullPending = true;
-    if (gained > 0) announce(MASCOTS[player.id] + " " + player.nick + " · 영역 확장!", 1500);
   }
 
-  function eliminate(player, attacker, now, reason) {
+  function eliminate(player, attacker, now) {
     if (!player || player.deadUntil || player.retired) return;
     clearTerritory(player.id);
     clearTrail(player);
@@ -509,13 +495,6 @@ window.TerritoryRush = (function () {
     if (attacker && attacker !== player) attacker.kills++;
     state.rev++;
     fullPending = true;
-    var message = MASCOTS[player.id] + " " + player.nick + "님이 자기 경로에 닿았어요!";
-    if (attacker && attacker !== player) {
-      message = MASCOTS[attacker.id] + " " + attacker.nick + "님이 " + player.nick + "님의 경로를 끊었어요!";
-    } else if (reason === "boundary") {
-      message = MASCOTS[player.id] + " " + player.nick + "님이 경기장 밖으로 나갔어요!";
-    }
-    announce(message, 1700);
   }
 
   function recallPlayer(player, now) {
@@ -526,7 +505,6 @@ window.TerritoryRush = (function () {
     player.lastCell = cellKey(player.x, player.y);
     player.deadUntil = now + RESPAWN_MS;
     state.rev++;
-    announce(MASCOTS[player.id] + " " + player.nick + "님의 경로가 너무 길어 출발점으로 돌아갔어요!", 1900);
   }
 
   function respawn(player, now) {
@@ -665,14 +643,14 @@ window.TerritoryRush = (function () {
     var targetKey = cellKey(toX, toY);
     if (player.trail.length && owner[targetKey] !== player.id
         && movementHitsTrail(fromX, fromY, toX, toY, collisionTrailPoints(player), TRAIL_HEAD_GRACE)) {
-      eliminate(player, null, now, "self");
+      eliminate(player, null, now);
       return false;
     }
     for (var i = 0; i < state.players.length; i++) {
       var victim = state.players[i];
       if (victim === player || victim.deadUntil || victim.retired || victim.away || !victim.trail.length) continue;
       if (movementHitsTrail(fromX, fromY, toX, toY, collisionTrailPoints(victim), 0)) {
-        eliminate(victim, player, now, "cut");
+        eliminate(victim, player, now);
         break;
       }
     }
@@ -705,7 +683,7 @@ window.TerritoryRush = (function () {
     var fromY = player.y;
     var nx = fromX + Math.cos(player.angle) * SPEED * dt;
     var ny = fromY + Math.sin(player.angle) * SPEED * dt;
-    if (!inside(Math.floor(nx), Math.floor(ny))) { eliminate(player, null, now, "boundary"); return; }
+    if (!inside(Math.floor(nx), Math.floor(ny))) { eliminate(player, null, now); return; }
     if (!resolveTrailCollisions(player, fromX, fromY, nx, ny, now)) return;
     player.x = nx;
     player.y = ny;
@@ -946,7 +924,6 @@ window.TerritoryRush = (function () {
     fullPending = false;
     broadcastFull();
     notifyRoomChanged();
-    announce("출발! 내 땅으로 돌아오면 영역이 완성돼요", 2300);
     render();
     return true;
   }
@@ -966,7 +943,6 @@ window.TerritoryRush = (function () {
     fullPending = false;
     broadcastFull();
     notifyRoomChanged();
-    announce(state.winner ? "🏆 " + state.winner + " 승리!" : "경기가 끝났어요", 3000);
     render();
   }
 
@@ -1158,23 +1134,9 @@ window.TerritoryRush = (function () {
     if (myDot && mine) myDot.style.background = COLORS[mine.id];
     var area = $("territory-area");
     if (area) area.textContent = mine ? ((counts[mine.id] || 0) / CELL_COUNT * 100).toFixed(1) + "%" : "0.0%";
-    var risk = $("territory-risk");
-    if (risk) {
-      var danger = !!(mine && mine.trail.length && !mine.deadUntil);
-      risk.textContent = spectatorText(mine, danger);
-      risk.classList.toggle("danger", danger);
-    }
     var count = $("territory-people-count");
     if (count) count.textContent = String(activePeople().length);
     renderScoreboard();
-  }
-
-  function spectatorText(mine, danger) {
-    if (!mine) return state.phase === "playing" ? "관전 중" : "게임 준비 중";
-    if (mine.retired) return "다음 판에 다시 참가해요";
-    if (mine.deadUntil) return "잠시 후 다시 출발!";
-    if (mine.trail.length >= MAX_TRAIL * 0.75) return "너무 멀어요 · 내 땅으로 돌아가세요!";
-    return danger ? "꼬리를 조심하세요!" : "내 땅은 안전해요";
   }
 
   function onVisibilityChange() {
@@ -1684,7 +1646,6 @@ window.TerritoryRush = (function () {
     if (bound) return true;
     bound = true;
 
-    $("territory-rules-btn").addEventListener("click", function () { if (api && api.openRules) api.openRules(); });
     $("territory-people-btn").addEventListener("click", function () { if (api && api.openPlayers) api.openPlayers(); });
     $("territory-leave-btn").addEventListener("click", function () { if (api && api.leaveRoom) api.leaveRoom(); });
     $("territory-menu-btn").addEventListener("click", function () { if (api && api.openMenu) api.openMenu(); });
@@ -1983,7 +1944,6 @@ window.TerritoryRush = (function () {
   function leave() {
     active = false;
     stopLoops();
-    if (eventTimer) { clearTimeout(eventTimer); eventTimer = null; }
     if (resizeTimer) { clearTimeout(resizeTimer); resizeTimer = null; }
     swipe = null;
     var root = $("territorygame");

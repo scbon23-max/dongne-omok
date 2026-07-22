@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260722-land-grab-v5">
+<meta name="app-build" content="20260722-land-grab-v6">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -591,7 +591,6 @@
     <canvas id="territory-board" width="720" height="1080" aria-label="내 색으로 땅을 차지하는 실시간 경기장"></canvas>
 
     <div class="territory-utility" aria-label="방 메뉴">
-      <button id="territory-rules-btn" type="button">규칙</button>
       <button id="territory-people-btn" type="button"><span id="territory-people-count">0</span>명</button>
       <button id="territory-leave-btn" type="button">나가기</button>
       <button id="territory-menu-btn" type="button" aria-label="메뉴">⋯</button>
@@ -608,14 +607,11 @@
       <canvas id="territory-minimap" width="180" height="270"></canvas>
     </div>
 
-    <div id="territory-event" class="territory-event hidden" aria-live="polite"></div>
-
     <div class="territory-area">
       <span id="territory-my-dot" class="territory-my-dot" aria-hidden="true"></span>
       <span>내 영역</span>
       <strong id="territory-area">0.0%</strong>
     </div>
-    <div id="territory-risk" class="territory-risk" aria-live="polite">내 땅은 안전해요</div>
 
     <section id="territory-lobby" class="territory-panel territory-lobby">
       <div class="territory-panel-content">

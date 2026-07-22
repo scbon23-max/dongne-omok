@@ -264,6 +264,13 @@ test("Territory Rush is wired as an owner-only non-ranked controller game", () =
   assert.match(styles, /\.territory-panel\s*\{[\s\S]*inset:\s*0;[\s\S]*width:\s*100%;[\s\S]*height:\s*100%;[\s\S]*border-radius:\s*0;/);
   assert.match(styles, /\.territory-panel-content\s*\{[^}]*flex:\s*0 0 auto;[^}]*margin:\s*auto 0;/);
   assert.doesNotMatch(index, /territory-lobby-art|territory-kicker|영역 넓히기/);
+  assert.doesNotMatch(index, /id="territory-(?:rules-btn|event|risk)"/);
+  assert.doesNotMatch(territoryRush, /function announce\(|territory-event|territory-risk/);
+  assert.match(styles, /\.territory-time\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/);
+  assert.match(styles, /\.territory-minimap-shell\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/);
+  assert.match(styles, /#territory-minimap\s*\{[^}]*border-radius:\s*0;[^}]*background:\s*transparent;[^}]*opacity:\s*\.68;/);
+  assert.match(styles, /\.territory-utility\s*\{[^}]*grid-template-columns:\s*repeat\(3, auto\)/);
+  assert.doesNotMatch(styles, /\.territory-(?:event|risk)\b/);
 });
 
 test("Relay Drawing is registered as a separate non-ranked party game", () => {

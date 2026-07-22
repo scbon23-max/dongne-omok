@@ -2174,20 +2174,14 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .territory-time,
 .territory-scoreboard,
 .territory-minimap-shell,
-.territory-event,
 .territory-area,
-.territory-risk,
 .territory-utility,
 .territory-swipe-hint {
   position: absolute;
   z-index: 4;
 }
-.territory-time,
 .territory-scoreboard,
-.territory-minimap-shell,
-.territory-event,
 .territory-area,
-.territory-risk,
 .territory-utility button,
 .territory-swipe-hint {
   border: 1px solid var(--territory-ui-line);
@@ -2207,10 +2201,16 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   justify-content: center;
   gap: 5px;
   padding: 0 12px;
+  border: 0;
   border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   color: var(--territory-ui-text);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 4px rgba(0,0,0,.55);
 }
 .territory-time strong { font-size: 14px; font-weight: 1000; letter-spacing: .02em; }
 .territory-time.urgent { color: #ff8a90; animation: territory-urgent .55s ease-in-out infinite alternate; }
@@ -2219,7 +2219,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   top: max(8px, env(safe-area-inset-top));
   left: max(8px, env(safe-area-inset-left));
   display: grid;
-  grid-template-columns: repeat(2, auto);
+  grid-template-columns: repeat(3, auto);
   gap: 5px;
 }
 .territory-utility button {
@@ -2234,7 +2234,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .territory-utility button:active { transform: scale(.96); background: rgba(30,67,88,.92); }
 .territory-scoreboard {
-  top: calc(max(8px, env(safe-area-inset-top)) + 78px);
+  top: calc(max(8px, env(safe-area-inset-top)) + 44px);
   left: max(8px, env(safe-area-inset-left));
   width: min(158px, calc(51% - 16px));
   display: grid;
@@ -2261,30 +2261,16 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   top: calc(max(8px, env(safe-area-inset-top)) + 44px);
   right: max(8px, env(safe-area-inset-right));
   width: min(98px, 27vw);
-  padding: 6px;
-  border-radius: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
-#territory-minimap { width: 100%; height: auto; aspect-ratio: 2 / 3; display: block; border-radius: 6px; background: #cfeedd; }
-.territory-event {
-  left: 50%;
-  bottom: calc(max(12px, env(safe-area-inset-bottom)) + 64px);
-  max-width: calc(100% - 28px);
-  min-height: 34px;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  padding: 7px 13px;
-  border-radius: 8px;
-  color: var(--territory-ui-text);
-  font-size: 12px;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.territory-area,
-.territory-risk {
+#territory-minimap { width: 100%; height: auto; aspect-ratio: 2 / 3; display: block; border-radius: 0; background: transparent; opacity: .68; }
+.territory-area {
   bottom: max(8px, env(safe-area-inset-bottom));
   min-height: 36px;
   display: inline-flex;
@@ -2298,8 +2284,6 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .territory-area { left: max(8px, env(safe-area-inset-left)); }
 .territory-area strong { color: #fff; font-size: 13px; font-weight: 1000; font-variant-numeric: tabular-nums; }
-.territory-risk { right: max(8px, env(safe-area-inset-right)); }
-.territory-risk.danger { color: #ff8a90; }
 .territory-panel {
   position: absolute;
   z-index: 8;
@@ -2395,7 +2379,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 
 @media (max-height: 650px) {
   .game-screen.territory-screen { min-height: 0; }
-  .territory-scoreboard { top: calc(max(8px, env(safe-area-inset-top)) + 78px); }
+  .territory-scoreboard { top: calc(max(8px, env(safe-area-inset-top)) + 44px); }
   .territory-panel { padding-top: calc(max(54px, env(safe-area-inset-top) + 44px)); padding-bottom: max(10px, env(safe-area-inset-bottom)); }
   .territory-panel h2 { margin-bottom: 13px; font-size: 25px; }
   .territory-role-list { margin-top: 6px; }
