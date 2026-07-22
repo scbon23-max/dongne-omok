@@ -175,6 +175,30 @@ test("runtime constants keep realtime traffic below the room broadcast cap", () 
   assert.doesNotMatch(source, /setInterval\([^,]+,\s*(?:1\d\d|[1-9]\d)\)/);
 });
 
+test("territories and trails render as bright flat colors without outlines", () => {
+  const paletteMatch = source.match(/var TERRITORY_COLORS = \[(.*?)\];/);
+  assert.ok(paletteMatch);
+  const palette = Array.from(paletteMatch[1].matchAll(/#[0-9a-f]{6}/gi), (match) => match[0]);
+  assert.equal(palette.length, engine.constants.maxPlayers);
+  palette.forEach((hex) => {
+    const channels = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+    assert.ok(Math.max(...channels) >= 204, `${hex} should stay bright and lively`);
+  });
+
+  const territoryLayerSource = source.match(/function rebuildTerritoryLayer\(\) \{([\s\S]*?)\n  \}\n\n  function drawTerritories/)[1];
+  assert.match(territoryLayerSource, /territoryCtx\.globalAlpha = 1/);
+  assert.match(territoryLayerSource, /territoryCtx\.fillStyle = TERRITORY_COLORS/);
+  assert.doesNotMatch(territoryLayerSource, /stroke|shadow/i);
+
+  const trailSource = source.match(/function drawTrail\(player, view\) \{([\s\S]*?)\n  \}\n\n  function drawPlayer/)[1];
+  assert.match(trailSource, /ctx\.strokeStyle = TERRITORY_COLORS\[player\.id\]/);
+  assert.equal((trailSource.match(/ctx\.stroke\(\);/g) || []).length, 1);
+  assert.doesNotMatch(trailSource, /rgba\(|shadow|outline/i);
+
+  const minimapSource = source.match(/function paintMinimap\(\) \{([\s\S]*?)\n  \}\n\n  function renderLoop/)[1];
+  assert.match(minimapSource, /miniCtx\.globalAlpha = 1;\s*miniCtx\.imageSmoothingEnabled[\s\S]*?miniCtx\.drawImage\(territoryLayer/);
+});
+
 test("worst-case territory and trail snapshots stay compact", () => {
   const grid = new Int8Array(engine.constants.cells);
   for (let i = 0; i < grid.length; i++) grid[i] = i % engine.constants.maxPlayers;

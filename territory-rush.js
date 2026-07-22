@@ -16,7 +16,7 @@ window.TerritoryRush = (function () {
   var MAX_TRAIL = 360;
   var LAYER_SCALE = 4;
   var COLORS = ["#ff756d", "#43c7a0", "#ffc857", "#7f8cff", "#ef72b3", "#42b8d5", "#9bc95b", "#f49b52"];
-  var TERRITORY_COLORS = ["#d83f49", "#078a6c", "#c98b0b", "#5261c4", "#bd3e7f", "#087d9f", "#638f2c", "#ca6028"];
+  var TERRITORY_COLORS = ["#ff6f73", "#35cfa1", "#ffc54a", "#7585ff", "#f36bae", "#34bfdf", "#8dcc4d", "#ff9950"];
   var MASCOTS = ["🐱", "🐻", "🐰", "🐥", "🐶", "🦊", "🐼", "🐹"];
   var BOT_NAMES = ["몽이", "두부", "토리"];
   var DIRECTIONS = {
@@ -1212,6 +1212,7 @@ window.TerritoryRush = (function () {
     var sourceY = clamp(view.cy - worldHeight / 2, 0, WORLD_H - worldHeight) * LAYER_SCALE;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
+    ctx.globalAlpha = 1;
     ctx.drawImage(territoryLayer, sourceX, sourceY, worldWidth * LAYER_SCALE, worldHeight * LAYER_SCALE, 0, 0, view.width, view.height);
   }
 
@@ -1295,11 +1296,8 @@ window.TerritoryRush = (function () {
     }
     var visual = visualPlayers[player.nick] || player;
     ctx.lineTo(screenX(visual.x, view), screenY(visual.y, view));
-    ctx.strokeStyle = "rgba(27,55,64,.28)";
-    ctx.lineWidth = Math.max(7, view.scale * .9);
-    ctx.stroke();
     ctx.strokeStyle = TERRITORY_COLORS[player.id] || COLORS[player.id];
-    ctx.lineWidth = Math.max(4.5, view.scale * .6);
+    ctx.lineWidth = Math.max(5, view.scale * .64);
     ctx.stroke();
   }
 
@@ -1384,9 +1382,9 @@ window.TerritoryRush = (function () {
     var height = Number(miniCanvas.dataset.logicalHeight) || miniCanvas.getBoundingClientRect().height;
     rebuildTerritoryLayer();
     miniCtx.clearRect(0, 0, width, height);
-    miniCtx.fillStyle = "#dff5df";
+    miniCtx.fillStyle = "#cfeedd";
     miniCtx.fillRect(0, 0, width, height);
-    miniCtx.globalAlpha = .8;
+    miniCtx.globalAlpha = 1;
     miniCtx.imageSmoothingEnabled = true;
     miniCtx.imageSmoothingQuality = "high";
     miniCtx.drawImage(territoryLayer, 0, 0, width, height);
