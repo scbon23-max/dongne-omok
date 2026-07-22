@@ -17,10 +17,18 @@ window.TerritoryRush = (function () {
   var START_COUNTDOWN_MS = 3000;
   var INPUT_ACK_RETRY_MS = 850;
   var INPUT_ACK_MAX_ATTEMPTS = 3;
-  var PREDICTION_MAX_MS = FRAME_MS + 100;
+  var PREDICTION_MAX_MS = 1200;
+  var MIN_FRAME_MS = 200;
+  var VISUAL_CATCHUP_SPEED_MULTIPLIER = 3;
   var SPEED = 8.88;
   var TURN_SPEED = Math.PI * 4;
   var ARENA_INSET = .9;
+  var PLAYABLE_MIN_X = Math.ceil(ARENA_INSET);
+  var PLAYABLE_MAX_X = Math.floor(WORLD_W - ARENA_INSET);
+  var PLAYABLE_MIN_Y = Math.ceil(ARENA_INSET);
+  var PLAYABLE_MAX_Y = Math.floor(WORLD_H - ARENA_INSET);
+  var PLAYABLE_CELL_COUNT = (PLAYABLE_MAX_X - PLAYABLE_MIN_X) * (PLAYABLE_MAX_Y - PLAYABLE_MIN_Y);
+  var ARENA_BOUNDARY_COLOR = "#31576a";
   var TRAIL_WIDTH = .64;
   var TRAIL_COLLISION_RADIUS = TRAIL_WIDTH / 2;
   var TRAIL_HEAD_GRACE = TRAIL_COLLISION_RADIUS * Math.SQRT2 + .08;
@@ -161,6 +169,12 @@ window.TerritoryRush = (function () {
     if (sample < authorityClockOffset) authorityClockOffset = sample;
     else authorityClockOffset += (sample - authorityClockOffset) * .05;
   }
+  function authoritativeTimelineAt(transport) {
+    var now = nowMs();
+    if (!transport || !hasAuthorityClock || String(transport.sessionId || "").slice(0, 96) !== authorityClockSessionId
+        || !Number.isFinite(Number(transport.sentAt))) return now;
+    return clamp(Number(transport.sentAt) + authorityClockOffset, now - PREDICTION_MAX_MS, now);
+  }
   function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
   function has(list, value) { return Array.isArray(list) && list.indexOf(value) >= 0; }
   function safeNick(value) { return String(value == null ? "" : value).trim().slice(0, 20); }
@@ -208,6 +222,23 @@ window.TerritoryRush = (function () {
   function cellIndex(x, y) { return y * WORLD_W + x; }
   function inside(x, y) { return x >= 0 && x < WORLD_W && y >= 0 && y < WORLD_H; }
   function cellKey(x, y) { return cellIndex(Math.floor(x), Math.floor(y)); }
+  function isPlayableCell(x, y) {
+    return x >= PLAYABLE_MIN_X && x < PLAYABLE_MAX_X && y >= PLAYABLE_MIN_Y && y < PLAYABLE_MAX_Y;
+  }
+  function clearBoundaryOwnerCells(map) {
+    if (!map || map.length !== CELL_COUNT) return 0;
+    var cleared = 0;
+    for (var y = 0; y < WORLD_H; y++) {
+      for (var x = 0; x < WORLD_W; x++) {
+        var key = cellIndex(x, y);
+        if (!isPlayableCell(x, y) && map[key] !== -1) {
+          map[key] = -1;
+          cleared++;
+        }
+      }
+    }
+    return cleared;
+  }
   function me() { return api ? api.me() : { nick: "", isAdmin: false }; }
   function people() { return api ? api.roster() : []; }
   function orderedPeople() {
@@ -418,12 +449,24 @@ window.TerritoryRush = (function () {
     });
   }
 
-  function mergeVisualPlayers() {
+  function shouldResetVisualPlayer(previous, player) {
+    if (!previous || !player) return false;
+    return Number(previous.deathSeq) !== Number(player.deathSeq)
+      || !!previous.deadUntil !== !!player.deadUntil
+      || !!previous.retired !== !!player.retired
+      || !!previous.away !== !!player.away;
+  }
+
+  function mergeVisualPlayers(previousPlayers) {
     var keep = Object.create(null);
+    var previousByNick = Object.create(null);
+    (previousPlayers || []).forEach(function (player) {
+      if (player && player.nick) previousByNick[player.nick] = player;
+    });
     state.players.forEach(function (player) {
       var key = player.nick;
       keep[key] = true;
-      if (!visualPlayers[key]) {
+      if (!visualPlayers[key] || shouldResetVisualPlayer(previousByNick[key], player)) {
         visualPlayers[key] = {
           x: player.x,
           y: player.y,
@@ -469,10 +512,18 @@ window.TerritoryRush = (function () {
     blocked.fill(0);
     visited.fill(0);
     var i;
-    for (i = 0; i < map.length; i++) if (map[i] === playerId) blocked[i] = 1;
+    for (i = 0; i < map.length; i++) {
+      var mapX = i % WORLD_W;
+      var mapY = Math.floor(i / WORLD_W);
+      if (!isPlayableCell(mapX, mapY)) {
+        map[i] = -1;
+        visited[i] = 1;
+      } else if (map[i] === playerId) blocked[i] = 1;
+    }
     for (i = 0; i < trail.length; i++) {
       var trailKey = trail[i];
-      if (trailKey >= 0 && trailKey < map.length) blocked[trailKey] = 1;
+      if (trailKey >= 0 && trailKey < map.length
+          && isPlayableCell(trailKey % WORLD_W, Math.floor(trailKey / WORLD_W))) blocked[trailKey] = 1;
     }
     var head = 0;
     var tail = 0;
@@ -482,13 +533,13 @@ window.TerritoryRush = (function () {
       visited[index] = 1;
       queue[tail++] = index;
     }
-    for (i = 0; i < WORLD_W; i++) {
-      addEdge(i, 0);
-      addEdge(i, WORLD_H - 1);
+    for (i = PLAYABLE_MIN_X; i < PLAYABLE_MAX_X; i++) {
+      addEdge(i, PLAYABLE_MIN_Y);
+      addEdge(i, PLAYABLE_MAX_Y - 1);
     }
-    for (i = 0; i < WORLD_H; i++) {
-      addEdge(0, i);
-      addEdge(WORLD_W - 1, i);
+    for (i = PLAYABLE_MIN_Y; i < PLAYABLE_MAX_Y; i++) {
+      addEdge(PLAYABLE_MIN_X, i);
+      addEdge(PLAYABLE_MAX_X - 1, i);
     }
     while (head < tail) {
       var index = queue[head++];
@@ -514,7 +565,8 @@ window.TerritoryRush = (function () {
     }
     var gained = 0;
     for (i = 0; i < map.length; i++) {
-      if (!visited[i] && map[i] !== playerId) {
+      if (!visited[i] && map[i] !== playerId
+          && isPlayableCell(i % WORLD_W, Math.floor(i / WORLD_W))) {
         map[i] = playerId;
         gained++;
       }
@@ -529,7 +581,7 @@ window.TerritoryRush = (function () {
     var changed = false;
     for (var y = cy - BASE_RADIUS; y <= cy + BASE_RADIUS; y++) {
       for (var x = cx - BASE_RADIUS; x <= cx + BASE_RADIUS; x++) {
-        if (inside(x, y) && (x - cx) * (x - cx) + (y - cy) * (y - cy) <= BASE_RADIUS * BASE_RADIUS) {
+        if (isPlayableCell(x, y) && (x - cx) * (x - cx) + (y - cy) * (y - cy) <= BASE_RADIUS * BASE_RADIUS) {
           var key = cellIndex(x, y);
           if (owner[key] < 0 || (overwrite && owner[key] !== player.id)) {
             owner[key] = player.id;
@@ -1465,6 +1517,7 @@ window.TerritoryRush = (function () {
         contributions[previousId][nextId] = (contributions[previousId][nextId] || 0) + 1;
       }
     }
+    clearBoundaryOwnerCells(nextOwner);
     pruneDisconnectedTerritories(nextOwner, proposalTerritoryAnchors(proposals));
 
     var hadTerritory = new Uint8Array(MAX_PLAYERS);
@@ -1576,7 +1629,7 @@ window.TerritoryRush = (function () {
         nick: player.nick,
         bot: player.bot,
         kills: player.kills,
-        area: (counts[player.id] || 0) / CELL_COUNT * 100,
+        area: (counts[player.id] || 0) / PLAYABLE_CELL_COUNT * 100,
         active: !player.retired && !player.away
       };
     }).sort(function (a, b) {
@@ -1623,11 +1676,20 @@ window.TerritoryRush = (function () {
     if (api && api.roomChanged) api.roomChanged();
   }
 
+  function frameIntervalMs(playerCount) {
+    var count = Math.max(0, Math.floor(Number(playerCount == null ? state.players.length : playerCount) || 0));
+    if (count <= 4) return MIN_FRAME_MS;
+    return Math.min(FRAME_MS, MIN_FRAME_MS + (count - 4) * 50);
+  }
+
   function broadcastFull(to) {
     if (!api || !api.isHost()) return;
-    api.send({ t: "tr_state", by: me().nick, to: to || "", state: snapshot(true) });
-    lastFrameSentAt = nowMs();
-    lastFullSentAt = lastFrameSentAt;
+    to = safeNick(to);
+    api.send({ t: "tr_state", by: me().nick, to: to, state: snapshot(true) });
+    if (!to) {
+      lastFrameSentAt = nowMs();
+      lastFullSentAt = lastFrameSentAt;
+    }
   }
 
   function broadcastFrame(now) {
@@ -1644,14 +1706,40 @@ window.TerritoryRush = (function () {
   }
 
   function applyFull(raw, sourceHost) {
+    var transport = arguments.length > 2 ? arguments[2] : null;
     var parsed = sanitizeState(raw, true);
     if (!parsed) return false;
+    clearBoundaryOwnerCells(parsed.owner);
     sourceHost = safeNick(sourceHost);
     var hostChanged = !!sourceHost && sourceHost !== authoritativeHost;
     var matchChanged = parsed.state.matchId !== state.matchId;
     var resetVisualTimeline = hostChanged || matchChanged || parsed.state.frameSeq < state.frameSeq;
     if (state.matchId && parsed.state.matchId === state.matchId && parsed.state.rev < state.rev
         && !authorityYielded && !hostChanged) return false;
+    if (state.matchId && !matchChanged && parsed.state.rev === state.rev
+        && parsed.state.frameSeq < state.frameSeq && parsed.state.ownerRev <= state.ownerRev
+        && !authorityYielded && !hostChanged) return false;
+    if (state.matchId && !matchChanged && parsed.state.rev === state.rev
+        && parsed.state.frameSeq < state.frameSeq && parsed.state.ownerRev > state.ownerRev
+        && !authorityYielded && !hostChanged) {
+      if (state.phase === "playing" && parsed.state.phase === "playing") {
+        queueCaptureParticles(owner, parsed.owner, nowMs());
+      }
+      owner.set(parsed.owner);
+      state.ownerRev = parsed.state.ownerRev;
+      if (wantedOwnerRev <= state.ownerRev) {
+        wantedOwnerRev = state.ownerRev;
+        ownerSyncMissingSince = 0;
+        needsAuthoritySync = false;
+        syncRequestedAt = 0;
+      }
+      ownerLayerDirty = true;
+      countsRev = -1;
+      syncHostEligibility();
+      render();
+      return true;
+    }
+    var previousPlayers = state.players;
     syncRemoteDeathCues(state, parsed.state);
     if (!matchChanged && state.phase === "playing" && parsed.state.phase === "playing") {
       queueCaptureParticles(owner, parsed.owner, nowMs());
@@ -1675,7 +1763,7 @@ window.TerritoryRush = (function () {
       }
     }
     state = parsed.state;
-    lastAuthoritativeAt = nowMs();
+    lastAuthoritativeAt = authoritativeTimelineAt(transport);
     if (resetVisualTimeline) lastPredictionAt = 0;
     if (resetVisualTimeline && !matchChanged) {
       visualTrails = Object.create(null);
@@ -1692,7 +1780,7 @@ window.TerritoryRush = (function () {
     ownerLayerDirty = true;
     countsRev = -1;
     rebuildTrailOwner();
-    mergeVisualPlayers();
+    mergeVisualPlayers(previousPlayers);
     acknowledgeLocalInput();
     syncHostEligibility();
     if (hostChanged && !matchChanged) queueDesiredInputForNewHost();
@@ -1701,6 +1789,7 @@ window.TerritoryRush = (function () {
   }
 
   function applyFrame(raw, sourceHost) {
+    var transport = arguments.length > 2 ? arguments[2] : null;
     var parsed = sanitizeState(raw, false);
     if (!parsed) return false;
     if (state.matchId && parsed.state.matchId !== state.matchId) { requestSync(); return false; }
@@ -1714,13 +1803,14 @@ window.TerritoryRush = (function () {
     var hostChanged = !!sourceHost && sourceHost !== authoritativeHost;
     parsed.state.ownerRev = state.ownerRev;
     syncRemoteDeathCues(state, parsed.state);
+    var previousPlayers = state.players;
     state = parsed.state;
-    lastAuthoritativeAt = nowMs();
+    lastAuthoritativeAt = authoritativeTimelineAt(transport);
     if (sourceHost) authoritativeHost = sourceHost;
     syncHostEligibility();
     if (hostChanged) queueDesiredInputForNewHost();
     rebuildTrailOwner();
-    mergeVisualPlayers();
+    mergeVisualPlayers(previousPlayers);
     acknowledgeLocalInput();
     render();
     return true;
@@ -2017,12 +2107,13 @@ window.TerritoryRush = (function () {
     if (!active || !api || !api.isHost() || state.phase !== "playing") return;
     if ((api.isConnected && !api.isConnected()) || authorityYielded || needsAuthoritySync) return;
     var now = nowMs();
+    var frameInterval = frameIntervalMs();
     if (wantedOwnerRev > state.ownerRev) {
       if (ownerSyncMissingSince && now - ownerSyncMissingSince >= OWNER_RECOVERY_MS) recoverMissingOwner();
       return;
     }
     if (state.startAt && now < state.startAt) {
-      if (now - lastFrameSentAt >= FRAME_MS) broadcastFrame(now);
+      if (now - lastFrameSentAt >= frameInterval) broadcastFrame(now);
       return;
     }
     if (now >= state.deadline) { hostFinish(); return; }
@@ -2036,7 +2127,7 @@ window.TerritoryRush = (function () {
       }
       return;
     }
-    if (now - lastFrameSentAt >= FRAME_MS) {
+    if (now - lastFrameSentAt >= frameInterval) {
       broadcastFrame(now);
     }
   }
@@ -2072,12 +2163,12 @@ window.TerritoryRush = (function () {
       case "tr_state":
         if (!api || api.isHost() || !trustedHostTransport(message, transport)) return true;
         syncAuthorityClock(transport);
-        applyFull(message.state, message.by);
+        applyFull(message.state, message.by, transport);
         return true;
       case "tr_frame":
         if (!api || api.isHost() || !trustedHostTransport(message, transport)) return true;
         syncAuthorityClock(transport);
-        applyFrame(message.state, message.by);
+        applyFrame(message.state, message.by, transport);
         return true;
       case "tr_input":
         if (!api || !api.isHost() || message.matchId !== state.matchId || message.by !== message.nick
@@ -2295,15 +2386,16 @@ window.TerritoryRush = (function () {
     var titleText = "잠시 후 다시 출발해요";
     var detailText = "";
     if (reason === "cut") {
-      titleText = "꼬리가 끊어졌어요";
-      detailText = mine.deathBy ? mine.deathBy + "님이 내 꼬리를 끊었어요" : "다른 선수가 내 꼬리를 끊었어요";
+      titleText = "이동선이 끊어졌어요";
+      detailText = mine.deathBy ? mine.deathBy + "님이 캐릭터 뒤의 이동선에 닿았어요" : "다른 선수가 캐릭터 뒤의 이동선에 닿았어요";
     } else if (reason === "self") {
-      titleText = "내 꼬리를 밟았어요";
+      titleText = "내 이동선을 다시 밟았어요";
+      detailText = "내 땅으로 돌아가기 전에는 캐릭터 뒤의 색 선을 피하세요";
     } else if (reason === "territory") {
       titleText = "영역을 모두 빼앗겼어요";
       detailText = mine.deathBy ? mine.deathBy + "님이 마지막 땅을 차지했어요" : "새로운 땅에서 다시 시작해요";
     } else if (reason === "limit") {
-      titleText = "꼬리가 너무 길어 안전 귀환해요";
+      titleText = "이동선이 너무 길어 안전 귀환해요";
       detailText = "다음에는 조금 일찍 내 땅으로 돌아오세요";
     } else if (reason === "waiting") {
       titleText = "안전한 위치를 찾고 있어요";
@@ -2349,12 +2441,12 @@ window.TerritoryRush = (function () {
       var focusArea = $("territory-focus-area");
       if (focusDot) focusDot.style.background = COLORS[focused.id];
       if (focusName) focusName.textContent = focused.nick;
-      if (focusArea) focusArea.textContent = ((counts[focused.id] || 0) / CELL_COUNT * 100).toFixed(1) + "%";
+      if (focusArea) focusArea.textContent = ((counts[focused.id] || 0) / PLAYABLE_CELL_COUNT * 100).toFixed(1) + "%";
     }
     var myDot = $("territory-my-dot");
     if (myDot && mine) myDot.style.background = COLORS[mine.id];
     var area = $("territory-area");
-    if (area) area.textContent = mine ? ((counts[mine.id] || 0) / CELL_COUNT * 100).toFixed(1) + "%" : "0.0%";
+    if (area) area.textContent = mine ? ((counts[mine.id] || 0) / PLAYABLE_CELL_COUNT * 100).toFixed(1) + "%" : "0.0%";
     var count = $("territory-people-count");
     if (count) count.textContent = String(activePeople().length);
     renderCountdown(now);
@@ -2512,10 +2604,10 @@ window.TerritoryRush = (function () {
     territoryCtx.globalAlpha = 1;
     for (var y = 0; y < WORLD_H; y++) {
       for (var x = 0; x < WORLD_W;) {
-        var id = owner[cellIndex(x, y)];
+        var id = isPlayableCell(x, y) ? owner[cellIndex(x, y)] : -1;
         if (id < 0) { x++; continue; }
         var startX = x;
-        while (x < WORLD_W && owner[cellIndex(x, y)] === id) x++;
+        while (x < WORLD_W && isPlayableCell(x, y) && owner[cellIndex(x, y)] === id) x++;
         territoryCtx.fillStyle = TERRITORY_COLORS[id] || COLORS[id];
         territoryCtx.fillRect(startX * s, y * s, (x - startX) * s, s);
       }
@@ -2535,6 +2627,19 @@ window.TerritoryRush = (function () {
     ctx.drawImage(territoryLayer, sourceX, sourceY, worldWidth * LAYER_SCALE, worldHeight * LAYER_SCALE, 0, 0, view.width, view.height);
   }
 
+  function fillArenaOutside(targetCtx, left, top, right, bottom, width, height) {
+    if (!targetCtx) return;
+    var innerLeft = clamp(Math.min(left, right), 0, width);
+    var innerRight = clamp(Math.max(left, right), 0, width);
+    var innerTop = clamp(Math.min(top, bottom), 0, height);
+    var innerBottom = clamp(Math.max(top, bottom), 0, height);
+    targetCtx.fillStyle = ARENA_BOUNDARY_COLOR;
+    targetCtx.fillRect(0, 0, width, innerTop);
+    targetCtx.fillRect(0, innerBottom, width, Math.max(0, height - innerBottom));
+    targetCtx.fillRect(0, innerTop, innerLeft, Math.max(0, innerBottom - innerTop));
+    targetCtx.fillRect(innerRight, innerTop, Math.max(0, width - innerRight), Math.max(0, innerBottom - innerTop));
+  }
+
   function drawArenaBoundary(view) {
     var left = screenX(ARENA_INSET, view);
     var top = screenY(ARENA_INSET, view);
@@ -2542,6 +2647,7 @@ window.TerritoryRush = (function () {
     var bottom = screenY(WORLD_H - ARENA_INSET, view);
     ctx.save();
     ctx.globalAlpha = 1;
+    fillArenaOutside(ctx, left, top, right, bottom, view.width, view.height);
     ctx.strokeStyle = "#31576a";
     ctx.lineWidth = Math.max(2.5, Math.min(4, view.scale * .28));
     ctx.lineJoin = "round";
@@ -2956,15 +3062,18 @@ window.TerritoryRush = (function () {
     return predictedPlayerPose(player, elapsed, target);
   }
 
+  function visualPositionBlend(dx, dy, baseBlend, frameDelta) {
+    var distance = Math.sqrt(dx * dx + dy * dy);
+    if (!distance) return 0;
+    baseBlend = clamp(Number(baseBlend) || 0, 0, 1);
+    var maxStep = SPEED * clamp(Number(frameDelta) || 0, 8, 80) / 1000 * VISUAL_CATCHUP_SPEED_MULTIPLIER;
+    return Math.min(baseBlend, maxStep / distance);
+  }
+
   function paint() {
     if (!active || !ctx || !canvas) return;
-    var view = viewInfo();
     var now = nowMs();
     var authoritativeNow = gameNow();
-    ctx.clearRect(0, 0, view.width, view.height);
-    drawArena(view);
-    drawTerritories(view);
-    drawArenaBoundary(view);
     var frameDelta = lastPredictionAt ? clamp(now - lastPredictionAt, 8, 80) : 32;
     var blend = 1 - Math.pow(.76, frameDelta / 32);
     lastPredictionAt = now;
@@ -2973,14 +3082,18 @@ window.TerritoryRush = (function () {
       var target = visualTargetFor(player, now);
       var dx = target.x - visual.x;
       var dy = target.y - visual.y;
-      var distanceSquared = dx * dx + dy * dy;
-      var positionBlend = distanceSquared > 144 ? 1 : (distanceSquared > 36 ? Math.max(blend, .55) : blend);
+      var positionBlend = visualPositionBlend(dx, dy, blend, frameDelta);
       visual.x += dx * positionBlend;
       visual.y += dy * positionBlend;
       var playerAngle = target.angle;
       if (!validAngle(visual.angle)) visual.angle = playerAngle;
-      visual.angle = normalizeAngle(visual.angle + angleDelta(visual.angle, playerAngle) * positionBlend);
+      visual.angle = normalizeAngle(visual.angle + angleDelta(visual.angle, playerAngle) * blend);
     });
+    var view = viewInfo();
+    ctx.clearRect(0, 0, view.width, view.height);
+    drawArena(view);
+    drawTerritories(view);
+    drawArenaBoundary(view);
     state.players.forEach(function (player) { drawTrail(player, view); });
     drawCaptureParticles(view, now);
     state.players.forEach(function (player) { drawPlayer(player, view, authoritativeNow); });
@@ -2998,6 +3111,14 @@ window.TerritoryRush = (function () {
     miniCtx.imageSmoothingEnabled = false;
     miniCtx.drawImage(territoryLayer, 0, 0, width, height);
     miniCtx.globalAlpha = 1;
+    var miniLeft = ARENA_INSET / WORLD_W * width;
+    var miniTop = ARENA_INSET / WORLD_H * height;
+    var miniRight = (WORLD_W - ARENA_INSET) / WORLD_W * width;
+    var miniBottom = (WORLD_H - ARENA_INSET) / WORLD_H * height;
+    fillArenaOutside(miniCtx, miniLeft, miniTop, miniRight, miniBottom, width, height);
+    miniCtx.strokeStyle = ARENA_BOUNDARY_COLOR;
+    miniCtx.lineWidth = 1;
+    miniCtx.strokeRect(miniLeft, miniTop, miniRight - miniLeft, miniBottom - miniTop);
     var focus = cameraFocusPlayer();
     for (var i = 0; i < state.players.length; i++) {
       var player = state.players[i];
@@ -3056,6 +3177,13 @@ window.TerritoryRush = (function () {
     $("territory-people-btn").addEventListener("click", function () { if (api && api.openPlayers) api.openPlayers(); });
     $("territory-leave-btn").addEventListener("click", function () { if (api && api.leaveRoom) api.leaveRoom(); });
     $("territory-menu-btn").addEventListener("click", function () { if (api && api.openMenu) api.openMenu(); });
+    ["territory-lobby-rules-btn", "territory-finished-rules-btn"].forEach(function (id) {
+      var button = $(id);
+      if (button) button.addEventListener("click", function () {
+        if (api && api.openRules) api.openRules();
+        else if (api && api.openMenu) api.openMenu();
+      });
+    });
     $("territory-role-btn").addEventListener("click", toggleRole);
     $("territory-finished-role-btn").addEventListener("click", toggleRole);
     $("territory-ready-btn").addEventListener("click", toggleReady);
@@ -3341,14 +3469,62 @@ window.TerritoryRush = (function () {
   function rules() {
     return {
       title: "땅따먹기 규칙",
-      html: '<p class="rule-intro">선을 그리듯 달려서 <b>내 색의 영역을 가장 많이 만드는 게임</b>입니다.</p>'
-        + '<p class="rule-foot" style="text-align:left;line-height:1.8">'
-        + '· 화면을 원하는 방향으로 밀어 이동 방향을 바꿉니다.<br>'
-        + '· 내 땅 밖으로 나갔다가 <b>다시 내 땅으로 돌아오면</b> 둘러싼 곳이 내 영역이 됩니다.<br>'
-        + '· 밖에 나온 꼬리를 상대가 건드리면 영역을 잃고 잠시 뒤 다시 출발합니다.<br>'
-        + '· 내 꼬리를 내가 밟거나 경기장 밖으로 나가도 다시 출발합니다.<br>'
-        + '· 제한시간 <b>90초</b>가 끝났을 때 영역 비율이 가장 높은 사람이 승리합니다.<br>'
-        + '· 혼자 시작하면 AI 3명이 함께 연습 경기를 합니다.</p>'
+      html: '<div class="territory-rules">'
+        + '<p class="rule-intro">내 색의 땅에서 출발해 바깥을 돌고 돌아오세요. <b>90초 동안 땅을 가장 넓게 만든 사람</b>이 이깁니다.</p>'
+        + '<div class="territory-rule-cards">'
+        + '<section class="territory-rule-card">'
+        + '<svg viewBox="0 0 150 104" aria-hidden="true" focusable="false">'
+        + '<rect x="11" y="8" width="128" height="88" rx="13" fill="#e5f5ef" stroke="#b8ddd1" stroke-width="3"/>'
+        + '<circle cx="60" cy="63" r="10" fill="#fff" stroke="#173747" stroke-width="4"/>'
+        + '<path d="M67 56 C83 40 98 29 119 19" fill="none" stroke="#ff735f" stroke-width="6" stroke-linecap="round"/>'
+        + '<path d="M107 18 l13 1 -4 12" fill="none" stroke="#ff735f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '<circle cx="42" cy="79" r="9" fill="#ffd7c7" stroke="#e69d7f" stroke-width="3"/>'
+        + '<path d="M45 73 l18 -18" stroke="#e69d7f" stroke-width="4" stroke-linecap="round" stroke-dasharray="3 5"/>'
+        + '<text x="77" y="86" fill="#47636e" font-size="10" font-weight="800">밀어 준 방향으로 이동</text>'
+        + '</svg>'
+        + '<div class="territory-rule-copy"><h3>1. 원하는 방향으로 밀기</h3><p>화면을 손가락으로 <b>밀어 준 방향</b>으로 계속 움직여요. 달리는 중에도 방향을 바꿀 수 있어요.</p></div>'
+        + '</section>'
+        + '<section class="territory-rule-card">'
+        + '<svg viewBox="0 0 150 104" aria-hidden="true" focusable="false">'
+        + '<rect x="5" y="14" width="55" height="76" rx="10" fill="#43cbae"/>'
+        + '<path d="M52 41 C83 11 132 20 132 52 C132 84 86 93 52 66 Z" fill="#bcefe4" stroke="#43cbae" stroke-width="3"/>'
+        + '<path d="M51 41 C84 12 132 22 132 52 C132 82 88 92 52 66" fill="none" stroke="#ff735f" stroke-width="5" stroke-linecap="round"/>'
+        + '<circle cx="52" cy="41" r="6" fill="#fff" stroke="#173747" stroke-width="3"/>'
+        + '<path d="M52 66 l-7 -4 m7 4 l-6 6" fill="none" stroke="#173747" stroke-width="2.5" stroke-linecap="round"/>'
+        + '</svg>'
+        + '<div class="territory-rule-copy"><h3>2. 밖으로 나갔다 돌아오기</h3><p>내 땅을 출발해 한 바퀴 돌고 <b>다시 내 땅으로 돌아오면</b>, 이동선으로 둘러싼 곳이 내 땅이 돼요.</p></div>'
+        + '</section>'
+        + '<section class="territory-rule-card">'
+        + '<svg viewBox="0 0 150 104" aria-hidden="true" focusable="false">'
+        + '<rect x="5" y="14" width="42" height="76" rx="10" fill="#43cbae"/>'
+        + '<path d="M43 68 C63 68 62 31 104 31" fill="none" stroke="#ff735f" stroke-width="6" stroke-linecap="round"/>'
+        + '<circle cx="109" cy="31" r="9" fill="#fff" stroke="#173747" stroke-width="4"/>'
+        + '<path d="M83 12 C83 29 82 48 82 67" fill="none" stroke="#6094f1" stroke-width="6" stroke-linecap="round"/>'
+        + '<circle cx="83" cy="12" r="8" fill="#fff" stroke="#2e65c5" stroke-width="4"/>'
+        + '<path d="M74 59 l16 16 M90 59 L74 75" stroke="#e94242" stroke-width="5" stroke-linecap="round"/>'
+        + '<text x="55" y="96" fill="#a23b2b" font-size="10" font-weight="800">캐릭터 뒤의 이동선</text>'
+        + '</svg>'
+        + '<div class="territory-rule-copy"><h3>3. 뒤에 생긴 선 지키기</h3><p>밖에 나간 동안 캐릭터 뒤에 이어지는 <b>색 선</b>을 상대가 건드리거나 내가 다시 밟으면 탈락해요.</p></div>'
+        + '</section>'
+        + '<section class="territory-rule-card">'
+        + '<svg viewBox="0 0 150 104" aria-hidden="true" focusable="false">'
+        + '<circle cx="35" cy="50" r="27" fill="#fff" stroke="#dce7eb" stroke-width="7"/>'
+        + '<path d="M35 50 L35 29 M35 50 L49 59" fill="none" stroke="#173747" stroke-width="5" stroke-linecap="round"/>'
+        + '<text x="23" y="91" fill="#173747" font-size="11" font-weight="900">90초</text>'
+        + '<rect x="75" y="58" width="17" height="30" rx="4" fill="#69a1f2"/>'
+        + '<rect x="98" y="40" width="17" height="48" rx="4" fill="#ff876f"/>'
+        + '<rect x="121" y="18" width="17" height="70" rx="4" fill="#43cbae"/>'
+        + '<path d="M125 12 l4 -7 4 7" fill="#ffd65a" stroke="#e5a51f" stroke-width="2"/>'
+        + '</svg>'
+        + '<div class="territory-rule-copy"><h3>4. 가장 넓으면 승리</h3><p>상대 땅도 둘러싸서 빼앗을 수 있어요. 시간이 끝났을 때 <b>영역 비율 1위</b>가 승리해요.</p></div>'
+        + '</section>'
+        + '</div>'
+        + '<p class="territory-tail-definition"><strong>‘꼬리’가 뭐예요?</strong><br>내 땅 밖을 달리는 동안 <b>캐릭터 뒤에 이어지는 색 이동선</b>을 뜻해요. 규칙에서는 헷갈리지 않게 ‘이동선’이라고 부를게요.</p>'
+        + '<ul class="territory-rule-notes">'
+        + '<li>진한 경기장 경계는 벽이에요. 벽 바깥은 땅으로 만들 수 없고, 벽에 닿으면 가장자리를 따라 움직여요.</li>'
+        + '<li>이동선이 끊기거나 내 땅을 모두 빼앗기면 잠시 뒤 빈 곳에서 다시 시작해요.</li>'
+        + '<li>혼자 시작하면 AI 3명과 연습해요.</li>'
+        + '</ul></div>'
     };
   }
 
@@ -3598,6 +3774,10 @@ window.TerritoryRush = (function () {
       encodeOwner: encodeOwner,
       decodeOwner: decodeOwner,
       captureInto: captureInto,
+      isPlayableCell: isPlayableCell,
+      clearBoundaryOwnerCells: clearBoundaryOwnerCells,
+      fillArenaOutside: fillArenaOutside,
+      rankRows: rankRows,
       pruneDisconnectedTerritories: pruneDisconnectedTerritories,
       sampleStolenCells: sampleStolenCells,
       queueCaptureParticles: queueCaptureParticles,
@@ -3635,8 +3815,11 @@ window.TerritoryRush = (function () {
       encodeVisualTrail: encodeVisualTrail,
       decodeVisualTrail: decodeVisualTrail,
       predictedPlayerPose: predictedPlayerPose,
+      visualPositionBlend: visualPositionBlend,
+      frameIntervalMs: frameIntervalMs,
       gameNow: gameNow,
       syncAuthorityClock: syncAuthorityClock,
+      authoritativeTimelineAt: authoritativeTimelineAt,
       normalizeAngle: normalizeAngle,
       angleDelta: angleDelta,
       reverseDirection: reverseDirection,
@@ -3649,6 +3832,8 @@ window.TerritoryRush = (function () {
       eliminate: eliminate,
       syncAudio: syncAudio,
       playDeathSfx: playDeathSfx,
+      broadcastFull: broadcastFull,
+      applyFull: applyFull,
       applyFrame: applyFrame,
       snapshot: snapshot,
       setApi: function (nextApi) { api = nextApi; },
@@ -3666,14 +3851,23 @@ window.TerritoryRush = (function () {
       getState: function () { return state; },
       getOwner: function () { return owner; },
       getTrailOwner: function () { return trailOwner; },
+      getBroadcastTimes: function () { return { frame: lastFrameSentAt, full: lastFullSentAt }; },
+      setBroadcastTimes: function (frame, full) {
+        lastFrameSentAt = Number(frame) || 0;
+        lastFullSentAt = Number(full) || 0;
+      },
       resetGrid: resetGrid,
       constants: {
         width: WORLD_W,
         height: WORLD_H,
         cells: CELL_COUNT,
+        playableCells: PLAYABLE_CELL_COUNT,
         matchMs: MATCH_MS,
         stepMs: STEP_MS,
         frameMs: FRAME_MS,
+        minFrameMs: MIN_FRAME_MS,
+        predictionMaxMs: PREDICTION_MAX_MS,
+        visualCatchupSpeedMultiplier: VISUAL_CATCHUP_SPEED_MULTIPLIER,
         fullMinMs: FULL_MIN_MS,
         inputSendMs: INPUT_SEND_MS,
         speed: SPEED,

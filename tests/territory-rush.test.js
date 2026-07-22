@@ -1416,5 +1416,5 @@ test("guest direction packets retry through the room until the host acknowledges
   assert.match(flushSource, /sendInitialInput\(message\);\s*scheduleInputRetry\(\);/);
   assert.match(retrySource, /sendRoomInput\(pending\.message\)/);
   assert.match(source, /player\.inputAck = seq;/);
-  assert.match(source, /mergeVisualPlayers\(\);\s*acknowledgeLocalInput\(\);/);
+  assert.match(source, /mergeVisualPlayers\([^)]*\);\s*acknowledgeLocalInput\(\);/);
 });

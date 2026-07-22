@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260722-land-grab-v11">
+<meta name="app-build" content="20260722-land-grab-v12">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -634,7 +634,10 @@
 
     <section id="territory-lobby" class="territory-panel territory-lobby">
       <div class="territory-panel-content">
-        <h2 id="territory-lobby-title">땅따먹기</h2>
+        <div class="territory-panel-head">
+          <h2 id="territory-lobby-title">땅따먹기</h2>
+          <button id="territory-lobby-rules-btn" class="territory-panel-rules-btn" type="button" aria-label="땅따먹기 규칙 보기">규칙</button>
+        </div>
 
         <div class="territory-lobby-guide">
           <div class="territory-lobby-route" aria-hidden="true"><span></span><i></i><span></span></div>
@@ -658,7 +661,10 @@
     <section id="territory-finished" class="territory-panel territory-finished hidden">
       <div class="territory-panel-content">
         <div class="territory-finished-scroll">
-          <h2 id="territory-finished-title">경기 결과</h2>
+          <div class="territory-panel-head">
+            <h2 id="territory-finished-title">경기 결과</h2>
+            <button id="territory-finished-rules-btn" class="territory-panel-rules-btn" type="button" aria-label="땅따먹기 규칙 보기">규칙</button>
+          </div>
           <div id="territory-finished-list" class="territory-finished-list"></div>
 
           <div class="territory-next-round">
@@ -882,10 +888,10 @@
 
 <!-- 규칙 모달 -->
 <div id="rules-modal" class="modal-overlay hidden">
-  <div class="modal">
-    <div class="modal-head"><h2 id="rules-title">렌주 오목 규칙</h2><button class="modal-close" data-close>✕</button></div>
+  <div class="modal rules-dialog" role="dialog" aria-modal="true" aria-labelledby="rules-title">
+    <div class="modal-head"><h2 id="rules-title">렌주 오목 규칙</h2><button class="modal-close" type="button" data-close aria-label="규칙 닫기">✕</button></div>
     <div class="modal-body" id="rules-body"></div>
-    <button class="btn-primary modal-ok" data-close>확인</button>
+    <button class="btn-primary modal-ok" type="button" data-close>확인</button>
   </div>
 </div>
 

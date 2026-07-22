@@ -277,7 +277,7 @@ test("Territory Rush is wired as an owner-only non-ranked controller game", () =
   assert.match(styles, /\.territory-panel\s*\{[\s\S]*inset:\s*0;[\s\S]*width:\s*100%;[\s\S]*height:\s*100%;[\s\S]*border-radius:\s*0;/);
   assert.match(styles, /\.territory-panel-content\s*\{[^}]*flex:\s*0 0 auto;[^}]*margin:\s*auto 0;/);
   assert.doesNotMatch(index, /territory-lobby-art|territory-kicker|영역 넓히기/);
-  assert.doesNotMatch(index, /id="territory-(?:rules-btn|event|risk)"/);
+  assert.doesNotMatch(index, /id="territory-(?:event|risk)"/);
   assert.doesNotMatch(territoryRush, /function announce\(|territory-event|territory-risk/);
   assert.match(styles, /\.territory-time\s*\{[^}]*right:\s*max\(8px, env\(safe-area-inset-right\)\);[^}]*height:\s*34px;[^}]*border:\s*1px solid var\(--territory-ui-line\);[^}]*border-radius:\s*8px;[^}]*background:\s*var\(--territory-ui-bg\);[^}]*box-shadow:\s*0 4px 14px rgba\(0,0,0,\.2\);/);
   assert.match(styles, /\.territory-minimap-shell\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/);
