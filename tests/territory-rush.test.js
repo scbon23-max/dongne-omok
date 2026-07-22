@@ -130,6 +130,41 @@ test("diagonal movement keeps trail cells connected for territory capture", () =
   assert.equal(Math.abs(bridge.x - end.x) + Math.abs(bridge.y - end.y), 1);
 });
 
+test("trail collision follows the visible diagonal instead of its bridge cell", () => {
+  const diagonal = [{ x: 20, y: 20 }, { x: 24, y: 24 }];
+  const radius = engine.constants.trailCollisionRadius;
+
+  assert.equal(engine.movementHitsTrail(21.2, 20.2, 21.7, 20.7, diagonal, 0, radius), false);
+  assert.equal(engine.movementHitsTrail(21.2, 20.95, 21.7, 21.45, diagonal, 0, radius), true);
+});
+
+test("trail collision uses the same width as the rendered path", () => {
+  const trail = [{ x: 0, y: 0 }, { x: 4, y: 0 }];
+  const radius = engine.constants.trailCollisionRadius;
+
+  assert.equal(radius, engine.constants.trailWidth / 2);
+  assert.equal(engine.movementHitsTrail(0, 0.31, 4, 0.31, trail, 0, radius), true);
+  assert.equal(engine.movementHitsTrail(0, 0.33, 4, 0.33, trail, 0, radius), false);
+  assert.equal(engine.movementHitsTrail(2, -1, 2, 1, trail, 0, radius), true);
+});
+
+test("the attached trail head is safe but reversing into the settled trail still collides", () => {
+  const trail = [{ x: 0, y: 0 }, { x: 5, y: 0 }];
+  const grace = engine.constants.trailHeadGrace;
+
+  assert.equal(engine.movementHitsTrail(5, 0, 5.4, 0, trail, grace), false);
+  assert.equal(engine.movementHitsTrail(5, 0, 4.6, 0, trail, grace), true);
+});
+
+test("capture bridge cells no longer act as whole-cell death zones", () => {
+  const enterCellSource = source.match(/function enterPlayerCell\(player, key, now\) \{([\s\S]*?)\n  \}\n\n  function advancePlayer/)[1];
+  const advanceSource = source.match(/function advancePlayer\(player, dt, now\) \{([\s\S]*?)\n  \}\n\n  function territoryCounts/)[1];
+
+  assert.doesNotMatch(enterCellSource, /trailId|eliminate\(/);
+  assert.doesNotMatch(enterCellSource, /else if \(trailOwner/);
+  assert.match(advanceSource, /resolveTrailCollisions\(player, fromX, fromY, nx, ny, now\)/);
+});
+
 test("continuous visual trails stay straight without rewriting their settled prefix", () => {
   const points = [];
   for (let step = 0; step <= 40; step++) {
@@ -273,7 +308,13 @@ test("territories and trails render as bright flat colors without outlines", () 
   const territoryLayerSource = source.match(/function rebuildTerritoryLayer\(\) \{([\s\S]*?)\n  \}\n\n  function drawTerritories/)[1];
   assert.match(territoryLayerSource, /territoryCtx\.globalAlpha = 1/);
   assert.match(territoryLayerSource, /territoryCtx\.fillStyle = TERRITORY_COLORS/);
+  assert.match(territoryLayerSource, /fillRect\(startX \* s, y \* s, \(x - startX\) \* s, s\)/);
+  assert.doesNotMatch(territoryLayerSource, /s \+ \.5/);
   assert.doesNotMatch(territoryLayerSource, /stroke|shadow/i);
+
+  const drawTerritoriesSource = source.match(/function drawTerritories\(view\) \{([\s\S]*?)\n  \}\n\n  function pointDistanceToSegmentSquared/)[1];
+  assert.match(drawTerritoriesSource, /ctx\.imageSmoothingEnabled = false/);
+  assert.doesNotMatch(drawTerritoriesSource, /imageSmoothingQuality/);
 
   const trailSource = source.match(/function drawTrail\(player, view\) \{([\s\S]*?)\n  \}\n\n  function drawPlayer/)[1];
   assert.match(trailSource, /ctx\.strokeStyle = TERRITORY_COLORS\[player\.id\]/);
@@ -283,7 +324,8 @@ test("territories and trails render as bright flat colors without outlines", () 
   assert.match(trailSource, /ctx\.lineTo/);
 
   const minimapSource = source.match(/function paintMinimap\(\) \{([\s\S]*?)\n  \}\n\n  function renderLoop/)[1];
-  assert.match(minimapSource, /miniCtx\.globalAlpha = 1;\s*miniCtx\.imageSmoothingEnabled[\s\S]*?miniCtx\.drawImage\(territoryLayer/);
+  assert.match(minimapSource, /miniCtx\.globalAlpha = 1;\s*miniCtx\.imageSmoothingEnabled = false;\s*miniCtx\.drawImage\(territoryLayer/);
+  assert.doesNotMatch(minimapSource, /imageSmoothingQuality/);
 });
 
 test("worst-case territory and trail snapshots stay compact", () => {

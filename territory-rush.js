@@ -12,6 +12,9 @@ window.TerritoryRush = (function () {
   var RESPAWN_MS = 1800;
   var SPEED = 7.4;
   var TURN_SPEED = Math.PI * 4;
+  var TRAIL_WIDTH = .64;
+  var TRAIL_COLLISION_RADIUS = TRAIL_WIDTH / 2;
+  var TRAIL_HEAD_GRACE = TRAIL_COLLISION_RADIUS + .08;
   var TRAIL_SAMPLE_TOLERANCE = .06;
   var MAX_VISUAL_TRAIL_POINTS = 180;
   var VISUAL_TRAIL_SCALE = 20;
@@ -497,7 +500,7 @@ window.TerritoryRush = (function () {
     if (gained > 0) announce(MASCOTS[player.id] + " " + player.nick + " · 영역 확장!", 1500);
   }
 
-  function eliminate(player, attacker, now) {
+  function eliminate(player, attacker, now, reason) {
     if (!player || player.deadUntil || player.retired) return;
     clearTerritory(player.id);
     clearTrail(player);
@@ -506,9 +509,13 @@ window.TerritoryRush = (function () {
     if (attacker && attacker !== player) attacker.kills++;
     state.rev++;
     fullPending = true;
-    announce(attacker && attacker !== player
-      ? MASCOTS[attacker.id] + " " + attacker.nick + "이(가) 꼬리를 끊었어요!"
-      : MASCOTS[player.id] + " " + player.nick + "이(가) 다시 출발해요", 1700);
+    var message = MASCOTS[player.id] + " " + player.nick + "님이 자기 경로에 닿았어요!";
+    if (attacker && attacker !== player) {
+      message = MASCOTS[attacker.id] + " " + attacker.nick + "님이 " + player.nick + "님의 경로를 끊었어요!";
+    } else if (reason === "boundary") {
+      message = MASCOTS[player.id] + " " + player.nick + "님이 경기장 밖으로 나갔어요!";
+    }
+    announce(message, 1700);
   }
 
   function recallPlayer(player, now) {
@@ -519,7 +526,7 @@ window.TerritoryRush = (function () {
     player.lastCell = cellKey(player.x, player.y);
     player.deadUntil = now + RESPAWN_MS;
     state.rev++;
-    announce(MASCOTS[player.id] + " " + player.nick + " · 너무 멀리 나가 출발점으로 돌아왔어요", 1900);
+    announce(MASCOTS[player.id] + " " + player.nick + "님의 경로가 너무 길어 출발점으로 돌아갔어요!", 1900);
   }
 
   function respawn(player, now) {
@@ -580,20 +587,106 @@ window.TerritoryRush = (function () {
     return keys;
   }
 
+  function segmentsIntersect(startA, endA, startB, endB) {
+    var ax = endA.x - startA.x;
+    var ay = endA.y - startA.y;
+    var bx = endB.x - startB.x;
+    var by = endB.y - startB.y;
+    var aLengthSquared = ax * ax + ay * ay;
+    var bLengthSquared = bx * bx + by * by;
+    var epsilon = 1e-9;
+    if (aLengthSquared <= epsilon) return pointDistanceToSegmentSquared(startA, startB, endB) <= epsilon;
+    if (bLengthSquared <= epsilon) return pointDistanceToSegmentSquared(startB, startA, endA) <= epsilon;
+    var offsetX = startB.x - startA.x;
+    var offsetY = startB.y - startA.y;
+    var denominator = ax * by - ay * bx;
+    if (Math.abs(denominator) <= epsilon) {
+      if (Math.abs(offsetX * ay - offsetY * ax) > epsilon) return false;
+      var from = (offsetX * ax + offsetY * ay) / aLengthSquared;
+      var to = from + (bx * ax + by * ay) / aLengthSquared;
+      return Math.max(Math.min(from, to), 0) <= Math.min(Math.max(from, to), 1) + epsilon;
+    }
+    var amountA = (offsetX * by - offsetY * bx) / denominator;
+    var amountB = (offsetX * ay - offsetY * ax) / denominator;
+    return amountA >= -epsilon && amountA <= 1 + epsilon && amountB >= -epsilon && amountB <= 1 + epsilon;
+  }
+
+  function segmentDistanceSquared(startA, endA, startB, endB) {
+    if (segmentsIntersect(startA, endA, startB, endB)) return 0;
+    return Math.min(
+      pointDistanceToSegmentSquared(startA, startB, endB),
+      pointDistanceToSegmentSquared(endA, startB, endB),
+      pointDistanceToSegmentSquared(startB, startA, endA),
+      pointDistanceToSegmentSquared(endB, startA, endA)
+    );
+  }
+
+  function trailWithoutHead(points, excludedLength) {
+    if (!Array.isArray(points) || points.length < 2) return [];
+    var remaining = Math.max(0, Number(excludedLength) || 0);
+    for (var i = points.length - 1; i > 0; i--) {
+      var start = points[i - 1];
+      var end = points[i];
+      var dx = end.x - start.x;
+      var dy = end.y - start.y;
+      var length = Math.sqrt(dx * dx + dy * dy);
+      if (length <= remaining + 1e-9) {
+        remaining -= length;
+        continue;
+      }
+      var keptRatio = (length - remaining) / length;
+      var trimmed = points.slice(0, i);
+      trimmed.push({ x: start.x + dx * keptRatio, y: start.y + dy * keptRatio });
+      return trimmed.length >= 2 ? trimmed : [];
+    }
+    return [];
+  }
+
+  function movementHitsTrail(fromX, fromY, toX, toY, points, headGrace, radius) {
+    var collisionPoints = trailWithoutHead(points, headGrace);
+    if (collisionPoints.length < 2) return false;
+    var movementStart = { x: Number(fromX), y: Number(fromY) };
+    var movementEnd = { x: Number(toX), y: Number(toY) };
+    var hitRadius = isFinite(radius) ? Math.max(0, Number(radius)) : TRAIL_COLLISION_RADIUS;
+    var radiusSquared = hitRadius * hitRadius;
+    for (var i = 1; i < collisionPoints.length; i++) {
+      if (segmentDistanceSquared(movementStart, movementEnd, collisionPoints[i - 1], collisionPoints[i]) <= radiusSquared) return true;
+    }
+    return false;
+  }
+
+  function collisionTrailPoints(player) {
+    if (!player || !player.trail || !player.trail.length) return [];
+    var cache = visualTrails[player.nick] || syncVisualTrail(player);
+    return cache && cache.points ? cache.points : [];
+  }
+
+  function resolveTrailCollisions(player, fromX, fromY, toX, toY, now) {
+    var targetKey = cellKey(toX, toY);
+    if (player.trail.length && owner[targetKey] !== player.id
+        && movementHitsTrail(fromX, fromY, toX, toY, collisionTrailPoints(player), TRAIL_HEAD_GRACE)) {
+      eliminate(player, null, now, "self");
+      return false;
+    }
+    for (var i = 0; i < state.players.length; i++) {
+      var victim = state.players[i];
+      if (victim === player || victim.deadUntil || victim.retired || victim.away || !victim.trail.length) continue;
+      if (movementHitsTrail(fromX, fromY, toX, toY, collisionTrailPoints(victim), 0)) {
+        eliminate(victim, player, now, "cut");
+        break;
+      }
+    }
+    return !player.deadUntil;
+  }
+
   function enterPlayerCell(player, key, now) {
     player.lastCell = key;
-    var trailId = trailOwner[key];
-    if (trailId >= 0) {
-      var victim = playerById(trailId);
-      eliminate(victim, victim === player ? null : player, now);
-      if (victim === player || player.deadUntil) return false;
-    }
     if (owner[key] === player.id) {
       if (player.trail.length) capturePlayer(player);
-    } else if (trailOwner[key] < 0) {
+    } else {
       if (player.trail.length >= MAX_TRAIL) { recallPlayer(player, now); return false; }
       player.trail.push(key);
-      trailOwner[key] = player.id;
+      if (trailOwner[key] < 0) trailOwner[key] = player.id;
     }
     return !player.deadUntil;
   }
@@ -612,7 +705,8 @@ window.TerritoryRush = (function () {
     var fromY = player.y;
     var nx = fromX + Math.cos(player.angle) * SPEED * dt;
     var ny = fromY + Math.sin(player.angle) * SPEED * dt;
-    if (!inside(Math.floor(nx), Math.floor(ny))) { eliminate(player, null, now); return; }
+    if (!inside(Math.floor(nx), Math.floor(ny))) { eliminate(player, null, now, "boundary"); return; }
+    if (!resolveTrailCollisions(player, fromX, fromY, nx, ny, now)) return;
     player.x = nx;
     player.y = ny;
     var crossed = crossedCellKeys(fromX, fromY, nx, ny);
@@ -1209,7 +1303,7 @@ window.TerritoryRush = (function () {
         var startX = x;
         while (x < WORLD_W && owner[cellIndex(x, y)] === id) x++;
         territoryCtx.fillStyle = TERRITORY_COLORS[id] || COLORS[id];
-        territoryCtx.fillRect(startX * s, y * s, (x - startX) * s, s + .5);
+        territoryCtx.fillRect(startX * s, y * s, (x - startX) * s, s);
       }
     }
     territoryCtx.globalAlpha = 1;
@@ -1222,8 +1316,7 @@ window.TerritoryRush = (function () {
     var worldHeight = Math.min(WORLD_H, view.height / view.scale);
     var sourceX = clamp(view.cx - worldWidth / 2, 0, WORLD_W - worldWidth) * LAYER_SCALE;
     var sourceY = clamp(view.cy - worldHeight / 2, 0, WORLD_H - worldHeight) * LAYER_SCALE;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingEnabled = false;
     ctx.globalAlpha = 1;
     ctx.drawImage(territoryLayer, sourceX, sourceY, worldWidth * LAYER_SCALE, worldHeight * LAYER_SCALE, 0, 0, view.width, view.height);
   }
@@ -1444,7 +1537,7 @@ window.TerritoryRush = (function () {
       ctx.lineTo(screenX(point.x, view), screenY(point.y, view));
     }
     ctx.strokeStyle = TERRITORY_COLORS[player.id] || COLORS[player.id];
-    ctx.lineWidth = Math.max(5, view.scale * .64);
+    ctx.lineWidth = Math.max(5, view.scale * TRAIL_WIDTH);
     ctx.stroke();
   }
 
@@ -1535,8 +1628,7 @@ window.TerritoryRush = (function () {
     miniCtx.fillStyle = "#cfeedd";
     miniCtx.fillRect(0, 0, width, height);
     miniCtx.globalAlpha = 1;
-    miniCtx.imageSmoothingEnabled = true;
-    miniCtx.imageSmoothingQuality = "high";
+    miniCtx.imageSmoothingEnabled = false;
     miniCtx.drawImage(territoryLayer, 0, 0, width, height);
     miniCtx.globalAlpha = 1;
     for (var i = 0; i < state.players.length; i++) {
@@ -1940,6 +2032,9 @@ window.TerritoryRush = (function () {
       applyDirection: applyDirection,
       advancePlayer: advancePlayer,
       crossedCellKeys: crossedCellKeys,
+      segmentDistanceSquared: segmentDistanceSquared,
+      trailWithoutHead: trailWithoutHead,
+      movementHitsTrail: movementHitsTrail,
       simplifyTrailPoints: simplifyTrailPoints,
       appendVisualTrailPoint: appendVisualTrailPoint,
       rebuiltVisualTrailPoints: rebuiltVisualTrailPoints,
@@ -1977,6 +2072,9 @@ window.TerritoryRush = (function () {
         matchMs: MATCH_MS,
         stepMs: STEP_MS,
         frameMs: FRAME_MS,
+        trailWidth: TRAIL_WIDTH,
+        trailCollisionRadius: TRAIL_COLLISION_RADIUS,
+        trailHeadGrace: TRAIL_HEAD_GRACE,
         trailSampleTolerance: TRAIL_SAMPLE_TOLERANCE,
         maxVisualTrailPoints: MAX_VISUAL_TRAIL_POINTS,
         visualTrailScale: VISUAL_TRAIL_SCALE,
