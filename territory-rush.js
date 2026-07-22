@@ -21,6 +21,12 @@ window.TerritoryRush = (function () {
   var MAX_PLAYERS = 8;
   var MAX_TRAIL = 360;
   var LAYER_SCALE = 4;
+  var BASE_RADIUS = 4;
+  var SPAWN_CLEARANCE = 2;
+  var PRESERVED_SPAWN_CLEARANCE = 2;
+  var SPAWN_MARGIN = 7;
+  var INITIAL_SPAWN_MIN_DISTANCE = 18;
+  var RESPAWN_PLAYER_DISTANCE = 14;
   var COLORS = ["#ff756d", "#43c7a0", "#ffc857", "#7f8cff", "#ef72b3", "#42b8d5", "#9bc95b", "#f49b52"];
   var TERRITORY_COLORS = ["#ff6f73", "#35cfa1", "#ffc54a", "#7585ff", "#f36bae", "#34bfdf", "#8dcc4d", "#ff9950"];
   var MASCOTS = ["🐱", "🐻", "🐰", "🐥", "🐶", "🦊", "🐼", "🐹"];
@@ -390,16 +396,25 @@ window.TerritoryRush = (function () {
     var cx = Math.floor(player.spawnX);
     var cy = Math.floor(player.spawnY);
     var changed = false;
-    for (var y = cy - 4; y <= cy + 4; y++) {
-      for (var x = cx - 4; x <= cx + 4; x++) {
-        if (inside(x, y) && (x - cx) * (x - cx) + (y - cy) * (y - cy) <= 16) {
-          owner[cellIndex(x, y)] = player.id;
-          changed = true;
+    for (var y = cy - BASE_RADIUS; y <= cy + BASE_RADIUS; y++) {
+      for (var x = cx - BASE_RADIUS; x <= cx + BASE_RADIUS; x++) {
+        if (inside(x, y) && (x - cx) * (x - cx) + (y - cy) * (y - cy) <= BASE_RADIUS * BASE_RADIUS) {
+          var key = cellIndex(x, y);
+          if (owner[key] < 0) {
+            owner[key] = player.id;
+            changed = true;
+          }
         }
       }
     }
     if (changed) ownerLayerDirty = true;
     return changed;
+  }
+
+  function directionForPosition(x, y) {
+    var dx = WORLD_W / 2 - x;
+    var dy = WORLD_H / 2 - y;
+    return Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? "left" : "right") : (dy < 0 ? "up" : "down");
   }
 
   function spawnFor(index, count) {
@@ -410,14 +425,160 @@ window.TerritoryRush = (function () {
     var spot = spots[index % spots.length];
     var x = Math.round(WORLD_W * spot[0]);
     var y = Math.round(WORLD_H * spot[1]);
-    var dx = WORLD_W / 2 - x;
-    var dy = WORLD_H / 2 - y;
-    var dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? "left" : "right") : (dy < 0 ? "up" : "down");
-    return { x: x, y: y, dir: dir, count: count };
+    return { x: x, y: y, dir: directionForPosition(x, y), count: count };
   }
 
-  function makePlayer(id, nick, bot, count) {
-    var spawn = spawnFor(id, count);
+  function unitRandom(random) {
+    var value = Number((typeof random === "function" ? random : Math.random)());
+    if (!isFinite(value)) return 0;
+    value %= 1;
+    return value < 0 ? value + 1 : value;
+  }
+
+  function allocateInitialSpawns(count, random) {
+    count = clamp(Math.floor(Number(count) || 0), 0, MAX_PLAYERS);
+    var columns = [12, 36, 60];
+    var rows = [13, 40, 67, 94];
+    var slots = [];
+    for (var row = 0; row < rows.length; row++) {
+      for (var column = 0; column < columns.length; column++) slots.push({ x: columns[column], y: rows[row] });
+    }
+    for (var i = slots.length - 1; i > 0; i--) {
+      var swapIndex = Math.floor(unitRandom(random) * (i + 1));
+      var swap = slots[i];
+      slots[i] = slots[swapIndex];
+      slots[swapIndex] = swap;
+    }
+    return slots.slice(0, count).map(function (slot) {
+      var x = slot.x + Math.floor(unitRandom(random) * 7) - 3;
+      var y = slot.y + Math.floor(unitRandom(random) * 7) - 3;
+      return { x: x, y: y, dir: directionForPosition(x, y) };
+    });
+  }
+
+  function buildSpawnBlockedPrefix(playerId) {
+    var stride = WORLD_W + 1;
+    var spawnBlocked = new Uint8Array(CELL_COUNT);
+    var prefix = new Int32Array(stride * (WORLD_H + 1));
+    for (var key = 0; key < CELL_COUNT; key++) {
+      if ((owner[key] >= 0 && owner[key] !== playerId) || (trailOwner[key] >= 0 && trailOwner[key] !== playerId)) {
+        spawnBlocked[key] = 1;
+      }
+    }
+    for (var playerIndex = 0; playerIndex < state.players.length; playerIndex++) {
+      var trailPlayer = state.players[playerIndex];
+      if (!trailPlayer || trailPlayer.id === playerId) continue;
+      var trail = trailPlayer.trail || [];
+      for (var trailIndex = 0; trailIndex < trail.length; trailIndex++) {
+        var trailKey = trail[trailIndex];
+        if (trailKey >= 0 && trailKey < CELL_COUNT) spawnBlocked[trailKey] = 1;
+      }
+    }
+    for (var y = 0; y < WORLD_H; y++) {
+      var rowTotal = 0;
+      for (var x = 0; x < WORLD_W; x++) {
+        rowTotal += spawnBlocked[cellIndex(x, y)];
+        prefix[(y + 1) * stride + x + 1] = prefix[y * stride + x + 1] + rowTotal;
+      }
+    }
+    return prefix;
+  }
+
+  function blockedSpawnCells(prefix, centerX, centerY, radius) {
+    var stride = WORLD_W + 1;
+    var x0 = centerX - radius;
+    var y0 = centerY - radius;
+    var x1 = centerX + radius + 1;
+    var y1 = centerY + radius + 1;
+    return prefix[y1 * stride + x1] - prefix[y0 * stride + x1]
+      - prefix[y1 * stride + x0] + prefix[y0 * stride + x0];
+  }
+
+  function farFromActivePlayers(player, x, y) {
+    var minimumSquared = RESPAWN_PLAYER_DISTANCE * RESPAWN_PLAYER_DISTANCE;
+    for (var i = 0; i < state.players.length; i++) {
+      var other = state.players[i];
+      if (other === player || other.deadUntil || other.retired || other.away) continue;
+      var dx = other.x - x;
+      var dy = other.y - y;
+      if (dx * dx + dy * dy < minimumSquared) return false;
+    }
+    return true;
+  }
+
+  function findRespawnSpot(player, random) {
+    var prefix = buildSpawnBlockedPrefix(player.id);
+    var clearRadius = BASE_RADIUS + SPAWN_CLEARANCE;
+    var chosen = null;
+    var safeCount = 0;
+    for (var y = SPAWN_MARGIN; y < WORLD_H - SPAWN_MARGIN; y++) {
+      for (var x = SPAWN_MARGIN; x < WORLD_W - SPAWN_MARGIN; x++) {
+        if (blockedSpawnCells(prefix, x, y, clearRadius) || !farFromActivePlayers(player, x, y)) continue;
+        safeCount++;
+        if (unitRandom(random) < 1 / safeCount) chosen = { x: x, y: y, dir: directionForPosition(x, y) };
+      }
+    }
+    return chosen;
+  }
+
+  function hasPlayerTerritory(playerId) {
+    for (var i = 0; i < owner.length; i++) if (owner[i] === playerId) return true;
+    return false;
+  }
+
+  function findOwnedRespawnSpot(player, random) {
+    var prefix = buildSpawnBlockedPrefix(player.id);
+    var chosen = null;
+    var safeCount = 0;
+    for (var y = SPAWN_MARGIN; y < WORLD_H - SPAWN_MARGIN; y++) {
+      for (var x = SPAWN_MARGIN; x < WORLD_W - SPAWN_MARGIN; x++) {
+        if (owner[cellIndex(x, y)] !== player.id
+            || blockedSpawnCells(prefix, x, y, PRESERVED_SPAWN_CLEARANCE)
+            || !farFromActivePlayers(player, x, y)) continue;
+        safeCount++;
+        if (unitRandom(random) < 1 / safeCount) chosen = { x: x, y: y, dir: directionForPosition(x, y) };
+      }
+    }
+    return chosen;
+  }
+
+  function resolveRespawnPlacement(player, now) {
+    var preserveTerritory = hasPlayerTerritory(player.id);
+    if (preserveTerritory) {
+      var ownedSpawn = findOwnedRespawnSpot(player);
+      if (ownedSpawn) {
+        delete player.freshRespawnAfter;
+        return { spawn: ownedSpawn, preserveTerritory: true };
+      }
+      if (!player.freshRespawnAfter) {
+        player.freshRespawnAfter = now + 1000;
+        return null;
+      }
+      if (now < player.freshRespawnAfter) return null;
+      var fallbackSpawn = findRespawnSpot(player);
+      if (!fallbackSpawn) return null;
+      clearTerritory(player.id);
+      delete player.freshRespawnAfter;
+      return { spawn: fallbackSpawn, preserveTerritory: false };
+    }
+    delete player.freshRespawnAfter;
+    var freshSpawn = findRespawnSpot(player);
+    return freshSpawn ? { spawn: freshSpawn, preserveTerritory: false } : null;
+  }
+
+  function applyPlayerSpawn(player, spawn) {
+    player.x = spawn.x;
+    player.y = spawn.y;
+    player.spawnX = spawn.x;
+    player.spawnY = spawn.y;
+    player.dir = spawn.dir || directionForPosition(spawn.x, spawn.y);
+    player.angle = directionAngle(player.dir);
+    player.targetAngle = player.angle;
+    player.lastCell = cellKey(player.x, player.y);
+  }
+
+  function makePlayer(id, nick, bot, count, assignedSpawn) {
+    var spawn = assignedSpawn || spawnFor(id, count);
     var angle = directionAngle(spawn.dir);
     return {
       id: id,
@@ -509,19 +670,58 @@ window.TerritoryRush = (function () {
 
   function respawn(player, now) {
     if (!player.deadUntil || now < player.deadUntil || player.retired) return;
+    var placement = resolveRespawnPlacement(player, now);
+    if (!placement) {
+      player.deadUntil = now + 1000;
+      return;
+    }
     player.deadUntil = 0;
-    player.x = player.spawnX;
-    player.y = player.spawnY;
-    player.dir = spawnFor(player.id, state.players.length).dir;
-    player.angle = directionAngle(player.dir);
-    player.targetAngle = player.angle;
-    player.lastCell = cellKey(player.x, player.y);
+    applyPlayerSpawn(player, placement.spawn);
     player.turnBackAt = 12 + Math.floor(Math.random() * 16);
-    if (createBase(player)) {
+    if (!placement.preserveTerritory && createBase(player)) {
       state.ownerRev++;
       countsRev = -1;
       fullPending = true;
     }
+  }
+
+  function activateReturningPlayer(player, now) {
+    var placement = resolveRespawnPlacement(player, now);
+    if (!placement) {
+      player.returnRetryAt = now + 1000;
+      return false;
+    }
+    delete player.returnRetryAt;
+    player.retired = false;
+    player.away = false;
+    player.deadUntil = 0;
+    applyPlayerSpawn(player, placement.spawn);
+    inputSeqByNick[player.nick] = 0;
+    inputAtByNick[player.nick] = 0;
+    if (!placement.preserveTerritory && createBase(player)) {
+      state.ownerRev++;
+      countsRev = -1;
+    }
+    fullPending = true;
+    return true;
+  }
+
+  function retryReturningPlayers(now) {
+    var due = state.players.some(function (player) {
+      return !player.bot && (player.retired || player.away) && player.returnRetryAt && now >= player.returnRetryAt;
+    });
+    if (!due) return false;
+    var present = activeNicks();
+    var changed = false;
+    state.players.forEach(function (player) {
+      if (player.bot || (!player.retired && !player.away) || !player.returnRetryAt || now < player.returnRetryAt) return;
+      if (!has(present, player.nick)) {
+        delete player.returnRetryAt;
+        return;
+      }
+      if (activateReturningPlayer(player, now)) changed = true;
+    });
+    return changed;
   }
 
   function chooseBotDirection(player, now) {
@@ -911,7 +1111,10 @@ window.TerritoryRush = (function () {
     state.deadline = nowMs() + MATCH_MS;
     state.ready = [];
     state.winner = "";
-    state.players = entries.map(function (entry, index) { return makePlayer(index, entry.nick, entry.bot, entries.length); });
+    var initialSpawns = allocateInitialSpawns(entries.length);
+    state.players = entries.map(function (entry, index) {
+      return makePlayer(index, entry.nick, entry.bot, entries.length, initialSpawns[index]);
+    });
     state.players.forEach(createBase);
     rebuildTrailOwner();
     mergeVisualPlayers();
@@ -955,6 +1158,7 @@ window.TerritoryRush = (function () {
       return;
     }
     if (now >= state.deadline) { hostFinish(); return; }
+    retryReturningPlayers(now);
     for (var i = 0; i < state.players.length; i++) advancePlayer(state.players[i], STEP_MS / 1000, now);
     if (fullPending) {
       if (now - lastFullSentAt >= FULL_MIN_MS) {
@@ -1099,8 +1303,8 @@ window.TerritoryRush = (function () {
     var mine = me().nick;
     element.innerHTML = rankRows().map(function (row, index) {
       return '<div class="territory-rank' + (row.nick === mine ? " is-me" : "") + '">'
-        + '<span class="territory-dot" style="background:' + COLORS[row.id] + '"></span>'
-        + '<span class="territory-rank-name">' + MASCOTS[row.id] + " " + (index + 1) + ". " + esc(row.nick) + "</span>"
+        + '<span class="territory-rank-number">' + (index + 1) + "</span>"
+        + '<span class="territory-rank-name">' + esc(row.nick) + "</span>"
         + "<strong>" + row.area.toFixed(1) + "%</strong></div>";
     }).join("");
   }
@@ -1809,19 +2013,9 @@ window.TerritoryRush = (function () {
             player.deadUntil = 0;
             changed = true;
           } else if (present && player.retired) {
-            player.retired = false;
-            player.away = false;
-            player.x = player.spawnX;
-            player.y = player.spawnY;
-            player.lastCell = cellKey(player.x, player.y);
-            if (createBase(player)) state.ownerRev++;
-            changed = true;
+            if (activateReturningPlayer(player, nowMs())) changed = true;
           } else if (present && player.away) {
-            player.away = false;
-            inputSeqByNick[player.nick] = 0;
-            inputAtByNick[player.nick] = 0;
-            if (owner[cellKey(player.spawnX, player.spawnY)] !== player.id && createBase(player)) state.ownerRev++;
-            changed = true;
+            if (activateReturningPlayer(player, nowMs())) changed = true;
           }
         });
       }
@@ -1989,6 +2183,16 @@ window.TerritoryRush = (function () {
       captureInto: captureInto,
       sanitizeState: sanitizeState,
       makePlayer: makePlayer,
+      allocateInitialSpawns: allocateInitialSpawns,
+      findRespawnSpot: findRespawnSpot,
+      findOwnedRespawnSpot: findOwnedRespawnSpot,
+      hasPlayerTerritory: hasPlayerTerritory,
+      resolveRespawnPlacement: resolveRespawnPlacement,
+      applyPlayerSpawn: applyPlayerSpawn,
+      createBase: createBase,
+      respawn: respawn,
+      activateReturningPlayer: activateReturningPlayer,
+      retryReturningPlayers: retryReturningPlayers,
       applyDirection: applyDirection,
       advancePlayer: advancePlayer,
       crossedCellKeys: crossedCellKeys,
@@ -2024,6 +2228,7 @@ window.TerritoryRush = (function () {
       recoverMissingOwner: recoverMissingOwner,
       getState: function () { return state; },
       getOwner: function () { return owner; },
+      getTrailOwner: function () { return trailOwner; },
       resetGrid: resetGrid,
       constants: {
         width: WORLD_W,
@@ -2039,7 +2244,13 @@ window.TerritoryRush = (function () {
         maxVisualTrailPoints: MAX_VISUAL_TRAIL_POINTS,
         visualTrailScale: VISUAL_TRAIL_SCALE,
         maxPlayers: MAX_PLAYERS,
-        maxTrail: MAX_TRAIL
+        maxTrail: MAX_TRAIL,
+        baseRadius: BASE_RADIUS,
+        spawnClearance: SPAWN_CLEARANCE,
+        preservedSpawnClearance: PRESERVED_SPAWN_CLEARANCE,
+        spawnMargin: SPAWN_MARGIN,
+        initialSpawnMinDistance: INITIAL_SPAWN_MIN_DISTANCE,
+        respawnPlayerDistance: RESPAWN_PLAYER_DISTANCE
       }
     };
   }

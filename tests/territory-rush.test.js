@@ -40,6 +40,14 @@ function fakeApi(nicks) {
   return fixture;
 }
 
+function seededRandom(seed) {
+  let value = seed >>> 0;
+  return () => {
+    value = (value * 1664525 + 1013904223) >>> 0;
+    return value / 0x100000000;
+  };
+}
+
 test("owner grid uses a compact lossless run-length encoding", () => {
   const grid = new Int8Array(engine.constants.cells);
   grid.fill(-1);
@@ -250,6 +258,254 @@ test("incoming visual paths are bounded before entering room state", () => {
   assert.ok(safe.every((value) => Number.isInteger(value) && value >= 0));
 });
 
+test("initial spawns are randomized while keeping every player well separated", () => {
+  const first = Array.from(engine.allocateInitialSpawns(engine.constants.maxPlayers, seededRandom(11)));
+  const second = Array.from(engine.allocateInitialSpawns(engine.constants.maxPlayers, seededRandom(29)));
+
+  assert.equal(first.length, engine.constants.maxPlayers);
+  assert.notDeepEqual(first.map(({ x, y }) => `${x},${y}`), second.map(({ x, y }) => `${x},${y}`));
+  first.forEach(({ x, y }) => {
+    assert.ok(x >= engine.constants.spawnMargin && x < engine.constants.width - engine.constants.spawnMargin);
+    assert.ok(y >= engine.constants.spawnMargin && y < engine.constants.height - engine.constants.spawnMargin);
+  });
+  for (let i = 0; i < first.length; i++) {
+    for (let j = i + 1; j < first.length; j++) {
+      const distance = Math.hypot(first[i].x - first[j].x, first[i].y - first[j].y);
+      assert.ok(distance >= engine.constants.initialSpawnMinDistance, `${i} and ${j} are only ${distance} cells apart`);
+    }
+  }
+});
+
+test("respawn selection avoids other players, their territory, and their trails", () => {
+  engine.resetGrid();
+  const state = engine.freshState();
+  const player = engine.makePlayer(0, "respawning", false, 2);
+  const other = engine.makePlayer(1, "active", false, 2);
+  engine.applyPlayerSpawn(other, { x: 36, y: 54, dir: "right" });
+  state.phase = "playing";
+  state.players = [player, other];
+  engine.setState(state);
+
+  const width = engine.constants.width;
+  const owner = engine.getOwner();
+  const trailOwner = engine.getTrailOwner();
+  for (let y = 38; y <= 70; y++) {
+    for (let x = 22; x <= 50; x++) owner[y * width + x] = other.id;
+  }
+  for (let y = 20; y <= 88; y++) trailOwner[y * width + 58] = other.id;
+
+  const spawn = engine.findRespawnSpot(player, seededRandom(7));
+  assert.ok(spawn);
+  assert.ok(Math.hypot(spawn.x - other.x, spawn.y - other.y) >= engine.constants.respawnPlayerDistance);
+
+  const radius = engine.constants.baseRadius + engine.constants.spawnClearance;
+  for (let y = spawn.y - radius; y <= spawn.y + radius; y++) {
+    for (let x = spawn.x - radius; x <= spawn.x + radius; x++) {
+      const key = y * width + x;
+      assert.notEqual(owner[key], other.id);
+      assert.notEqual(trailOwner[key], other.id);
+    }
+  }
+  engine.resetGrid();
+});
+
+test("respawn selection still sees an overlapping trail after its shared owner cell is cleared", () => {
+  engine.resetGrid();
+  const state = engine.freshState();
+  const player = engine.makePlayer(0, "respawning", false, 2);
+  const other = engine.makePlayer(1, "trail owner", false, 2, { x: 60, y: 90, dir: "left" });
+  const width = engine.constants.width;
+  const centerX = 20;
+  const centerY = 20;
+  const center = centerY * width + centerX;
+  state.phase = "playing";
+  state.players = [player, other];
+  other.trail = [center];
+  engine.setState(state);
+
+  engine.getOwner().fill(other.id);
+  for (let y = centerY - 6; y <= centerY + 6; y++) {
+    for (let x = centerX - 6; x <= centerX + 6; x++) engine.getOwner()[y * width + x] = -1;
+  }
+  engine.getTrailOwner()[center] = -1;
+
+  assert.equal(engine.findRespawnSpot(player, seededRandom(3)), null);
+  engine.resetGrid();
+});
+
+test("respawn waits instead of overwriting territory when no safe position exists", () => {
+  engine.resetGrid();
+  const state = engine.freshState();
+  const player = engine.makePlayer(0, "blocked", false, 2);
+  const now = Date.now();
+  player.deadUntil = now - 1;
+  state.phase = "playing";
+  state.players = [player];
+  engine.setState(state);
+  engine.getOwner().fill(1);
+
+  const before = { x: player.x, y: player.y };
+  engine.respawn(player, now);
+
+  assert.equal(player.deadUntil, now + 1000);
+  assert.equal(player.x, before.x);
+  assert.equal(player.y, before.y);
+  assert.ok(Array.from(engine.getOwner()).every((id) => id === 1));
+  engine.resetGrid();
+});
+
+test("a successful respawn updates its position and creates a fresh base", () => {
+  engine.resetGrid();
+  const state = engine.freshState();
+  const player = engine.makePlayer(0, "respawning", false, 1);
+  const now = Date.now();
+  player.deadUntil = now - 1;
+  state.phase = "playing";
+  state.players = [player];
+  engine.setState(state);
+
+  engine.respawn(player, now);
+
+  assert.equal(player.deadUntil, 0);
+  assert.equal(player.x, player.spawnX);
+  assert.equal(player.y, player.spawnY);
+  assert.equal(engine.getOwner()[Math.floor(player.y) * engine.constants.width + Math.floor(player.x)], player.id);
+  assert.equal(state.ownerRev, 1);
+  engine.resetGrid();
+});
+
+test("a recall respawns inside preserved territory without granting a free new base", () => {
+  engine.resetGrid();
+  const state = engine.freshState();
+  const player = engine.makePlayer(0, "recalled", false, 1, { x: 30, y: 40, dir: "right" });
+  const now = Date.now();
+  state.phase = "playing";
+  state.players = [player];
+  engine.setState(state);
+  engine.createBase(player);
+  const before = Array.from(engine.getOwner()).filter((id) => id === player.id).length;
+  player.deadUntil = now - 1;
+
+  engine.respawn(player, now);
+
+  assert.equal(player.deadUntil, 0);
+  assert.equal(engine.getOwner()[Math.floor(player.y) * engine.constants.width + Math.floor(player.x)], player.id);
+  assert.equal(Array.from(engine.getOwner()).filter((id) => id === player.id).length, before);
+  assert.equal(state.ownerRev, 0);
+  engine.resetGrid();
+});
+
+test("an unsafe leftover territory fragment falls back to a fresh safe base", () => {
+  engine.resetGrid();
+  const state = engine.freshState();
+  const player = engine.makePlayer(0, "fragmented", false, 2, { x: 20, y: 20, dir: "right" });
+  const other = engine.makePlayer(1, "nearby trail", false, 2, { x: 60, y: 90, dir: "left" });
+  const now = Date.now();
+  const oldCenter = 20 * engine.constants.width + 20;
+  const blockingTrail = 20 * engine.constants.width + 21;
+  player.deadUntil = now - 1;
+  other.trail = [blockingTrail];
+  state.phase = "playing";
+  state.players = [player, other];
+  engine.setState(state);
+  engine.getOwner()[oldCenter] = player.id;
+  engine.getTrailOwner()[blockingTrail] = other.id;
+
+  engine.respawn(player, now);
+  assert.equal(player.deadUntil, now + 1000);
+  assert.equal(engine.getOwner()[oldCenter], player.id);
+
+  engine.respawn(player, now + 1000);
+  assert.equal(player.deadUntil, 0);
+  assert.equal(engine.getOwner()[oldCenter], -1);
+  assert.equal(engine.getOwner()[Math.floor(player.y) * engine.constants.width + Math.floor(player.x)], player.id);
+  engine.resetGrid();
+});
+
+test("players respawning together receive separate safe positions", () => {
+  engine.resetGrid();
+  const state = engine.freshState();
+  const first = engine.makePlayer(0, "first", false, 2);
+  const second = engine.makePlayer(1, "second", false, 2);
+  const now = Date.now();
+  first.deadUntil = now - 1;
+  second.deadUntil = now - 1;
+  state.phase = "playing";
+  state.players = [first, second];
+  engine.setState(state);
+
+  engine.respawn(first, now);
+  engine.respawn(second, now);
+
+  assert.equal(first.deadUntil, 0);
+  assert.equal(second.deadUntil, 0);
+  assert.ok(Math.hypot(first.x - second.x, first.y - second.y) >= engine.constants.respawnPlayerDistance);
+  engine.resetGrid();
+});
+
+test("a returning player retries automatically when safe space becomes available", () => {
+  engine.resetGrid();
+  const fake = fakeApi(["returning"]);
+  const state = engine.freshState();
+  const player = engine.makePlayer(0, "returning", false, 1);
+  player.retired = true;
+  state.phase = "playing";
+  state.deadline = Date.now() + 60000;
+  state.players = [player];
+  engine.setApi(fake.api);
+  engine.setState(state);
+  engine.getOwner().fill(1);
+
+  controller.onPresence(fake.people, {});
+  assert.equal(player.retired, true);
+  assert.ok(player.returnRetryAt > Date.now());
+
+  const width = engine.constants.width;
+  for (let y = 14; y <= 26; y++) {
+    for (let x = 14; x <= 26; x++) engine.getOwner()[y * width + x] = -1;
+  }
+  assert.equal(engine.retryReturningPlayers(player.returnRetryAt), true);
+  assert.equal(player.retired, false);
+  assert.equal(player.away, false);
+  assert.equal(player.returnRetryAt, undefined);
+  assert.equal(engine.getOwner()[Math.floor(player.spawnY) * width + Math.floor(player.spawnX)], player.id);
+  engine.resetGrid();
+});
+
+test("an away player returns inside preserved territory without gaining extra area", () => {
+  engine.resetGrid();
+  const fake = fakeApi(["away player"]);
+  const state = engine.freshState();
+  const player = engine.makePlayer(0, "away player", false, 1, { x: 30, y: 40, dir: "right" });
+  state.phase = "playing";
+  state.deadline = Date.now() + 60000;
+  state.players = [player];
+  engine.setApi(fake.api);
+  engine.setState(state);
+  engine.createBase(player);
+  player.away = true;
+  const before = Array.from(engine.getOwner()).filter((id) => id === player.id).length;
+
+  controller.onPresence(fake.people, {});
+
+  assert.equal(player.away, false);
+  assert.equal(engine.getOwner()[Math.floor(player.y) * engine.constants.width + Math.floor(player.x)], player.id);
+  assert.equal(Array.from(engine.getOwner()).filter((id) => id === player.id).length, before);
+  engine.resetGrid();
+});
+
+test("creating a base never paints over another player's existing territory", () => {
+  engine.resetGrid();
+  const player = engine.makePlayer(0, "new base", false, 2, { x: 30, y: 40, dir: "right" });
+  const center = 40 * engine.constants.width + 30;
+  engine.getOwner()[center] = 1;
+
+  assert.equal(engine.createBase(player), true);
+  assert.equal(engine.getOwner()[center], 1);
+  assert.ok(Array.from(engine.getOwner()).some((id) => id === player.id));
+  engine.resetGrid();
+});
+
 test("a solo host starts a 90-second match with three local bots", () => {
   const fake = fakeApi(["구나"]);
   engine.setApi(fake.api);
@@ -263,6 +519,14 @@ test("a solo host starts a 90-second match with three local bots", () => {
   assert.equal(state.players.length, 4);
   assert.equal(state.players.filter((player) => player.bot).length, 3);
   assert.ok(state.deadline > Date.now() + 85000);
+  for (let i = 0; i < state.players.length; i++) {
+    for (let j = i + 1; j < state.players.length; j++) {
+      assert.ok(Math.hypot(
+        state.players[i].spawnX - state.players[j].spawnX,
+        state.players[i].spawnY - state.players[j].spawnY
+      ) >= engine.constants.initialSpawnMinDistance);
+    }
+  }
   assert.equal(fake.sent.at(-1).t, "tr_state");
   assert.equal(typeof fake.sent.at(-1).state.owner, "string");
 });

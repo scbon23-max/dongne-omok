@@ -2192,13 +2192,15 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .territory-time {
   top: max(8px, env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
+  right: max(8px, env(safe-area-inset-right));
+  left: auto;
+  transform: none;
+  transform-origin: right center;
   min-width: 88px;
   height: 36px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 5px;
   padding: 0 12px;
   border: 0;
@@ -2214,7 +2216,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .territory-time strong { font-size: 14px; font-weight: 1000; letter-spacing: .02em; }
 .territory-time.urgent { color: #ff8a90; animation: territory-urgent .55s ease-in-out infinite alternate; }
-@keyframes territory-urgent { to { transform: translateX(-50%) scale(1.06); } }
+@keyframes territory-urgent { to { transform: scale(1.06); } }
 .territory-utility {
   top: max(8px, env(safe-area-inset-top));
   left: max(8px, env(safe-area-inset-left));
@@ -2236,26 +2238,31 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .territory-scoreboard {
   top: calc(max(8px, env(safe-area-inset-top)) + 44px);
   left: max(8px, env(safe-area-inset-left));
-  width: min(158px, calc(51% - 16px));
+  width: min(210px, calc(100% - 128px));
   display: grid;
-  gap: 5px;
-  padding: 9px 10px;
+  gap: 7px;
+  padding: 10px 11px;
+  border-color: rgba(207,224,231,.1);
   border-radius: 10px;
-  color: var(--territory-ui-muted);
-  font-size: 11.5px;
+  background: rgba(14,42,58,.36);
+  box-shadow: 0 2px 8px rgba(0,0,0,.13);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  color: #edf6f8;
+  font-size: 15px;
 }
 .territory-rank,
 .territory-scoreboard > div {
   min-width: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 .territory-rank.is-me { color: var(--teal-light); }
-.territory-rank-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 850; }
-.territory-rank strong { color: inherit; font-size: 11.5px; font-weight: 1000; font-variant-numeric: tabular-nums; }
-.territory-dot,
+.territory-rank-number { width: 20px; color: inherit; font-size: 15px; font-weight: 1000; text-align: center; }
+.territory-rank-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 900; }
+.territory-rank strong { color: inherit; font-size: 15px; font-weight: 1000; font-variant-numeric: tabular-nums; }
 .territory-my-dot { width: 9px; height: 9px; display: block; flex: 0 0 auto; border-radius: 50%; background: #ff776f; box-shadow: none; }
 .territory-minimap-shell {
   top: calc(max(8px, env(safe-area-inset-top)) + 44px);
@@ -2372,7 +2379,9 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-game-option[data-game="territory"].active { background: rgba(47,184,158,.18); }
 
 @media (max-width: 360px) {
-  .territory-scoreboard { width: calc(54% - 14px); padding: 8px; font-size: 10px; }
+  .territory-scoreboard { width: min(204px, calc(100% - 116px)); padding: 8px 9px; font-size: 14px; }
+  .territory-rank-number,
+  .territory-rank strong { font-size: 14px; }
   .territory-minimap-shell { width: 88px; }
   .territory-panel { padding-right: 14px; padding-left: 14px; }
 }
