@@ -7,6 +7,8 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const source = fs.readFileSync(path.join(__dirname, "..", "territory-rush.js"), "utf8");
+const indexSource = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+const styles = fs.readFileSync(path.join(__dirname, "..", "styles.css"), "utf8");
 const windowObject = { __TERRITORY_RUSH_TEST__: true };
 const context = vm.createContext({ window: windowObject, console, Date, Math, setTimeout, clearTimeout });
 vm.runInContext(source, context, { filename: "territory-rush.js" });
@@ -70,6 +72,38 @@ function seededRandom(seed) {
   };
 }
 
+test("chat is open in the waiting and result screens but limited to spectators during play", () => {
+  const fake = fakeApi(["host", "player", "spectator"]);
+  engine.setApi(fake.api);
+  const state = engine.freshState();
+  engine.setState(state);
+
+  assert.equal(controller.canChat("host"), true);
+  assert.equal(controller.canChat("player"), true);
+
+  state.phase = "playing";
+  state.players = [
+    engine.makePlayer(0, "host", false, 2),
+    engine.makePlayer(1, "player", false, 2)
+  ];
+  state.spectators = ["spectator"];
+  assert.equal(controller.canChat("host"), false);
+  assert.equal(controller.canChat("player"), false);
+  assert.equal(controller.canChat("spectator"), true);
+
+  state.phase = "finished";
+  assert.equal(controller.canChat("host"), true);
+  assert.equal(controller.canChat("player"), true);
+  assert.equal(controller.canChat("spectator"), true);
+});
+
+test("movement hotkeys do not consume chat input keystrokes", () => {
+  const bindSource = source.match(/function bindDom\(\) \{([\s\S]*?)\n  \}\n\n  function startLoops/)[1];
+  assert.match(bindSource, /function isEditableTarget\(target\)[\s\S]*tag === "INPUT"[\s\S]*target\.isContentEditable/);
+  assert.match(bindSource, /state\.phase !== "playing" \|\| !keyVectors\[event\.code\] \|\| isEditableTarget\(event\.target\)/);
+  assert.match(bindSource, /delete pressedKeys\[event\.code\];\s*if \(isEditableTarget\(event\.target\)\) return;/);
+});
+
 test("owner grid uses a compact lossless run-length encoding", () => {
   const grid = new Int8Array(engine.constants.cells);
   grid.fill(-1);
@@ -105,6 +139,46 @@ test("closed territory is filled while the outside remains untouched", () => {
   assert.equal(gained, 9);
   assert.equal(grid[index(12, 12)], 0);
   assert.equal(grid[index(8, 8)], -1);
+});
+
+test("capturing enemy land queues a small bounded local particle effect", () => {
+  const previous = new Int8Array(24);
+  previous.fill(-1);
+  previous[4] = 1;
+  previous[5] = 1;
+  const next = previous.slice();
+  next[4] = 0;
+  next[5] = 0;
+  next[6] = 0;
+
+  const stolen = engine.sampleStolenCells(previous, next, engine.constants.maxCaptureBursts, seededRandom(7));
+  assert.deepEqual(Array.from(stolen, (cell) => cell.key).sort((a, b) => a - b), [4, 5]);
+
+  engine.clearCaptureParticles();
+  const created = engine.queueCaptureParticles(previous, next, 1000, seededRandom(11));
+  assert.equal(created, 2 * engine.constants.captureParticlesPerBurst);
+  assert.equal(engine.getCaptureParticles().length, created);
+  assert.ok(engine.getCaptureParticles().every((particle) => /^#[0-9a-f]{6}$/i.test(particle.color)));
+
+  for (let index = 0; index < 20; index++) {
+    engine.queueCaptureParticles(previous, next, 1100 + index, seededRandom(index + 20));
+  }
+  assert.equal(engine.getCaptureParticles().length, engine.constants.maxCaptureParticles);
+
+  const neutralBefore = new Int8Array(24);
+  neutralBefore.fill(-1);
+  const neutralAfter = neutralBefore.slice();
+  neutralAfter[8] = 0;
+  engine.clearCaptureParticles();
+  assert.equal(engine.queueCaptureParticles(neutralBefore, neutralAfter, 2000, seededRandom(3)), 0);
+  assert.equal(engine.getCaptureParticles().length, 0);
+
+  const captureSource = source.match(/function capturePlayer\(player\) \{([\s\S]*?)\n  \}\n\n  function eliminate/)[1];
+  const applyFullSource = source.match(/function applyFull\(raw, sourceHost\) \{([\s\S]*?)\n  \}\n\n  function applyFrame/)[1];
+  const paintSource = source.match(/function paint\(\) \{([\s\S]*?)\n  \}\n\n  function paintMinimap/)[1];
+  assert.match(captureSource, /previousOwner = owner\.slice\(\)[\s\S]*queueCaptureParticles\(previousOwner, owner/);
+  assert.match(applyFullSource, /queueCaptureParticles\(owner, parsed\.owner[\s\S]*owner\.set\(parsed\.owner\)/);
+  assert.match(paintSource, /drawCaptureParticles\(view, now\)/);
 });
 
 test("direction input rejects a direct reversal", () => {
@@ -625,6 +699,72 @@ test("multiplayer start waits for every non-host participant to be ready", () =>
   assert.equal(engine.getState().players.some((player) => player.bot), false);
 });
 
+test("a host cannot strand the room as a spectator or start while spectating", () => {
+  const fake = fakeApi(["구나", "민서"]);
+  engine.setApi(fake.api);
+  const state = engine.freshState();
+  engine.setState(state);
+
+  fake.people = fake.people.slice(0, 1);
+  assert.equal(engine.hostSetSpectator("구나", true), false);
+  assert.equal(fake.toasts.at(-1), "다른 참가자가 한 명 이상 있어야 관전할 수 있어요");
+
+  fake.people = [
+    { nick: "구나", joinTs: 1 },
+    { nick: "민서", joinTs: 2 }
+  ];
+  assert.equal(engine.hostSetSpectator("구나", true), true);
+  engine.getState().ready = ["민서"];
+  assert.equal(engine.hostStart(), false);
+});
+
+test("the same room can run consecutive matches after guests ready again", () => {
+  const fake = fakeApi(["구나", "민서", "서준"]);
+  engine.setApi(fake.api);
+  engine.setState(engine.freshState());
+  engine.resetGrid();
+
+  assert.equal(engine.hostSetReady("민서", true), true);
+  assert.equal(engine.hostSetReady("서준", true), true);
+  assert.equal(engine.hostStart(), true);
+  const firstMatchId = engine.getState().matchId;
+  const firstOwnerRevision = engine.getState().ownerRev;
+
+  engine.getState().phase = "finished";
+  engine.getState().deadline = 0;
+  engine.getState().winner = "민서";
+  assert.equal(engine.hostSetSpectator("서준", true), true);
+  assert.equal(engine.hostSetSpectator("서준", false), true);
+  assert.equal(engine.hostSetReady("민서", true), true);
+  assert.equal(engine.hostSetReady("서준", true), true);
+  assert.equal(engine.hostStart(), true);
+
+  assert.equal(engine.getState().phase, "playing");
+  assert.notEqual(engine.getState().matchId, firstMatchId);
+  assert.ok(engine.getState().ownerRev > firstOwnerRevision);
+  assert.equal(engine.getState().winner, "");
+  assert.deepEqual(Array.from(engine.getState().ready), []);
+  assert.deepEqual(Array.from(engine.getState().players, (player) => player.nick), ["구나", "민서", "서준"]);
+  assert.equal(fake.leaveCount, 0);
+});
+
+test("a remote rematch clears prior-round visual and input state", () => {
+  const applyFullSource = source.match(/function applyFull\(raw, sourceHost\) \{([\s\S]*?)\n  \}\n\n  function applyFrame/)[1];
+  assert.match(applyFullSource, /if \(matchChanged\) \{[\s\S]*lastInputAt = 0;[\s\S]*pressedKeys = Object\.create\(null\);/);
+  assert.match(applyFullSource, /if \(matchChanged\) \{[\s\S]*visualPlayers = Object\.create\(null\);[\s\S]*visualTrails = Object\.create\(null\);[\s\S]*spectatorFocusNick = "";[\s\S]*swipe = null;/);
+});
+
+test("the result screen exposes the next-round roster, role switch, and ready/start action", () => {
+  assert.match(indexSource, /id="territory-next-round-status"/);
+  assert.match(indexSource, /id="territory-finished-participants"/);
+  assert.match(indexSource, /id="territory-finished-spectators"/);
+  assert.match(indexSource, /id="territory-finished-role-btn"[\s\S]*id="territory-again-btn"/);
+  assert.match(source, /renderRoleLists\("territory-finished-participants", "territory-finished-spectators"\)/);
+  assert.match(source, /\$\("territory-finished-role-btn"\)\.addEventListener\("click", toggleRole\)/);
+  assert.match(source, /setHidden\(again, state\.phase !== "finished" \|\| spectator\)/);
+  assert.match(styles, /\.territory-finished-actions\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+});
+
 test("a ten-member room keeps eight active slots and places the last two in spectator mode", () => {
   const nicks = ["구나", "참가1", "참가2", "참가3", "참가4", "참가5", "참가6", "참가7", "참가8", "참가9"];
   const fake = fakeApi(nicks);
@@ -636,6 +776,46 @@ test("a ten-member room keeps eight active slots and places the last two in spec
   assert.deepEqual(Array.from(engine.getState().spectators), ["참가8", "참가9"]);
   assert.equal(engine.hostSetSpectator("참가8", false), false);
   assert.equal(fake.toasts.at(-1), "동시 플레이는 8명까지 가능해요");
+});
+
+test("only spectators can select a ranked active player for camera focus", () => {
+  const fake = fakeApi(["viewer", "alpha", "beta"]);
+  fake.meNick = "viewer";
+  const state = engine.freshState();
+  state.phase = "playing";
+  state.matchId = "spectator-focus";
+  state.deadline = Date.now() + 60000;
+  state.spectators = ["viewer"];
+  state.players = [
+    engine.makePlayer(0, "alpha", false, 2),
+    engine.makePlayer(1, "beta", false, 2)
+  ];
+  engine.setApi(fake.api);
+  engine.setState(state);
+
+  assert.equal(engine.selectSpectatorFocus("beta"), true);
+  assert.equal(engine.cameraFocusPlayer().nick, "beta");
+
+  state.players[1].away = true;
+  assert.equal(engine.selectSpectatorFocus("beta"), false);
+  assert.equal(engine.cameraFocusPlayer().nick, "alpha");
+
+  fake.meNick = "alpha";
+  state.spectators = [];
+  state.players[1].away = false;
+  assert.equal(engine.selectSpectatorFocus("beta"), false);
+  assert.equal(engine.cameraFocusPlayer().nick, "alpha");
+});
+
+test("the spectator scoreboard exposes focus controls and the camera follows their selection", () => {
+  const scoreboardSource = source.match(/function renderScoreboard\(\) \{([\s\S]*?)\n  \}\n\n  function renderFinished/)[1];
+  const viewSource = source.match(/function viewInfo\(\) \{([\s\S]*?)\n  \}\n  function screenX/)[1];
+  assert.match(scoreboardSource, /data-tr-focus/);
+  assert.match(scoreboardSource, /is-focused/);
+  assert.match(scoreboardSource, /aria-pressed/);
+  assert.match(viewSource, /cameraFocusPlayer\(\)/);
+  assert.match(styles, /\.territory-rank\.is-focused\s*\{[^}]*background:/);
+  assert.match(styles, /\.territory-rank-focus:focus-visible/);
 });
 
 test("a simultaneous eleventh arrival is sent back to the lobby", async () => {
@@ -769,6 +949,15 @@ test("territories and trails render as bright flat colors without outlines", () 
   const drawTerritoriesSource = source.match(/function drawTerritories\(view\) \{([\s\S]*?)\n  \}\n\n  function pointDistanceToSegmentSquared/)[1];
   assert.match(drawTerritoriesSource, /ctx\.imageSmoothingEnabled = false/);
   assert.doesNotMatch(drawTerritoriesSource, /imageSmoothingQuality/);
+
+  const boundarySource = source.match(/function drawArenaBoundary\(view\) \{([\s\S]*?)\n  \}\n\n  function pointDistanceToSegmentSquared/)[1];
+  assert.match(boundarySource, /screenX\(ARENA_INSET, view\)/);
+  assert.match(boundarySource, /screenX\(WORLD_W - ARENA_INSET, view\)/);
+  assert.match(boundarySource, /ctx\.strokeStyle = "#31576a"/);
+  assert.match(boundarySource, /ctx\.strokeRect\(left, top, right - left, bottom - top\)/);
+
+  const paintSource = source.match(/function paint\(\) \{([\s\S]*?)\n  \}\n\n  function paintMinimap/)[1];
+  assert.match(paintSource, /drawTerritories\(view\);\s*drawArenaBoundary\(view\);/);
 
   const trailSource = source.match(/function drawTrail\(player, view\) \{([\s\S]*?)\n  \}\n\n  function drawPlayer/)[1];
   assert.match(trailSource, /ctx\.strokeStyle = TERRITORY_COLORS\[player\.id\]/);

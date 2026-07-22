@@ -2258,10 +2258,14 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
+  border-radius: 7px;
 }
 .territory-rank.is-me { color: var(--teal-light); }
+.territory-rank.is-focused { margin: -3px -5px; padding: 3px 5px; background: rgba(59,210,178,.22); box-shadow: inset 0 0 0 1px rgba(120,244,218,.35); color: #fff; }
 .territory-rank-number { width: 20px; color: inherit; font-size: 15px; font-weight: 1000; text-align: center; }
 .territory-rank-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 900; }
+.territory-rank-focus { width: 100%; border: 0; outline: 0; padding: 0; background: transparent; color: inherit; font-family: inherit; font-size: inherit; font-weight: 900; text-align: left; cursor: pointer; }
+.territory-rank-focus:focus-visible { border-radius: 4px; box-shadow: 0 0 0 2px rgba(120,244,218,.75); }
 .territory-rank strong { color: inherit; font-size: 15px; font-weight: 1000; font-variant-numeric: tabular-nums; }
 .territory-my-dot { width: 9px; height: 9px; display: block; flex: 0 0 auto; border-radius: 50%; background: #ff776f; box-shadow: none; }
 .territory-minimap-shell {
@@ -2348,8 +2352,62 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .territory-finished-list > div + div { border-top: 1px solid rgba(30,67,88,.72); }
 .territory-result-row:first-child,
 .territory-finished-list > div:first-child { background: rgba(243,97,42,.1); color: #fff; }
-.territory-finished > .territory-primary { width: 100%; }
-.territory-finished .territory-primary { width: 100%; }
+.territory-next-round { margin-top: 2px; padding-top: 12px; border-top: 1px solid rgba(49,87,106,.72); }
+.territory-next-round-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; text-align: left; }
+.territory-next-round-head strong { color: #fff; font-size: 14px; font-weight: 900; }
+.territory-next-round-head span { min-width: 0; overflow: hidden; color: var(--territory-ui-muted); font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.territory-next-round .territory-role-list { margin-top: 0; }
+.territory-finished-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 12px; }
+.territory-finished-actions > :only-child { grid-column: 1 / -1; }
+.territory-finished-actions .territory-primary,
+.territory-finished-actions .territory-secondary { width: 100%; }
+.territory-chat-overlay {
+  z-index: 11;
+  top: auto;
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 54px);
+}
+.territory-chat-overlay .ov-line {
+  max-width: min(82%, 320px);
+  padding: 4px 9px;
+  border-radius: 7px;
+  background: rgba(14,42,58,.4);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.55);
+  font-size: 12px;
+  font-weight: 700;
+}
+.territory-chat-row {
+  position: absolute;
+  z-index: 12;
+  left: 50%;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  width: min(420px, calc(100% - 24px));
+  display: flex;
+  transform: translateX(-50%);
+  padding: 6px;
+  border: 1px solid rgba(207,224,231,.16);
+  border-radius: 10px;
+  background: rgba(14,42,58,.78);
+  box-shadow: 0 4px 14px rgba(0,0,0,.2);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.territory-chat-row:focus-within { border-color: var(--orange); }
+.territory-chat-row .chat-input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: rgba(3,18,26,.72);
+  box-shadow: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.territory-screen:not(.is-playing) .territory-panel {
+  padding-bottom: calc(max(76px, env(safe-area-inset-bottom) + 68px));
+}
+.territory-screen.is-playing.chat-enabled .territory-area {
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 54px);
+}
 .territory-screen:not(.is-playing) .territory-utility { z-index: 10; left: auto; right: max(8px, env(safe-area-inset-right)); }
 .territory-screen:not(.is-playing) .territory-utility button:not(#territory-leave-btn) { display: none; }
 .territory-screen:not(.is-playing) #territory-leave-btn { min-width: 58px; height: 36px; border-color: #31576a; background: var(--navy-2); }

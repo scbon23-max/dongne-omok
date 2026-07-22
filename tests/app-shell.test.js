@@ -258,6 +258,9 @@ test("Territory Rush is wired as an owner-only non-ranked controller game", () =
   assert.match(index, /id="territory-minimap"/);
   assert.match(index, /id="territory-lobby"/);
   assert.match(index, /id="territory-finished"/);
+  assert.match(index, /id="territory-chat-overlay"/);
+  assert.match(index, /id="territory-chat-row"[\s\S]*id="territory-chat-input"/);
+  assert.match(catalog, /territory:\s*\{[\s\S]*chatInputId:\s*"territory-chat-input"[\s\S]*chatOverlayId:\s*"territory-chat-overlay"/);
   assert.match(index, /\{ src: "territory-rush\.js" \}/);
   assert.match(territoryRush, /window\.TerritoryRush\s*=/);
   assert.match(game, /function roomHasSpace\(roomId, game, notify\)[\s\S]*Number\(room\.count\)[\s\S]*방이 가득 찼어요/);
@@ -283,6 +286,8 @@ test("Territory Rush is wired as an owner-only non-ranked controller game", () =
   assert.match(styles, /\.territory-scoreboard\s*\{[^}]*background:\s*rgba\(14,42,58,\.36\);[^}]*font-size:\s*15px;/);
   assert.match(styles, /\.territory-scoreboard\s*\{[^}]*width:\s*min\(147px, calc\(100% - 128px\)\);/);
   assert.match(styles, /\.territory-rank-number\s*\{[^}]*font-size:\s*15px;[^}]*font-weight:\s*1000;/);
+  assert.match(styles, /\.territory-chat-row\s*\{[^}]*position:\s*absolute;[^}]*bottom:\s*max\(8px, env\(safe-area-inset-bottom\)\);/);
+  assert.match(territoryRush, /function canChat\(nick\)[\s\S]*state\.phase !== "playing"[\s\S]*has\(state\.spectators, nick\) \|\| !playerByNick\(nick\)/);
   assert.match(styles, /@media \(max-width: 360px\)[\s\S]*\.territory-scoreboard\s*\{[^}]*width:\s*min\(143px, calc\(100% - 116px\)\);[^}]*font-size:\s*14px;/);
   const scoreboardSource = territoryRush.match(/function renderScoreboard\(\) \{([\s\S]*?)\n  \}\n\n  function renderFinished/)[1];
   assert.match(scoreboardSource, /territory-rank-number/);

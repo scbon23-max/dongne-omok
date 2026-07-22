@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260722-land-grab-v8">
+<meta name="app-build" content="20260722-land-grab-v9">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -634,9 +634,29 @@
       <div class="territory-panel-content">
         <h2 id="territory-finished-title">경기 결과</h2>
         <div id="territory-finished-list" class="territory-finished-list"></div>
-        <button id="territory-again-btn" class="territory-primary" type="button" aria-pressed="false">다시 준비</button>
+
+        <div class="territory-next-round">
+          <div class="territory-next-round-head">
+            <strong>다음 게임 준비</strong>
+            <span id="territory-next-round-status" aria-live="polite"></span>
+          </div>
+          <div class="territory-role-list" aria-live="polite">
+            <div><span>참가</span><div id="territory-finished-participants"></div></div>
+            <div><span>관전</span><div id="territory-finished-spectators"></div></div>
+          </div>
+        </div>
+
+        <div class="territory-finished-actions">
+          <button id="territory-finished-role-btn" class="territory-secondary" type="button" aria-pressed="false">관전하기</button>
+          <button id="territory-again-btn" class="territory-primary" type="button" aria-pressed="false">다시 준비</button>
+        </div>
       </div>
     </section>
+
+    <div id="territory-chat-overlay" class="chat-overlay territory-chat-overlay"></div>
+    <div id="territory-chat-row" class="territory-chat-row">
+      <input id="territory-chat-input" class="chat-input" type="text" maxlength="80" placeholder="채팅 입력" autocomplete="off">
+    </div>
 
     <div class="territory-swipe-hint" aria-hidden="true"><span>↗</span> 원하는 방향으로 밀어 이동</div>
   </div>

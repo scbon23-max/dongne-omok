@@ -93,8 +93,8 @@ window.GameCatalog = (function () {
       screenId: "territorygame",
       roomStripId: "room-strip-territory",
       chatLogId: null,
-      chatInputId: null,
-      chatOverlayId: null,
+      chatInputId: "territory-chat-input",
+      chatOverlayId: "territory-chat-overlay",
       onlineListId: null,
       onlineNumId: "territory-people-count",
       onlineTotalId: null

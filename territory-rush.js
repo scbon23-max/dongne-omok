@@ -20,6 +20,9 @@ window.TerritoryRush = (function () {
   var TRAIL_SAMPLE_TOLERANCE = .06;
   var MAX_VISUAL_TRAIL_POINTS = 180;
   var VISUAL_TRAIL_SCALE = 20;
+  var MAX_CAPTURE_PARTICLES = 72;
+  var MAX_CAPTURE_BURSTS = 12;
+  var CAPTURE_PARTICLES_PER_BURST = 3;
   var MAX_PLAYERS = 8;
   var MAX_ROOM_MEMBERS = 10;
   var MAX_TRAIL = 360;
@@ -54,6 +57,7 @@ window.TerritoryRush = (function () {
   var queue = new Int32Array(CELL_COUNT);
   var visualPlayers = Object.create(null);
   var visualTrails = Object.create(null);
+  var captureParticles = [];
   var pressedKeys = Object.create(null);
   var inputSeq = 0;
   var inputSeqByNick = Object.create(null);
@@ -98,6 +102,9 @@ window.TerritoryRush = (function () {
   var deathSfxEl = null;
   var playedDeathCues = Object.create(null);
   var roomOverflowNotified = Object.create(null);
+  var spectatorFocusNick = "";
+  var lastChatScope = "";
+  var lastScoreboardSignature = "";
 
   resetGrid();
 
@@ -453,6 +460,60 @@ window.TerritoryRush = (function () {
     return value < 0 ? value + 1 : value;
   }
 
+  function sampleStolenCells(previous, next, limit, random) {
+    if (!previous || !next) return [];
+    var length = Math.min(previous.length || 0, next.length || 0);
+    var max = clamp(Math.floor(Number(limit) || 0), 0, MAX_CAPTURE_BURSTS);
+    if (!length || !max) return [];
+    var samples = [];
+    var seen = 0;
+    for (var key = 0; key < length; key++) {
+      var previousId = Number(previous[key]);
+      var nextId = Number(next[key]);
+      if (previousId < 0 || nextId < 0 || previousId === nextId) continue;
+      var sample = { key: key, from: previousId, to: nextId };
+      seen++;
+      if (samples.length < max) samples.push(sample);
+      else {
+        var replacement = Math.floor(unitRandom(random) * seen);
+        if (replacement < max) samples[replacement] = sample;
+      }
+    }
+    return samples;
+  }
+
+  function queueCaptureParticles(previous, next, now, random) {
+    var samples = sampleStolenCells(previous, next, MAX_CAPTURE_BURSTS, random);
+    if (!samples.length) return 0;
+    now = isFinite(Number(now)) ? Number(now) : nowMs();
+    var created = 0;
+    samples.forEach(function (sample) {
+      var cellX = sample.key % WORLD_W + .5;
+      var cellY = Math.floor(sample.key / WORLD_W) + .5;
+      var oldColor = TERRITORY_COLORS[sample.from] || COLORS[sample.from] || "#ffffff";
+      var newColor = TERRITORY_COLORS[sample.to] || COLORS[sample.to] || "#ffffff";
+      for (var index = 0; index < CAPTURE_PARTICLES_PER_BURST; index++) {
+        var angle = unitRandom(random) * Math.PI * 2;
+        var speed = .55 + unitRandom(random) * 1.25;
+        captureParticles.push({
+          x: cellX + (unitRandom(random) - .5) * .55,
+          y: cellY + (unitRandom(random) - .5) * .55,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - .22,
+          born: now,
+          life: 420 + unitRandom(random) * 220,
+          size: .13 + unitRandom(random) * .13,
+          color: index === 0 ? newColor : oldColor
+        });
+        created++;
+      }
+    });
+    if (captureParticles.length > MAX_CAPTURE_PARTICLES) {
+      captureParticles.splice(0, captureParticles.length - MAX_CAPTURE_PARTICLES);
+    }
+    return created;
+  }
+
   function allocateInitialSpawns(count, random) {
     count = clamp(Math.floor(Number(count) || 0), 0, MAX_PLAYERS);
     var columns = [12, 36, 60];
@@ -657,7 +718,9 @@ window.TerritoryRush = (function () {
 
   function capturePlayer(player) {
     if (!player.trail.length) return;
+    var previousOwner = owner.slice();
     captureInto(owner, player.trail, player.id);
+    queueCaptureParticles(previousOwner, owner, nowMs());
     clearTrail(player);
     state.ownerRev++;
     state.rev++;
@@ -930,8 +993,50 @@ window.TerritoryRush = (function () {
   function rankRows() {
     var counts = territoryCounts();
     return state.players.map(function (player) {
-      return { id: player.id, nick: player.nick, bot: player.bot, kills: player.kills, area: (counts[player.id] || 0) / CELL_COUNT * 100 };
+      return {
+        id: player.id,
+        nick: player.nick,
+        bot: player.bot,
+        kills: player.kills,
+        area: (counts[player.id] || 0) / CELL_COUNT * 100,
+        active: !player.retired && !player.away
+      };
     }).sort(function (a, b) { return b.area - a.area || b.kills - a.kills || a.id - b.id; });
+  }
+
+  function isLocalSpectator() {
+    return !!api && has(state.spectators, safeNick(me().nick));
+  }
+
+  function activeFocusPlayer(nick) {
+    var player = playerByNick(nick);
+    return player && !player.retired && !player.away ? player : null;
+  }
+
+  function cameraFocusPlayer() {
+    var mine = playerByNick(me().nick);
+    if (!isLocalSpectator()) return mine || state.players[0] || null;
+    var selected = activeFocusPlayer(spectatorFocusNick);
+    if (selected) return selected;
+    var ranked = rankRows();
+    for (var i = 0; i < ranked.length; i++) {
+      selected = ranked[i].active ? activeFocusPlayer(ranked[i].nick) : null;
+      if (selected) {
+        spectatorFocusNick = selected.nick;
+        return selected;
+      }
+    }
+    spectatorFocusNick = "";
+    return null;
+  }
+
+  function selectSpectatorFocus(nick) {
+    if (state.phase !== "playing" || !isLocalSpectator()) return false;
+    var selected = activeFocusPlayer(safeNick(nick));
+    if (!selected) return false;
+    spectatorFocusNick = selected.nick;
+    renderScoreboard();
+    return true;
   }
 
   function notifyRoomChanged() {
@@ -968,12 +1073,24 @@ window.TerritoryRush = (function () {
     if (state.matchId && parsed.state.matchId === state.matchId && parsed.state.rev < state.rev
         && !authorityYielded && !hostChanged) return false;
     syncRemoteDeathCues(state, parsed.state);
+    if (!matchChanged && state.phase === "playing" && parsed.state.phase === "playing") {
+      queueCaptureParticles(owner, parsed.owner, nowMs());
+    }
     if (matchChanged || parsed.state.phase !== "playing") {
       clearPendingInput();
-      if (matchChanged) desiredInputAngle = null;
+      if (matchChanged) {
+        desiredInputAngle = null;
+        lastInputAt = 0;
+        pressedKeys = Object.create(null);
+        visualPlayers = Object.create(null);
+        visualTrails = Object.create(null);
+        captureParticles = [];
+        spectatorFocusNick = "";
+        swipe = null;
+      }
     }
     state = parsed.state;
-    if (resetVisualTimeline) visualTrails = Object.create(null);
+    if (resetVisualTimeline && !matchChanged) visualTrails = Object.create(null);
     if (sourceHost) authoritativeHost = sourceHost;
     owner.set(parsed.owner);
     wantedOwnerRev = state.ownerRev;
@@ -1108,6 +1225,15 @@ window.TerritoryRush = (function () {
     if (!api || !api.isHost() || (state.phase !== "idle" && state.phase !== "finished")) return false;
     nick = safeNick(nick);
     if (!nick || !has(activeNicks(), nick)) return false;
+    if (spectator && nick === safeNick(api.host())) {
+      var hasSuccessor = activeNicks().some(function (name) {
+        return name !== nick && !has(state.spectators, name);
+      });
+      if (!hasSuccessor) {
+        if (api.toast) api.toast("다른 참가자가 한 명 이상 있어야 관전할 수 있어요");
+        return false;
+      }
+    }
     if (!spectator && has(state.spectators, nick) && participantNicks().length >= MAX_PLAYERS) {
       if (api.toast) api.toast("동시 플레이는 8명까지 가능해요");
       return false;
@@ -1160,6 +1286,7 @@ window.TerritoryRush = (function () {
 
   function hostStart() {
     if (!api || !api.isHost() || (state.phase !== "idle" && state.phase !== "finished")) return false;
+    if (has(state.spectators, safeNick(me().nick))) return false;
     var humans = participantNicks();
     if (!humans.length || !allReady()) {
       if (api.toast) api.toast(!humans.length ? "참가자가 한 명 이상 필요해요" : "모두 레디하면 시작할 수 있어요");
@@ -1172,11 +1299,18 @@ window.TerritoryRush = (function () {
       entries.push({ nick: nick, bot: true });
     });
     entries = entries.slice(0, MAX_PLAYERS);
+    clearPendingInput();
     resetGrid();
     inputSeqByNick = Object.create(null);
     inputAtByNick = Object.create(null);
     lastInputAt = 0;
     desiredInputAngle = null;
+    pressedKeys = Object.create(null);
+    visualPlayers = Object.create(null);
+    visualTrails = Object.create(null);
+    captureParticles = [];
+    spectatorFocusNick = "";
+    swipe = null;
     state.phase = "playing";
     state.rev++;
     state.frameSeq = 0;
@@ -1318,12 +1452,12 @@ window.TerritoryRush = (function () {
     return '<span class="' + classes.join(" ") + '">' + esc(nick) + (person.bot ? " AI" : "") + "</span>";
   }
 
-  function renderRoles() {
-    var participants = $("territory-participants");
-    var spectators = $("territory-spectators");
+  function renderRoleLists(participantId, spectatorId) {
+    var participants = $(participantId);
+    var spectators = $(spectatorId);
     var activeRows = activePeople();
     if (participants) {
-      var playingHumans = state.phase === "playing" || state.phase === "finished"
+      var playingHumans = state.phase === "playing"
         ? state.players.filter(function (player) { return !player.bot; }).map(function (player) { return player.nick; })
         : participantNicks();
       participants.innerHTML = activeRows.filter(function (person) { return has(playingHumans, safeNick(person.nick)); })
@@ -1337,6 +1471,11 @@ window.TerritoryRush = (function () {
     }
   }
 
+  function renderRoles() {
+    renderRoleLists("territory-participants", "territory-spectators");
+    renderRoleLists("territory-finished-participants", "territory-finished-spectators");
+  }
+
   function renderControls() {
     if (!api) return;
     var isHost = api.isHost();
@@ -1346,10 +1485,17 @@ window.TerritoryRush = (function () {
     var ready = $("territory-ready-btn");
     var start = $("territory-start-btn");
     var again = $("territory-again-btn");
+    var finishedRole = $("territory-finished-role-btn");
+    var nextStatus = $("territory-next-round-status");
     if (role) {
       role.textContent = spectator ? "참가하기" : "관전하기";
       role.setAttribute("aria-pressed", spectator ? "true" : "false");
       role.disabled = state.phase === "playing";
+    }
+    if (finishedRole) {
+      finishedRole.textContent = spectator ? "참가하기" : "관전하기";
+      finishedRole.setAttribute("aria-pressed", spectator ? "true" : "false");
+      finishedRole.disabled = state.phase !== "finished";
     }
     setHidden(ready, isHost || spectator || state.phase !== "idle");
     if (ready) {
@@ -1364,6 +1510,7 @@ window.TerritoryRush = (function () {
       start.disabled = !humans || !allReady();
     }
     if (again) {
+      setHidden(again, state.phase !== "finished" || spectator);
       if (isHost) {
         again.textContent = participantNicks().length <= 1 ? "다시 연습" : "다시 시작";
         again.disabled = !participantNicks().length || !allReady();
@@ -1375,18 +1522,56 @@ window.TerritoryRush = (function () {
         again.setAttribute("aria-pressed", againReady ? "true" : "false");
       }
     }
+    if (nextStatus) {
+      var required = requiredReadyNicks();
+      var readyCount = required.filter(function (nick) { return has(state.ready, nick); }).length;
+      if (spectator) nextStatus.textContent = "관전 중 · 참가하면 다음 판에 함께해요";
+      else if (isHost && !required.length) nextStatus.textContent = "바로 시작할 수 있어요";
+      else if (isHost && readyCount === required.length) nextStatus.textContent = "모두 레디 완료";
+      else if (isHost) nextStatus.textContent = readyCount + "/" + required.length + "명 레디";
+      else if (has(state.ready, myNick)) nextStatus.textContent = "레디 완료 · 방장을 기다려주세요";
+      else nextStatus.textContent = "레디를 눌러 다음 판을 준비하세요";
+    }
   }
 
   function renderScoreboard() {
     var element = $("territory-scoreboard");
     if (!element) return;
     var mine = me().nick;
-    element.innerHTML = rankRows().map(function (row, index) {
-      return '<div class="territory-rank' + (row.nick === mine ? " is-me" : "") + '">'
+    var canFocus = state.phase === "playing" && isLocalSpectator();
+    var focused = canFocus ? cameraFocusPlayer() : null;
+    var rows = rankRows();
+    var signature = JSON.stringify([
+      canFocus,
+      mine,
+      focused ? focused.nick : "",
+      rows.map(function (row) { return [row.id, row.nick, row.active, row.area.toFixed(1)]; })
+    ]);
+    if (signature === lastScoreboardSignature) return;
+    lastScoreboardSignature = signature;
+    var activeFocus = typeof document !== "undefined" && document.activeElement && element.contains(document.activeElement)
+      ? document.activeElement.closest("[data-tr-focus]")
+      : null;
+    var restoreFocusNick = activeFocus ? activeFocus.getAttribute("data-tr-focus") : "";
+    element.innerHTML = rows.map(function (row, index) {
+      var isFocused = !!focused && row.nick === focused.nick;
+      var name = canFocus && row.active
+        ? '<button type="button" class="territory-rank-name territory-rank-focus" data-tr-focus="' + esc(row.nick)
+          + '" aria-pressed="' + (isFocused ? "true" : "false") + '" aria-label="' + esc(row.nick) + ' 관전하기">' + esc(row.nick) + "</button>"
+        : '<span class="territory-rank-name">' + esc(row.nick) + "</span>";
+      return '<div class="territory-rank' + (row.nick === mine ? " is-me" : "") + (isFocused ? " is-focused" : "") + '">'
         + '<span class="territory-rank-number">' + (index + 1) + "</span>"
-        + '<span class="territory-rank-name">' + esc(row.nick) + "</span>"
+        + name
         + "<strong>" + row.area.toFixed(1) + "%</strong></div>";
     }).join("");
+    if (restoreFocusNick) {
+      var buttons = element.querySelectorAll("[data-tr-focus]");
+      for (var i = 0; i < buttons.length; i++) {
+        if (buttons[i].getAttribute("data-tr-focus") !== restoreFocusNick) continue;
+        try { buttons[i].focus({ preventScroll: true }); } catch (error) { buttons[i].focus(); }
+        break;
+      }
+    }
   }
 
   function renderFinished() {
@@ -1423,6 +1608,32 @@ window.TerritoryRush = (function () {
     renderScoreboard();
   }
 
+  function canChat(nick) {
+    nick = safeNick(nick || (api ? me().nick : ""));
+    if (!nick) return false;
+    if (state.phase !== "playing") return true;
+    return has(state.spectators, nick) || !playerByNick(nick);
+  }
+
+  function renderChat() {
+    if (!api) return;
+    var allowed = canChat(me().nick);
+    var row = $("territory-chat-row");
+    var input = $("territory-chat-input");
+    var overlay = $("territory-chat-overlay");
+    var root = $("territorygame");
+    var scope = state.phase === "playing" ? (allowed ? "playing:spectator" : "playing:participant") : state.phase + ":all";
+    if (overlay && lastChatScope !== scope) overlay.innerHTML = "";
+    lastChatScope = scope;
+    setHidden(row, !allowed);
+    setHidden(overlay, !allowed);
+    if (root) root.classList.toggle("chat-enabled", allowed);
+    if (input) {
+      input.disabled = !allowed;
+      input.placeholder = state.phase === "playing" ? "관전자 채팅" : "채팅 입력";
+    }
+  }
+
   function onVisibilityChange() {
     if (!active || !api || state.phase !== "playing") return;
     if (document.hidden && api.isHost()) {
@@ -1454,6 +1665,7 @@ window.TerritoryRush = (function () {
     renderControls();
     renderFinished();
     renderHud();
+    renderChat();
   }
 
   function resizeCanvases() {
@@ -1492,7 +1704,7 @@ window.TerritoryRush = (function () {
     var width = Number(canvas.dataset.logicalWidth) || canvas.getBoundingClientRect().width;
     var height = Number(canvas.dataset.logicalHeight) || canvas.getBoundingClientRect().height;
     var scale = Math.max(width / WORLD_W, height / WORLD_H, Math.min(14, width / 34));
-    var focus = playerByNick(me().nick) || state.players[0] || { nick: "", x: WORLD_W / 2, y: WORLD_H / 2 };
+    var focus = cameraFocusPlayer() || { nick: "", x: WORLD_W / 2, y: WORLD_H / 2 };
     var visual = visualPlayers[focus.nick] || focus;
     var halfW = Math.min(WORLD_W / 2, width / scale / 2);
     var halfH = Math.min(WORLD_H / 2, height / scale / 2);
@@ -1533,9 +1745,6 @@ window.TerritoryRush = (function () {
       }
     }
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = "rgba(65,132,105,.4)";
-    ctx.lineWidth = Math.max(2, view.scale * .2);
-    ctx.strokeRect(screenX(0, view), screenY(0, view), WORLD_W * view.scale, WORLD_H * view.scale);
   }
 
   function rebuildTerritoryLayer() {
@@ -1566,6 +1775,21 @@ window.TerritoryRush = (function () {
     ctx.imageSmoothingEnabled = false;
     ctx.globalAlpha = 1;
     ctx.drawImage(territoryLayer, sourceX, sourceY, worldWidth * LAYER_SCALE, worldHeight * LAYER_SCALE, 0, 0, view.width, view.height);
+  }
+
+  function drawArenaBoundary(view) {
+    var left = screenX(ARENA_INSET, view);
+    var top = screenY(ARENA_INSET, view);
+    var right = screenX(WORLD_W - ARENA_INSET, view);
+    var bottom = screenY(WORLD_H - ARENA_INSET, view);
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "#31576a";
+    ctx.lineWidth = Math.max(2.5, Math.min(4, view.scale * .28));
+    ctx.lineJoin = "round";
+    ctx.setLineDash([]);
+    ctx.strokeRect(left, top, right - left, bottom - top);
+    ctx.restore();
   }
 
   function pointDistanceToSegmentSquared(point, start, end) {
@@ -1847,6 +2071,32 @@ window.TerritoryRush = (function () {
     ctx.fillText(player.nick + (player.bot ? " AI" : ""), px, py - radius - 8);
   }
 
+  function drawCaptureParticles(view, now) {
+    if (!captureParticles.length) return;
+    var visible = [];
+    ctx.save();
+    for (var i = 0; i < captureParticles.length; i++) {
+      var particle = captureParticles[i];
+      var age = now - particle.born;
+      if (age < 0 || age >= particle.life) continue;
+      var progress = age / particle.life;
+      var seconds = age / 1000;
+      var x = particle.x + particle.vx * seconds;
+      var y = particle.y + particle.vy * seconds + progress * progress * .7;
+      var px = screenX(x, view);
+      var py = screenY(y, view);
+      visible.push(particle);
+      if (px < -12 || px > view.width + 12 || py < -12 || py > view.height + 12) continue;
+      ctx.globalAlpha = Math.pow(1 - progress, 1.35);
+      ctx.fillStyle = particle.color;
+      ctx.beginPath();
+      ctx.arc(px, py, Math.max(1.2, view.scale * particle.size * (1 - progress * .35)), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    captureParticles = visible;
+  }
+
   function paint() {
     if (!active || !ctx || !canvas) return;
     var view = viewInfo();
@@ -1854,6 +2104,7 @@ window.TerritoryRush = (function () {
     ctx.clearRect(0, 0, view.width, view.height);
     drawArena(view);
     drawTerritories(view);
+    drawArenaBoundary(view);
     state.players.forEach(function (player) {
       var visual = visualPlayers[player.nick] || player;
       visual.x += (player.x - visual.x) * .24;
@@ -1863,6 +2114,7 @@ window.TerritoryRush = (function () {
       visual.angle = normalizeAngle(visual.angle + angleDelta(visual.angle, playerAngle) * .24);
     });
     state.players.forEach(function (player) { drawTrail(player, view); });
+    drawCaptureParticles(view, now);
     state.players.forEach(function (player) { drawPlayer(player, view, now); });
   }
 
@@ -1878,14 +2130,16 @@ window.TerritoryRush = (function () {
     miniCtx.imageSmoothingEnabled = false;
     miniCtx.drawImage(territoryLayer, 0, 0, width, height);
     miniCtx.globalAlpha = 1;
+    var focus = cameraFocusPlayer();
     for (var i = 0; i < state.players.length; i++) {
       var player = state.players[i];
       if (player.deadUntil || player.retired) continue;
+      var isFocused = !!focus && player.nick === focus.nick;
       miniCtx.fillStyle = COLORS[player.id];
       miniCtx.beginPath();
-      miniCtx.arc(player.x / WORLD_W * width, player.y / WORLD_H * height, player.nick === me().nick ? 3.2 : 2.2, 0, Math.PI * 2);
+      miniCtx.arc(player.x / WORLD_W * width, player.y / WORLD_H * height, isFocused ? 3.2 : 2.2, 0, Math.PI * 2);
       miniCtx.fill();
-      if (player.nick === me().nick) {
+      if (isFocused) {
         miniCtx.strokeStyle = "#214457";
         miniCtx.lineWidth = 1.2;
         miniCtx.stroke();
@@ -1935,9 +2189,18 @@ window.TerritoryRush = (function () {
     $("territory-leave-btn").addEventListener("click", function () { if (api && api.leaveRoom) api.leaveRoom(); });
     $("territory-menu-btn").addEventListener("click", function () { if (api && api.openMenu) api.openMenu(); });
     $("territory-role-btn").addEventListener("click", toggleRole);
+    $("territory-finished-role-btn").addEventListener("click", toggleRole);
     $("territory-ready-btn").addEventListener("click", toggleReady);
     $("territory-start-btn").addEventListener("click", hostStart);
     $("territory-again-btn").addEventListener("click", function () { if (api && api.isHost()) hostStart(); else toggleReady(); });
+    $("territory-scoreboard").addEventListener("click", function (event) {
+      var target = event.target && event.target.closest ? event.target.closest("[data-tr-focus]") : null;
+      if (target) selectSpectatorFocus(target.getAttribute("data-tr-focus"));
+    });
+    $("territory-chat-input").addEventListener("keydown", function (event) {
+      if (event.key !== "Enter" || event.isComposing || !api || !canChat(me().nick)) return;
+      if (api.sendChat && api.sendChat(this.value)) this.value = "";
+    });
 
     var keyVectors = {
       ArrowUp: { x: 0, y: -1 }, KeyW: { x: 0, y: -1 },
@@ -1953,6 +2216,11 @@ window.TerritoryRush = (function () {
         if (vector) { x += vector.x; y += vector.y; }
       });
       if (x || y) requestDirection(Math.atan2(y, x));
+    }
+    function isEditableTarget(target) {
+      if (!target) return false;
+      var tag = String(target.tagName || "").toUpperCase();
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || !!target.isContentEditable;
     }
 
     canvas.addEventListener("pointerdown", function (event) {
@@ -1976,7 +2244,7 @@ window.TerritoryRush = (function () {
     canvas.addEventListener("pointerup", clearSwipe);
     canvas.addEventListener("pointercancel", clearSwipe);
     window.addEventListener("keydown", function (event) {
-      if (!active || state.phase !== "playing" || !keyVectors[event.code]) return;
+      if (!active || state.phase !== "playing" || !keyVectors[event.code] || isEditableTarget(event.target)) return;
       pressedKeys[event.code] = true;
       updateKeyboardDirection();
       event.preventDefault();
@@ -1984,6 +2252,7 @@ window.TerritoryRush = (function () {
     window.addEventListener("keyup", function (event) {
       if (!active || !keyVectors[event.code]) return;
       delete pressedKeys[event.code];
+      if (isEditableTarget(event.target)) return;
       if (state.phase !== "playing") return;
       updateKeyboardDirection();
       event.preventDefault();
@@ -2152,8 +2421,6 @@ window.TerritoryRush = (function () {
     var mine = playerByNick(me().nick);
     return state.phase === "playing" && !!(mine && !mine.retired);
   }
-
-  function canChat() { return true; }
 
   function renderPlayers(box, hint) {
     if (!box || !api) return;
@@ -2334,6 +2601,7 @@ window.TerritoryRush = (function () {
     resetGrid();
     visualPlayers = Object.create(null);
     visualTrails = Object.create(null);
+    captureParticles = [];
     pressedKeys = Object.create(null);
     inputSeq = 0;
     inputSeqByNick = Object.create(null);
@@ -2346,6 +2614,9 @@ window.TerritoryRush = (function () {
     lastWarnMatchId = "";
     playedDeathCues = Object.create(null);
     roomOverflowNotified = Object.create(null);
+    spectatorFocusNick = "";
+    lastChatScope = "";
+    lastScoreboardSignature = "";
     wantedOwnerRev = 0;
     ownerSyncMissingSince = 0;
     authoritativeHost = "";
@@ -2372,6 +2643,9 @@ window.TerritoryRush = (function () {
     lastGameBgmMatchId = "";
     playedDeathCues = Object.create(null);
     roomOverflowNotified = Object.create(null);
+    spectatorFocusNick = "";
+    lastChatScope = "";
+    lastScoreboardSignature = "";
     active = false;
     stopLoops();
     if (resizeTimer) { clearTimeout(resizeTimer); resizeTimer = null; }
@@ -2383,6 +2657,7 @@ window.TerritoryRush = (function () {
     resetGrid();
     visualPlayers = Object.create(null);
     visualTrails = Object.create(null);
+    captureParticles = [];
     pressedKeys = Object.create(null);
     syncReplyAtByNick = Object.create(null);
     helloPending = false;
@@ -2417,6 +2692,10 @@ window.TerritoryRush = (function () {
       encodeOwner: encodeOwner,
       decodeOwner: decodeOwner,
       captureInto: captureInto,
+      sampleStolenCells: sampleStolenCells,
+      queueCaptureParticles: queueCaptureParticles,
+      clearCaptureParticles: function () { captureParticles = []; },
+      getCaptureParticles: function () { return captureParticles.slice(); },
       sanitizeState: sanitizeState,
       makePlayer: makePlayer,
       allocateInitialSpawns: allocateInitialSpawns,
@@ -2449,6 +2728,8 @@ window.TerritoryRush = (function () {
       hostTick: hostTick,
       hostSetReady: hostSetReady,
       hostSetSpectator: hostSetSpectator,
+      cameraFocusPlayer: cameraFocusPlayer,
+      selectSpectatorFocus: selectSpectatorFocus,
       eliminate: eliminate,
       syncAudio: syncAudio,
       playDeathSfx: playDeathSfx,
@@ -2487,6 +2768,9 @@ window.TerritoryRush = (function () {
         trailSampleTolerance: TRAIL_SAMPLE_TOLERANCE,
         maxVisualTrailPoints: MAX_VISUAL_TRAIL_POINTS,
         visualTrailScale: VISUAL_TRAIL_SCALE,
+        maxCaptureParticles: MAX_CAPTURE_PARTICLES,
+        maxCaptureBursts: MAX_CAPTURE_BURSTS,
+        captureParticlesPerBurst: CAPTURE_PARTICLES_PER_BURST,
         maxPlayers: MAX_PLAYERS,
         maxRoomMembers: MAX_ROOM_MEMBERS,
         maxTrail: MAX_TRAIL,
