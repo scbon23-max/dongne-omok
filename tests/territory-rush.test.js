@@ -269,6 +269,49 @@ test("diagonal movement slides along the arena edge without growing a stopped tr
   assert.equal(player.deadUntil, 0);
 });
 
+test("turning along every arena edge does not collide with the attached trail", () => {
+  const inset = engine.constants.arenaInset;
+  const cases = [
+    { x: 60, y: 54, angle: 0, turn: Math.PI / 2, edge: "x", value: engine.constants.width - inset },
+    { x: 60, y: 54, angle: 0, turn: -Math.PI / 2, edge: "x", value: engine.constants.width - inset },
+    { x: 12, y: 54, angle: Math.PI, turn: Math.PI / 2, edge: "x", value: inset },
+    { x: 12, y: 54, angle: Math.PI, turn: -Math.PI / 2, edge: "x", value: inset },
+    { x: 36, y: 12, angle: -Math.PI / 2, turn: 0, edge: "y", value: inset },
+    { x: 36, y: 12, angle: -Math.PI / 2, turn: Math.PI, edge: "y", value: inset },
+    { x: 36, y: 96, angle: Math.PI / 2, turn: 0, edge: "y", value: engine.constants.height - inset },
+    { x: 36, y: 96, angle: Math.PI / 2, turn: Math.PI, edge: "y", value: engine.constants.height - inset }
+  ];
+
+  cases.forEach((edge, index) => {
+    const player = engine.makePlayer(0, `edge-turn-${index}`, false, 1);
+    player.x = edge.x;
+    player.y = edge.y;
+    player.spawnX = edge.x;
+    player.spawnY = edge.y;
+    player.angle = edge.angle;
+    player.targetAngle = edge.angle;
+    player.lastCell = Math.floor(player.y) * engine.constants.width + Math.floor(player.x);
+    const state = engine.freshState();
+    state.players = [player];
+    engine.setState(state);
+    engine.resetGrid();
+    assert.equal(engine.createBase(player), true);
+
+    for (let step = 0; step < 28; step++) {
+      engine.advancePlayer(player, engine.constants.stepMs / 1000, 1000 + step);
+    }
+    assert.ok(Math.abs(player[edge.edge] - edge.value) < 1e-9);
+    assert.ok(player.trail.length > 0);
+    assert.equal(player.deadUntil, 0);
+
+    player.targetAngle = edge.turn;
+    for (let step = 0; step < 4; step++) {
+      engine.advancePlayer(player, engine.constants.stepMs / 1000, 2000 + step);
+    }
+    assert.equal(player.deadUntil, 0);
+  });
+});
+
 test("diagonal movement keeps trail cells connected for territory capture", () => {
   const player = engine.makePlayer(0, "diagonal-player", false, 2);
   const width = engine.constants.width;
@@ -313,6 +356,7 @@ test("the attached trail head is safe but reversing into the settled trail still
   const trail = [{ x: 0, y: 0 }, { x: 5, y: 0 }];
   const grace = engine.constants.trailHeadGrace;
 
+  assert.ok(grace > engine.constants.trailCollisionRadius * Math.SQRT2);
   assert.equal(engine.movementHitsTrail(5, 0, 5.4, 0, trail, grace), false);
   assert.equal(engine.movementHitsTrail(5, 0, 4.6, 0, trail, grace), true);
 });
