@@ -23,9 +23,22 @@ test("the main lobby opens CatchMind gallery before ranking", () => {
   assert.match(index, /id="catch-gallery-backdrop"/);
   assert.match(index, /id="catch-gallery-recent-tab"/);
   assert.match(index, /id="catch-gallery-favorite-tab"/);
+  assert.match(index, /id="catch-gallery-person"/);
   assert.match(index, /id="catch-gallery-preview"/);
   assert.match(styles, /\.cm-gallery-grid\s*\{[^}]*repeat\(2,/);
   assert.match(styles, /\.cm-gallery-thumb\s*\{[^}]*aspect-ratio:\s*1/);
+  assert.match(styles, /\.cm-gallery-person-filter\s*\{/);
+});
+
+test("gallery can show drawings from only the selected person", () => {
+  assert.match(catchmind, /var galleryDrawer = ""/);
+  assert.match(catchmind, /function setGalleryDrawer\(drawer\)/);
+  assert.match(catchmind, /api\.loadGallery\(galleryMode, galleryOffset, GALLERY_PAGE_SIZE, galleryDrawer, includeDrawers\)/);
+  assert.match(catchmind, /galleryPerson\.addEventListener\("change"/);
+  assert.match(edgeFunction, /async function galleryDrawers\(/);
+  assert.match(edgeFunction, /body\.includeDrawers === true/);
+  assert.match(edgeFunction, /query = query\.eq\("drawer", drawer\)/);
+  assert.match(edgeFunction, /!drawer \|\| row\.drawer === drawer/);
 });
 
 test("gallery schema enforces one thousand recent drawings and twenty favorites per account", () => {
@@ -58,7 +71,7 @@ test("gallery database calls include account proof and clamp list sizes", async 
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(root, "db.js"), "utf8"), context, { filename: "db.js" });
 
-  await context.window.Db.getCatchmindGallery({ nick: "A", hash: "a".repeat(64) }, "favorites", -4, 999);
+  await context.window.Db.getCatchmindGallery({ nick: "A", hash: "a".repeat(64) }, "favorites", -4, 999, "민서", true);
   await context.window.Db.toggleCatchmindFavorite({ nick: "A", hash: "a".repeat(64) }, 12, true);
 
   assert.equal(calls[0].name, "catchmind-gallery");
@@ -66,6 +79,8 @@ test("gallery database calls include account proof and clamp list sizes", async 
   assert.equal(calls[0].body.mode, "favorites");
   assert.equal(calls[0].body.offset, 0);
   assert.equal(calls[0].body.limit, 40);
+  assert.equal(calls[0].body.drawer, "민서");
+  assert.equal(calls[0].body.includeDrawers, true);
   assert.equal(calls[0].body.auth.nick, "A");
   assert.equal(calls[0].body.auth.hash, "a".repeat(64));
   assert.equal(calls[1].body.action, "favorite");

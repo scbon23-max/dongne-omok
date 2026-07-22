@@ -131,11 +131,13 @@ window.Db = (function () {
   async function saveCatchmindDrawing(auth, drawing) {
     return galleryInvoke("save", auth, drawing);
   }
-  async function getCatchmindGallery(auth, mode, offset, limit) {
+  async function getCatchmindGallery(auth, mode, offset, limit, drawer, includeDrawers) {
     return galleryInvoke("list", auth, {
       mode: mode === "favorites" ? "favorites" : "recent",
       offset: Math.max(0, Math.floor(Number(offset) || 0)),
-      limit: Math.max(1, Math.min(40, Math.floor(Number(limit) || 20)))
+      limit: Math.max(1, Math.min(40, Math.floor(Number(limit) || 20))),
+      drawer: String(drawer || "").trim().slice(0, 40),
+      includeDrawers: includeDrawers === true
     });
   }
   async function toggleCatchmindFavorite(auth, drawingId, favorite) {

@@ -173,7 +173,7 @@ test("capturing enemy land queues a small bounded local particle effect", () => 
   assert.equal(engine.queueCaptureParticles(neutralBefore, neutralAfter, 2000, seededRandom(3)), 0);
   assert.equal(engine.getCaptureParticles().length, 0);
 
-  const captureSource = source.match(/function capturePlayer\(player\) \{([\s\S]*?)\n  \}\n\n  function eliminate/)[1];
+  const captureSource = source.match(/function capturePlayer\(player, now\) \{([\s\S]*?)\n  \}\n\n  function eliminate/)[1];
   const applyFullSource = source.match(/function applyFull\(raw, sourceHost\) \{([\s\S]*?)\n  \}\n\n  function applyFrame/)[1];
   const paintSource = source.match(/function paint\(\) \{([\s\S]*?)\n  \}\n\n  function paintMinimap/)[1];
   assert.match(captureSource, /previousOwner = owner\.slice\(\)[\s\S]*queueCaptureParticles\(previousOwner, owner/);
@@ -241,7 +241,7 @@ test("the arena edge contains players instead of eliminating them", () => {
   }
 });
 
-test("diagonal movement slides along the arena edge without growing a stopped trail", () => {
+test("an outward-facing player turns along the arena edge instead of parking", () => {
   const inset = engine.constants.arenaInset;
   const player = engine.makePlayer(0, "wall-slider", false, 2);
   player.x = engine.constants.width - inset - 0.01;
@@ -264,8 +264,10 @@ test("diagonal movement slides along the arena edge without growing a stopped tr
   player.angle = 0;
   player.targetAngle = 0;
   const trailLength = player.trail.length;
+  const edgeY = player.y;
   for (let step = 0; step < 5; step++) engine.advancePlayer(player, engine.constants.stepMs / 1000, Date.now() + step);
-  assert.equal(player.trail.length, trailLength);
+  assert.ok(player.y !== edgeY);
+  assert.ok(player.trail.length >= trailLength);
   assert.equal(player.deadUntil, 0);
 });
 
@@ -299,6 +301,7 @@ test("turning along every arena edge does not collide with the attached trail", 
 
     for (let step = 0; step < 28; step++) {
       engine.advancePlayer(player, engine.constants.stepMs / 1000, 1000 + step);
+      if (Math.abs(player[edge.edge] - edge.value) < 1e-9) break;
     }
     assert.ok(Math.abs(player[edge.edge] - edge.value) < 1e-9);
     assert.ok(player.trail.length > 0);
@@ -367,7 +370,93 @@ test("capture bridge cells no longer act as whole-cell death zones", () => {
 
   assert.doesNotMatch(enterCellSource, /trailId|eliminate\(/);
   assert.doesNotMatch(enterCellSource, /else if \(trailOwner/);
-  assert.match(advanceSource, /resolveTrailCollisions\(player, fromX, fromY, nx, ny, now\)/);
+  assert.match(advanceSource, /advancePlayers\(\[player\], dt, now\)/);
+  assert.match(advanceSource, /resolveAdvanceCollisions\(proposals, now\)/);
+});
+
+test("network trail compression cannot create a false self-collision on a long curve", () => {
+  const width = engine.constants.width;
+  const curve = Array.from({ length: 200 }, (_unused, index) => ({
+    x: 5 + (index % 20) * 3,
+    y: 5 + Math.floor(index / 20) * 5 + (index % 2) * 1.5
+  }));
+  const compact = engine.decodeVisualTrail(engine.encodeVisualTrail(curve));
+  const fromX = 17;
+  const fromY = 36.1;
+  const toY = fromY + engine.constants.speed * engine.constants.stepMs / 1000;
+
+  assert.ok(curve.length > engine.constants.maxVisualTrailPoints);
+  assert.equal(compact.length, engine.constants.maxVisualTrailPoints);
+  assert.equal(engine.movementHitsTrail(fromX, fromY, fromX, toY, curve, engine.constants.trailHeadGrace), false);
+  assert.equal(engine.movementHitsTrail(fromX, fromY, fromX, toY, compact, engine.constants.trailHeadGrace), true);
+
+  const player = engine.makePlayer(0, "long-curve-collision", false, 2);
+  player.x = fromX;
+  player.y = fromY;
+  player.angle = Math.PI / 2;
+  player.targetAngle = Math.PI / 2;
+  player.lastCell = Math.floor(fromY) * width + Math.floor(fromX);
+  player.trail = curve.map((point) => Math.floor(point.y) * width + Math.floor(point.x));
+  const state = engine.freshState();
+  state.phase = "playing";
+  state.matchId = "long-curve-separation";
+  state.players = [player];
+  engine.setState(state);
+  engine.resetGrid();
+
+  const visualCache = engine.syncVisualTrail(player);
+  const collisionCache = engine.syncCollisionTrail(player);
+  visualCache.points = curve.map((point) => ({ ...point }));
+  collisionCache.points = curve.map((point) => ({ ...point }));
+
+  const frame = engine.snapshot(false);
+  assert.equal(frame.players[0].path.length, engine.constants.maxVisualTrailPoints * 2);
+  assert.equal(visualCache.points.length, curve.length);
+  assert.equal(collisionCache.points.length, curve.length);
+
+  engine.advancePlayer(player, engine.constants.stepMs / 1000, 1000);
+  assert.equal(player.deadUntil, 0);
+});
+
+test("simultaneous trail cuts have the same result regardless of player array order", () => {
+  function run(reverse, suffix) {
+    const width = engine.constants.width;
+    const a = engine.makePlayer(0, `cross-a-${suffix}`, false, 2);
+    const b = engine.makePlayer(1, `cross-b-${suffix}`, false, 2);
+    a.x = 20;
+    a.y = 19.8;
+    a.angle = Math.PI / 2;
+    a.targetAngle = Math.PI / 2;
+    a.lastCell = 19 * width + 20;
+    a.trail = [15 * width + 20, 19 * width + 20];
+    a.path = engine.encodeVisualTrail([{ x: 20, y: 15 }, { x: 20, y: 19.8 }]);
+    b.x = 19.8;
+    b.y = 20;
+    b.angle = 0;
+    b.targetAngle = 0;
+    b.lastCell = 20 * width + 19;
+    b.trail = [20 * width + 15, 20 * width + 19];
+    b.path = engine.encodeVisualTrail([{ x: 15, y: 20 }, { x: 19.8, y: 20 }]);
+
+    const state = engine.freshState();
+    state.phase = "playing";
+    state.matchId = `simultaneous-cross-${suffix}`;
+    state.players = reverse ? [b, a] : [a, b];
+    engine.setState(state);
+    engine.resetGrid();
+    engine.advancePlayers(state.players, engine.constants.stepMs / 1000, 1000);
+    return {
+      aDead: a.deadUntil > 1000,
+      bDead: b.deadUntil > 1000,
+      aKills: a.kills,
+      bKills: b.kills
+    };
+  }
+
+  const forward = run(false, "forward");
+  const reversed = run(true, "reversed");
+  assert.deepEqual(forward, { aDead: true, bDead: true, aKills: 1, bKills: 1 });
+  assert.deepEqual(reversed, forward);
 });
 
 test("continuous visual trails stay straight without rewriting their settled prefix", () => {
@@ -1167,7 +1256,7 @@ test("a fallback host can recover from an owner snapshot lost during handoff", (
   assert.equal(fake.eligible.at(-1), true);
 });
 
-test("a reconnect hello resets the host input sequence even when a full reply is throttled", () => {
+test("a same-session reconnect hello does not rewind the host input sequence", () => {
   const fake = fakeApi(["구나", "민서"]);
   const state = engine.freshState();
   state.phase = "playing";
@@ -1181,7 +1270,7 @@ test("a reconnect hello resets the host input sequence even when a full reply is
   const remote = state.players[1];
   assert.equal(engine.applyDirection(remote, "left", 5), true);
   controller.onMessage({ t: "tr_hello", by: "민서" });
-  assert.equal(engine.applyDirection(remote, "up", 1), true);
+  assert.equal(engine.applyDirection(remote, "up", 1), false);
 });
 
 test("a guest retries its reconnect hello after presence catches up", () => {
@@ -1248,4 +1337,84 @@ test("the first snapshot from a newly elected host resets stale revision counter
   controller.onMessage({ t: "tr_state", by: "서준", state: staleFromSameHost });
   assert.equal(engine.getState().rev, 9);
   assert.equal(engine.getState().frameSeq, 3);
+});
+
+test("incoming duplicate or invalid player ids are reassigned uniquely", () => {
+  const parsed = engine.sanitizeState({
+    phase: "idle",
+    players: [
+      { id: "invalid", nick: "alpha" },
+      { id: 0, nick: "beta" },
+      { id: 0, nick: "gamma" }
+    ]
+  }, false);
+  const ids = Array.from(parsed.state.players, (player) => player.id);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.ok(ids.every((id) => Number.isInteger(id) && id >= 0 && id < engine.constants.maxPlayers));
+});
+
+test("visual prediction is bounded and never mutates the authoritative player", () => {
+  const player = engine.makePlayer(0, "predict", false, 2);
+  player.x = 30;
+  player.y = 40;
+  player.angle = 0;
+  player.targetAngle = Math.PI / 2;
+  const before = { x: player.x, y: player.y, angle: player.angle };
+
+  const pose = engine.predictedPlayerPose(player, 500, player.targetAngle);
+
+  assert.ok(Number.isFinite(pose.x) && Number.isFinite(pose.y) && Number.isFinite(pose.angle));
+  assert.ok(pose.x >= engine.constants.arenaInset && pose.x <= engine.constants.width - engine.constants.arenaInset);
+  assert.ok(pose.y >= engine.constants.arenaInset && pose.y <= engine.constants.height - engine.constants.arenaInset);
+  assert.ok(Math.hypot(pose.x - player.x, pose.y - player.y) <= engine.constants.speed * 0.5 + 1e-9);
+  assert.deepEqual({ x: player.x, y: player.y, angle: player.angle }, before);
+});
+
+test("emergency respawn keeps clear of a temporarily away player", () => {
+  const state = engine.freshState();
+  state.matchId = "away-emergency-spacing";
+  const respawning = engine.makePlayer(0, "respawning", false, 2);
+  const away = engine.makePlayer(1, "away", false, 2);
+  away.x = 7;
+  away.y = 7;
+  away.away = true;
+  state.players = [respawning, away];
+  engine.setState(state);
+  engine.resetGrid();
+
+  const spot = engine.findEmergencyRespawnSpot(respawning, () => 0.5);
+  assert.ok(spot);
+  assert.ok(Math.hypot(spot.x - away.x, spot.y - away.y) > 9);
+});
+
+test("a promoted host rebuilds collision geometry from lossless trail cells", () => {
+  const fake = fakeApi(["host"]);
+  engine.setApi(fake.api);
+  const state = engine.freshState();
+  state.matchId = "handoff-collision-path";
+  const player = engine.makePlayer(0, "handoff", false, 1);
+  player.trail = [];
+  for (let x = 10; x <= 34; x++) player.trail.push(20 * engine.constants.width + x);
+  player.x = 34.5;
+  player.y = 20.5;
+  player.path = engine.encodeVisualTrail([{ x: 10.5, y: 20.5 }, { x: 34.5, y: 35.5 }]);
+  state.players = [player];
+  engine.setState(state);
+
+  const cache = engine.syncCollisionTrail(player);
+  assert.equal(cache.points.length, player.trail.length);
+  assert.equal(cache.points[0].x, 10.5);
+  assert.equal(cache.points[0].y, 20.5);
+  assert.equal(cache.points.at(-1).x, 34.5);
+  assert.equal(cache.points.at(-1).y, 20.5);
+});
+
+test("guest direction packets retry through the room until the host acknowledges them", () => {
+  const flushSource = source.match(/function flushPendingInput\(\) \{([\s\S]*?)\n  \}\n\n  function queueDesiredInputForNewHost/)[1];
+  const retrySource = source.match(/function scheduleInputRetry\(\) \{([\s\S]*?)\n  \}\n\n  function flushPendingInput/)[1];
+  assert.match(flushSource, /unackedInput = \{ message: message, attempts: 1 \}/);
+  assert.match(flushSource, /sendInitialInput\(message\);\s*scheduleInputRetry\(\);/);
+  assert.match(retrySource, /sendRoomInput\(pending\.message\)/);
+  assert.match(source, /player\.inputAck = seq;/);
+  assert.match(source, /mergeVisualPlayers\(\);\s*acknowledgeLocalInput\(\);/);
 });

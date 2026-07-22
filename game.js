@@ -41,7 +41,7 @@
 
   var me = { nick: "", isAdmin: false };
   var roster = [];
-  var hostNick = null, amHost = false, wasHost = false, netMode = false, connected = false;
+  var hostNick = null, hostSessionId = "", amHost = false, wasHost = false, netMode = false, connected = false;
   var roomHostEligible = true;
   var activityLoginLogged = false, activityLogoutLogged = false, activityRoomLeaves = {};
   var sessionAuthHash = "";
@@ -156,13 +156,15 @@
   }
   function controllerApi() {
     return {
-      me: function () { return { nick: me.nick, isAdmin: me.isAdmin }; },
+      me: function () { return { nick: me.nick, isAdmin: me.isAdmin, clientSessionId: currentClientSessionId() }; },
       roster: function () {
         if (netMode && displayRoster.length) return displayRoster.slice();
-        return [{ nick: me.nick, isAdmin: me.isAdmin, joinTs: myJoinTs || 0 }];
+        return [{ nick: me.nick, isAdmin: me.isAdmin, joinTs: myJoinTs || 0, clientSessionId: currentClientSessionId(), presenceSessionIds: [currentClientSessionId()] }];
       },
       isHost: function () { return !netMode || amHost; },
       host: function () { return hostNick || me.nick; },
+      hostSessionId: function () { return hostSessionId || currentClientSessionId(); },
+      clientSessionId: function () { return currentClientSessionId(); },
       isNet: function () { return netMode; },
       isConnected: function () { return !netMode || connected; },
       setHostEligible: function (eligible) {
@@ -180,8 +182,18 @@
           if (ctrl && ctrl.onMessage) ctrl.onMessage(msg);
         }
       },
+      sendWithResult: function (msg) {
+        if (netMode && Net.sendWithResult) return Net.sendWithResult(msg);
+        var ctrl = activeController();
+        if (ctrl && ctrl.onMessage) ctrl.onMessage(msg, null);
+        return Promise.resolve({ ok: true, status: "local" });
+      },
       sendHostInput: function (msg) {
         return !!(netMode && Net.sendDirectInput && Net.sendDirectInput(msg));
+      },
+      sendHostInputWithResult: function (msg) {
+        if (netMode && Net.sendDirectInputWithResult) return Net.sendDirectInputWithResult(msg);
+        return Promise.resolve({ ok: false, status: "unavailable" });
       },
       syncHostInputs: function (nicks) {
         if (netMode && Net.syncDirectInputs) Net.syncDirectInputs(nicks, me.nick, amHost);
@@ -217,9 +229,9 @@
         if (!window.Db || !Db.saveCatchmindDrawing) return Promise.resolve({ ok: false, reason: "unavailable" });
         return Promise.resolve(Db.saveCatchmindDrawing({ nick: me.nick, hash: sessionAuthHash }, drawing));
       },
-      loadGallery: function (mode, offset, limit) {
+      loadGallery: function (mode, offset, limit, drawer, includeDrawers) {
         if (!window.Db || !Db.getCatchmindGallery) return Promise.resolve({ ok: false, reason: "unavailable", rows: [] });
-        return Promise.resolve(Db.getCatchmindGallery({ nick: me.nick, hash: sessionAuthHash }, mode, offset, limit));
+        return Promise.resolve(Db.getCatchmindGallery({ nick: me.nick, hash: sessionAuthHash }, mode, offset, limit, drawer, includeDrawers));
       },
       toggleGalleryFavorite: function (drawingId, favorite) {
         if (!window.Db || !Db.toggleCatchmindFavorite) return Promise.resolve({ ok: false, reason: "unavailable" });
@@ -380,8 +392,11 @@
   }
 
   var myJoinTs = 0;
+  function currentClientSessionId() {
+    return window.Net && Net.clientSessionId ? String(Net.clientSessionId).slice(0, 96) : "local";
+  }
   function myMetaObj(v) {
-    return { nick: me.nick, isAdmin: me.isAdmin, joinTs: myJoinTs, viewing: v, hostEligible: roomHostEligible };
+    return { nick: me.nick, isAdmin: me.isAdmin, joinTs: myJoinTs, viewing: v, hostEligible: roomHostEligible, clientSessionId: currentClientSessionId() };
   }
   function appConnect() {
     joinedAt = Date.now();
@@ -758,7 +773,7 @@
     releaseOwnedRoomLease(curRoomId);
     try { if (controller && controller.leave) controller.leave(); } catch (e) {}
     try { if (window.Net && Net.leaveRoom) Net.leaveRoom(); } catch (e) {}
-    netMode = false; hostNick = null; amHost = false; wasHost = false; connected = false;
+    netMode = false; hostNick = null; hostSessionId = ""; amHost = false; wasHost = false; connected = false;
     roomHostEligible = true;
     curRoomId = null; curRoomGame = null; curGame = null; curRoomTitle = "";
     document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
@@ -788,7 +803,7 @@
       if (previousController && previousController.leave) previousController.leave();
       curRoomId = roomId; curRoomGame = game; curGame = target.family; curRoomTitle = title || roomId;
       if (rooms[roomId] && rooms[roomId].ts) roomCreatedTs = rooms[roomId].ts;
-      hostNick = null; amHost = false; wasHost = false; document.body.classList.remove("is-host"); stopHostTimer();
+      hostNick = null; hostSessionId = ""; amHost = false; wasHost = false; document.body.classList.remove("is-host"); stopHostTimer();
       resetRoomGameState(); resetRoomChat();
       if (game === "alk_terr" && window.Alkkagi) { A.mode = "territory"; Alkkagi.setMode("territory"); Alkkagi.setStones([]); }
       roomHostEligible = true;
@@ -886,7 +901,7 @@
       if (netMode && leavingId) Net.send({ t: "room_leave", nick: me.nick });
       setTimeout(function () {
         if (wasHostHere && wasAlone && lobbyMode && leavingId) Net.sendLobby({ t: "room_close", id: leavingId });
-        Net.leaveRoom(); netMode = false; hostNick = null; amHost = false; wasHost = false;
+        Net.leaveRoom(); netMode = false; hostNick = null; hostSessionId = ""; amHost = false; wasHost = false;
         roomHostEligible = true;
         document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
         stopHostTimer(); clearAllGrace(); clearAlkGrace(); clearAwayRoster();
@@ -1220,6 +1235,7 @@
       curRoomGame = null;
       curRoomTitle = "";
       hostNick = null;
+      hostSessionId = "";
       amHost = false;
       showLobby();
     } catch (e) {
@@ -1247,6 +1263,7 @@
     netMode = false;
     amHost = true;
     hostNick = me.nick;
+    hostSessionId = currentClientSessionId();
     $("entry").classList.add("hidden");
     $("lobby").classList.add("hidden");
     hideGameScreens();
@@ -1759,14 +1776,19 @@
   }
 
   // ---------- 방장 선출 ----------
-  function electHost(list) {
+  function electHostMember(list) {
     if (!list.length) return null;
     var eligible = list.filter(function (member) { return member.hostEligible !== false; });
     var pool = (eligible.length ? eligible : list).slice().sort(function (a, b) {
       if (a.joinTs !== b.joinTs) return a.joinTs - b.joinTs;
-      return a.nick < b.nick ? -1 : 1;
+      if (a.nick !== b.nick) return a.nick < b.nick ? -1 : 1;
+      return String(a.clientSessionId || "").localeCompare(String(b.clientSessionId || ""));
     });
-    return pool[0].nick;
+    return pool[0];
+  }
+  function electHost(list) {
+    var member = electHostMember(list);
+    return member ? member.nick : null;
   }
 
   function announceRoomLeave(nick) {
@@ -1880,8 +1902,12 @@
     });
     buildDisplayRoster();
     prevNicks = nicks;
-    hostNick = electHost(roster);
-    amHost = (hostNick === me.nick);
+    var electedHost = electHostMember(roster);
+    hostNick = electedHost ? electedHost.nick : null;
+    hostSessionId = electedHost ? String(electedHost.clientSessionId || "").slice(0, 96) : "";
+    amHost = !!electedHost && (hostSessionId
+      ? hostSessionId === currentClientSessionId()
+      : hostNick === me.nick && Number(electedHost.presenceCount || 1) <= 1);
     var becameHost = amHost && !wasHost;
     wasHost = amHost;
     document.body.classList.toggle("is-host", amHost);
@@ -1995,10 +2021,10 @@
   }
 
   // ---------- 메시지 ----------
-  function onMessage(msg) {
+  function onMessage(msg, transport) {
     if (!msg || !msg.t) return;
     var ctrl = activeController();
-    if (ctrl && ctrl.onMessage && ctrl.onMessage(msg)) return;
+    if (ctrl && ctrl.onMessage && ctrl.onMessage(msg, transport)) return;
     switch (msg.t) {
       case "state": applyState(msg.state); break;
       case "hello":

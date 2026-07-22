@@ -84,6 +84,24 @@ async function favoriteCount(client: ReturnType<typeof createClient>, nick: stri
   return count ?? 0;
 }
 
+async function galleryDrawers(client: ReturnType<typeof createClient>) {
+  const { data, error } = await client
+    .from("catchmind_drawings")
+    .select("drawer")
+    .order("created_at", { ascending: false })
+    .limit(RECENT_LIMIT);
+  if (error) return [];
+  const seen = new Set<string>();
+  const drawers: string[] = [];
+  for (const row of data ?? []) {
+    const drawer = safeText(row.drawer, 40);
+    if (!drawer || seen.has(drawer)) continue;
+    seen.add(drawer);
+    drawers.push(drawer);
+  }
+  return drawers.sort((a, b) => a.localeCompare(b));
+}
+
 async function pruneOldDrawings(client: ReturnType<typeof createClient>) {
   const { data: removable } = await client.rpc("catchmind_gallery_prune_candidates", { max_rows: 200 });
   if (!removable?.length) return;
@@ -149,37 +167,48 @@ async function listGallery(client: ReturnType<typeof createClient>, nick: string
   const mode = body.mode === "favorites" ? "favorites" : "recent";
   const offset = Math.max(0, Math.floor(Number(body.offset) || 0));
   const limit = Math.max(1, Math.min(40, Math.floor(Number(body.limit) || 20)));
+  const drawer = safeText(body.drawer, 40);
   const favoritesTotal = await favoriteCount(client, nick);
+  const drawerOptions = body.includeDrawers === true ? await galleryDrawers(client) : null;
+  const finish = (payload: Record<string, unknown>) => response(drawerOptions
+    ? { ...payload, drawers: drawerOptions }
+    : payload);
 
   if (mode === "favorites") {
-    const { data: favoriteRows, count, error } = await client
+    const { data: favoriteRows, error } = await client
       .from("catchmind_favorites")
-      .select("drawing_id,created_at", { count: "exact" })
+      .select("drawing_id,created_at")
       .eq("nickname", nick)
       .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+      .limit(FAVORITE_LIMIT);
     if (error) return response({ ok: false, reason: "query", msg: error.message });
     const ids = (favoriteRows ?? []).map((row) => row.drawing_id);
-    if (!ids.length) return response({ ok: true, rows: [], hasMore: false, favoriteCount: favoritesTotal });
+    if (!ids.length) return finish({ ok: true, rows: [], hasMore: false, favoriteCount: favoritesTotal });
     const { data: drawings, error: drawingError } = await client
       .from("catchmind_drawings")
       .select("id,drawer,word,image_path,created_at")
       .in("id", ids);
     if (drawingError) return response({ ok: false, reason: "query", msg: drawingError.message });
     const byId = new Map((drawings ?? []).map((row) => [String(row.id), row]));
-    const rows = ids.map((id) => byId.get(String(id))).filter(Boolean)
-      .map((row) => publicDrawing(client, row, true));
-    return response({
+    const filtered = [];
+    for (const id of ids) {
+      const row = byId.get(String(id));
+      if (row && (!drawer || row.drawer === drawer)) filtered.push(row);
+    }
+    const rows = filtered.slice(offset, offset + limit).map((row) => publicDrawing(client, row, true));
+    return finish({
       ok: true,
       rows,
-      hasMore: offset + rows.length < (count ?? 0),
+      hasMore: offset + rows.length < filtered.length,
       favoriteCount: favoritesTotal,
     });
   }
 
-  const { data: drawings, count, error } = await client
+  let query = client
     .from("catchmind_drawings")
-    .select("id,drawer,word,image_path,created_at", { count: "exact" })
+    .select("id,drawer,word,image_path,created_at", { count: "exact" });
+  if (drawer) query = query.eq("drawer", drawer);
+  const { data: drawings, count, error } = await query
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .range(offset, Math.min(RECENT_LIMIT, offset + limit) - 1);
@@ -196,7 +225,7 @@ async function listGallery(client: ReturnType<typeof createClient>, nick: string
   }
   const rows = (drawings ?? []).map((row) => publicDrawing(client, row, favoriteIds.has(String(row.id))));
   const recentTotal = Math.min(count ?? 0, RECENT_LIMIT);
-  return response({
+  return finish({
     ok: true,
     rows,
     hasMore: offset + rows.length < recentTotal,

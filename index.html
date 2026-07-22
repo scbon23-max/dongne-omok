@@ -607,15 +607,40 @@
       <canvas id="territory-minimap" width="180" height="270"></canvas>
     </div>
 
-    <div class="territory-area">
+    <div id="territory-area-shell" class="territory-area">
       <span id="territory-my-dot" class="territory-my-dot" aria-hidden="true"></span>
-      <span>내 영역</span>
+      <span id="territory-area-label">내 영역</span>
       <strong id="territory-area">0.0%</strong>
+    </div>
+
+    <div id="territory-focus-hud" class="territory-focus-hud hidden" aria-hidden="true">
+      <span id="territory-focus-dot" class="territory-focus-dot" aria-hidden="true"></span>
+      <span class="territory-focus-label">관전</span>
+      <strong id="territory-focus-name">선수</strong>
+      <span id="territory-focus-area">0.0%</span>
+    </div>
+
+    <div id="territory-countdown" class="territory-countdown hidden" role="status" aria-live="assertive" aria-atomic="true" aria-hidden="true">
+      <span id="territory-countdown-label">곧 시작해요</span>
+      <strong id="territory-countdown-value">3</strong>
+    </div>
+
+    <div id="territory-status" class="territory-status hidden" aria-hidden="true">
+      <strong id="territory-status-title">잠시 후 다시 출발해요</strong>
+      <span id="territory-status-detail"></span>
+      <span id="territory-respawn-time" class="territory-respawn-time"></span>
+      <span id="territory-status-announcement" class="territory-status-announcement" role="status" aria-live="assertive" aria-atomic="true"></span>
     </div>
 
     <section id="territory-lobby" class="territory-panel territory-lobby">
       <div class="territory-panel-content">
         <h2 id="territory-lobby-title">땅따먹기</h2>
+
+        <div class="territory-lobby-guide">
+          <div class="territory-lobby-route" aria-hidden="true"><span></span><i></i><span></span></div>
+          <p id="territory-lobby-copy">밖으로 나갔다 내 땅으로 돌아오면 영역이 넓어져요</p>
+          <span class="territory-lobby-control">화면을 원하는 방향으로 밀어 이동해요</span>
+        </div>
 
         <div class="territory-role-list" aria-live="polite">
           <div><span>참가</span><div id="territory-participants"></div></div>
@@ -632,21 +657,23 @@
 
     <section id="territory-finished" class="territory-panel territory-finished hidden">
       <div class="territory-panel-content">
-        <h2 id="territory-finished-title">경기 결과</h2>
-        <div id="territory-finished-list" class="territory-finished-list"></div>
+        <div class="territory-finished-scroll">
+          <h2 id="territory-finished-title">경기 결과</h2>
+          <div id="territory-finished-list" class="territory-finished-list"></div>
 
-        <div class="territory-next-round">
-          <div class="territory-next-round-head">
-            <strong>다음 게임 준비</strong>
-            <span id="territory-next-round-status" aria-live="polite"></span>
-          </div>
-          <div class="territory-role-list" aria-live="polite">
-            <div><span>참가</span><div id="territory-finished-participants"></div></div>
-            <div><span>관전</span><div id="territory-finished-spectators"></div></div>
+          <div class="territory-next-round">
+            <div class="territory-next-round-head">
+              <strong>다음 게임 준비</strong>
+              <span id="territory-next-round-status" aria-live="polite"></span>
+            </div>
+            <div class="territory-role-list" aria-live="polite">
+              <div><span>참가</span><div id="territory-finished-participants"></div></div>
+              <div><span>관전</span><div id="territory-finished-spectators"></div></div>
+            </div>
           </div>
         </div>
 
-        <div class="territory-finished-actions">
+        <div class="territory-finished-actions territory-sticky-actions">
           <button id="territory-finished-role-btn" class="territory-secondary" type="button" aria-pressed="false">관전하기</button>
           <button id="territory-again-btn" class="territory-primary" type="button" aria-pressed="false">다시 준비</button>
         </div>
@@ -655,7 +682,9 @@
 
     <div id="territory-chat-overlay" class="chat-overlay territory-chat-overlay"></div>
     <div id="territory-chat-row" class="territory-chat-row">
-      <input id="territory-chat-input" class="chat-input" type="text" maxlength="80" placeholder="채팅 입력" autocomplete="off">
+      <label class="territory-chat-label" for="territory-chat-input">채팅 메시지</label>
+      <input id="territory-chat-input" class="chat-input" type="text" maxlength="80" placeholder="채팅 입력" autocomplete="off" enterkeyhint="send" aria-label="채팅 메시지">
+      <button id="territory-chat-send" type="button" aria-label="채팅 보내기">보내기</button>
     </div>
 
     <div class="territory-swipe-hint" aria-hidden="true"><span>↗</span> 원하는 방향으로 밀어 이동</div>
@@ -717,6 +746,13 @@
     <div class="cm-gallery-tabs" role="tablist" aria-label="갤러리 보기">
       <button id="catch-gallery-recent-tab" class="active" type="button" role="tab" aria-selected="true">최근 그림</button>
       <button id="catch-gallery-favorite-tab" type="button" role="tab" aria-selected="false">내 즐겨찾기 <span id="catch-gallery-favorite-count">0/20</span></button>
+    </div>
+
+    <div class="cm-gallery-person-filter">
+      <label for="catch-gallery-person">그린 사람</label>
+      <select id="catch-gallery-person" aria-label="그린 사람 선택">
+        <option value="">전체</option>
+      </select>
     </div>
 
     <div id="catch-gallery-status" class="cm-gallery-status" aria-live="polite">그림을 불러오는 중이에요</div>

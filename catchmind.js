@@ -41,6 +41,7 @@ window.CatchMind = (function () {
   var GALLERY_IMAGE_QUALITY = 0.72;
   var GALLERY_PAGE_SIZE = 40;
   var GALLERY_FAVORITE_LIMIT = 20;
+  var GALLERY_DRAWER_LIMIT = 1000;
   var CATCH_BGM_SRC = "assets/catchmind-bgm.mp3";
   var CATCH_BGM_VOLUME = 0.04;
   var START_SFX_SRC = "assets/catchmind-start.mp3";
@@ -111,6 +112,8 @@ window.CatchMind = (function () {
   var resultPopupShownMatchId = null;
   var lastChatViewScope = "";
   var galleryMode = "recent";
+  var galleryDrawer = "";
+  var galleryDrawers = [];
   var galleryRows = [];
   var galleryOffset = 0;
   var galleryHasMore = false;
@@ -266,6 +269,17 @@ window.CatchMind = (function () {
     if (!Array.isArray(raw)) return [];
     var out = [], seen = Object.create(null);
     for (var i = 0; i < raw.length && out.length < MAX_PLAYERS; i++) {
+      var nick = safeNick(raw[i]);
+      if (!nick || seen[nick]) continue;
+      seen[nick] = true;
+      out.push(nick);
+    }
+    return out;
+  }
+  function safeGalleryDrawerList(raw) {
+    if (!Array.isArray(raw)) return [];
+    var out = [], seen = Object.create(null);
+    for (var i = 0; i < raw.length && out.length < GALLERY_DRAWER_LIMIT; i++) {
       var nick = safeNick(raw[i]);
       if (!nick || seen[nick]) continue;
       seen[nick] = true;
@@ -2434,6 +2448,7 @@ window.CatchMind = (function () {
     var count = $("catch-gallery-favorite-count");
     var recentTab = $("catch-gallery-recent-tab");
     var favoriteTab = $("catch-gallery-favorite-tab");
+    var personSelect = $("catch-gallery-person");
     if (!grid || !status) return;
     if (count) count.textContent = galleryFavoriteCount + "/" + GALLERY_FAVORITE_LIMIT;
     if (recentTab) {
@@ -2444,6 +2459,15 @@ window.CatchMind = (function () {
       favoriteTab.classList.toggle("active", galleryMode === "favorites");
       favoriteTab.setAttribute("aria-selected", String(galleryMode === "favorites"));
     }
+    if (personSelect) {
+      var options = ['<option value="">전체</option>'];
+      galleryDrawers.forEach(function (drawer) {
+        options.push('<option value="' + esc(drawer) + '">' + esc(drawer) + '</option>');
+      });
+      personSelect.innerHTML = options.join("");
+      personSelect.value = galleryDrawer;
+      personSelect.disabled = galleryLoading && !galleryDrawers.length;
+    }
     if (galleryLoading && !galleryRows.length) {
       status.textContent = "그림을 불러오는 중이에요";
       grid.innerHTML = "";
@@ -2451,9 +2475,10 @@ window.CatchMind = (function () {
       status.textContent = galleryError;
       grid.innerHTML = '<div class="cm-gallery-empty">갤러리를 열 수 없어요.<br>잠시 뒤 다시 시도해주세요.</div>';
     } else {
+      var drawerPrefix = galleryDrawer ? galleryDrawer + "님의 " : "";
       status.textContent = galleryMode === "favorites"
-        ? "내가 저장한 그림 " + galleryFavoriteCount + "장"
-        : "최근 그림은 최대 1,000장까지 보관돼요";
+        ? drawerPrefix + "즐겨찾기 그림"
+        : drawerPrefix + "최근 그림" + (galleryDrawer ? "만 보고 있어요" : "은 최대 1,000장까지 보관돼요");
       grid.innerHTML = galleryRows.length ? galleryRows.map(function (row) {
         var id = safeInteger(row.id, 1, 2147483647, 0);
         var url = esc(row.imageUrl || "");
@@ -2467,9 +2492,11 @@ window.CatchMind = (function () {
           + '<button class="cm-gallery-favorite' + (favorite ? ' active' : '') + '" type="button" data-gallery-favorite="' + id + '" aria-label="' + (favorite ? "즐겨찾기 해제" : "즐겨찾기") + '">' + (favorite ? "★" : "☆") + '</button>'
           + '</div><div class="cm-gallery-copy"><strong>' + word + '</strong><span>' + drawer + ' · ' + esc(galleryTime(row.createdAt)) + '</span></div>'
           + '</article>';
-      }).join("") : '<div class="cm-gallery-empty">' + (galleryMode === "favorites"
-        ? "즐겨찾기한 그림이 아직 없어요.<br>마음에 드는 그림의 별을 눌러보세요."
-        : "아직 저장된 그림이 없어요.<br>게임에서 완성한 그림이 여기에 모여요.") + '</div>';
+      }).join("") : '<div class="cm-gallery-empty">' + (galleryDrawer
+        ? esc(galleryDrawer) + "님의 그림이 아직 없어요."
+        : galleryMode === "favorites"
+          ? "즐겨찾기한 그림이 아직 없어요.<br>마음에 드는 그림의 별을 눌러보세요."
+          : "아직 저장된 그림이 없어요.<br>게임에서 완성한 그림이 여기에 모여요.") + '</div>';
     }
     if (more) {
       more.classList.toggle("hidden", !galleryHasMore);
@@ -2490,7 +2517,8 @@ window.CatchMind = (function () {
     var token = ++galleryRequestToken;
     renderGallery();
     try {
-      var result = await api.loadGallery(galleryMode, galleryOffset, GALLERY_PAGE_SIZE);
+      var includeDrawers = reset && !galleryDrawers.length;
+      var result = await api.loadGallery(galleryMode, galleryOffset, GALLERY_PAGE_SIZE, galleryDrawer, includeDrawers);
       if (token !== galleryRequestToken) return;
       if (!result || !result.ok) throw new Error(result && (result.msg || result.reason) || "load failed");
       var rows = Array.isArray(result.rows) ? result.rows : [];
@@ -2498,6 +2526,10 @@ window.CatchMind = (function () {
       galleryOffset = galleryRows.length;
       galleryHasMore = !!result.hasMore;
       galleryFavoriteCount = safeInteger(result.favoriteCount, 0, GALLERY_FAVORITE_LIMIT, 0);
+      if (Array.isArray(result.drawers)) {
+        galleryDrawers = safeGalleryDrawerList(result.drawers).sort(function (a, b) { return a.localeCompare(b); });
+        if (galleryDrawer && !has(galleryDrawers, galleryDrawer)) galleryDrawers.unshift(galleryDrawer);
+      }
     } catch (error) {
       if (token === galleryRequestToken) {
         galleryRows = [];
@@ -2526,10 +2558,12 @@ window.CatchMind = (function () {
     });
     var galleryRecentTab = $("catch-gallery-recent-tab");
     var galleryFavoriteTab = $("catch-gallery-favorite-tab");
+    var galleryPerson = $("catch-gallery-person");
     var galleryMore = $("catch-gallery-more");
     var galleryPreviewClose = $("catch-gallery-preview-close");
     if (galleryRecentTab) galleryRecentTab.addEventListener("click", function () { setGalleryMode("recent"); });
     if (galleryFavoriteTab) galleryFavoriteTab.addEventListener("click", function () { setGalleryMode("favorites"); });
+    if (galleryPerson) galleryPerson.addEventListener("change", function () { setGalleryDrawer(this.value); });
     if (galleryMore) galleryMore.addEventListener("click", function () { loadGallery(false); });
     if (galleryPreviewClose) galleryPreviewClose.addEventListener("click", closeGalleryPreview);
     if (galleryGrid) galleryGrid.addEventListener("click", function (event) {
@@ -2549,6 +2583,7 @@ window.CatchMind = (function () {
     var backdrop = $("catch-gallery-backdrop");
     if (!backdrop) return;
     closeGalleryPreview();
+    galleryDrawers = [];
     backdrop.classList.remove("hidden");
     backdrop.setAttribute("aria-hidden", "false");
     loadGallery(true);
@@ -2568,6 +2603,14 @@ window.CatchMind = (function () {
     mode = mode === "favorites" ? "favorites" : "recent";
     if (galleryMode === mode && galleryRows.length) return;
     galleryMode = mode;
+    loadGallery(true);
+  }
+
+  function setGalleryDrawer(drawer) {
+    drawer = safeText(drawer, 40);
+    if (galleryDrawer === drawer && galleryRows.length) return;
+    galleryDrawer = drawer;
+    closeGalleryPreview();
     loadGallery(true);
   }
 
