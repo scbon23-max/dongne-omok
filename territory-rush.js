@@ -523,6 +523,7 @@ window.TerritoryRush = (function () {
   }
 
   function createBase(player, overwrite) {
+    overwrite = overwrite === true;
     var cx = Math.floor(player.spawnX);
     var cy = Math.floor(player.spawnY);
     var changed = false;
@@ -537,6 +538,7 @@ window.TerritoryRush = (function () {
         }
       }
     }
+    if (changed && overwrite) pruneDisconnectedTerritories(owner);
     if (changed) ownerLayerDirty = true;
     return changed;
   }
@@ -871,6 +873,7 @@ window.TerritoryRush = (function () {
     now = Number(now) || nowMs();
     var previousOwner = owner.slice();
     captureInto(owner, player.trail, player.id);
+    pruneDisconnectedTerritories(owner);
     queueCaptureParticles(previousOwner, owner, now);
     clearTrail(player);
     state.ownerRev++;
@@ -1321,6 +1324,113 @@ window.TerritoryRush = (function () {
     });
   }
 
+  function distanceSquaredToTerritoryCell(x, y, key) {
+    var cellX = key % WORLD_W;
+    var cellY = Math.floor(key / WORLD_W);
+    var dx = x < cellX ? cellX - x : (x > cellX + 1 ? x - cellX - 1 : 0);
+    var dy = y < cellY ? cellY - y : (y > cellY + 1 ? y - cellY - 1 : 0);
+    return dx * dx + dy * dy;
+  }
+
+  function pruneDisconnectedTerritories(map, anchors) {
+    if (!map || map.length !== CELL_COUNT) return 0;
+    anchors = anchors || Object.create(null);
+    var removed = 0;
+    state.players.forEach(function (player) {
+      if (!player || player.id < 0 || player.id >= MAX_PLAYERS) return;
+      var anchor = anchors[player.id] || player;
+      var anchorX = Number(anchor.x);
+      var anchorY = Number(anchor.y);
+      if (!isFinite(anchorX)) anchorX = Number(player.spawnX) || WORLD_W / 2;
+      if (!isFinite(anchorY)) anchorY = Number(player.spawnY) || WORLD_H / 2;
+      var floorX = Math.floor(anchorX);
+      var floorY = Math.floor(anchorY);
+      var anchorKey = inside(floorX, floorY) ? cellIndex(floorX, floorY) : -1;
+      var components = [];
+      visited.fill(0);
+      for (var startKey = 0; startKey < CELL_COUNT; startKey++) {
+        if (visited[startKey] || map[startKey] !== player.id) continue;
+        var head = 0;
+        var tail = 0;
+        var component = {
+          keys: [],
+          size: 0,
+          minKey: startKey,
+          distanceSquared: Infinity,
+          containsAnchor: false
+        };
+        visited[startKey] = 1;
+        queue[tail++] = startKey;
+        while (head < tail) {
+          var key = queue[head++];
+          component.keys.push(key);
+          component.size++;
+          if (key < component.minKey) component.minKey = key;
+          if (key === anchorKey) component.containsAnchor = true;
+          component.distanceSquared = Math.min(
+            component.distanceSquared,
+            distanceSquaredToTerritoryCell(anchorX, anchorY, key)
+          );
+          var x = key % WORLD_W;
+          var y = Math.floor(key / WORLD_W);
+          var next;
+          if (x > 0) {
+            next = key - 1;
+            if (!visited[next] && map[next] === player.id) { visited[next] = 1; queue[tail++] = next; }
+          }
+          if (x < WORLD_W - 1) {
+            next = key + 1;
+            if (!visited[next] && map[next] === player.id) { visited[next] = 1; queue[tail++] = next; }
+          }
+          if (y > 0) {
+            next = key - WORLD_W;
+            if (!visited[next] && map[next] === player.id) { visited[next] = 1; queue[tail++] = next; }
+          }
+          if (y < WORLD_H - 1) {
+            next = key + WORLD_W;
+            if (!visited[next] && map[next] === player.id) { visited[next] = 1; queue[tail++] = next; }
+          }
+        }
+        components.push(component);
+      }
+      if (components.length < 2) return;
+
+      var keep = null;
+      components.forEach(function (component) {
+        if (component.containsAnchor) keep = component;
+      });
+      if (!keep) {
+        keep = components[0];
+        for (var componentIndex = 1; componentIndex < components.length; componentIndex++) {
+          var candidate = components[componentIndex];
+          if (candidate.distanceSquared < keep.distanceSquared - 1e-9
+              || (Math.abs(candidate.distanceSquared - keep.distanceSquared) <= 1e-9
+                && (candidate.size > keep.size
+                  || (candidate.size === keep.size && candidate.minKey < keep.minKey)))) {
+            keep = candidate;
+          }
+        }
+      }
+      components.forEach(function (component) {
+        if (component === keep) return;
+        component.keys.forEach(function (key) {
+          map[key] = -1;
+          removed++;
+        });
+      });
+    });
+    return removed;
+  }
+
+  function proposalTerritoryAnchors(proposals) {
+    var anchors = Object.create(null);
+    (proposals || []).forEach(function (proposal) {
+      if (!proposal || !proposal.player || proposal.player.deadUntil || proposal.player.retired || proposal.player.away) return;
+      anchors[proposal.player.id] = { x: proposal.toX, y: proposal.toY };
+    });
+    return anchors;
+  }
+
   function applySimultaneousCaptures(proposals, ownerAtStart, now) {
     var closures = proposals.filter(function (proposal) {
       return proposal.closeIndex >= 0 && !proposal.player.deadUntil && !proposal.player.retired && !proposal.player.away;
@@ -1355,6 +1465,7 @@ window.TerritoryRush = (function () {
         contributions[previousId][nextId] = (contributions[previousId][nextId] || 0) + 1;
       }
     }
+    pruneDisconnectedTerritories(nextOwner, proposalTerritoryAnchors(proposals));
 
     var hadTerritory = new Uint8Array(MAX_PLAYERS);
     var hasTerritoryAfter = new Uint8Array(MAX_PLAYERS);
@@ -3487,6 +3598,7 @@ window.TerritoryRush = (function () {
       encodeOwner: encodeOwner,
       decodeOwner: decodeOwner,
       captureInto: captureInto,
+      pruneDisconnectedTerritories: pruneDisconnectedTerritories,
       sampleStolenCells: sampleStolenCells,
       queueCaptureParticles: queueCaptureParticles,
       clearCaptureParticles: function () { captureParticles = []; },
