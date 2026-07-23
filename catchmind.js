@@ -43,7 +43,7 @@ window.CatchMind = (function () {
   var GALLERY_FAVORITE_LIMIT = 20;
   var GALLERY_DRAWER_LIMIT = 1000;
   var CATCH_BGM_SRC = "assets/catchmind-bgm.mp3";
-  var CATCH_BGM_VOLUME = 0.04;
+  var CATCH_BGM_VOLUME = 0.028;
   var START_SFX_SRC = "assets/catchmind-start.mp3";
   var START_SFX_VOLUME = 1;
   var COUNTDOWN_SFX_SRC = "assets/catchmind-countdown.wav";
@@ -1852,6 +1852,14 @@ window.CatchMind = (function () {
       + (player.rankText ? '<span class="cm-result-rank ' + rankClass + '">' + rankPrefix + esc(player.rankText) + '</span>' : "");
   }
 
+  function resultPlace(players, index) {
+    var score = safeInteger(players[index] && players[index].score, 0, MAX_SCORE, 0);
+    for (var i = 0; i < index; i++) {
+      if (safeInteger(players[i] && players[i].score, 0, MAX_SCORE, 0) === score) return i + 1;
+    }
+    return index + 1;
+  }
+
   function renderResultPopup() {
     var list = $("catch-result-list");
     var meta = $("catch-result-meta");
@@ -1869,7 +1877,7 @@ window.CatchMind = (function () {
     list.innerHTML = players.map(function (player, index) {
       var mine = player.nick === me().nick;
       return '<li class="cm-result-row' + (mine ? " me" : "") + '">'
-        + '<span class="cm-result-place">' + (index + 1) + '</span>'
+        + '<span class="cm-result-place">' + resultPlace(players, index) + '</span>'
         + '<div class="cm-result-person"><div class="cm-result-person-name"><strong>' + esc(player.nick) + '</strong>'
         + (mine ? '<span class="cm-result-me">나</span>' : "") + '</div>'
         + '<span class="cm-result-match">' + player.score + '점 · 정답 ' + player.correct
@@ -3199,14 +3207,14 @@ window.CatchMind = (function () {
         + '</tbody></table>'
         + '<p class="cm-rule-example"><b>예시</b> · 그림 시작 38초 뒤에 맞히면 정답자는 8점, 출제자는 2점을 받아요.</p>'
         + '<p class="cm-rule-muted">틀린 답을 입력해도 점수는 깎이지 않아요.</p></section>'
-        + '<section class="cm-rule-section"><h3>3. 시즌 랭킹은 따로 계산해요</h3>'
-        + '<p><b>경기 점수</b>는 이번 게임의 승부를 정하고, <b>시즌 활약도</b>는 서로 다른 인원수의 게임도 공정하게 비교하기 위해 따로 계산해요.</p>'
+        + '<section class="cm-rule-section"><h3>3. 시즌 랭킹 점수</h3>'
+        + '<p>시즌 점수는 이번 게임의 <b>최종 경기 점수 순위</b>와 상대의 시즌 점수를 함께 비교해 계산해요.</p>'
         + '<ul class="cm-rule-list">'
-        + '<li>정답에 성공하면 활약도 계산용 <b>10점</b>을 기록해요.</li>'
-        + '<li>내 그림을 한 사람이 맞힐 때마다 활약도 계산용 <b>3점</b>을 기록해요.</li>'
-        + '<li>기록한 점수를 이번 게임에서 얻을 수 있었던 최대점수로 나눈 값이 <b>활약도</b>예요.</li>'
+        + '<li>내 최종 점수가 상대보다 높으면 승리, 같으면 동점, 낮으면 패배로 계산해요.</li>'
+        + '<li>시즌 점수가 높은 상대를 이길수록 더 많이 오르고, 낮은 상대에게 지면 더 많이 내려갈 수 있어요.</li>'
+        + '<li><b>단독 1등은 시즌 점수가 깎이지 않고 최소 1점 올라요.</b></li>'
         + '</ul>'
-        + '<p class="cm-rule-muted">따라서 빠른 정답은 이번 경기의 승리에 유리하고, 시즌 랭킹은 꾸준히 정답을 맞히고 이해하기 좋은 그림을 그릴수록 유리해요.</p></section>'
+        + '<p class="cm-rule-muted">활약도는 정답과 그림 성공 기록을 보여주는 참고 통계이며, 시즌 점수의 승패는 최종 경기 점수로 정해요.</p></section>'
         + '<section class="cm-rule-section"><h3>4. 알아두기</h3>'
         + '<ul class="cm-rule-list">'
         + '<li>관전자와 이미 정답을 맞힌 참가자는 전용 채팅에서 정답을 포함해 자유롭게 이야기할 수 있어요. 게임 중인 참가자에게는 이 채팅이 보이지 않아요.</li>'
@@ -3293,6 +3301,7 @@ window.CatchMind = (function () {
       fallbackResultInfo: fallbackResultInfo,
       mergeResultInfo: mergeResultInfo,
       renderResultPopup: renderResultPopup,
+      resultPlace: resultPlace,
       syncResultPopup: syncResultPopup,
       openResultPopup: openResultPopup,
       closeResultPopup: closeResultPopup,

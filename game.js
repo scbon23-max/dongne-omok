@@ -3468,6 +3468,33 @@
       createdAt: g.created_at
     };
   }
+  function catchmindRatingDeltas(players, kFactor) {
+    var deltas = Object.create(null);
+    if (!Array.isArray(players) || players.length < 2) return deltas;
+    kFactor = Number(kFactor);
+    if (!isFinite(kFactor) || kFactor <= 0) kFactor = 32;
+    players.forEach(function (player) {
+      var actual = 0, expected = 0;
+      players.forEach(function (opponent) {
+        if (opponent === player) return;
+        actual += player.row.score === opponent.row.score ? 0.5 : (player.row.score > opponent.row.score ? 1 : 0);
+        expected += 1 / (1 + Math.pow(10, (opponent.elo - player.elo) / 400));
+      });
+      deltas[player.row.nick] = Math.round(kFactor * ((actual - expected) / (players.length - 1)));
+    });
+
+    var topScore = Math.max.apply(null, players.map(function (player) { return player.row.score; }));
+    var winners = players.filter(function (player) { return player.row.score === topScore; });
+    if (winners.length === 1 && deltas[winners[0].row.nick] < 1) {
+      var winnerNick = winners[0].row.nick;
+      var shift = 1 - deltas[winnerNick];
+      deltas[winnerNick] = 1;
+      var last = players.filter(function (player) { return player.row.nick !== winnerNick; })
+        .sort(function (a, b) { return a.row.score - b.row.score || a.elo - b.elo; })[0];
+      if (last) deltas[last.row.nick] = (deltas[last.row.nick] || 0) - shift;
+    }
+    return deltas;
+  }
   function aggregateCatchmind(games) {
     var grouped = {};
     (games || []).forEach(function (g) {
@@ -3488,18 +3515,9 @@
       if (rows.length < 2) return;
       var before = rows.map(function (row) {
         var stat = ent(row.nick);
-        return { row: row, elo: stat.elo, performance: Math.min(1, row.points / row.maxPoints) };
+        return { row: row, elo: stat.elo };
       });
-      var deltas = {};
-      before.forEach(function (player) {
-        var actual = 0, expected = 0;
-        before.forEach(function (opponent) {
-          if (opponent === player) return;
-          actual += player.performance === opponent.performance ? 0.5 : (player.performance > opponent.performance ? 1 : 0);
-          expected += 1 / (1 + Math.pow(10, (opponent.elo - player.elo) / 400));
-        });
-        deltas[player.row.nick] = Math.round(ELO_K * ((actual - expected) / (before.length - 1)));
-      });
+      var deltas = catchmindRatingDeltas(before, ELO_K);
       rows.forEach(function (row) {
         var stat = ent(row.nick);
         stat.elo += deltas[row.nick];

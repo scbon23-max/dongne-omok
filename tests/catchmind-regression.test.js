@@ -248,7 +248,7 @@ test("waiting music yields to looping match music and resumes after play", async
   api.syncAudio();
   await Promise.resolve();
   assert.equal(bgm.src, "assets/catchmind-bgm.mp3");
-  assert.equal(bgm.volume, 0.04);
+  assert.equal(bgm.volume, 0.028);
   assert.equal(bgm.playCount, 1);
 
   bgm.currentTime = 18;
@@ -297,6 +297,7 @@ test("waiting music yields to looping match music and resumes after play", async
   await Promise.resolve();
   assert.equal(start.playCount, 3);
   assert.equal(start.currentTime, 0);
+  assert.equal(api.audioConfig.bgmVolume, 0.028);
   assert.equal(api.audioConfig.startVolume, 1);
   assert.equal(api.audioConfig.clearSrc, "assets/catchmind-clear-loud.mp3");
   assert.equal(api.audioConfig.clearVolume, 1);
@@ -1272,14 +1273,16 @@ test("match points reward speed in clear 15-second tiers", () => {
   assert.equal(api.drawerScoreForGuess(5), 1);
 });
 
-test("rules explain match scoring and season performance separately", () => {
+test("rules explain rank-based season rating", () => {
   const content = loadCatchMind().rules();
 
   assert.equal(content.title, "캐치마인드 규칙");
   assert.match(content.html, /0~14초[\s\S]*10점[\s\S]*3점/);
   assert.match(content.html, /75~90초[\s\S]*5점[\s\S]*1점/);
   assert.match(content.html, /38초 뒤에 맞히면 정답자는 8점, 출제자는 2점/);
-  assert.match(content.html, /경기 점수[\s\S]*시즌 활약도/);
+  assert.match(content.html, /최종 경기 점수 순위[\s\S]*상대의 시즌 점수/);
+  assert.match(content.html, /단독 1등은 시즌 점수가 깎이지 않고 최소 1점/);
+  assert.match(content.html, /활약도는[\s\S]*참고 통계/);
   assert.match(content.html, /틀린 답을 입력해도 점수는 깎이지 않아요/);
 });
 
@@ -1393,6 +1396,15 @@ test("finished matches open a reusable result popup with every player's rating c
   assert.equal(backdrop.classList.contains("hidden"), true);
   api.openResultPopup();
   assert.equal(backdrop.classList.contains("hidden"), false);
+});
+
+test("equal match scores share the same displayed place", () => {
+  const api = loadCatchMind();
+  const players = [{ score: 30 }, { score: 30 }, { score: 20 }];
+
+  assert.equal(api.resultPlace(players, 0), 1);
+  assert.equal(api.resultPlace(players, 1), 1);
+  assert.equal(api.resultPlace(players, 2), 3);
 });
 
 test("ranking saves retry before reporting success", async () => {
