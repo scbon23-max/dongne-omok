@@ -8,6 +8,7 @@
   // discoverable so guests can join an admin-created test room.
   var ENABLE_ALK_TERRITORY = false;
   var ENABLE_RELAY = false;
+  var ENABLE_CATCHMIND_ROOMS = false;
 
   var G = {
     board: Renju.emptyBoard(),
@@ -91,8 +92,11 @@
     if (id === "relay" && !ENABLE_RELAY) return false;
     return !!(window.GameCatalog ? GameCatalog.get(id) : id);
   }
+  function canEnterGame(id) {
+    return canSeeGame(id) && (id !== "catchmind" || ENABLE_CATCHMIND_ROOMS);
+  }
   function canCreateGame(id) {
-    if (!canSeeGame(id)) return false;
+    if (!canEnterGame(id)) return false;
     var def = gameDef(id);
     return !(def && def.createAdminOnly && !isGunaAdmin());
   }
@@ -629,7 +633,7 @@
   function renderRoomList() {
     var box = $("room-list"); if (!box) return;
     var list = Object.keys(rooms).map(function (k) { return rooms[k]; })
-      .filter(function (r) { return canSeeGame(r.game) && (roomFilter === "all" || r.game === roomFilter); })
+      .filter(function (r) { return canEnterGame(r.game) && (roomFilter === "all" || r.game === roomFilter); })
       .sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); });
     if (!list.length) { box.innerHTML = '<div class="room-empty">아직 열린 방이 없어요. 방을 만들어 보세요!</div>'; return; }
     box.innerHTML = list.map(function (r) {
@@ -660,7 +664,7 @@
   function renderRoomStrip() {
     var strip = $(gameUi(activeFamily()).roomStripId);
     if (!strip || !curRoomId) return;
-    var list = Object.keys(rooms).map(function (k) { return rooms[k]; }).filter(function (r) { return canSeeGame(r.game); });
+    var list = Object.keys(rooms).map(function (k) { return rooms[k]; }).filter(function (r) { return canEnterGame(r.game); });
     if (!list.some(function (r) { return r.id === curRoomId; })) {
       list.push({ id: curRoomId, game: curRoomGame, name: curRoomTitle, ts: roomCreatedTs });
     }
@@ -788,7 +792,10 @@
   }
 
   function enterRoom(roomId, game, title) {
-    if (!canSeeGame(game)) { toast("아직 테스트 중인 게임이에요"); return false; }
+    if (!canEnterGame(game)) {
+      toast(game === "catchmind" ? "캐치마인드는 점검 중이라 이용할 수 없어요" : "아직 테스트 중인 게임이에요");
+      return false;
+    }
     if (!roomHasSpace(roomId, game, true)) return false;
     var target;
     try { target = roomEntryTarget(game); }
@@ -837,7 +844,10 @@
     }
   }
   async function createRoom(game, name) {
-    if (!canSeeGame(game)) { toast("아직 테스트 중인 게임이에요"); return; }
+    if (!canEnterGame(game)) {
+      toast(game === "catchmind" ? "캐치마인드는 점검 중이라 이용할 수 없어요" : "아직 테스트 중인 게임이에요");
+      return;
+    }
     if (!canCreateGame(game)) { toast("땅따먹기 방은 관리자만 만들 수 있어요"); return; }
     if (roomLeaseRestorePending) { toast("새로고침 전 방을 확인하고 있어요"); return; }
     if (roomCreatePending) return;

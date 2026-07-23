@@ -212,7 +212,7 @@ test("Alkkagi has a synchronized five-choice turn timer with short-game warnings
   assert.match(game, /A\.started && window\.Alkkagi && Alkkagi\.isMoving\(\) \? "…" : "∞"/);
 });
 
-test("room creation hides unfinished modes and limits Territory Rush creation to the admin", () => {
+test("room creation hides disabled modes and limits Territory Rush creation to the admin", () => {
   assert.match(index, /id="create-game-step"/);
   assert.match(index, /id="create-alk-mode-step"/);
   assert.match(index, /id="create-step-back"/);
@@ -221,12 +221,15 @@ test("room creation hides unfinished modes and limits Territory Rush creation to
   assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay", "territory"\]\)/);
   assert.match(game, /var ENABLE_ALK_TERRITORY = false/);
   assert.match(game, /var ENABLE_RELAY = false/);
+  assert.match(game, /var ENABLE_CATCHMIND_ROOMS = false/);
   assert.match(game, /if \(id === "alk_terr" && !ENABLE_ALK_TERRITORY\) return false/);
   assert.match(game, /if \(id === "relay" && !ENABLE_RELAY\) return false/);
+  assert.match(game, /function canEnterGame\(id\)[\s\S]*id !== "catchmind" \|\| ENABLE_CATCHMIND_ROOMS/);
   assert.doesNotMatch(game, /if \(id === "territory"[^\n]+return false/);
-  assert.match(game, /function canCreateGame\(id\)[\s\S]*def\.createAdminOnly && !isGunaAdmin\(\)/);
+  assert.match(game, /function canCreateGame\(id\)[\s\S]*if \(!canEnterGame\(id\)\) return false[\s\S]*def\.createAdminOnly && !isGunaAdmin\(\)/);
   assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay", "territory"\]\)\.filter\(canCreateGame\)/);
-  assert.match(game, /if \(!canCreateGame\(game\)\) \{ toast\("땅따먹기 방은 관리자만 만들 수 있어요"\); return; \}/);
+  assert.match(game, /if \(!canEnterGame\(game\)\) \{[\s\S]*game === "catchmind" \? "캐치마인드는 점검 중이라 이용할 수 없어요"/);
+  assert.match(game, /filter\(function \(r\) \{ return canEnterGame\(r\.game\)/);
   assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);
   assert.match(game, /if \(createGame === "alk" && ENABLE_ALK_TERRITORY\)[\s\S]*showCreateRoomStep\("alk-mode"\)/);
   assert.match(game, /createRoom\(createGame === "alk" \? "alk" : createGame, nm\)/);
