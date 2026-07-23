@@ -108,9 +108,11 @@ test("the lobby exposes feedback composition while the admin gets an expandable 
   assert.match(indexSource, /id="lobby-feedback-btn"/);
   assert.match(indexSource, /id="lobby-feedback-label"/);
   assert.match(indexSource, /id="feedback-badge" class="feedback-badge admin-only hidden"/);
+  assert.ok(indexSource.indexOf('id="lobby-feedback-btn"') > indexSource.indexOf('id="lobby-chat-input"'));
   assert.match(indexSource, /id="feedback-title"/);
   assert.match(indexSource, /id="feedback-body"/);
   assert.match(indexSource, /id="feedback-send-btn"/);
+  assert.match(indexSource, /버그를 제보할 때는 어떤 상황에서 문제가 발생했는지 자세히 적어주세요/);
   assert.match(indexSource, /id="feedback-admin-section" class="feedback-admin-section admin-only"/);
   assert.match(indexSource, /id="feedback-list"/);
 
@@ -123,4 +125,6 @@ test("the lobby exposes feedback composition while the admin gets an expandable 
   assert.match(gameSource, /\$\("lobby-feedback-btn"\)\.addEventListener\("click", openFeedbackModal\)/);
   assert.match(gameSource, /\$\("feedback-send-btn"\)\.addEventListener\("click", submitFeedbackForm\)/);
   assert.match(stylesSource, /body\.is-admin \.feedback-user-compose \{ display: none; \}/);
+  assert.match(stylesSource, /\.lobby-bottom \.chat-log \{ height: 101px;/);
+  assert.match(stylesSource, /\.lobby-feedback-btn \{[\s\S]*?background: var\(--teal\);/);
 });

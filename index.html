@@ -111,14 +111,14 @@
   <h1 class="lobby-page-title">로비화면</h1>
   <div class="bottom-row lobby-bottom">
     <div class="chat-panel">
-      <button id="lobby-feedback-btn" class="lobby-feedback-btn" type="button">
-        <span id="lobby-feedback-label">버그·좋은 의견 보내기</span>
-        <span id="feedback-badge" class="feedback-badge admin-only hidden" aria-label="미완료 접수 0건">0</span>
-      </button>
       <div class="chat-log" id="lobby-chat-log"></div>
       <div class="chat-input-row">
         <input id="lobby-chat-input" class="chat-input" type="text" placeholder="전체 채팅…" autocomplete="off">
       </div>
+      <button id="lobby-feedback-btn" class="lobby-feedback-btn" type="button">
+        <span id="lobby-feedback-label">버그·좋은 의견 보내기</span>
+        <span id="feedback-badge" class="feedback-badge admin-only hidden" aria-label="미완료 접수 0건">0</span>
+      </button>
     </div>
     <div class="online-panel">
       <div class="online-list" id="lobby-online-list"></div>
@@ -1022,6 +1022,7 @@
         </div>
       </section>
       <section class="feedback-compose feedback-user-compose">
+        <p class="feedback-guide">버그를 제보할 때는 어떤 상황에서 문제가 발생했는지 자세히 적어주세요. 원인을 찾고 고치는 데 큰 도움이 됩니다.</p>
         <label for="feedback-title">제목</label>
         <input id="feedback-title" type="text" maxlength="80" placeholder="어떤 내용인지 짧게 적어주세요" autocomplete="off">
         <label for="feedback-body">내용</label>

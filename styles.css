@@ -2136,7 +2136,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .room-cnt { flex-shrink: 0; }
 .room-enter { flex-shrink: 0; background: var(--orange); color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 14px; font-weight: 800; cursor: pointer; }
 .lobby-screen > .lobby-bottom { order: 1; flex: 0 0 auto; max-width: 420px; width: 100%; margin: 0 auto; }
-.lobby-bottom .chat-log { height: 144px; flex: none; }
+.lobby-bottom .chat-log { height: 101px; flex: none; }
 .lobby-feedback-btn {
   width: 100%;
   min-height: 42px;
@@ -2145,22 +2145,22 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   align-items: center;
   justify-content: center;
   gap: 7px;
-  margin-bottom: 9px;
+  margin-top: 9px;
   padding: 8px 14px;
   border: 0;
   border-radius: 8px;
-  background: var(--orange);
-  box-shadow: 0 3px 0 #b7441f;
-  color: #fff;
+  background: var(--teal);
+  box-shadow: 0 3px 0 #1f7f6d;
+  color: var(--navy);
   font-size: 13px;
   line-height: 1.35;
   font-weight: 900;
   cursor: pointer;
   transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
 }
-.lobby-feedback-btn:hover { background: #ff7040; }
-.lobby-feedback-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b7441f; }
-.lobby-feedback-btn.has-new { background: #ff572f; }
+.lobby-feedback-btn:hover { background: var(--teal-light); }
+.lobby-feedback-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #1f7f6d; }
+.lobby-feedback-btn.has-new { background: var(--teal); }
 .feedback-badge {
   min-width: 20px;
   height: 20px;
@@ -2231,6 +2231,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .feedback-empty { padding: 18px 4px; color: #8a969b; text-align: center; font-size: 13px; }
 .feedback-compose { padding-top: 2px; }
 body.is-admin .feedback-user-compose { display: none; }
+.feedback-guide { margin-bottom: 14px; padding: 10px 11px; border-radius: 8px; background: #e6f5f1; color: #32675f; font-size: 12px; line-height: 1.55; font-weight: 800; }
 .feedback-compose label { display: block; margin: 0 0 6px; color: var(--navy); font-size: 13px; font-weight: 900; }
 .feedback-compose input,
 .feedback-compose textarea {
