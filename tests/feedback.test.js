@@ -10,6 +10,7 @@ const root = path.join(__dirname, "..");
 const dbSource = fs.readFileSync(path.join(root, "db.js"), "utf8");
 const gameSource = fs.readFileSync(path.join(root, "game.js"), "utf8");
 const indexSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const stylesSource = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 
 function createDb(rows) {
   const state = { inserted: [], room: null, limit: null };
@@ -101,10 +102,11 @@ test("feedback history marks only administrator completion events", async () => 
   assert.equal(posts[1].completed, true);
 });
 
-test("the lobby exposes feedback composition while the report list stays admin-only", () => {
+test("the lobby exposes feedback composition while the admin gets an expandable inbox", () => {
   assert.match(indexSource, /class="lobby-page-title">로비화면<\/h1>/);
   assert.doesNotMatch(indexSource, /오류·이상이 생기면/);
   assert.match(indexSource, /id="lobby-feedback-btn"/);
+  assert.match(indexSource, /id="lobby-feedback-label"/);
   assert.match(indexSource, /id="feedback-badge" class="feedback-badge admin-only hidden"/);
   assert.match(indexSource, /id="feedback-title"/);
   assert.match(indexSource, /id="feedback-body"/);
@@ -114,8 +116,11 @@ test("the lobby exposes feedback composition while the report list stays admin-o
 
   assert.match(gameSource, /refreshFeedbackBadge\(\);\s*logLoginOnce\(\)/);
   assert.match(gameSource, /msg\.t === "feedback_new" \|\| msg\.t === "feedback_updated"/);
+  assert.match(gameSource, /<details class="feedback-item /);
+  assert.match(gameSource, /<summary class="feedback-item-summary">/);
   assert.match(gameSource, /async function submitFeedbackForm\(\)/);
   assert.match(gameSource, /async function completeFeedbackPost\(id, button\) \{\s*if \(!me\.isAdmin/);
   assert.match(gameSource, /\$\("lobby-feedback-btn"\)\.addEventListener\("click", openFeedbackModal\)/);
   assert.match(gameSource, /\$\("feedback-send-btn"\)\.addEventListener\("click", submitFeedbackForm\)/);
+  assert.match(stylesSource, /body\.is-admin \.feedback-user-compose \{ display: none; \}/);
 });

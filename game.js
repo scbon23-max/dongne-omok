@@ -417,6 +417,9 @@
     hideGameScreens();
     $("lobby").classList.remove("hidden");
     document.body.classList.toggle("is-admin", me.isAdmin);
+    if ($("lobby-feedback-label")) {
+      $("lobby-feedback-label").textContent = me.isAdmin ? "버그·의견 접수함" : "버그·좋은 의견 보내기";
+    }
     if (startCatchmindUiPreview() || startRelayUiPreview()) {
       logLoginOnce();
       return;
@@ -3494,14 +3497,17 @@
       return;
     }
     box.innerHTML = feedbackPosts.map(function (post) {
-      return '<article class="feedback-item ' + (post.completed ? "completed" : "") + '">'
+      return '<details class="feedback-item ' + (post.completed ? "completed" : "") + '">'
+        + '<summary class="feedback-item-summary">'
         + '<div class="feedback-item-head"><strong class="feedback-item-title">' + esc(post.title) + '</strong>'
-        + '<span class="feedback-state">' + (post.completed ? "완료" : "신규") + '</span></div>'
+        + '<span class="feedback-item-side"><span class="feedback-state">' + (post.completed ? "완료" : "신규") + '</span>'
+        + '<span class="feedback-expand-icon" aria-hidden="true"></span></span></div>'
         + '<p class="feedback-meta">' + esc(post.nick) + ' · ' + esc(feedbackDate(post.createdAt)) + '</p>'
-        + '<p class="feedback-content">' + esc(post.body) + '</p>'
+        + '</summary>'
+        + '<div class="feedback-item-detail"><p class="feedback-content">' + esc(post.body) + '</p>'
         + '<button class="feedback-done-btn" type="button" data-feedback-done="' + esc(post.id) + '"'
-        + (post.completed ? " disabled" : "") + '>' + (post.completed ? "완료됨" : "완료 표시") + '</button>'
-        + '</article>';
+        + (post.completed ? " disabled" : "") + '>' + (post.completed ? "완료됨" : "완료 표시") + '</button></div>'
+        + '</details>';
     }).join("");
     var buttons = box.querySelectorAll("[data-feedback-done]");
     for (var i = 0; i < buttons.length; i++) buttons[i].addEventListener("click", function () {
@@ -3530,6 +3536,9 @@
     if ($("feedback-status")) {
       $("feedback-status").textContent = "";
       $("feedback-status").classList.remove("error");
+    }
+    if ($("feedback-modal-title")) {
+      $("feedback-modal-title").textContent = me.isAdmin ? "버그·의견 접수함" : "버그·좋은 의견";
     }
     openModal("feedback-modal");
     if (me.isAdmin) loadFeedbackList();

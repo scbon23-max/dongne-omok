@@ -112,7 +112,7 @@
   <div class="bottom-row lobby-bottom">
     <div class="chat-panel">
       <button id="lobby-feedback-btn" class="lobby-feedback-btn" type="button">
-        <span>버그·좋은 의견 보내기</span>
+        <span id="lobby-feedback-label">버그·좋은 의견 보내기</span>
         <span id="feedback-badge" class="feedback-badge admin-only hidden" aria-label="미완료 접수 0건">0</span>
       </button>
       <div class="chat-log" id="lobby-chat-log"></div>
@@ -1008,7 +1008,7 @@
 <div id="feedback-modal" class="modal-overlay hidden">
   <div class="modal feedback-modal">
     <div class="modal-head">
-      <h2>버그·좋은 의견</h2>
+      <h2 id="feedback-modal-title">버그·좋은 의견</h2>
       <button class="modal-close" type="button" data-close aria-label="닫기">✕</button>
     </div>
     <div class="modal-body">
@@ -1021,7 +1021,7 @@
           <p class="feedback-empty">접수 내역을 불러오는 중…</p>
         </div>
       </section>
-      <section class="feedback-compose">
+      <section class="feedback-compose feedback-user-compose">
         <label for="feedback-title">제목</label>
         <input id="feedback-title" type="text" maxlength="80" placeholder="어떤 내용인지 짧게 적어주세요" autocomplete="off">
         <label for="feedback-body">내용</label>

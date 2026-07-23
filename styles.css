@@ -2139,25 +2139,28 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .lobby-bottom .chat-log { height: 144px; flex: none; }
 .lobby-feedback-btn {
   width: 100%;
-  min-height: 31px;
+  min-height: 42px;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  margin-bottom: 6px;
-  padding: 5px 10px;
+  margin-bottom: 9px;
+  padding: 8px 14px;
   border: 0;
   border-radius: 8px;
-  background: rgba(243,97,42,.18);
-  color: #ffc09f;
-  font-size: 11.5px;
+  background: var(--orange);
+  box-shadow: 0 3px 0 #b7441f;
+  color: #fff;
+  font-size: 13px;
   line-height: 1.35;
   font-weight: 900;
   cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
 }
-.lobby-feedback-btn:active { background: rgba(243,97,42,.3); }
-.lobby-feedback-btn.has-new { color: #fff; background: var(--orange); }
+.lobby-feedback-btn:hover { background: #ff7040; }
+.lobby-feedback-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b7441f; }
+.lobby-feedback-btn.has-new { background: #ff572f; }
 .feedback-badge {
   min-width: 20px;
   height: 20px;
@@ -2178,16 +2181,38 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .feedback-list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
 .feedback-list-head strong { font-size: 14px; font-weight: 900; }
 .feedback-list-head span { color: var(--orange-dark); font-size: 12px; font-weight: 900; }
-.feedback-list { max-height: 38dvh; overflow-y: auto; overscroll-behavior: contain; }
-.feedback-item { padding: 11px 2px; border-top: 1px solid #e8eaeb; }
+.feedback-list { max-height: 52dvh; overflow-y: auto; overscroll-behavior: contain; }
+.feedback-item { border-top: 1px solid #e8eaeb; }
 .feedback-item:first-child { border-top: 0; }
-.feedback-item.completed { opacity: .58; }
+.feedback-item.completed { opacity: .68; }
+.feedback-item-summary {
+  position: relative;
+  display: block;
+  padding: 12px 2px;
+  list-style: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.feedback-item-summary::-webkit-details-marker { display: none; }
+.feedback-item-summary::marker { display: none; content: ""; }
+.feedback-item-summary:active { background: #f4f6f6; }
 .feedback-item-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .feedback-item-title { min-width: 0; color: var(--navy); font-size: 14px; line-height: 1.35; font-weight: 900; overflow-wrap: anywhere; }
+.feedback-item-side { flex: 0 0 auto; display: flex; align-items: center; gap: 9px; }
 .feedback-state { flex: 0 0 auto; padding: 3px 6px; border-radius: 5px; background: #ffebe2; color: var(--orange-dark); font-size: 10px; font-weight: 900; }
 .feedback-item.completed .feedback-state { background: #e5f3ef; color: #247f72; }
+.feedback-expand-icon {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #829097;
+  border-bottom: 2px solid #829097;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform .16s ease;
+}
+.feedback-item[open] .feedback-expand-icon { transform: rotate(225deg) translate(-2px, -2px); }
 .feedback-meta { margin-top: 3px; color: #87949a; font-size: 11px; line-height: 1.35; }
-.feedback-content { margin-top: 7px; color: #43545c; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.feedback-item-detail { padding: 0 2px 12px; }
+.feedback-content { color: #43545c; font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .feedback-done-btn {
   display: block;
   min-width: 72px;
@@ -2205,7 +2230,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .feedback-done-btn:disabled { background: #dce5e3; color: #778783; cursor: default; }
 .feedback-empty { padding: 18px 4px; color: #8a969b; text-align: center; font-size: 13px; }
 .feedback-compose { padding-top: 2px; }
-body.is-admin .feedback-admin-section + .feedback-compose { padding-top: 15px; border-top: 1px solid #e8eaeb; }
+body.is-admin .feedback-user-compose { display: none; }
 .feedback-compose label { display: block; margin: 0 0 6px; color: var(--navy); font-size: 13px; font-weight: 900; }
 .feedback-compose input,
 .feedback-compose textarea {
