@@ -2152,14 +2152,6 @@ window.CatchMind = (function () {
   }
 
   function renderHeader() {
-    var label = $("catch-round-label");
-    if (label) {
-      if (state.phase === "practice") label.textContent = "연습모드";
-      else if (state.phase === "countdown") label.textContent = (state.drawer || "출제자") + " 준비 · " + (state.roundIndex + 1) + "/" + state.queue.length;
-      else if (state.phase === "drawing" || state.phase === "reveal") label.textContent = (state.drawer || "출제자") + " 그림 · " + (state.roundIndex + 1) + "/" + state.queue.length;
-      else if (state.phase === "finished") label.textContent = "게임 종료";
-      else label.textContent = "게임 대기 중";
-    }
     var peopleCount = $("catch-online-num");
     if (peopleCount) peopleCount.textContent = participantNicks().length;
     renderTimer();
@@ -2378,7 +2370,7 @@ window.CatchMind = (function () {
     } else if (state.phase === "countdown") {
       var countdownSeconds = Math.ceil(ROUND_COUNTDOWN_MS / 1000);
       var count = state.deadline ? clamp(Math.ceil((state.deadline - Date.now()) / 1000), 1, countdownSeconds) : countdownSeconds;
-      kicker.textContent = "이번 출제자";
+      kicker.textContent = (state.roundIndex + 1) + "/" + state.queue.length;
       title.textContent = state.drawer + "님의 그림 차례";
       sub.textContent = count + "";
       sub.classList.remove("hidden");

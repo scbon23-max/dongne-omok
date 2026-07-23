@@ -143,6 +143,10 @@ test("CatchMind ships the per-second countdown sound asset", () => {
 test("CatchMind countdown ships its simple bright progress treatment", () => {
   assert.match(index, /id="catch-countdown-copy"/);
   assert.match(index, /id="catch-countdown-steps"/);
+  assert.doesNotMatch(index, /id="catch-round-label"|class="catch-statusbar"/);
+  assert.doesNotMatch(styles, /\.catch-round-label|\.catch-statusbar/);
+  assert.match(styles, /\.action-row\.slim\.catch-action-row\s*\{[^}]*order:\s*0/);
+  assert.match(catchmind, /kicker\.textContent = \(state\.roundIndex \+ 1\) \+ "\/" \+ state\.queue\.length/);
   assert.match(styles, /\.catch-stage\.countdown\s*\{[^}]*background:\s*#fff/);
   assert.match(styles, /\.catch-countdown-steps span\.active\s*\{[^}]*background:\s*var\(--orange\)/);
   assert.doesNotMatch(styles, /\.catch-stage\.countdown::before/);

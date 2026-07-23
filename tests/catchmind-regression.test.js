@@ -1008,7 +1008,7 @@ test("countdown stage uses the simple CatchMind progress design", () => {
   assert.equal(marks.classList.contains("hidden"), true);
   assert.equal(copy.classList.contains("hidden"), false);
   assert.equal(steps.classList.contains("hidden"), false);
-  assert.equal(kicker.textContent, "이번 출제자");
+  assert.equal(kicker.textContent, "1/3");
   assert.equal(title.textContent, "B님의 그림 차례");
   assert.equal(sub.textContent, "5");
   assert.equal(copy.textContent, "그림을 준비해주세요");
