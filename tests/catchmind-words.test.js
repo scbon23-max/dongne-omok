@@ -19,14 +19,36 @@ function loadWordList() {
   return Array.from(context.window.CATCHMIND_WORDS || []);
 }
 
+function loadBuilderWords() {
+  const builder = fs.readFileSync(
+    path.join(root, "tools", "build-catchmind-wordlist.mjs"),
+    "utf8"
+  );
+  const seen = new Set();
+  const words = [];
+
+  for (const match of builder.matchAll(/name:\s*"[^"]+",\s*words:\s*`([\s\S]*?)`/g)) {
+    for (const word of match[1].trim().split(/\s+/)) {
+      if (!seen.has(word)) {
+        seen.add(word);
+        words.push(word);
+      }
+    }
+  }
+
+  return words;
+}
+
 test("curated CatchMind words are unique, valid, and mirrored in the text file", () => {
   const words = loadWordList();
   const textWords = fs.readFileSync(path.join(root, "catchmind-words.txt"), "utf8").trim().split(/\r?\n/);
+  const builderWords = loadBuilderWords();
 
   assert.ok(words.length >= 3000, `expected at least 3000 words, got ${words.length}`);
   assert.equal(new Set(words).size, words.length);
   assert.ok(words.every(word => /^[가-힣]{1,10}$/.test(word)));
   assert.deepEqual(words, textWords);
+  assert.deepEqual(words, builderWords);
 });
 
 test("the word list does not restore generated compound noise", () => {
