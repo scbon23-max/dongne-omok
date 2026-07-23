@@ -298,7 +298,7 @@ test("waiting music yields to looping match music and resumes after play", async
   assert.equal(start.playCount, 3);
   assert.equal(start.currentTime, 0);
   assert.equal(api.audioConfig.startVolume, 1);
-  assert.equal(api.audioConfig.clearSrc, "assets/catchmind-clear.mp3");
+  assert.equal(api.audioConfig.clearSrc, "assets/catchmind-clear-loud.mp3");
   assert.equal(api.audioConfig.clearVolume, 1);
 });
 
