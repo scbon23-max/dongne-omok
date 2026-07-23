@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260724-catch-maintenance-v15">
+<meta name="app-build" content="20260724-catch-admin-preview-v16">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -317,6 +317,33 @@
 
 <!-- 캐치마인드 게임 화면 -->
 <section id="catchgame" class="screen game-screen catch-screen hidden">
+  <nav id="catch-preview-toolbar" class="relay-preview-toolbar catch-preview-toolbar hidden" aria-label="캐치마인드 UI 점검 도구">
+    <strong>캐치마인드 점검</strong>
+    <div class="relay-preview-phase-controls">
+      <button id="catch-preview-prev" type="button" aria-label="이전 화면">←</button>
+      <label>
+        <select id="catch-preview-phase" aria-label="점검할 화면">
+          <option value="waiting">대기실</option>
+          <option value="countdown">턴 시작 카운트다운</option>
+          <option value="drawing">출제자 그림 화면</option>
+          <option value="guessing">참가자 정답 입력</option>
+          <option value="solved">정답자 리액션</option>
+          <option value="paused">출제자 재접속 대기</option>
+          <option value="reveal-success">전원 정답 공개</option>
+          <option value="reveal-timeout">시간 초과 공개</option>
+          <option value="finished">게임 종료</option>
+          <option value="result">점수 팝업</option>
+        </select>
+      </label>
+      <button id="catch-preview-next" type="button" aria-label="다음 화면">→</button>
+    </div>
+    <div class="relay-preview-viewport" aria-label="미리보기 화면 크기">
+      <button type="button" data-catch-preview-viewport="desktop">PC</button>
+      <button type="button" data-catch-preview-viewport="mobile">모바일</button>
+    </div>
+    <button id="catch-preview-exit" class="relay-preview-exit" type="button">점검 종료</button>
+  </nav>
+
   <header class="catch-statusbar">
     <div id="catch-round-label" class="catch-round-label">게임 대기 중</div>
   </header>
@@ -868,6 +895,7 @@
     <div class="modal-body menu-body" id="menu-main">
       <button id="menu-rules-btn" class="menu-item">📖 규칙</button>
       <button id="menu-sound-btn" class="menu-item">🔊 소리 켜짐</button>
+      <button id="catch-preview-menu-btn" class="menu-item admin-only">캐치마인드 화면 점검</button>
       <button id="relay-preview-menu-btn" class="menu-item admin-only">이어그리기 화면 점검</button>
       <button id="admin-btn" class="menu-item admin-only">관리자</button>
       <button id="activity-log-btn" class="menu-item admin-only">기록</button>

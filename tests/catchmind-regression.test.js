@@ -1070,6 +1070,62 @@ test("round reveal clearly distinguishes all-correct and timeout outcomes", () =
   assert.equal(sub.textContent, "사과");
 });
 
+test("admin preview builds every CatchMind screen from real controller state", () => {
+  const api = loadCatchMind();
+  const roster = [
+    "구나", "민서", "서준", "지우", "도윤", "하린", "유진", "현우", "수빈"
+  ].map((nick, index) => ({ nick, joinTs: index + 1 }));
+  api.setApi({
+    me() { return { nick: "구나", isAdmin: true }; },
+    roster() { return roster; },
+    isHost() { return true; },
+    host() { return "구나"; },
+    setHostEligible() {},
+    send() {},
+    roomChanged() {}
+  });
+
+  assert.equal(api.normalizePreviewPhase("unknown"), "waiting");
+  assert.ok(api.previewDrawing().length >= 8);
+
+  assert.equal(api.setPreviewPhase("waiting"), "waiting");
+  assert.equal(api.getState().phase, "idle");
+  assert.deepEqual(Array.from(api.getState().spectators), ["수빈"]);
+
+  api.setPreviewPhase("countdown");
+  assert.equal(api.getState().phase, "countdown");
+  assert.equal(api.getState().drawer, "구나");
+
+  api.setPreviewPhase("drawing");
+  assert.equal(api.getState().phase, "drawing");
+  assert.equal(api.getState().drawer, "구나");
+  assert.ok(api.getState().strokes.length > 0);
+
+  api.setPreviewPhase("guessing");
+  assert.equal(api.getState().drawer, "민서");
+  assert.equal(api.getState().wordLength, 3);
+
+  api.setPreviewPhase("solved");
+  assert.equal(api.getState().correct["구나"], true);
+
+  api.setPreviewPhase("paused");
+  assert.equal(api.getState().pauseKind, "drawer");
+  assert.ok(api.getState().pauseUntil > Date.now());
+
+  api.setPreviewPhase("reveal-success");
+  assert.equal(api.getState().revealOutcome, "all-correct");
+
+  api.setPreviewPhase("reveal-timeout");
+  assert.equal(api.getState().revealOutcome, "timeout");
+
+  api.setPreviewPhase("finished");
+  assert.equal(api.getState().phase, "finished");
+  assert.equal(api.getState().resultRatings.length, 8);
+
+  assert.equal(api.setPreviewPhase("result"), "result");
+  assert.equal(api.getState().phase, "finished");
+});
+
 test("only the current drawer sees the word during the countdown", () => {
   const word = fakeElement();
   const api = loadCatchMind({ elements: { "catch-word": word } });

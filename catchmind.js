@@ -86,6 +86,8 @@ window.CatchMind = (function () {
   var reactionLastOutputAt = 0;
   var reactionLastBy = Object.create(null);
   var reactionScope = "";
+  var previewMode = false;
+  var previewPhaseKey = "";
   var bgmEl = null;
   var bgmPlayPending = false;
   var startSfxEl = null;
@@ -154,6 +156,145 @@ window.CatchMind = (function () {
       recordStatus: "idle",
       resultRatings: []
     };
+  }
+
+  function normalizePreviewPhase(value) {
+    value = String(value || "").toLowerCase();
+    return [
+      "waiting", "countdown", "drawing", "guessing", "solved", "paused",
+      "reveal-success", "reveal-timeout", "finished", "result"
+    ].indexOf(value) >= 0 ? value : "waiting";
+  }
+
+  function previewStroke(id, color, width, points) {
+    return {
+      id: id,
+      color: color,
+      width: width,
+      points: points.map(function (point) { return { x: point[0], y: point[1] }; })
+    };
+  }
+
+  function previewCircle(id, color, width, cx, cy, radius) {
+    var points = [];
+    for (var i = 0; i <= 30; i++) {
+      var angle = Math.PI * 2 * i / 30;
+      points.push([cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius]);
+    }
+    return previewStroke(id, color, width, points);
+  }
+
+  function previewDrawing() {
+    return sanitizeStrokes([
+      previewCircle("preview-head", "#d9822b", 12, 0.5, 0.43, 0.22),
+      previewStroke("preview-ear-left", "#d9822b", 12, [[0.33, 0.3], [0.36, 0.14], [0.44, 0.25]]),
+      previewStroke("preview-ear-right", "#d9822b", 12, [[0.56, 0.25], [0.64, 0.14], [0.67, 0.31]]),
+      previewCircle("preview-eye-left", "#17252f", 14, 0.43, 0.41, 0.012),
+      previewCircle("preview-eye-right", "#17252f", 14, 0.57, 0.41, 0.012),
+      previewStroke("preview-mouth", "#17252f", 8, [[0.46, 0.5], [0.5, 0.54], [0.54, 0.5]]),
+      previewStroke("preview-body", "#2474b5", 16, [[0.38, 0.68], [0.42, 0.58], [0.58, 0.58], [0.64, 0.78]]),
+      previewStroke("preview-ground", "#7f9aa6", 7, [[0.2, 0.8], [0.8, 0.8]])
+    ]);
+  }
+
+  function setPreviewPhase(value) {
+    if (!api) return null;
+    var key = normalizePreviewPhase(value);
+    var selfNick = safeNick(me().nick) || "구나";
+    var players = [selfNick, "민서", "서준", "지우", "도윤", "하린", "유진", "현우"];
+    var sampleScores = [35, 31, 28, 24, 21, 18, 15, 12];
+    var next = freshState();
+    next.rev = state.rev + 1;
+    next.matchId = "catchmind-ui-preview";
+    next.spectators = ["수빈"];
+    next.ready = players.slice(1);
+    next.recordStatus = "saved";
+    next.feed = [
+      { who: "지우", text: "귀가 있는 것 같아", kind: "guess", channel: "players" },
+      { who: "", text: "서준님 정답! +9", kind: "correct", channel: "all" },
+      { who: "도윤", text: "고양이?", kind: "guess", channel: "players" }
+    ];
+    players.forEach(function (nick, index) {
+      next.scores[nick] = sampleScores[index];
+      next.stats[nick] = {
+        points: Math.max(3, sampleScores[index]),
+        maxPoints: 50,
+        correct: Math.max(0, 5 - Math.floor(index / 2)),
+        drawCorrect: Math.max(0, 6 - index),
+        fastestMs: 6200 + index * 2400
+      };
+      next.resultRatings.push({
+        nick: nick,
+        beforeRating: 1000 + (players.length - index) * 18,
+        rating: 1000 + (players.length - index) * 18 + (index < 3 ? 12 - index * 4 : -index),
+        delta: index < 3 ? 12 - index * 4 : -index,
+        games: 7 + index,
+        rankText: (index + 1) + "위",
+        rankMove: index < 2 ? 1 : 0
+      });
+    });
+
+    secretWord = "고양이";
+    next.wordLength = 3;
+    next.canvasBg = CANVAS_BG;
+    next.strokes = previewDrawing();
+    next.drawSeq = 1;
+
+    if (key === "waiting") {
+      next.phase = "idle";
+      next.queue = [];
+      next.strokes = [];
+      next.feed = [];
+    } else {
+      next.queue = players.slice();
+      next.roundIndex = 2;
+      next.drawer = key === "countdown" || key === "drawing" ? selfNick : "민서";
+      next.guessers = players.filter(function (nick) { return nick !== next.drawer; });
+      if (key === "countdown") {
+        next.phase = "countdown";
+        next.deadline = Date.now() + 4000;
+        next.strokes = [];
+        next.feed = [{ who: "", text: selfNick + "님이 그릴 차례예요", kind: "system", channel: "all" }];
+      } else if (key === "drawing" || key === "guessing" || key === "solved" || key === "paused") {
+        next.phase = "drawing";
+        next.deadline = Date.now() + 58000;
+        if (key !== "drawing") next.correct["서준"] = true;
+        if (key === "solved") next.correct[selfNick] = true;
+        if (key === "paused") {
+          next.pauseKind = "drawer";
+          next.pauseUntil = Date.now() + 12000;
+          next.pausedRemainMs = 45000;
+          next.deadline = null;
+          next.feed.push({ who: "", text: "민서님을 기다리고 있어요", kind: "system", channel: "all" });
+        }
+      } else if (key === "reveal-success" || key === "reveal-timeout") {
+        next.phase = "reveal";
+        next.deadline = null;
+        next.nextAt = Date.now() + 5000;
+        next.revealWord = "고양이";
+        next.revealOutcome = key === "reveal-success" ? "all-correct" : "timeout";
+        if (key === "reveal-success") {
+          next.guessers.forEach(function (nick) { next.correct[nick] = true; });
+        } else {
+          next.correct["서준"] = true;
+          next.correct["지우"] = true;
+        }
+      } else {
+        next.phase = "finished";
+        next.drawer = null;
+        next.guessers = [];
+        next.deadline = null;
+        next.nextAt = null;
+        next.revealWord = null;
+        next.revealOutcome = null;
+      }
+    }
+
+    previewPhaseKey = key;
+    state = next;
+    resetResultPopup();
+    render();
+    return key;
   }
 
   function $(id) { return document.getElementById(id); }
@@ -1577,6 +1718,13 @@ window.CatchMind = (function () {
   }
 
   function syncAudio() {
+    if (previewMode) {
+      stopBgm(true);
+      stopStartSfx(true);
+      lastCountdownCue = "";
+      stopCountdownSfx();
+      return;
+    }
     syncBgm();
     syncStartSfx();
     syncCountdownSfx();
@@ -1709,6 +1857,7 @@ window.CatchMind = (function () {
     syncAudio();
     renderTimer();
     renderStage();
+    if (previewMode) return;
     if (!api.isHost()) return;
     var now = Date.now();
     if (state.pauseKind === "drawer") {
@@ -1958,6 +2107,17 @@ window.CatchMind = (function () {
 
   function syncResultPopup() {
     if (!$("catch-result-backdrop")) return;
+    if (previewMode) {
+      if (state.phase !== "finished" || !state.matchId) {
+        setResultPopupOpen(false);
+        return;
+      }
+      resultInfo = mergeResultInfo({ matchId: state.matchId, players: state.resultRatings });
+      resultInfoMatchId = state.matchId;
+      renderResultPopup();
+      setResultPopupOpen(previewPhaseKey === "result");
+      return;
+    }
     if (state.phase !== "finished" || !state.matchId) {
       setResultPopupOpen(false);
       return;
@@ -3100,8 +3260,10 @@ window.CatchMind = (function () {
     });
   }
 
-  function enter(nextApi) {
+  function enter(nextApi, asPreview) {
     clearSaveRetry();
+    previewMode = !!asPreview;
+    previewPhaseKey = "";
     api = nextApi;
     state = freshState();
     secretWord = null;
@@ -3119,10 +3281,12 @@ window.CatchMind = (function () {
     resetResultPopup();
     lastStartSfxMatchId = null;
     stopStartSfx(true);
-    ensureStartSfx();
     lastCountdownCue = "";
     stopCountdownSfx();
-    ensureCountdownSfx();
+    if (!previewMode) {
+      ensureStartSfx();
+      ensureCountdownSfx();
+    }
     if (finishSfxEl) {
       try { finishSfxEl.pause(); finishSfxEl.currentTime = 0; } catch (e) {}
     }
@@ -3132,6 +3296,11 @@ window.CatchMind = (function () {
     if (tickId) clearInterval(tickId);
     tickId = setInterval(tick, 250);
     render();
+  }
+
+  function enterPreview(nextApi, phase) {
+    enter(nextApi, true);
+    return setPreviewPhase(phase);
   }
 
   function leave() {
@@ -3160,6 +3329,8 @@ window.CatchMind = (function () {
     lastSyncRequestAt = 0;
     lastCanvasRequestAt = 0;
     lastChatViewScope = "";
+    previewMode = false;
+    previewPhaseKey = "";
   }
 
   function onReady() {
@@ -3263,6 +3434,9 @@ window.CatchMind = (function () {
 
   var controller = {
     enter: enter,
+    enterPreview: enterPreview,
+    setPreviewPhase: setPreviewPhase,
+    normalizePreviewPhase: normalizePreviewPhase,
     leave: leave,
     onReady: onReady,
     onMessage: onMessage,
@@ -3275,11 +3449,15 @@ window.CatchMind = (function () {
     openGallery: openGallery,
     canHost: canHost,
     rules: rules,
+    get previewMode() { return previewMode; },
     get state() { return state; }
   };
   if (window.__CATCHMIND_TEST__) {
     controller._test = {
       freshState: freshState,
+      normalizePreviewPhase: normalizePreviewPhase,
+      setPreviewPhase: setPreviewPhase,
+      previewDrawing: previewDrawing,
       resetMatchState: resetMatchState,
       sanitizeSnapshot: sanitizeSnapshot,
       sanitizeStrokes: sanitizeStrokes,

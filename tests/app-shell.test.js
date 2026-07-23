@@ -154,6 +154,33 @@ test("CatchMind prevents iPad drawing gestures from selecting the page", () => {
   assert.match(styles, /#catch-board\s*\{[^}]*touch-action:\s*none;[^}]*-webkit-user-drag:\s*none;/);
 });
 
+test("CatchMind exposes every live UI state only through the authenticated admin preview", () => {
+  for (const phase of [
+    "waiting", "countdown", "drawing", "guessing", "solved", "paused",
+    "reveal-success", "reveal-timeout", "finished", "result"
+  ]) {
+    assert.match(index, new RegExp('<option value="' + phase + '">'));
+  }
+  assert.match(index, /id="catch-preview-toolbar"/);
+  assert.match(index, /id="catch-preview-menu-btn" class="menu-item admin-only"/);
+  assert.match(index, /data-catch-preview-viewport="desktop"/);
+  assert.match(index, /data-catch-preview-viewport="mobile"/);
+  assert.match(game, /var catchPreviewPhases = \[[\s\S]*"reveal-success"[\s\S]*"result"/);
+  assert.match(game, /params\.has\("catch-preview"\)/);
+  assert.match(game, /if \(!phase \|\| !isGunaAdmin\(\) \|\| !window\.CatchMind \|\| !CatchMind\.enterPreview/);
+  assert.match(game, /if \(startCatchmindUiPreview\(\) \|\| startRelayUiPreview\(\)\)/);
+  assert.match(game, /CatchMind\.enterPreview\(previewApi, phase\)/);
+  const previewBlock = game.slice(
+    game.indexOf("function startCatchmindUiPreview"),
+    game.indexOf("var relayPreviewPhases")
+  );
+  assert.doesNotMatch(previewBlock, /Db\.saveCatchmindDrawing|Db\.toggleCatchmindFavorite/);
+  assert.match(previewBlock, /recordMatch:\s*function \(\) \{\s*return Promise\.resolve\(null\)/);
+  assert.match(catchmind, /enterPreview:\s*enterPreview/);
+  assert.match(catchmind, /setPreviewPhase:\s*setPreviewPhase/);
+  assert.match(styles, /body\.catch-preview-mobile #catchgame/);
+});
+
 test("room host election skips members who switched to spectating", () => {
   assert.match(game, /function memberCanHost\(member\)[\s\S]*member\.hostEligible === false[\s\S]*ctrl\.canHost\(member\.nick\)/);
   assert.match(game, /var eligible = list\.filter\(memberCanHost\)/);
@@ -412,7 +439,7 @@ test("Relay Drawing is paused publicly while its UI preview remains restricted t
   assert.match(game, /params\.has\("relay-preview"\)/);
   assert.match(game, /if \(!phase \|\| !isGunaAdmin\(\) \|\| !window\.RelayDrawing/);
   assert.match(game, /function isGunaAdmin\(\)\s*\{\s*return me\.isAdmin === true && me\.nick === ADMIN;/);
-  assert.match(game, /if \(startRelayUiPreview\(\)\) \{\s*logLoginOnce\(\);\s*return;/);
+  assert.match(game, /if \(startCatchmindUiPreview\(\) \|\| startRelayUiPreview\(\)\) \{\s*logLoginOnce\(\);\s*return;/);
   assert.match(game, /id === "relay" && !ENABLE_RELAY/);
   assert.match(game, /RelayDrawing\.enterPreview\(previewApi, phase\)/);
   assert.match(game, /if \(!startLocalAlkMapPreview\(\)\) tryAutoLogin\(\)/);

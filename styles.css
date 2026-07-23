@@ -687,7 +687,8 @@ body:has(.cm-gallery-backdrop:not(.hidden)) { overflow: hidden; }
   outline: 2px solid var(--teal-light);
   outline-offset: 1px;
 }
-.relay-preview-toolbar [data-relay-preview-viewport].active {
+.relay-preview-toolbar [data-relay-preview-viewport].active,
+.relay-preview-toolbar [data-catch-preview-viewport].active {
   background: var(--teal);
   color: #102c39;
 }
@@ -707,6 +708,19 @@ body.relay-preview-mobile #relaygame {
   margin: 0 auto;
   box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 20px 55px rgba(0,0,0,.42);
 }
+body.catch-preview-mode {
+  min-width: 320px;
+  background: #081820;
+}
+body.catch-preview-mode #catchgame {
+  transition: width .18s ease, box-shadow .18s ease;
+}
+body.catch-preview-mobile #catchgame {
+  width: min(390px, 100%);
+  margin: 0 auto;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 20px 55px rgba(0,0,0,.42);
+}
+body.catch-preview-mode .cm-result-backdrop { z-index: 25; padding-top: 82px; }
 .relay-statusbar {
   order: 0;
   width: 100%;

@@ -418,7 +418,7 @@
     hideGameScreens();
     $("lobby").classList.remove("hidden");
     document.body.classList.toggle("is-admin", me.isAdmin);
-    if (startRelayUiPreview()) {
+    if (startCatchmindUiPreview() || startRelayUiPreview()) {
       logLoginOnce();
       return;
     }
@@ -1170,6 +1170,169 @@
     setAlkMapDialogStartMode(false);
     runAlkStartAction(action);
   }
+  var catchPreviewPhases = [
+    "waiting", "countdown", "drawing", "guessing", "solved", "paused",
+    "reveal-success", "reveal-timeout", "finished", "result"
+  ];
+  var catchPreviewBound = false;
+  function catchPreviewPeople() {
+    return [
+      { nick: me.nick, isAdmin: true, joinTs: 1 },
+      { nick: "민서", isAdmin: false, joinTs: 2 },
+      { nick: "서준", isAdmin: false, joinTs: 3 },
+      { nick: "지우", isAdmin: false, joinTs: 4 },
+      { nick: "도윤", isAdmin: false, joinTs: 5 },
+      { nick: "하린", isAdmin: false, joinTs: 6 },
+      { nick: "유진", isAdmin: false, joinTs: 7 },
+      { nick: "현우", isAdmin: false, joinTs: 8 },
+      { nick: "수빈", isAdmin: false, joinTs: 9 }
+    ];
+  }
+  function requestedCatchPreviewPhase() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      if (!params.has("catch-preview")) return null;
+      return window.CatchMind && CatchMind.normalizePreviewPhase
+        ? CatchMind.normalizePreviewPhase(params.get("catch-preview"))
+        : "waiting";
+    } catch (e) {
+      return null;
+    }
+  }
+  function updateCatchPreviewUrl(phase, viewport) {
+    try {
+      var url = new URL(window.location.href);
+      url.searchParams.set("catch-preview", phase);
+      if (viewport === "mobile") url.searchParams.set("catch-viewport", "mobile");
+      else url.searchParams.delete("catch-viewport");
+      if (window.history && window.history.replaceState) window.history.replaceState(null, "", url.toString());
+    } catch (e) {}
+  }
+  function setCatchPreviewViewport(viewport, updateUrl) {
+    viewport = viewport === "mobile" ? "mobile" : "desktop";
+    document.body.classList.toggle("catch-preview-mobile", viewport === "mobile");
+    var buttons = document.querySelectorAll("[data-catch-preview-viewport]");
+    for (var i = 0; i < buttons.length; i++) {
+      var active = buttons[i].getAttribute("data-catch-preview-viewport") === viewport;
+      buttons[i].classList.toggle("active", active);
+      buttons[i].setAttribute("aria-pressed", active ? "true" : "false");
+    }
+    if (updateUrl) {
+      var select = $("catch-preview-phase");
+      updateCatchPreviewUrl(select ? select.value : "waiting", viewport);
+    }
+  }
+  function showCatchPreviewPhase(phase, updateUrl) {
+    if (!window.CatchMind || !CatchMind.setPreviewPhase) return;
+    phase = CatchMind.setPreviewPhase(phase) || "waiting";
+    var select = $("catch-preview-phase");
+    if (select) select.value = phase;
+    if (updateUrl) {
+      updateCatchPreviewUrl(phase, document.body.classList.contains("catch-preview-mobile") ? "mobile" : "desktop");
+    }
+    window.scrollTo(0, 0);
+  }
+  function stepCatchPreview(direction) {
+    var select = $("catch-preview-phase");
+    var current = select ? catchPreviewPhases.indexOf(select.value) : 0;
+    if (current < 0) current = 0;
+    current = (current + direction + catchPreviewPhases.length) % catchPreviewPhases.length;
+    showCatchPreviewPhase(catchPreviewPhases[current], true);
+  }
+  function exitCatchPreview() {
+    try {
+      var url = new URL(window.location.href);
+      url.searchParams.delete("catch-preview");
+      url.searchParams.delete("catch-viewport");
+      if (window.history && window.history.replaceState) window.history.replaceState(null, "", url.toString());
+      if (window.CatchMind && CatchMind.leave) CatchMind.leave();
+      $("catch-preview-toolbar").classList.add("hidden");
+      document.body.classList.remove("catch-preview-mode", "catch-preview-mobile", "is-host");
+      curGame = null;
+      curRoomGame = null;
+      curRoomTitle = "";
+      hostNick = null;
+      hostSessionId = "";
+      amHost = false;
+      showLobby();
+    } catch (e) {
+      window.location.reload();
+    }
+  }
+  function bindCatchPreviewToolbar() {
+    if (catchPreviewBound) return;
+    catchPreviewBound = true;
+    $("catch-preview-prev").addEventListener("click", function () { stepCatchPreview(-1); });
+    $("catch-preview-next").addEventListener("click", function () { stepCatchPreview(1); });
+    $("catch-preview-phase").addEventListener("change", function () { showCatchPreviewPhase(this.value, true); });
+    $("catch-preview-exit").addEventListener("click", exitCatchPreview);
+    var viewportButtons = document.querySelectorAll("[data-catch-preview-viewport]");
+    for (var i = 0; i < viewportButtons.length; i++) viewportButtons[i].addEventListener("click", function () {
+      setCatchPreviewViewport(this.getAttribute("data-catch-preview-viewport"), true);
+    });
+  }
+  function startCatchmindUiPreview() {
+    var phase = requestedCatchPreviewPhase();
+    if (!phase || !isGunaAdmin() || !window.CatchMind || !CatchMind.enterPreview || !$("catchgame")) return false;
+    curGame = "catchmind";
+    curRoomGame = "catchmind";
+    curRoomTitle = "캐치마인드 UI 점검";
+    netMode = false;
+    amHost = true;
+    hostNick = me.nick;
+    hostSessionId = currentClientSessionId();
+    $("entry").classList.add("hidden");
+    $("lobby").classList.add("hidden");
+    hideGameScreens();
+    $("catchgame").classList.remove("hidden");
+    $("catch-preview-toolbar").classList.remove("hidden");
+    document.body.classList.add("catch-preview-mode", "is-host");
+    var previewApi = {
+      me: function () { return { nick: me.nick, isAdmin: me.isAdmin }; },
+      roster: function () { return catchPreviewPeople(); },
+      isHost: function () { return true; },
+      host: function () { return me.nick; },
+      isNet: function () { return false; },
+      setHostEligible: function () {},
+      send: function () {},
+      sendWithResult: function () { return Promise.resolve({ ok: true, status: "preview" }); },
+      sendHostInput: function () { return false; },
+      sendHostInputWithResult: function () { return Promise.resolve({ ok: false, status: "preview" }); },
+      syncHostInputs: function () {},
+      sendChat: function () { toast("UI 점검 모드에서는 채팅을 보내지 않아요"); return false; },
+      relayChat: function () {},
+      showChat: function () {},
+      toast: toast,
+      openRank: function () { openRank("catchmind"); },
+      openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
+      openMenu: openMenu,
+      openRules: function () { showRules("catchmind"); },
+      leaveRoom: exitCatchPreview,
+      roomChanged: function () {},
+      galleryAuth: function () { return { nick: me.nick, hash: sessionAuthHash }; },
+      saveDrawing: function () { return Promise.resolve({ ok: false, reason: "preview" }); },
+      loadGallery: function (mode, offset, limit, drawer, includeDrawers) {
+        if (!window.Db || !Db.getCatchmindGallery) return Promise.resolve({ ok: false, reason: "unavailable", rows: [] });
+        return Promise.resolve(Db.getCatchmindGallery({ nick: me.nick, hash: sessionAuthHash }, mode, offset, limit, drawer, includeDrawers));
+      },
+      toggleGalleryFavorite: function (drawingId, favorite) {
+        return Promise.resolve({ ok: false, reason: "preview" });
+      },
+      recordMatch: function () { return Promise.resolve(null); },
+      resultSummary: function () { return Promise.resolve(null); },
+      scoresChanged: function () {}
+    };
+    CatchMind.enterPreview(previewApi, phase);
+    bindCatchPreviewToolbar();
+    var viewport = "desktop";
+    try {
+      viewport = new URLSearchParams(window.location.search).get("catch-viewport") === "mobile" ? "mobile" : "desktop";
+    } catch (e) {}
+    setCatchPreviewViewport(viewport, false);
+    $("catch-preview-phase").value = phase;
+    return true;
+  }
+
   var relayPreviewPhases = ["waiting", "prompt", "drawing", "caption", "result"];
   var relayPreviewBound = false;
   function relayPreviewPeople() {
@@ -5474,6 +5637,11 @@
     }
     syncMuteIcons();
     $("menu-sound-btn").addEventListener("click", toggleMute);
+    $("catch-preview-menu-btn").addEventListener("click", function () {
+      $("menu-modal").classList.add("hidden");
+      updateCatchPreviewUrl("waiting", "desktop");
+      startCatchmindUiPreview();
+    });
     $("relay-preview-menu-btn").addEventListener("click", function () {
       $("menu-modal").classList.add("hidden");
       updateRelayPreviewUrl("waiting", "desktop");
