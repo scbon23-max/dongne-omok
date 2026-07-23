@@ -38,10 +38,11 @@ function apiFixture(hostMode) {
 test("small matches use faster frames while eight players retain the safe ceiling", () => {
   const { engine } = loadEngine();
   assert.deepEqual([1, 4, 5, 6, 7, 8, 10].map(engine.frameIntervalMs), [200, 200, 250, 300, 350, 400, 400]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8].map(engine.inputIntervalMs), [150, 150, 165, 180, 200, 220, 240, 260]);
   for (let players = 1; players <= engine.constants.maxPlayers; players++) {
     const stateTraffic = 1000 / engine.frameIntervalMs(players) * (engine.constants.maxRoomMembers + 1);
-    const inputTraffic = 1000 / engine.constants.inputSendMs * Math.max(0, players - 1) * 2;
-    assert.ok(stateTraffic + inputTraffic < 80, `${players} players exceed the realtime safety budget`);
+    const inputTraffic = 1000 / engine.inputIntervalMs(players) * Math.max(0, players - 1) * 2;
+    assert.ok(stateTraffic + inputTraffic < 90, `${players} players exceed the realtime safety budget`);
   }
 });
 

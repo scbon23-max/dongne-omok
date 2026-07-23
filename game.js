@@ -4,8 +4,7 @@
   var SIZE = Renju.SIZE, BLACK = Renju.BLACK, WHITE = Renju.WHITE;
   var TERR_KOMI = 1.5;
   var APP_REFRESH_KEY = "dongne_games_app_refresh";
-  // Keep unfinished modes hidden until they are ready. Territory rooms remain
-  // discoverable so guests can join an admin-created test room.
+  // Keep unfinished modes hidden until they are ready.
   var ENABLE_ALK_TERRITORY = false;
   var ENABLE_RELAY = false;
   var ENABLE_CATCHMIND_ROOMS = false;

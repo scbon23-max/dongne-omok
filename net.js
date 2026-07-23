@@ -339,7 +339,8 @@ window.Net = (function () {
     if (!entry) return Promise.resolve(sendOutcome("unavailable"));
     payload = decoratePayload(payload, "direct", curRoom, myMeta);
     if (entry.ready) return sendPacket(entry.channel, payload);
-    return new Promise(function (resolve) { queuePacket(entry.pending, payload, resolve, true); });
+    queuePacket(entry.pending, payload, null, true);
+    return Promise.resolve(sendOutcome("queued"));
   }
   function closeAllDirectInputs() {
     directWanted = Object.create(null);

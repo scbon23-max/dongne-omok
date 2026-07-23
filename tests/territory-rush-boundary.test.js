@@ -101,7 +101,7 @@ test("playable land is the percentage denominator so a full arena reaches one hu
 
   assert.equal(engine.constants.playableCells, 70 * 106);
   assert.equal(engine.rankRows()[0].area, 100);
-  assert.equal((source.match(/\/ PLAYABLE_CELL_COUNT \* 100/g) || []).length, 3);
+  assert.equal((source.match(/\/ playableCellCount\(\) \* 100/g) || []).length, 3);
 });
 
 test("the arena exterior is filled with the exact boundary-line color", () => {

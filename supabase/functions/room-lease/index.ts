@@ -5,7 +5,6 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const TERRITORY_ADMIN = "구나";
 
 function response(body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -63,9 +62,6 @@ Deno.serve(async (request) => {
     const roomName = safeText(body.roomName, 80);
     const game = safeText(body.game, 30);
     if (!roomName || !game) return response({ ok: false, reason: "invalid_room" });
-    if (game === "territory" && (!account.isAdmin || nick !== TERRITORY_ADMIN)) {
-      return response({ ok: false, reason: "forbidden" });
-    }
     const { data, error } = await client.rpc("claim_room_lease", {
       p_nickname: nick,
       p_room_id: roomId,

@@ -193,7 +193,7 @@ test("queued result sends settle after subscribe and settle as cancelled on leav
   assertResult(await cancelled, false, "cancelled");
 });
 
-test("direct input keeps only the latest queued packet and provides validated sequence metadata", async () => {
+test("direct input reports an unready channel immediately and later sends only the latest queued packet", async () => {
   const fixture = loadNet({ autoSubscribe: false, sessionId: "direct-tab" });
   fixture.Net.init("room-2", { nick: "민서" }, {});
   const room = fixture.channels.find((channel) => channel.topic === "room:room-2");
@@ -201,11 +201,11 @@ test("direct input keeps only the latest queued packet and provides validated se
   fixture.Net.syncDirectInputs(["민서"], "민서", false);
   const direct = fixture.channels.find((channel) => channel.topic.startsWith("room-input:"));
 
-  const first = fixture.Net.sendDirectInputWithResult({ t: "tr_input", seq: 10 });
-  const second = fixture.Net.sendDirectInputWithResult({ t: "tr_input", seq: 11 });
-  assertResult(await first, false, "superseded");
+  assertResult(await fixture.Net.sendDirectInputWithResult({ t: "tr_input", seq: 10 }), false, "queued");
+  assertResult(await fixture.Net.sendDirectInputWithResult({ t: "tr_input", seq: 11 }), false, "queued");
+  assert.equal(direct.sent.length, 0);
+
   direct.status("SUBSCRIBED");
-  assertResult(await second, true, "ok");
   assert.equal(direct.sent.length, 1);
   assert.equal(direct.sent[0].payload.seq, 11);
 

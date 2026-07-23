@@ -86,7 +86,7 @@ window.GameCatalog = (function () {
       name: "땅따먹기",
       rankName: "땅따먹기",
       rankable: false,
-      createAdminOnly: true,
+      createAdminOnly: false,
       maxRoomMembers: 10,
       maxPlayers: 8,
       controller: "TerritoryRush",

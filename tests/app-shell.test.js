@@ -243,7 +243,9 @@ test("Alkkagi has a synchronized five-choice turn timer with short-game warnings
   assert.match(game, /A\.started && window\.Alkkagi && Alkkagi\.isMoving\(\) \? "…" : "∞"/);
 });
 
-test("room creation hides disabled modes and limits Territory Rush creation to the admin", () => {
+test("room creation hides disabled modes and allows public Territory Rush rooms", () => {
+  const catalog = fs.readFileSync(path.join(root, "game-catalog.js"), "utf8");
+
   assert.match(index, /id="create-game-step"/);
   assert.match(index, /id="create-alk-mode-step"/);
   assert.match(index, /id="create-step-back"/);
@@ -259,6 +261,7 @@ test("room creation hides disabled modes and limits Territory Rush creation to t
   assert.doesNotMatch(game, /if \(id === "territory"[^\n]+return false/);
   assert.match(game, /function canCreateGame\(id\)[\s\S]*if \(!canEnterGame\(id\)\) return false[\s\S]*def\.createAdminOnly && !isGunaAdmin\(\)/);
   assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay", "territory"\]\)\.filter\(canCreateGame\)/);
+  assert.match(catalog, /territory:\s*\{[\s\S]*createAdminOnly:\s*false/);
   assert.match(game, /if \(!canEnterGame\(game\)\) \{[\s\S]*game === "catchmind" \? "캐치마인드는 점검 중이라 이용할 수 없어요"/);
   assert.match(game, /filter\(function \(r\) \{ return canEnterGame\(r\.game\)/);
   assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);
@@ -283,10 +286,10 @@ test("room creation hides disabled modes and limits Territory Rush creation to t
   ].forEach((asset) => assert.equal(fs.existsSync(path.join(root, asset)), true));
 });
 
-test("Territory Rush is wired as an owner-only non-ranked controller game", () => {
+test("Territory Rush is wired as a public non-ranked controller game", () => {
   const catalog = fs.readFileSync(path.join(root, "game-catalog.js"), "utf8");
 
-  assert.match(catalog, /territory:\s*\{[\s\S]*family:\s*"territory"[\s\S]*rankable:\s*false[\s\S]*createAdminOnly:\s*true[\s\S]*maxRoomMembers:\s*10[\s\S]*maxPlayers:\s*8[\s\S]*controller:\s*"TerritoryRush"/);
+  assert.match(catalog, /territory:\s*\{[\s\S]*family:\s*"territory"[\s\S]*rankable:\s*false[\s\S]*createAdminOnly:\s*false[\s\S]*maxRoomMembers:\s*10[\s\S]*maxPlayers:\s*8[\s\S]*controller:\s*"TerritoryRush"/);
   assert.match(catalog, /territory:\s*\{[\s\S]*name:\s*"땅따먹기"[\s\S]*rankName:\s*"땅따먹기"/);
   assert.match(index, /id="territorygame"/);
   assert.match(index, /id="territory-board"/);

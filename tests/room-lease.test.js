@@ -31,8 +31,8 @@ test("room leases atomically limit each account to one owned room", () => {
   assert.match(edge, /body\.action === "renew"/);
   assert.match(edge, /body\.action === "release"/);
   assert.match(edge, /\.select\("nickname,is_admin"\)/);
-  assert.match(edge, /game === "territory" && \(!account\.isAdmin \|\| nick !== TERRITORY_ADMIN\)/);
-  assert.match(edge, /reason: "forbidden"/);
+  assert.doesNotMatch(edge, /TERRITORY_ADMIN/);
+  assert.doesNotMatch(edge, /game === "territory"/);
 });
 
 test("room creation claims, renews, and releases the account lease", () => {

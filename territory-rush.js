@@ -8,26 +8,40 @@ window.TerritoryRush = (function () {
   var STEP_MS = 50;
   var FRAME_MS = 400;
   var FULL_MIN_MS = 400;
-  var INPUT_SEND_MS = 300;
+  var INPUT_SEND_MS = 150;
+  var INPUT_SEND_MAX_MS = 260;
   var OWNER_RECOVERY_MS = 1800;
   var RESPAWN_MS = 1800;
   var RESPAWN_RETRY_MS = 1000;
   var RESPAWN_EMERGENCY_MS = 3500;
   var EMERGENCY_PLAYER_DISTANCE = 9;
   var START_COUNTDOWN_MS = 3000;
-  var INPUT_ACK_RETRY_MS = 850;
-  var INPUT_ACK_MAX_ATTEMPTS = 3;
+  var INPUT_ACK_RETRY_MS = 500;
+  var INPUT_ACK_MAX_ATTEMPTS = 4;
+  var HOST_MAX_CATCHUP_STEPS = 4;
+  var HOST_MAX_CATCHUP_MS = STEP_MS * HOST_MAX_CATCHUP_STEPS;
   var PREDICTION_MAX_MS = 1200;
   var MIN_FRAME_MS = 200;
   var VISUAL_CATCHUP_SPEED_MULTIPLIER = 3;
   var SPEED = 8.88;
   var TURN_SPEED = Math.PI * 4;
   var ARENA_INSET = .9;
+  var ARENA_EDGE_OFFSET = 1 - ARENA_INSET;
   var PLAYABLE_MIN_X = Math.ceil(ARENA_INSET);
   var PLAYABLE_MAX_X = Math.floor(WORLD_W - ARENA_INSET);
   var PLAYABLE_MIN_Y = Math.ceil(ARENA_INSET);
   var PLAYABLE_MAX_Y = Math.floor(WORLD_H - ARENA_INSET);
   var PLAYABLE_CELL_COUNT = (PLAYABLE_MAX_X - PLAYABLE_MIN_X) * (PLAYABLE_MAX_Y - PLAYABLE_MIN_Y);
+  var ARENA_SIZES = {
+    1: [36, 54],
+    2: [36, 54],
+    3: [44, 66],
+    4: [50, 76],
+    5: [56, 84],
+    6: [60, 92],
+    7: [66, 100],
+    8: [70, 106]
+  };
   var ARENA_BOUNDARY_COLOR = "#31576a";
   var TRAIL_WIDTH = .64;
   var TRAIL_COLLISION_RADIUS = TRAIL_WIDTH / 2;
@@ -41,6 +55,7 @@ window.TerritoryRush = (function () {
   var MAX_PLAYERS = 8;
   var MAX_ROOM_MEMBERS = 10;
   var MAX_TRAIL = 360;
+  var FRAME_TRAIL_TAIL = 24;
   var LAYER_SCALE = 4;
   var BASE_RADIUS = 4;
   var SPAWN_CLEARANCE = 2;
@@ -86,6 +101,8 @@ window.TerritoryRush = (function () {
   var unackedInput = null;
   var inputRetryTimer = null;
   var desiredInputAngle = null;
+  var localInputHistory = [];
+  var localInputHistoryId = 0;
   var syncRequestedAt = 0;
   var helloPending = false;
   var syncReplyAtByNick = Object.create(null);
@@ -98,12 +115,17 @@ window.TerritoryRush = (function () {
   var active = false;
   var bound = false;
   var tickId = null;
+  var lastHostTickAt = 0;
+  var hostStepDebt = 0;
   var renderRaf = 0;
   var lastRenderAt = 0;
   var lastHudAt = 0;
   var lastMiniAt = 0;
   var lastFrameSentAt = 0;
   var lastFullSentAt = 0;
+  var frameSendInFlight = false;
+  var queuedFrameMessage = null;
+  var frameSendGeneration = 0;
   var lastWarnMatchId = "";
   var swipe = null;
   var resizeTimer = null;
@@ -144,6 +166,7 @@ window.TerritoryRush = (function () {
       matchId: "",
       startAt: 0,
       deadline: 0,
+      arena: arenaForPlayerCount(MAX_PLAYERS),
       spectators: [],
       ready: [],
       players: [],
@@ -222,16 +245,60 @@ window.TerritoryRush = (function () {
   function cellIndex(x, y) { return y * WORLD_W + x; }
   function inside(x, y) { return x >= 0 && x < WORLD_W && y >= 0 && y < WORLD_H; }
   function cellKey(x, y) { return cellIndex(Math.floor(x), Math.floor(y)); }
-  function isPlayableCell(x, y) {
-    return x >= PLAYABLE_MIN_X && x < PLAYABLE_MAX_X && y >= PLAYABLE_MIN_Y && y < PLAYABLE_MAX_Y;
+  function arenaForPlayerCount(count) {
+    count = clamp(Math.floor(Number(count) || 1), 1, MAX_PLAYERS);
+    var size = ARENA_SIZES[count] || ARENA_SIZES[MAX_PLAYERS];
+    var minX = Math.floor((WORLD_W - size[0]) / 2);
+    var minY = Math.floor((WORLD_H - size[1]) / 2);
+    return { minX: minX, maxX: minX + size[0], minY: minY, maxY: minY + size[1] };
   }
-  function clearBoundaryOwnerCells(map) {
+  function copyArena(arena) {
+    return { minX: arena.minX, maxX: arena.maxX, minY: arena.minY, maxY: arena.maxY };
+  }
+  function sameArena(first, second) {
+    return !!first && !!second && first.minX === second.minX && first.maxX === second.maxX
+      && first.minY === second.minY && first.maxY === second.maxY;
+  }
+  function sanitizeArena(raw) {
+    for (var count = 1; count <= MAX_PLAYERS; count++) {
+      var allowed = arenaForPlayerCount(count);
+      if (sameArena(raw, allowed)) return allowed;
+    }
+    return arenaForPlayerCount(MAX_PLAYERS);
+  }
+  function activeArena() {
+    var arena = state && state.arena;
+    return arena && Number.isInteger(arena.minX) && Number.isInteger(arena.maxX)
+      && Number.isInteger(arena.minY) && Number.isInteger(arena.maxY)
+      && arena.minX >= 0 && arena.maxX <= WORLD_W && arena.minX < arena.maxX
+      && arena.minY >= 0 && arena.maxY <= WORLD_H && arena.minY < arena.maxY
+      ? arena : arenaForPlayerCount(MAX_PLAYERS);
+  }
+  function arenaMovementBounds(arena) {
+    arena = arena || activeArena();
+    return {
+      left: arena.minX - ARENA_EDGE_OFFSET,
+      right: arena.maxX + ARENA_EDGE_OFFSET,
+      top: arena.minY - ARENA_EDGE_OFFSET,
+      bottom: arena.maxY + ARENA_EDGE_OFFSET
+    };
+  }
+  function playableCellCount(arena) {
+    arena = arena || activeArena();
+    return Math.max(1, (arena.maxX - arena.minX) * (arena.maxY - arena.minY));
+  }
+  function isPlayableCell(x, y, arena) {
+    arena = arena || activeArena();
+    return x >= arena.minX && x < arena.maxX && y >= arena.minY && y < arena.maxY;
+  }
+  function clearBoundaryOwnerCells(map, arena) {
     if (!map || map.length !== CELL_COUNT) return 0;
+    arena = arena || activeArena();
     var cleared = 0;
     for (var y = 0; y < WORLD_H; y++) {
       for (var x = 0; x < WORLD_W; x++) {
         var key = cellIndex(x, y);
-        if (!isPlayableCell(x, y) && map[key] !== -1) {
+        if (!isPlayableCell(x, y, arena) && map[key] !== -1) {
           map[key] = -1;
           cleared++;
         }
@@ -374,8 +441,10 @@ window.TerritoryRush = (function () {
     };
   }
 
-  function sanitizePlayers(rows) {
+  function sanitizePlayers(rows, arena) {
     if (!Array.isArray(rows)) return [];
+    arena = arena ? sanitizeArena(arena) : activeArena();
+    var movement = arenaMovementBounds(arena);
     var seen = Object.create(null);
     return rows.slice(0, MAX_PLAYERS).map(function (raw, index) {
       raw = raw || {};
@@ -390,6 +459,8 @@ window.TerritoryRush = (function () {
       var nick = safeNick(raw.nick) || ("플레이어 " + (id + 1));
       var trail = Array.isArray(raw.trail) ? raw.trail.slice(0, MAX_TRAIL).map(function (key) {
         return clamp(Math.floor(Number(key) || 0), 0, CELL_COUNT - 1);
+      }).filter(function (key) {
+        return isPlayableCell(key % WORLD_W, Math.floor(key / WORLD_W), arena);
       }) : [];
       var dir = DIRECTIONS[raw.dir] ? raw.dir : "right";
       var angle = validAngle(raw.angle) ? normalizeAngle(raw.angle) : directionAngle(dir);
@@ -397,10 +468,10 @@ window.TerritoryRush = (function () {
         id: id,
         nick: nick,
         bot: !!raw.bot,
-        x: clamp(Number(raw.x) || 0, 0, WORLD_W - .01),
-        y: clamp(Number(raw.y) || 0, 0, WORLD_H - .01),
-        spawnX: clamp(Number(raw.spawnX) || 0, 1, WORLD_W - 2),
-        spawnY: clamp(Number(raw.spawnY) || 0, 1, WORLD_H - 2),
+        x: clamp(Number(raw.x) || 0, movement.left, movement.right),
+        y: clamp(Number(raw.y) || 0, movement.top, movement.bottom),
+        spawnX: clamp(Number(raw.spawnX) || 0, arena.minX, arena.maxX - 1),
+        spawnY: clamp(Number(raw.spawnY) || 0, arena.minY, arena.maxY - 1),
         dir: dir,
         angle: angle,
         targetAngle: validAngle(raw.targetAngle) ? normalizeAngle(raw.targetAngle) : angle,
@@ -431,6 +502,7 @@ window.TerritoryRush = (function () {
       matchId: state.matchId,
       startAt: state.startAt,
       deadline: state.deadline,
+      arena: copyArena(activeArena()),
       spectators: state.spectators.slice(0, 40),
       ready: state.ready.slice(0, 40),
       players: state.players.map(compactPlayer),
@@ -440,11 +512,182 @@ window.TerritoryRush = (function () {
     return value;
   }
 
+  function compactFramePlayer(player) {
+    var angle = validAngle(player.angle) ? normalizeAngle(player.angle) : directionAngle(player.dir);
+    var targetAngle = validAngle(player.targetAngle) ? normalizeAngle(player.targetAngle) : angle;
+    var trail = player.trail || [];
+    var value = {
+      id: player.id,
+      x: Math.round(player.x * 100) / 100,
+      y: Math.round(player.y * 100) / 100,
+      spawnX: player.spawnX,
+      spawnY: player.spawnY,
+      angle: Math.round(angle * 1000) / 1000,
+      targetAngle: Math.round(targetAngle * 1000) / 1000,
+      trailLength: trail.length,
+      trailTail: trail.slice(Math.max(0, trail.length - FRAME_TRAIL_TAIL))
+    };
+    if (player.deadUntil) value.deadUntil = Number(player.deadUntil) || 0;
+    if (player.deathSeq) value.deathSeq = clamp(Math.floor(Number(player.deathSeq) || 0), 0, 9999);
+    if (player.deathReason) value.deathReason = safeDeathReason(player.deathReason);
+    if (player.deathBy) value.deathBy = safeNick(player.deathBy);
+    if (player.inputAck) value.inputAck = clamp(Math.floor(Number(player.inputAck) || 0), 0, Number.MAX_SAFE_INTEGER);
+    if (player.kills) value.kills = clamp(Number(player.kills) || 0, 0, 999);
+    if (player.retired) value.retired = true;
+    if (player.away) value.away = true;
+    return value;
+  }
+
+  function frameSnapshot() {
+    return {
+      frameV: 1,
+      phase: state.phase,
+      rev: state.rev,
+      frameSeq: state.frameSeq,
+      ownerRev: state.ownerRev,
+      matchId: state.matchId,
+      startAt: state.startAt,
+      deadline: state.deadline,
+      arena: copyArena(activeArena()),
+      players: state.players.map(compactFramePlayer)
+    };
+  }
+
+  function sameNumberArray(first, second) {
+    if (first === second) return true;
+    if (!Array.isArray(first) || !Array.isArray(second) || first.length !== second.length) return false;
+    for (var i = 0; i < first.length; i++) if (first[i] !== second[i]) return false;
+    return true;
+  }
+
+  function mergeFrameTrail(currentTrail, rawLength, rawTail, arena) {
+    currentTrail = Array.isArray(currentTrail) ? currentTrail : [];
+    var length = Math.floor(Number(rawLength));
+    if (!Number.isSafeInteger(length) || length < 0 || length > MAX_TRAIL || !Array.isArray(rawTail)
+        || rawTail.length !== Math.min(length, FRAME_TRAIL_TAIL)) {
+      return { trail: currentTrail, changed: false, gap: true, reset: false };
+    }
+    var tail = [];
+    for (var tailIndex = 0; tailIndex < rawTail.length; tailIndex++) {
+      var key = Math.floor(Number(rawTail[tailIndex]));
+      if (!Number.isFinite(key) || key < 0 || key >= CELL_COUNT
+          || !isPlayableCell(key % WORLD_W, Math.floor(key / WORLD_W), arena)) {
+        return { trail: currentTrail, changed: false, gap: true, reset: false };
+      }
+      tail.push(key);
+    }
+    if (!length) {
+      return { trail: [], changed: currentTrail.length > 0, gap: false, reset: currentTrail.length > 0 };
+    }
+    var start = length - tail.length;
+    if (!start) {
+      var sameTrail = sameNumberArray(currentTrail, tail);
+      return {
+        trail: tail,
+        changed: !sameTrail,
+        gap: false,
+        reset: currentTrail.length > 0 && !sameTrail
+      };
+    }
+    if (currentTrail.length < start || currentTrail.length > length) {
+      return { trail: currentTrail, changed: false, gap: true, reset: false };
+    }
+    var overlapEnd = Math.min(currentTrail.length, length);
+    for (var index = Math.max(start, 0); index < overlapEnd; index++) {
+      if (currentTrail[index] !== tail[index - start]) {
+        return { trail: currentTrail, changed: false, gap: true, reset: false };
+      }
+    }
+    var merged = currentTrail.slice();
+    for (index = Math.max(currentTrail.length, start); index < length; index++) merged.push(tail[index - start]);
+    if (merged.length !== length) return { trail: currentTrail, changed: false, gap: true, reset: false };
+    return { trail: merged, changed: merged.length !== currentTrail.length, gap: false, reset: false };
+  }
+
+  function mergeFramePlayer(current, raw, arena) {
+    raw = raw || {};
+    var movement = arenaMovementBounds(arena);
+    var angle = validAngle(raw.angle) ? normalizeAngle(raw.angle) : requestedAngle(current.angle, directionAngle(current.dir));
+    var targetAngle = validAngle(raw.targetAngle) ? normalizeAngle(raw.targetAngle) : angle;
+    var dir = DIRECTIONS[raw.dir] ? raw.dir : nearestDirection(targetAngle);
+    var trailResult = mergeFrameTrail(current.trail, raw.trailLength, raw.trailTail, arena);
+    var player = Object.assign({}, current, {
+      x: clamp(Number.isFinite(Number(raw.x)) ? Number(raw.x) : current.x, movement.left, movement.right),
+      y: clamp(Number.isFinite(Number(raw.y)) ? Number(raw.y) : current.y, movement.top, movement.bottom),
+      spawnX: clamp(Number.isFinite(Number(raw.spawnX)) ? Number(raw.spawnX) : current.spawnX, arena.minX, arena.maxX - 1),
+      spawnY: clamp(Number.isFinite(Number(raw.spawnY)) ? Number(raw.spawnY) : current.spawnY, arena.minY, arena.maxY - 1),
+      dir: dir,
+      angle: angle,
+      targetAngle: targetAngle,
+      trail: trailResult.trail,
+      deadUntil: Math.max(0, Number(raw.deadUntil) || 0),
+      deathSeq: clamp(Math.floor(Number(raw.deathSeq) || 0), 0, 9999),
+      deathReason: safeDeathReason(raw.deathReason),
+      deathBy: safeNick(raw.deathBy),
+      inputAck: clamp(Math.floor(Number(raw.inputAck) || 0), 0, Number.MAX_SAFE_INTEGER),
+      kills: clamp(Number(raw.kills) || 0, 0, 999),
+      retired: !!raw.retired,
+      away: !!raw.away
+    });
+    if (!player.trail.length) player.path = [];
+    player.lastCell = player.trail.length ? player.trail[player.trail.length - 1] : cellKey(player.x, player.y);
+    return { player: player, changed: trailResult.changed, gap: trailResult.gap, reset: trailResult.reset };
+  }
+
+  function sanitizeFrameSnapshot(raw, lockedArena) {
+    if (!raw || Number(raw.frameV) !== 1 || !Array.isArray(raw.players)) return null;
+    var arena = lockedArena ? sanitizeArena(lockedArena) : sanitizeArena(raw.arena);
+    var byId = Object.create(null);
+    raw.players.slice(0, MAX_PLAYERS).forEach(function (row) {
+      var id = Math.floor(Number(row && row.id));
+      if (Number.isFinite(id) && id >= 0 && id < MAX_PLAYERS && !byId[id]) byId[id] = row;
+    });
+    var rows = [];
+    var trailChanged = false;
+    var trailGap = false;
+    var resetTrails = [];
+    for (var index = 0; index < state.players.length; index++) {
+      var current = state.players[index];
+      var row = byId[current.id];
+      if (!row || Math.floor(Number(row.id)) !== current.id) {
+        rows.push(current);
+        trailGap = true;
+        continue;
+      }
+      var merged = mergeFramePlayer(current, row, arena);
+      rows.push(merged.player);
+      if (merged.changed) trailChanged = true;
+      if (merged.gap) trailGap = true;
+      if (merged.reset) resetTrails.push(current.nick);
+    }
+    var phases = ["idle", "playing", "finished"];
+    return {
+      state: {
+        phase: phases.indexOf(raw.phase) >= 0 ? raw.phase : state.phase,
+        rev: Math.max(0, Math.floor(Number(raw.rev) || 0)),
+        frameSeq: Math.max(0, Math.floor(Number(raw.frameSeq) || 0)),
+        ownerRev: Math.max(0, Math.floor(Number(raw.ownerRev) || 0)),
+        matchId: String(raw.matchId || "").slice(0, 80),
+        startAt: Math.max(0, Number(raw.startAt) || 0),
+        deadline: Math.max(0, Number(raw.deadline) || 0),
+        arena: arena,
+        spectators: state.spectators.slice(),
+        ready: state.ready.slice(),
+        players: rows,
+        winner: state.winner
+      },
+      trailChanged: trailChanged,
+      trailGap: trailGap,
+      resetTrails: resetTrails
+    };
+  }
+
   function rebuildTrailOwner() {
     trailOwner.fill(-1);
     state.players.forEach(function (player) {
       (player.trail || []).forEach(function (key) {
-        if (key >= 0 && key < CELL_COUNT) trailOwner[key] = player.id;
+        if (key >= 0 && key < CELL_COUNT
+            && isPlayableCell(key % WORLD_W, Math.floor(key / WORLD_W))) trailOwner[key] = player.id;
       });
     });
   }
@@ -499,9 +742,10 @@ window.TerritoryRush = (function () {
     next.matchId = String(raw.matchId || "").slice(0, 80);
     next.startAt = Math.max(0, Number(raw.startAt) || 0);
     next.deadline = Math.max(0, Number(raw.deadline) || 0);
+    next.arena = sanitizeArena(raw.arena);
     next.spectators = Array.isArray(raw.spectators) ? raw.spectators.slice(0, 40).map(safeNick).filter(Boolean) : [];
     next.ready = Array.isArray(raw.ready) ? raw.ready.slice(0, 40).map(safeNick).filter(Boolean) : [];
-    next.players = sanitizePlayers(raw.players);
+    next.players = sanitizePlayers(raw.players, next.arena);
     next.winner = safeNick(raw.winner);
     var decoded = raw.owner != null ? decodeOwner(raw.owner, CELL_COUNT) : null;
     if (requireOwner && !decoded) return null;
@@ -511,11 +755,12 @@ window.TerritoryRush = (function () {
   function captureInto(map, trail, playerId) {
     blocked.fill(0);
     visited.fill(0);
+    var arena = activeArena();
     var i;
     for (i = 0; i < map.length; i++) {
       var mapX = i % WORLD_W;
       var mapY = Math.floor(i / WORLD_W);
-      if (!isPlayableCell(mapX, mapY)) {
+      if (!isPlayableCell(mapX, mapY, arena)) {
         map[i] = -1;
         visited[i] = 1;
       } else if (map[i] === playerId) blocked[i] = 1;
@@ -523,7 +768,7 @@ window.TerritoryRush = (function () {
     for (i = 0; i < trail.length; i++) {
       var trailKey = trail[i];
       if (trailKey >= 0 && trailKey < map.length
-          && isPlayableCell(trailKey % WORLD_W, Math.floor(trailKey / WORLD_W))) blocked[trailKey] = 1;
+          && isPlayableCell(trailKey % WORLD_W, Math.floor(trailKey / WORLD_W), arena)) blocked[trailKey] = 1;
     }
     var head = 0;
     var tail = 0;
@@ -533,13 +778,13 @@ window.TerritoryRush = (function () {
       visited[index] = 1;
       queue[tail++] = index;
     }
-    for (i = PLAYABLE_MIN_X; i < PLAYABLE_MAX_X; i++) {
-      addEdge(i, PLAYABLE_MIN_Y);
-      addEdge(i, PLAYABLE_MAX_Y - 1);
+    for (i = arena.minX; i < arena.maxX; i++) {
+      addEdge(i, arena.minY);
+      addEdge(i, arena.maxY - 1);
     }
-    for (i = PLAYABLE_MIN_Y; i < PLAYABLE_MAX_Y; i++) {
-      addEdge(PLAYABLE_MIN_X, i);
-      addEdge(PLAYABLE_MAX_X - 1, i);
+    for (i = arena.minY; i < arena.maxY; i++) {
+      addEdge(arena.minX, i);
+      addEdge(arena.maxX - 1, i);
     }
     while (head < tail) {
       var index = queue[head++];
@@ -566,7 +811,7 @@ window.TerritoryRush = (function () {
     var gained = 0;
     for (i = 0; i < map.length; i++) {
       if (!visited[i] && map[i] !== playerId
-          && isPlayableCell(i % WORLD_W, Math.floor(i / WORLD_W))) {
+          && isPlayableCell(i % WORLD_W, Math.floor(i / WORLD_W), arena)) {
         map[i] = playerId;
         gained++;
       }
@@ -596,19 +841,21 @@ window.TerritoryRush = (function () {
   }
 
   function directionForPosition(x, y) {
-    var dx = WORLD_W / 2 - x;
-    var dy = WORLD_H / 2 - y;
+    var arena = activeArena();
+    var dx = (arena.minX + arena.maxX) / 2 - x;
+    var dy = (arena.minY + arena.maxY) / 2 - y;
     return Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? "left" : "right") : (dy < 0 ? "up" : "down");
   }
 
   function spawnFor(index, count) {
+    var arena = activeArena();
     var spots = [
       [.27, .28], [.73, .72], [.73, .28], [.27, .72],
       [.5, .17], [.5, .83], [.16, .5], [.84, .5]
     ];
     var spot = spots[index % spots.length];
-    var x = Math.round(WORLD_W * spot[0]);
-    var y = Math.round(WORLD_H * spot[1]);
+    var x = Math.round(arena.minX + (arena.maxX - arena.minX) * spot[0]);
+    var y = Math.round(arena.minY + (arena.maxY - arena.minY) * spot[1]);
     return { x: x, y: y, dir: directionForPosition(x, y), count: count };
   }
 
@@ -675,12 +922,27 @@ window.TerritoryRush = (function () {
 
   function allocateInitialSpawns(count, random) {
     count = clamp(Math.floor(Number(count) || 0), 0, MAX_PLAYERS);
-    var columns = [12, 36, 60];
-    var rows = [13, 40, 67, 94];
-    var slots = [];
-    for (var row = 0; row < rows.length; row++) {
-      for (var column = 0; column < columns.length; column++) slots.push({ x: columns[column], y: rows[row] });
-    }
+    var arena = activeArena();
+    var arenaWidth = arena.maxX - arena.minX;
+    var arenaHeight = arena.maxY - arena.minY;
+    var patterns = {
+      1: [[.5, .5]],
+      2: [[.2, .2], [.8, .8]],
+      3: [[.2, .2], [.8, .2], [.5, .8]],
+      4: [[.2, .2], [.8, .2], [.2, .8], [.8, .8]],
+      5: [[.18, .18], [.82, .18], [.5, .5], [.18, .82], [.82, .82]],
+      6: [[.2, .18], [.8, .18], [.2, .5], [.8, .5], [.2, .82], [.8, .82]],
+      7: [[1 / 6, 1 / 6], [.5, 1 / 6], [5 / 6, 1 / 6], [1 / 6, .5], [5 / 6, .5],
+        [1 / 6, 5 / 6], [.5, 5 / 6], [5 / 6, 5 / 6]],
+      8: [[1 / 6, 1 / 6], [.5, 1 / 6], [5 / 6, 1 / 6], [1 / 6, .5], [5 / 6, .5],
+        [1 / 6, 5 / 6], [.5, 5 / 6], [5 / 6, 5 / 6]]
+    };
+    var slots = (patterns[Math.max(1, count)] || patterns[MAX_PLAYERS]).map(function (spot) {
+      return {
+        x: Math.round(arena.minX + arenaWidth * spot[0]),
+        y: Math.round(arena.minY + arenaHeight * spot[1])
+      };
+    });
     for (var i = slots.length - 1; i > 0; i--) {
       var swapIndex = Math.floor(unitRandom(random) * (i + 1));
       var swap = slots[i];
@@ -688,8 +950,8 @@ window.TerritoryRush = (function () {
       slots[swapIndex] = swap;
     }
     return slots.slice(0, count).map(function (slot) {
-      var x = slot.x + Math.floor(unitRandom(random) * 7) - 3;
-      var y = slot.y + Math.floor(unitRandom(random) * 7) - 3;
+      var x = clamp(slot.x + Math.floor(unitRandom(random) * 5) - 2, arena.minX + BASE_RADIUS, arena.maxX - BASE_RADIUS - 1);
+      var y = clamp(slot.y + Math.floor(unitRandom(random) * 5) - 2, arena.minY + BASE_RADIUS, arena.maxY - BASE_RADIUS - 1);
       return { x: x, y: y, dir: directionForPosition(x, y) };
     });
   }
@@ -746,13 +1008,25 @@ window.TerritoryRush = (function () {
     return true;
   }
 
+  function spawnSearchBounds(clearRadius) {
+    var arena = activeArena();
+    var padding = Math.max(Math.floor(Number(clearRadius) || 0), SPAWN_MARGIN - PLAYABLE_MIN_X);
+    return {
+      minX: arena.minX + padding,
+      maxX: arena.maxX - padding,
+      minY: arena.minY + padding,
+      maxY: arena.maxY - padding
+    };
+  }
+
   function findRespawnSpot(player, random) {
     var prefix = buildSpawnBlockedPrefix(player.id);
     var clearRadius = BASE_RADIUS + SPAWN_CLEARANCE;
+    var bounds = spawnSearchBounds(clearRadius);
     var chosen = null;
     var safeCount = 0;
-    for (var y = SPAWN_MARGIN; y < WORLD_H - SPAWN_MARGIN; y++) {
-      for (var x = SPAWN_MARGIN; x < WORLD_W - SPAWN_MARGIN; x++) {
+    for (var y = bounds.minY; y < bounds.maxY; y++) {
+      for (var x = bounds.minX; x < bounds.maxX; x++) {
         if (blockedSpawnCells(prefix, x, y, clearRadius) || !farFromActivePlayers(player, x, y)) continue;
         safeCount++;
         if (unitRandom(random) < 1 / safeCount) chosen = { x: x, y: y, dir: directionForPosition(x, y) };
@@ -764,10 +1038,11 @@ window.TerritoryRush = (function () {
   function findEmergencyRespawnSpot(player, random) {
     var prefix = buildSpawnBlockedPrefix(player.id, true);
     var clearRadius = BASE_RADIUS + 1;
+    var bounds = spawnSearchBounds(clearRadius);
     var chosen = null;
     var safeCount = 0;
-    for (var y = SPAWN_MARGIN; y < WORLD_H - SPAWN_MARGIN; y++) {
-      for (var x = SPAWN_MARGIN; x < WORLD_W - SPAWN_MARGIN; x++) {
+    for (var y = bounds.minY; y < bounds.maxY; y++) {
+      for (var x = bounds.minX; x < bounds.maxX; x++) {
         if (blockedSpawnCells(prefix, x, y, clearRadius)
             || !farFromActivePlayers(player, x, y, EMERGENCY_PLAYER_DISTANCE)) continue;
         safeCount++;
@@ -784,10 +1059,11 @@ window.TerritoryRush = (function () {
 
   function findOwnedRespawnSpot(player, random) {
     var prefix = buildSpawnBlockedPrefix(player.id);
+    var bounds = spawnSearchBounds(PRESERVED_SPAWN_CLEARANCE);
     var chosen = null;
     var safeCount = 0;
-    for (var y = SPAWN_MARGIN; y < WORLD_H - SPAWN_MARGIN; y++) {
-      for (var x = SPAWN_MARGIN; x < WORLD_W - SPAWN_MARGIN; x++) {
+    for (var y = bounds.minY; y < bounds.maxY; y++) {
+      for (var x = bounds.minX; x < bounds.maxX; x++) {
         if (owner[cellIndex(x, y)] !== player.id
             || blockedSpawnCells(prefix, x, y, PRESERVED_SPAWN_CLEARANCE)
             || !farFromActivePlayers(player, x, y)) continue;
@@ -1035,12 +1311,17 @@ window.TerritoryRush = (function () {
 
   function chooseBotDirection(player, now) {
     if (now < player.decisionAt || player.deadUntil || player.retired) return;
+    var arena = activeArena();
+    var movement = arenaMovementBounds(arena);
+    var centerX = (arena.minX + arena.maxX) / 2;
+    var centerY = (arena.minY + arena.maxY) / 2;
     var onOwn = owner[cellKey(player.x, player.y)] === player.id;
     var target = requestedAngle(player.targetAngle, requestedAngle(player.angle, directionAngle(player.dir)));
     var projectedX = player.x + Math.cos(target) * 8;
     var projectedY = player.y + Math.sin(target) * 8;
-    if (projectedX < 4 || projectedX > WORLD_W - 4 || projectedY < 4 || projectedY > WORLD_H - 4) {
-      target = Math.atan2(WORLD_H / 2 - player.y, WORLD_W / 2 - player.x);
+    if (projectedX < movement.left + 3 || projectedX > movement.right - 3
+        || projectedY < movement.top + 3 || projectedY > movement.bottom - 3) {
+      target = Math.atan2(centerY - player.y, centerX - player.x);
     } else if (!onOwn && player.trail.length >= player.turnBackAt) {
       target = Math.atan2(player.spawnY - player.y, player.spawnX - player.x);
     } else if (Math.random() < (onOwn ? .46 : .68)) {
@@ -1182,6 +1463,10 @@ window.TerritoryRush = (function () {
     if (player.retired || player.away) return;
     if (player.deadUntil) { respawn(player, now); return; }
     if (player.bot) chooseBotDirection(player, now);
+    var arena = activeArena();
+    var movement = arenaMovementBounds(arena);
+    var centerX = (arena.minX + arena.maxX) / 2;
+    var centerY = (arena.minY + arena.maxY) / 2;
     var angle = requestedAngle(player.angle, directionAngle(player.dir));
     var targetAngle = requestedAngle(player.targetAngle, angle);
     var turn = clamp(angleDelta(angle, targetAngle), -TURN_SPEED * dt, TURN_SPEED * dt);
@@ -1192,28 +1477,28 @@ window.TerritoryRush = (function () {
     var fromY = player.y;
     var nx = fromX + Math.cos(player.angle) * SPEED * dt;
     var ny = fromY + Math.sin(player.angle) * SPEED * dt;
-    nx = clamp(nx, ARENA_INSET, WORLD_W - ARENA_INSET);
-    ny = clamp(ny, ARENA_INSET, WORLD_H - ARENA_INSET);
+    nx = clamp(nx, movement.left, movement.right);
+    ny = clamp(ny, movement.top, movement.bottom);
     var movedX = nx - fromX;
     var movedY = ny - fromY;
     if (movedX * movedX + movedY * movedY < SPEED * SPEED * dt * dt * .01) {
       var tangent = player.angle;
-      var atVerticalEdge = fromX <= ARENA_INSET + .001 || fromX >= WORLD_W - ARENA_INSET - .001;
-      var atHorizontalEdge = fromY <= ARENA_INSET + .001 || fromY >= WORLD_H - ARENA_INSET - .001;
+      var atVerticalEdge = fromX <= movement.left + .001 || fromX >= movement.right - .001;
+      var atHorizontalEdge = fromY <= movement.top + .001 || fromY >= movement.bottom - .001;
       if (atVerticalEdge) {
         tangent = Math.abs(Math.sin(player.angle)) > .15
           ? (Math.sin(player.angle) < 0 ? -Math.PI / 2 : Math.PI / 2)
-          : (fromY < WORLD_H / 2 ? Math.PI / 2 : -Math.PI / 2);
+          : (fromY < centerY ? Math.PI / 2 : -Math.PI / 2);
       } else if (atHorizontalEdge) {
         tangent = Math.abs(Math.cos(player.angle)) > .15
           ? (Math.cos(player.angle) < 0 ? Math.PI : 0)
-          : (fromX < WORLD_W / 2 ? 0 : Math.PI);
+          : (fromX < centerX ? 0 : Math.PI);
       }
       player.angle = normalizeAngle(tangent);
       player.targetAngle = player.angle;
       player.dir = nearestDirection(player.angle);
-      nx = clamp(fromX + Math.cos(player.angle) * SPEED * dt, ARENA_INSET, WORLD_W - ARENA_INSET);
-      ny = clamp(fromY + Math.sin(player.angle) * SPEED * dt, ARENA_INSET, WORLD_H - ARENA_INSET);
+      nx = clamp(fromX + Math.cos(player.angle) * SPEED * dt, movement.left, movement.right);
+      ny = clamp(fromY + Math.sin(player.angle) * SPEED * dt, movement.top, movement.bottom);
     }
     var crossedEvents = crossedCellEvents(fromX, fromY, nx, ny);
     return {
@@ -1387,14 +1672,17 @@ window.TerritoryRush = (function () {
   function pruneDisconnectedTerritories(map, anchors) {
     if (!map || map.length !== CELL_COUNT) return 0;
     anchors = anchors || Object.create(null);
+    var arena = activeArena();
+    var centerX = (arena.minX + arena.maxX) / 2;
+    var centerY = (arena.minY + arena.maxY) / 2;
     var removed = 0;
     state.players.forEach(function (player) {
       if (!player || player.id < 0 || player.id >= MAX_PLAYERS) return;
       var anchor = anchors[player.id] || player;
       var anchorX = Number(anchor.x);
       var anchorY = Number(anchor.y);
-      if (!isFinite(anchorX)) anchorX = Number(player.spawnX) || WORLD_W / 2;
-      if (!isFinite(anchorY)) anchorY = Number(player.spawnY) || WORLD_H / 2;
+      if (!isFinite(anchorX)) anchorX = Number(player.spawnX) || centerX;
+      if (!isFinite(anchorY)) anchorY = Number(player.spawnY) || centerY;
       var floorX = Math.floor(anchorX);
       var floorY = Math.floor(anchorY);
       var anchorKey = inside(floorX, floorY) ? cellIndex(floorX, floorY) : -1;
@@ -1615,7 +1903,10 @@ window.TerritoryRush = (function () {
   function territoryCounts() {
     if (countsRev === state.ownerRev && cachedCounts.length === state.players.length) return cachedCounts.slice();
     var counts = state.players.map(function () { return 0; });
-    for (var i = 0; i < owner.length; i++) if (owner[i] >= 0 && owner[i] < counts.length) counts[owner[i]]++;
+    for (var i = 0; i < owner.length; i++) {
+      if (owner[i] >= 0 && owner[i] < counts.length
+          && isPlayableCell(i % WORLD_W, Math.floor(i / WORLD_W))) counts[owner[i]]++;
+    }
     cachedCounts = counts;
     countsRev = state.ownerRev;
     return counts.slice();
@@ -1629,7 +1920,7 @@ window.TerritoryRush = (function () {
         nick: player.nick,
         bot: player.bot,
         kills: player.kills,
-        area: (counts[player.id] || 0) / PLAYABLE_CELL_COUNT * 100,
+        area: (counts[player.id] || 0) / playableCellCount() * 100,
         active: !player.retired && !player.away
       };
     }).sort(function (a, b) {
@@ -1682,9 +1973,49 @@ window.TerritoryRush = (function () {
     return Math.min(FRAME_MS, MIN_FRAME_MS + (count - 4) * 50);
   }
 
+  function inputIntervalMs(playerCount) {
+    var count = Math.max(1, Math.floor(Number(playerCount == null ? state.players.length : playerCount) || 1));
+    if (count <= 2) return INPUT_SEND_MS;
+    if (count === 3) return 165;
+    return Math.min(INPUT_SEND_MAX_MS, 180 + (count - 4) * 20);
+  }
+
+  function sendFrameMessage(message) {
+    if (!api || !api.isHost()) return;
+    if (!api.sendWithResult || !api.isNet || !api.isNet()) {
+      api.send(message);
+      return;
+    }
+    if (frameSendInFlight) {
+      queuedFrameMessage = message;
+      return;
+    }
+    frameSendInFlight = true;
+    var generation = frameSendGeneration;
+    var result;
+    try { result = api.sendWithResult(message); }
+    catch (error) { result = Promise.reject(error); }
+    Promise.resolve(result).catch(function () {}).then(function () {
+      if (generation !== frameSendGeneration) return;
+      frameSendInFlight = false;
+      var next = queuedFrameMessage;
+      queuedFrameMessage = null;
+      if (!next || !api || !api.isHost() || !next.state || next.state.matchId !== state.matchId) return;
+      next.state = frameSnapshot();
+      sendFrameMessage(next);
+    });
+  }
+
+  function resetFrameSendQueue() {
+    frameSendGeneration++;
+    frameSendInFlight = false;
+    queuedFrameMessage = null;
+  }
+
   function broadcastFull(to) {
     if (!api || !api.isHost()) return;
     to = safeNick(to);
+    if (!to) queuedFrameMessage = null;
     api.send({ t: "tr_state", by: me().nick, to: to, state: snapshot(true) });
     if (!to) {
       lastFrameSentAt = nowMs();
@@ -1695,7 +2026,7 @@ window.TerritoryRush = (function () {
   function broadcastFrame(now) {
     if (!api || !api.isHost()) return;
     state.frameSeq++;
-    api.send({ t: "tr_frame", by: me().nick, state: snapshot(false) });
+    sendFrameMessage({ t: "tr_frame", by: me().nick, state: frameSnapshot() });
     lastFrameSentAt = now;
   }
 
@@ -1709,24 +2040,25 @@ window.TerritoryRush = (function () {
     var transport = arguments.length > 2 ? arguments[2] : null;
     var parsed = sanitizeState(raw, true);
     if (!parsed) return false;
-    clearBoundaryOwnerCells(parsed.owner);
     sourceHost = safeNick(sourceHost);
     var hostChanged = !!sourceHost && sourceHost !== authoritativeHost;
     var matchChanged = parsed.state.matchId !== state.matchId;
-    var resetVisualTimeline = hostChanged || matchChanged || parsed.state.frameSeq < state.frameSeq;
-    if (state.matchId && parsed.state.matchId === state.matchId && parsed.state.rev < state.rev
-        && !authorityYielded && !hostChanged) return false;
-    if (state.matchId && !matchChanged && parsed.state.rev === state.rev
-        && parsed.state.frameSeq < state.frameSeq && parsed.state.ownerRev <= state.ownerRev
-        && !authorityYielded && !hostChanged) return false;
-    if (state.matchId && !matchChanged && parsed.state.rev === state.rev
-        && parsed.state.frameSeq < state.frameSeq && parsed.state.ownerRev > state.ownerRev
-        && !authorityYielded && !hostChanged) {
+    if (state.matchId && !matchChanged) {
+      var lockedArena = copyArena(activeArena());
+      if (!sameArena(parsed.state.arena, lockedArena)) parsed.state.players = sanitizePlayers(raw && raw.players, lockedArena);
+      parsed.state.arena = lockedArena;
+    }
+    clearBoundaryOwnerCells(parsed.owner, parsed.state.arena);
+    var stalePose = !!state.matchId && !matchChanged && parsed.state.frameSeq < state.frameSeq
+      && !authorityYielded && !hostChanged;
+    if (stalePose) {
+      if (parsed.state.ownerRev <= state.ownerRev) return false;
       if (state.phase === "playing" && parsed.state.phase === "playing") {
         queueCaptureParticles(owner, parsed.owner, nowMs());
       }
       owner.set(parsed.owner);
       state.ownerRev = parsed.state.ownerRev;
+      state.rev = Math.max(state.rev, parsed.state.rev);
       if (wantedOwnerRev <= state.ownerRev) {
         wantedOwnerRev = state.ownerRev;
         ownerSyncMissingSince = 0;
@@ -1736,9 +2068,11 @@ window.TerritoryRush = (function () {
       ownerLayerDirty = true;
       countsRev = -1;
       syncHostEligibility();
-      render();
       return true;
     }
+    var resetVisualTimeline = hostChanged || matchChanged || parsed.state.frameSeq < state.frameSeq;
+    if (state.matchId && parsed.state.matchId === state.matchId && parsed.state.rev < state.rev
+        && !authorityYielded && !hostChanged) return false;
     var previousPlayers = state.players;
     syncRemoteDeathCues(state, parsed.state);
     if (!matchChanged && state.phase === "playing" && parsed.state.phase === "playing") {
@@ -1790,9 +2124,19 @@ window.TerritoryRush = (function () {
 
   function applyFrame(raw, sourceHost) {
     var transport = arguments.length > 2 ? arguments[2] : null;
-    var parsed = sanitizeState(raw, false);
+    var lightFrame = !!raw && Number(raw.frameV) === 1;
+    if (lightFrame && (!state.matchId || String(raw.matchId || "") !== state.matchId)) {
+      requestSync();
+      return false;
+    }
+    var parsed = lightFrame ? sanitizeFrameSnapshot(raw, activeArena()) : sanitizeState(raw, false);
     if (!parsed) return false;
     if (state.matchId && parsed.state.matchId !== state.matchId) { requestSync(); return false; }
+    if (!lightFrame && state.matchId && parsed.state.matchId === state.matchId) {
+      var lockedArena = copyArena(activeArena());
+      if (!sameArena(parsed.state.arena, lockedArena)) parsed.state.players = sanitizePlayers(raw && raw.players, lockedArena);
+      parsed.state.arena = lockedArena;
+    }
     if (parsed.state.frameSeq <= state.frameSeq) return false;
     if (parsed.state.ownerRev > state.ownerRev) {
       wantedOwnerRev = Math.max(wantedOwnerRev, parsed.state.ownerRev);
@@ -1809,25 +2153,45 @@ window.TerritoryRush = (function () {
     if (sourceHost) authoritativeHost = sourceHost;
     syncHostEligibility();
     if (hostChanged) queueDesiredInputForNewHost();
-    rebuildTrailOwner();
+    (parsed.resetTrails || []).forEach(function (nick) {
+      delete visualTrails[nick];
+      delete collisionTrails[nick];
+    });
+    if (!lightFrame || parsed.trailChanged) rebuildTrailOwner();
     mergeVisualPlayers(previousPlayers);
     acknowledgeLocalInput();
-    render();
+    if (parsed.trailGap) requestSync();
     return true;
   }
 
   function applyDirection(player, direction, seq) {
     var legacyDirection = typeof direction === "string" && DIRECTIONS[direction] ? direction : "";
-    if (!player || player.bot || player.retired || player.away || player.deadUntil
-        || (!legacyDirection && !validAngle(direction))) return false;
+    if (!player || player.bot || (!legacyDirection && !validAngle(direction))) return false;
     seq = Number(seq);
     var previousSeq = inputSeqByNick[player.nick] || 0;
     if (!Number.isSafeInteger(seq) || seq < 1 || seq <= previousSeq || seq - previousSeq > 256) return false;
-    if (legacyDirection && (sameDirection(player.dir, legacyDirection) || reverseDirection(player.dir, legacyDirection))) return false;
+    if (player.retired || player.away || player.deadUntil) {
+      inputSeqByNick[player.nick] = seq;
+      player.inputAck = seq;
+      return false;
+    }
+    if (legacyDirection && (sameDirection(player.dir, legacyDirection) || reverseDirection(player.dir, legacyDirection))) {
+      inputSeqByNick[player.nick] = seq;
+      player.inputAck = seq;
+      return false;
+    }
     var angle = requestedAngle(direction, requestedAngle(player.targetAngle, requestedAngle(player.angle, directionAngle(player.dir))));
-    if (!legacyDirection && Math.abs(angleDelta(requestedAngle(player.targetAngle, player.angle), angle)) < .035) return false;
+    if (!legacyDirection && Math.abs(angleDelta(requestedAngle(player.targetAngle, player.angle), angle)) < .035) {
+      inputSeqByNick[player.nick] = seq;
+      player.inputAck = seq;
+      return false;
+    }
     var now = nowMs();
-    if (now - (inputAtByNick[player.nick] || 0) < 55) return false;
+    if (now - (inputAtByNick[player.nick] || 0) < 55) {
+      inputSeqByNick[player.nick] = seq;
+      player.inputAck = seq;
+      return false;
+    }
     inputSeqByNick[player.nick] = seq;
     inputAtByNick[player.nick] = now;
     player.inputAck = seq;
@@ -1836,22 +2200,58 @@ window.TerritoryRush = (function () {
     return true;
   }
 
+  function recordLocalInput(angle, at) {
+    var entry = {
+      id: ++localInputHistoryId,
+      seq: 0,
+      at: Number(at) || nowMs(),
+      angle: normalizeAngle(angle),
+      matchId: state.matchId
+    };
+    localInputHistory.push(entry);
+    if (localInputHistory.length > 48) localInputHistory.splice(0, localInputHistory.length - 48);
+    return entry;
+  }
+
+  function assignLocalInputSeq(historyId, seq) {
+    for (var index = 0; index < localInputHistory.length; index++) {
+      var entry = localInputHistory[index];
+      if (entry.matchId === state.matchId && !entry.seq && entry.id <= historyId) entry.seq = seq;
+    }
+  }
+
+  function pruneLocalInputHistory(inputAck) {
+    inputAck = Math.max(0, Math.floor(Number(inputAck) || 0));
+    var before = localInputHistory.length;
+    localInputHistory = localInputHistory.filter(function (entry) {
+      return entry.matchId === state.matchId && (!entry.seq || entry.seq > inputAck);
+    });
+    return before !== localInputHistory.length;
+  }
+
   function requestDirection(direction) {
     var legacyDirection = typeof direction === "string" && DIRECTIONS[direction] ? direction : "";
     if (!active || state.phase !== "playing" || (!legacyDirection && !validAngle(direction))) return false;
     var now = nowMs();
     var mine = playerByNick(me().nick);
     if (!mine || mine.retired || mine.deadUntil || mine.bot) return false;
-    if (legacyDirection && (reverseDirection(mine.dir, legacyDirection) || sameDirection(mine.dir, legacyDirection))) return false;
-    var angle = requestedAngle(direction, requestedAngle(mine.targetAngle, requestedAngle(mine.angle, directionAngle(mine.dir))));
-    if (!legacyDirection && Math.abs(angleDelta(requestedAngle(mine.targetAngle, mine.angle), angle)) < .035) return false;
-    mine.targetAngle = angle;
-    mine.dir = legacyDirection || nearestDirection(angle);
+    var currentAngle = !api.isHost() && validAngle(desiredInputAngle)
+      ? desiredInputAngle : requestedAngle(mine.targetAngle, requestedAngle(mine.angle, directionAngle(mine.dir)));
+    var currentDirection = nearestDirection(currentAngle);
+    if (legacyDirection && (reverseDirection(currentDirection, legacyDirection) || sameDirection(currentDirection, legacyDirection))) return false;
+    var angle = requestedAngle(direction, currentAngle);
+    if (!legacyDirection && Math.abs(angleDelta(currentAngle, angle)) < .035) return false;
     desiredInputAngle = angle;
-    if (api.isHost()) return true;
-    pendingInput = { angle: angle, matchId: state.matchId };
-    if (now - lastInputAt >= INPUT_SEND_MS) flushPendingInput();
-    else if (!pendingInputTimer) pendingInputTimer = setTimeout(flushPendingInput, INPUT_SEND_MS - (now - lastInputAt));
+    if (api.isHost()) {
+      mine.targetAngle = angle;
+      mine.dir = legacyDirection || nearestDirection(angle);
+      return true;
+    }
+    var history = recordLocalInput(angle, now);
+    var sendInterval = inputIntervalMs();
+    pendingInput = { angle: angle, matchId: state.matchId, historyId: history.id, requestedAt: history.at };
+    if (now - lastInputAt >= sendInterval) flushPendingInput();
+    else if (!pendingInputTimer) pendingInputTimer = setTimeout(flushPendingInput, sendInterval - (now - lastInputAt));
     return true;
   }
 
@@ -1860,14 +2260,22 @@ window.TerritoryRush = (function () {
     if (inputRetryTimer) { clearTimeout(inputRetryTimer); inputRetryTimer = null; }
     pendingInput = null;
     unackedInput = null;
+    localInputHistory = [];
+    localInputHistoryId = 0;
   }
 
   function acknowledgeLocalInput() {
-    if (!unackedInput || !api || api.isHost()) return false;
+    if (!api || api.isHost()) return false;
     var mine = playerByNick(me().nick);
-    if (!mine || Number(mine.inputAck) < unackedInput.message.seq) return false;
+    if (!mine) return false;
+    var inputAck = Math.max(0, Math.floor(Number(mine.inputAck) || 0));
+    var changed = pruneLocalInputHistory(inputAck);
+    if (!unackedInput || inputAck < unackedInput.message.seq) return changed;
     if (inputRetryTimer) { clearTimeout(inputRetryTimer); inputRetryTimer = null; }
     unackedInput = null;
+    if (!localInputHistory.length) {
+      desiredInputAngle = requestedAngle(mine.targetAngle, requestedAngle(mine.angle, directionAngle(mine.dir)));
+    }
     return true;
   }
 
@@ -1895,14 +2303,12 @@ window.TerritoryRush = (function () {
   }
 
   function scheduleInputRetry() {
-    if (inputRetryTimer) clearTimeout(inputRetryTimer);
-    inputRetryTimer = null;
-    if (!unackedInput || unackedInput.attempts >= INPUT_ACK_MAX_ATTEMPTS) return;
+    if (inputRetryTimer || !unackedInput || unackedInput.attempts >= INPUT_ACK_MAX_ATTEMPTS) return;
     inputRetryTimer = setTimeout(function () {
       inputRetryTimer = null;
       var pending = unackedInput;
       if (!pending || !active || !api || api.isHost() || state.phase !== "playing"
-          || pending.message.matchId !== state.matchId) return;
+          || pending.message.matchId !== state.matchId || pending.attempts >= INPUT_ACK_MAX_ATTEMPTS) return;
       pending.attempts++;
       sendRoomInput(pending.message);
       scheduleInputRetry();
@@ -1919,11 +2325,17 @@ window.TerritoryRush = (function () {
     var angle = requestedAngle(queued.angle, requestedAngle(mine.targetAngle, mine.angle));
     var seq = ++inputSeq;
     lastInputAt = nowMs();
-    mine.targetAngle = angle;
-    mine.dir = nearestDirection(angle);
     inputSeqByNick[mine.nick] = seq;
-    var message = { t: "tr_input", by: mine.nick, nick: mine.nick, matchId: state.matchId, seq: seq, dir: mine.dir, angle: Math.round(angle * 1000) / 1000 };
-    if (inputRetryTimer) { clearTimeout(inputRetryTimer); inputRetryTimer = null; }
+    var message = {
+      t: "tr_input",
+      by: mine.nick,
+      nick: mine.nick,
+      matchId: state.matchId,
+      seq: seq,
+      dir: nearestDirection(angle),
+      angle: Math.round(angle * 1000) / 1000
+    };
+    assignLocalInputSeq(queued.historyId, seq);
     unackedInput = { message: message, attempts: 1 };
     sendInitialInput(message);
     scheduleInputRetry();
@@ -1934,9 +2346,9 @@ window.TerritoryRush = (function () {
     if (!active || !api || api.isHost() || state.phase !== "playing" || !validAngle(desiredInputAngle)) return;
     var mine = playerByNick(me().nick);
     if (!mine || mine.retired || mine.deadUntil || mine.bot) return;
-    pendingInput = { angle: desiredInputAngle, matchId: state.matchId };
-    if (pendingInputTimer) clearTimeout(pendingInputTimer);
-    pendingInputTimer = setTimeout(flushPendingInput, INPUT_SEND_MS);
+    var history = recordLocalInput(desiredInputAngle, nowMs());
+    pendingInput = { angle: desiredInputAngle, matchId: state.matchId, historyId: history.id, requestedAt: history.at };
+    if (!pendingInputTimer) pendingInputTimer = setTimeout(flushPendingInput, inputIntervalMs());
   }
 
   function hostSetReady(nick, ready) {
@@ -2037,7 +2449,10 @@ window.TerritoryRush = (function () {
       entries.push({ nick: nick, bot: true });
     });
     entries = entries.slice(0, MAX_PLAYERS);
+    state.arena = arenaForPlayerCount(entries.length);
     clearPendingInput();
+    resetFrameSendQueue();
+    resetHostStepClock();
     resetGrid();
     inputSeq = 0;
     inputSeqByNick = Object.create(null);
@@ -2086,6 +2501,7 @@ window.TerritoryRush = (function () {
 
   function hostFinish() {
     if (!api || !api.isHost() || state.phase !== "playing") return;
+    resetHostStepClock();
     var ranks = rankRows();
     state.phase = "finished";
     state.startAt = 0;
@@ -2103,22 +2519,50 @@ window.TerritoryRush = (function () {
     render();
   }
 
+  function resetHostStepClock() {
+    lastHostTickAt = 0;
+    hostStepDebt = 0;
+  }
+
   function hostTick() {
-    if (!active || !api || !api.isHost() || state.phase !== "playing") return;
-    if ((api.isConnected && !api.isConnected()) || authorityYielded || needsAuthoritySync) return;
+    if (!active || !api || !api.isHost() || state.phase !== "playing") {
+      resetHostStepClock();
+      return;
+    }
+    if ((api.isConnected && !api.isConnected()) || authorityYielded || needsAuthoritySync) {
+      resetHostStepClock();
+      return;
+    }
     var now = nowMs();
     var frameInterval = frameIntervalMs();
     if (wantedOwnerRev > state.ownerRev) {
+      resetHostStepClock();
       if (ownerSyncMissingSince && now - ownerSyncMissingSince >= OWNER_RECOVERY_MS) recoverMissingOwner();
       return;
     }
     if (state.startAt && now < state.startAt) {
+      lastHostTickAt = now;
+      hostStepDebt = 0;
       if (now - lastFrameSentAt >= frameInterval) broadcastFrame(now);
       return;
     }
-    if (now >= state.deadline) { hostFinish(); return; }
+    if (now >= state.deadline) {
+      resetHostStepClock();
+      hostFinish();
+      return;
+    }
+    var previousTickAt = lastHostTickAt;
+    lastHostTickAt = now;
+    var elapsed = previousTickAt
+      ? now - Math.max(previousTickAt, Number(state.startAt) || 0)
+      : STEP_MS;
+    hostStepDebt = Math.min(HOST_MAX_CATCHUP_MS, hostStepDebt + clamp(elapsed, 0, HOST_MAX_CATCHUP_MS));
     retryReturningPlayers(now);
-    advancePlayers(state.players, STEP_MS / 1000, now);
+    var catchupSteps = Math.floor(hostStepDebt / STEP_MS);
+    while (catchupSteps-- > 0) {
+      advancePlayers(state.players, STEP_MS / 1000, now);
+      hostStepDebt -= STEP_MS;
+    }
     if (fullPending) {
       if (now - lastFullSentAt >= FULL_MIN_MS) {
         fullPending = false;
@@ -2441,12 +2885,12 @@ window.TerritoryRush = (function () {
       var focusArea = $("territory-focus-area");
       if (focusDot) focusDot.style.background = COLORS[focused.id];
       if (focusName) focusName.textContent = focused.nick;
-      if (focusArea) focusArea.textContent = ((counts[focused.id] || 0) / PLAYABLE_CELL_COUNT * 100).toFixed(1) + "%";
+      if (focusArea) focusArea.textContent = ((counts[focused.id] || 0) / playableCellCount() * 100).toFixed(1) + "%";
     }
     var myDot = $("territory-my-dot");
     if (myDot && mine) myDot.style.background = COLORS[mine.id];
     var area = $("territory-area");
-    if (area) area.textContent = mine ? ((counts[mine.id] || 0) / PLAYABLE_CELL_COUNT * 100).toFixed(1) + "%" : "0.0%";
+    if (area) area.textContent = mine ? ((counts[mine.id] || 0) / playableCellCount() * 100).toFixed(1) + "%" : "0.0%";
     var count = $("territory-people-count");
     if (count) count.textContent = String(activePeople().length);
     renderCountdown(now);
@@ -2485,11 +2929,13 @@ window.TerritoryRush = (function () {
   function onVisibilityChange() {
     if (!active || !api || state.phase !== "playing") return;
     if (document.hidden && api.isHost()) {
+      resetHostStepClock();
       authorityYielded = true;
       syncHostEligibility();
       return;
     }
     if (!document.hidden && authorityYielded) {
+      resetHostStepClock();
       var hasOtherActivePlayer = activeNicks().some(function (nick) { return nick !== me().nick; });
       if (!hasOtherActivePlayer) authorityYielded = false;
       syncHostEligibility();
@@ -2506,6 +2952,11 @@ window.TerritoryRush = (function () {
     root.classList.toggle("is-spectating", state.phase === "playing" && isLocalSpectator());
     setHidden($("territory-lobby"), state.phase !== "idle");
     setHidden($("territory-finished"), state.phase !== "finished");
+    if (state.phase === "playing") {
+      renderHud();
+      renderChat();
+      return;
+    }
     var copy = $("territory-lobby-copy");
     if (copy) copy.textContent = participantNicks().length <= 1
       ? "혼자 시작하면 귀여운 AI 3명과 연습해요"
@@ -2518,6 +2969,26 @@ window.TerritoryRush = (function () {
     renderChat();
   }
 
+  function resizeCanvasBackingStore(target, context, logicalWidth, logicalHeight, dpr) {
+    if (!target || !context) return false;
+    var pixelWidth = Math.round(logicalWidth * dpr);
+    var pixelHeight = Math.round(logicalHeight * dpr);
+    var logicalChanged = target.dataset.logicalWidth !== String(logicalWidth)
+      || target.dataset.logicalHeight !== String(logicalHeight)
+      || target.dataset.pixelRatio !== String(dpr);
+    var pixelChanged = target.width !== pixelWidth || target.height !== pixelHeight;
+    if (!logicalChanged && !pixelChanged) return false;
+    if (pixelChanged) {
+      target.width = pixelWidth;
+      target.height = pixelHeight;
+    }
+    target.dataset.logicalWidth = String(logicalWidth);
+    target.dataset.logicalHeight = String(logicalHeight);
+    target.dataset.pixelRatio = String(dpr);
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return true;
+  }
+
   function resizeCanvases() {
     if (!active || !canvas || !miniCanvas) return;
     var stage = $("territory-stage");
@@ -2526,41 +2997,39 @@ window.TerritoryRush = (function () {
     var width = Math.max(280, Math.floor(rect.width));
     var height = Math.max(320, Math.floor(rect.height));
     var dpr = Math.min(1.5, window.devicePixelRatio || 1);
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
-    canvas.dataset.logicalWidth = String(width);
-    canvas.dataset.logicalHeight = String(height);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var boardChanged = resizeCanvasBackingStore(canvas, ctx, width, height, dpr);
     var miniRect = miniCanvas.getBoundingClientRect();
     var miniWidth = Math.max(60, Math.floor(miniRect.width));
     var miniHeight = Math.max(90, Math.floor(miniRect.height));
-    miniCanvas.width = Math.round(miniWidth * dpr);
-    miniCanvas.height = Math.round(miniHeight * dpr);
-    miniCanvas.dataset.logicalWidth = String(miniWidth);
-    miniCanvas.dataset.logicalHeight = String(miniHeight);
-    miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (state.phase === "playing") {
-      paint();
-      paintMinimap();
+    var miniChanged = resizeCanvasBackingStore(miniCanvas, miniCtx, miniWidth, miniHeight, dpr);
+    if (state.phase === "playing" && (boardChanged || miniChanged)) {
+      lastRenderAt = 0;
+      lastMiniAt = 0;
     }
   }
 
   function scheduleResize() {
     if (resizeTimer) clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () { resizeTimer = null; resizeCanvases(); }, 80);
+    resizeTimer = setTimeout(function () { resizeTimer = null; resizeCanvases(); }, 140);
   }
 
   function viewInfo() {
     var width = Number(canvas.dataset.logicalWidth) || canvas.getBoundingClientRect().width;
     var height = Number(canvas.dataset.logicalHeight) || canvas.getBoundingClientRect().height;
-    var scale = Math.max(width / WORLD_W, height / WORLD_H, Math.min(14, width / 34));
-    var focus = cameraFocusPlayer() || { nick: "", x: WORLD_W / 2, y: WORLD_H / 2 };
+    var arena = activeArena();
+    var movement = arenaMovementBounds(arena);
+    var arenaWidth = movement.right - movement.left;
+    var arenaHeight = movement.bottom - movement.top;
+    var scale = Math.max(width / arenaWidth, height / arenaHeight, Math.min(14, width / 34));
+    var centerX = (movement.left + movement.right) / 2;
+    var centerY = (movement.top + movement.bottom) / 2;
+    var focus = cameraFocusPlayer() || { nick: "", x: centerX, y: centerY };
     var visual = focus.deadUntil ? { x: focus.spawnX, y: focus.spawnY } : (visualPlayers[focus.nick] || focus);
-    var halfW = Math.min(WORLD_W / 2, width / scale / 2);
-    var halfH = Math.min(WORLD_H / 2, height / scale / 2);
-    var cx = clamp(visual.x, halfW, WORLD_W - halfW);
-    var cy = clamp(visual.y, halfH, WORLD_H - halfH);
-    return { width: width, height: height, scale: scale, cx: cx, cy: cy };
+    var halfW = Math.min(arenaWidth / 2, width / scale / 2);
+    var halfH = Math.min(arenaHeight / 2, height / scale / 2);
+    var cx = clamp(visual.x, movement.left + halfW, movement.right - halfW);
+    var cy = clamp(visual.y, movement.top + halfH, movement.bottom - halfH);
+    return { width: width, height: height, scale: scale, cx: cx, cy: cy, arena: arena, movement: movement };
   }
   function screenX(x, view) { return (x - view.cx) * view.scale + view.width / 2; }
   function screenY(y, view) { return (y - view.cy) * view.scale + view.height / 2; }
@@ -2641,10 +3110,11 @@ window.TerritoryRush = (function () {
   }
 
   function drawArenaBoundary(view) {
-    var left = screenX(ARENA_INSET, view);
-    var top = screenY(ARENA_INSET, view);
-    var right = screenX(WORLD_W - ARENA_INSET, view);
-    var bottom = screenY(WORLD_H - ARENA_INSET, view);
+    var movement = view.movement || arenaMovementBounds();
+    var left = screenX(movement.left, view);
+    var top = screenY(movement.top, view);
+    var right = screenX(movement.right, view);
+    var bottom = screenY(movement.bottom, view);
     ctx.save();
     ctx.globalAlpha = 1;
     fillArenaOutside(ctx, left, top, right, bottom, view.width, view.height);
@@ -3018,32 +3488,36 @@ window.TerritoryRush = (function () {
       angle: requestedAngle(player && player.angle, directionAngle(player && player.dir))
     };
     if (!player || player.deadUntil || player.retired || player.away) return pose;
+    var arena = activeArena();
+    var movement = arenaMovementBounds(arena);
+    var centerX = (arena.minX + arena.maxX) / 2;
+    var centerY = (arena.minY + arena.maxY) / 2;
     var remaining = clamp(Number(elapsedMs) || 0, 0, PREDICTION_MAX_MS);
     var targetAngle = requestedAngle(targetOverride, requestedAngle(player.targetAngle, pose.angle));
     while (remaining > 0) {
       var stepMs = Math.min(STEP_MS, remaining);
       var dt = stepMs / 1000;
       pose.angle = normalizeAngle(pose.angle + clamp(angleDelta(pose.angle, targetAngle), -TURN_SPEED * dt, TURN_SPEED * dt));
-      var nx = clamp(pose.x + Math.cos(pose.angle) * SPEED * dt, ARENA_INSET, WORLD_W - ARENA_INSET);
-      var ny = clamp(pose.y + Math.sin(pose.angle) * SPEED * dt, ARENA_INSET, WORLD_H - ARENA_INSET);
+      var nx = clamp(pose.x + Math.cos(pose.angle) * SPEED * dt, movement.left, movement.right);
+      var ny = clamp(pose.y + Math.sin(pose.angle) * SPEED * dt, movement.top, movement.bottom);
       var movedX = nx - pose.x;
       var movedY = ny - pose.y;
       if (movedX * movedX + movedY * movedY < SPEED * SPEED * dt * dt * .01) {
-        var atVerticalEdge = pose.x <= ARENA_INSET + .001 || pose.x >= WORLD_W - ARENA_INSET - .001;
-        var atHorizontalEdge = pose.y <= ARENA_INSET + .001 || pose.y >= WORLD_H - ARENA_INSET - .001;
+        var atVerticalEdge = pose.x <= movement.left + .001 || pose.x >= movement.right - .001;
+        var atHorizontalEdge = pose.y <= movement.top + .001 || pose.y >= movement.bottom - .001;
         if (atVerticalEdge) {
           pose.angle = Math.abs(Math.sin(pose.angle)) > .15
             ? (Math.sin(pose.angle) < 0 ? -Math.PI / 2 : Math.PI / 2)
-            : (pose.y < WORLD_H / 2 ? Math.PI / 2 : -Math.PI / 2);
+            : (pose.y < centerY ? Math.PI / 2 : -Math.PI / 2);
         } else if (atHorizontalEdge) {
           pose.angle = Math.abs(Math.cos(pose.angle)) > .15
             ? (Math.cos(pose.angle) < 0 ? Math.PI : 0)
-            : (pose.x < WORLD_W / 2 ? 0 : Math.PI);
+            : (pose.x < centerX ? 0 : Math.PI);
         }
         pose.angle = normalizeAngle(pose.angle);
         targetAngle = pose.angle;
-        nx = clamp(pose.x + Math.cos(pose.angle) * SPEED * dt, ARENA_INSET, WORLD_W - ARENA_INSET);
-        ny = clamp(pose.y + Math.sin(pose.angle) * SPEED * dt, ARENA_INSET, WORLD_H - ARENA_INSET);
+        nx = clamp(pose.x + Math.cos(pose.angle) * SPEED * dt, movement.left, movement.right);
+        ny = clamp(pose.y + Math.sin(pose.angle) * SPEED * dt, movement.top, movement.bottom);
       }
       pose.x = nx;
       pose.y = ny;
@@ -3057,9 +3531,27 @@ window.TerritoryRush = (function () {
     if (api && !api.isHost() && lastAuthoritativeAt && (!state.startAt || now >= state.startAt)) {
       elapsed = clamp(now - lastAuthoritativeAt, 0, PREDICTION_MAX_MS);
     }
-    var target = player.nick === safeNick(me().nick) && validAngle(desiredInputAngle)
-      ? desiredInputAngle : player.targetAngle;
-    return predictedPlayerPose(player, elapsed, target);
+    var localPlayer = api && !api.isHost() && player.nick === safeNick(me().nick);
+    if (!localPlayer || !localInputHistory.length || !elapsed) {
+      return predictedPlayerPose(player, elapsed, player.targetAngle);
+    }
+    var fromAt = now - elapsed;
+    var cursor = fromAt;
+    var target = requestedAngle(player.targetAngle, requestedAngle(player.angle, directionAngle(player.dir)));
+    var pose = player;
+    for (var index = 0; index < localInputHistory.length; index++) {
+      var entry = localInputHistory[index];
+      if (!entry || entry.matchId !== state.matchId || !validAngle(entry.angle)) continue;
+      if (entry.at <= cursor) {
+        target = entry.angle;
+        continue;
+      }
+      if (entry.at >= now) break;
+      pose = predictedPlayerPose(pose, entry.at - cursor, target);
+      cursor = entry.at;
+      target = entry.angle;
+    }
+    return predictedPlayerPose(pose, now - cursor, target);
   }
 
   function visualPositionBlend(dx, dy, baseBlend, frameDelta) {
@@ -3107,14 +3599,28 @@ window.TerritoryRush = (function () {
     miniCtx.clearRect(0, 0, width, height);
     miniCtx.fillStyle = "#cfeedd";
     miniCtx.fillRect(0, 0, width, height);
+    var arena = activeArena();
+    var movement = arenaMovementBounds(arena);
+    var miniLeft = 1.5;
+    var miniTop = 1.5;
+    var miniRight = Math.max(miniLeft, width - 1.5);
+    var miniBottom = Math.max(miniTop, height - 1.5);
+    var miniWidth = miniRight - miniLeft;
+    var miniHeight = miniBottom - miniTop;
     miniCtx.globalAlpha = 1;
     miniCtx.imageSmoothingEnabled = false;
-    miniCtx.drawImage(territoryLayer, 0, 0, width, height);
+    miniCtx.drawImage(
+      territoryLayer,
+      arena.minX * LAYER_SCALE,
+      arena.minY * LAYER_SCALE,
+      (arena.maxX - arena.minX) * LAYER_SCALE,
+      (arena.maxY - arena.minY) * LAYER_SCALE,
+      miniLeft,
+      miniTop,
+      miniWidth,
+      miniHeight
+    );
     miniCtx.globalAlpha = 1;
-    var miniLeft = ARENA_INSET / WORLD_W * width;
-    var miniTop = ARENA_INSET / WORLD_H * height;
-    var miniRight = (WORLD_W - ARENA_INSET) / WORLD_W * width;
-    var miniBottom = (WORLD_H - ARENA_INSET) / WORLD_H * height;
     fillArenaOutside(miniCtx, miniLeft, miniTop, miniRight, miniBottom, width, height);
     miniCtx.strokeStyle = ARENA_BOUNDARY_COLOR;
     miniCtx.lineWidth = 1;
@@ -3124,9 +3630,11 @@ window.TerritoryRush = (function () {
       var player = state.players[i];
       if (player.deadUntil || player.retired) continue;
       var isFocused = !!focus && player.nick === focus.nick;
+      var playerX = miniLeft + (player.x - movement.left) / (movement.right - movement.left) * miniWidth;
+      var playerY = miniTop + (player.y - movement.top) / (movement.bottom - movement.top) * miniHeight;
       miniCtx.fillStyle = COLORS[player.id];
       miniCtx.beginPath();
-      miniCtx.arc(player.x / WORLD_W * width, player.y / WORLD_H * height, isFocused ? 3.2 : 2.2, 0, Math.PI * 2);
+      miniCtx.arc(playerX, playerY, isFocused ? 3.2 : 2.2, 0, Math.PI * 2);
       miniCtx.fill();
       if (isFocused) {
         miniCtx.strokeStyle = "#214457";
@@ -3522,6 +4030,7 @@ window.TerritoryRush = (function () {
         + '<p class="territory-tail-definition"><strong>‘꼬리’가 뭐예요?</strong><br>내 땅 밖을 달리는 동안 <b>캐릭터 뒤에 이어지는 색 이동선</b>을 뜻해요. 규칙에서는 헷갈리지 않게 ‘이동선’이라고 부를게요.</p>'
         + '<ul class="territory-rule-notes">'
         + '<li>진한 경기장 경계는 벽이에요. 벽 바깥은 땅으로 만들 수 없고, 벽에 닿으면 가장자리를 따라 움직여요.</li>'
+        + '<li>경기장 크기는 시작할 때 참가 인원에 맞게 자동으로 정해지고, 경기 중에는 바뀌지 않아요.</li>'
         + '<li>이동선이 끊기거나 내 땅을 모두 빼앗기면 잠시 뒤 빈 곳에서 다시 시작해요.</li>'
         + '<li>혼자 시작하면 AI 3명과 연습해요.</li>'
         + '</ul></div>'
@@ -3688,6 +4197,7 @@ window.TerritoryRush = (function () {
     authorityYielded = false;
     needsAuthoritySync = false;
     lastFullSentAt = 0;
+    resetHostStepClock();
     lastAuthoritativeAt = 0;
     lastPredictionAt = 0;
     lastCountdownValue = "";
@@ -3707,6 +4217,8 @@ window.TerritoryRush = (function () {
   function leave() {
     if (api && api.syncHostInputs) api.syncHostInputs([]);
     clearPendingInput();
+    resetFrameSendQueue();
+    resetHostStepClock();
     desiredInputAngle = null;
     stopGameBgm(true);
     if (deathSfxEl) {
@@ -3774,6 +4286,10 @@ window.TerritoryRush = (function () {
       encodeOwner: encodeOwner,
       decodeOwner: decodeOwner,
       captureInto: captureInto,
+      arenaForPlayerCount: arenaForPlayerCount,
+      activeArena: activeArena,
+      arenaMovementBounds: arenaMovementBounds,
+      playableCellCount: playableCellCount,
       isPlayableCell: isPlayableCell,
       clearBoundaryOwnerCells: clearBoundaryOwnerCells,
       fillArenaOutside: fillArenaOutside,
@@ -3785,6 +4301,10 @@ window.TerritoryRush = (function () {
       getCaptureParticles: function () { return captureParticles.slice(); },
       sanitizeState: sanitizeState,
       sanitizePlayers: sanitizePlayers,
+      compactFramePlayer: compactFramePlayer,
+      frameSnapshot: frameSnapshot,
+      mergeFrameTrail: mergeFrameTrail,
+      sanitizeFrameSnapshot: sanitizeFrameSnapshot,
       makePlayer: makePlayer,
       allocateInitialSpawns: allocateInitialSpawns,
       findRespawnSpot: findRespawnSpot,
@@ -3797,6 +4317,7 @@ window.TerritoryRush = (function () {
       respawn: respawn,
       activateReturningPlayer: activateReturningPlayer,
       retryReturningPlayers: retryReturningPlayers,
+      chooseBotDirection: chooseBotDirection,
       applyDirection: applyDirection,
       advancePlayer: advancePlayer,
       advancePlayers: advancePlayers,
@@ -3815,8 +4336,11 @@ window.TerritoryRush = (function () {
       encodeVisualTrail: encodeVisualTrail,
       decodeVisualTrail: decodeVisualTrail,
       predictedPlayerPose: predictedPlayerPose,
+      visualTargetFor: visualTargetFor,
       visualPositionBlend: visualPositionBlend,
       frameIntervalMs: frameIntervalMs,
+      inputIntervalMs: inputIntervalMs,
+      resizeCanvasBackingStore: resizeCanvasBackingStore,
       gameNow: gameNow,
       syncAuthorityClock: syncAuthorityClock,
       authoritativeTimelineAt: authoritativeTimelineAt,
@@ -3825,6 +4349,7 @@ window.TerritoryRush = (function () {
       reverseDirection: reverseDirection,
       hostStart: hostStart,
       hostTick: hostTick,
+      resetHostStepClock: resetHostStepClock,
       hostSetReady: hostSetReady,
       hostSetSpectator: hostSetSpectator,
       cameraFocusPlayer: cameraFocusPlayer,
@@ -3833,11 +4358,26 @@ window.TerritoryRush = (function () {
       syncAudio: syncAudio,
       playDeathSfx: playDeathSfx,
       broadcastFull: broadcastFull,
+      broadcastFrame: broadcastFrame,
       applyFull: applyFull,
       applyFrame: applyFrame,
       snapshot: snapshot,
+      requestDirection: requestDirection,
+      flushPendingInput: flushPendingInput,
+      acknowledgeLocalInput: acknowledgeLocalInput,
+      scheduleInputRetry: scheduleInputRetry,
+      getLocalInputHistory: function () { return localInputHistory.map(function (entry) { return Object.assign({}, entry); }); },
+      setLocalInputHistory: function (rows) {
+        localInputHistory = Array.isArray(rows) ? rows.map(function (entry) { return Object.assign({}, entry); }) : [];
+        localInputHistoryId = localInputHistory.reduce(function (max, entry) { return Math.max(max, Number(entry.id) || 0); }, 0);
+      },
+      getUnackedInput: function () { return unackedInput; },
+      getInputTimers: function () { return { pending: pendingInputTimer, retry: inputRetryTimer }; },
+      setLastAuthoritativeAt: function (value) { lastAuthoritativeAt = Number(value) || 0; },
+      resetFrameSendQueue: resetFrameSendQueue,
       setApi: function (nextApi) { api = nextApi; },
       setState: function (nextState) { state = nextState; },
+      setActive: function (value) { active = !!value; },
       setSyncState: function (wanted, yielded, missingSince, needsSync) {
         wantedOwnerRev = Number(wanted) || 0;
         authorityYielded = !!yielded;
@@ -3862,6 +4402,7 @@ window.TerritoryRush = (function () {
         height: WORLD_H,
         cells: CELL_COUNT,
         playableCells: PLAYABLE_CELL_COUNT,
+        arenaSizes: ARENA_SIZES,
         matchMs: MATCH_MS,
         stepMs: STEP_MS,
         frameMs: FRAME_MS,
@@ -3870,6 +4411,11 @@ window.TerritoryRush = (function () {
         visualCatchupSpeedMultiplier: VISUAL_CATCHUP_SPEED_MULTIPLIER,
         fullMinMs: FULL_MIN_MS,
         inputSendMs: INPUT_SEND_MS,
+        inputSendMaxMs: INPUT_SEND_MAX_MS,
+        inputAckRetryMs: INPUT_ACK_RETRY_MS,
+        inputAckMaxAttempts: INPUT_ACK_MAX_ATTEMPTS,
+        hostMaxCatchupSteps: HOST_MAX_CATCHUP_STEPS,
+        frameTrailTail: FRAME_TRAIL_TAIL,
         speed: SPEED,
         arenaInset: ARENA_INSET,
         trailWidth: TRAIL_WIDTH,

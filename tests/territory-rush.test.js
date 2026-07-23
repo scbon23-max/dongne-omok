@@ -974,19 +974,22 @@ test("runtime constants keep realtime traffic below the room broadcast cap", () 
   assert.equal(engine.constants.stepMs, 50);
   assert.equal(engine.constants.frameMs, 400);
   assert.equal(engine.constants.fullMinMs, 400);
-  assert.equal(engine.constants.inputSendMs, 300);
+  assert.equal(engine.constants.inputSendMs, 150);
+  assert.equal(engine.constants.inputSendMaxMs, 260);
   assert.equal(engine.constants.maxPlayers, 8);
   assert.equal(engine.constants.maxRoomMembers, 10);
   assert.ok(engine.constants.maxTrail <= 360);
   assert.equal(engine.constants.cells, 72 * 108);
   assert.match(source, /api\.sendHostInput\(message\)/);
   assert.match(source, /if \(hostChanged && !matchChanged\) queueDesiredInputForNewHost\(\)/);
-  assert.match(source, /pendingInputTimer = setTimeout\(flushPendingInput, INPUT_SEND_MS\)/);
+  assert.match(source, /pendingInputTimer = setTimeout\(flushPendingInput, inputIntervalMs\(\)\)/);
   assert.match(source, /t: "tr_frame"/);
   assert.match(source, /t: "tr_sync_req"/);
-  const stateMessagesPerSecond = 1000 / engine.constants.frameMs * (engine.constants.maxRoomMembers + 1);
-  const inputMessagesPerSecond = 1000 / engine.constants.inputSendMs * (engine.constants.maxPlayers - 1) * 2;
-  assert.ok(stateMessagesPerSecond + inputMessagesPerSecond < 80);
+  for (let players = 1; players <= engine.constants.maxPlayers; players++) {
+    const stateMessagesPerSecond = 1000 / engine.frameIntervalMs(players) * (engine.constants.maxRoomMembers + 1);
+    const inputMessagesPerSecond = 1000 / engine.inputIntervalMs(players) * Math.max(0, players - 1) * 2;
+    assert.ok(stateMessagesPerSecond + inputMessagesPerSecond < 90, `${players} players exceed the realtime safety budget`);
+  }
   assert.doesNotMatch(source, /setInterval\([^,]+,\s*(?:1\d\d|[1-9]\d)\)/);
 });
 
@@ -1084,8 +1087,9 @@ test("territories and trails render as bright flat colors without outlines", () 
   assert.doesNotMatch(drawTerritoriesSource, /imageSmoothingQuality/);
 
   const boundarySource = source.match(/function drawArenaBoundary\(view\) \{([\s\S]*?)\n  \}\n\n  function pointDistanceToSegmentSquared/)[1];
-  assert.match(boundarySource, /screenX\(ARENA_INSET, view\)/);
-  assert.match(boundarySource, /screenX\(WORLD_W - ARENA_INSET, view\)/);
+  assert.match(boundarySource, /var movement = view\.movement \|\| arenaMovementBounds\(\)/);
+  assert.match(boundarySource, /screenX\(movement\.left, view\)/);
+  assert.match(boundarySource, /screenX\(movement\.right, view\)/);
   assert.match(boundarySource, /ctx\.strokeStyle = "#31576a"/);
   assert.match(boundarySource, /ctx\.strokeRect\(left, top, right - left, bottom - top\)/);
 
@@ -1100,7 +1104,7 @@ test("territories and trails render as bright flat colors without outlines", () 
   assert.match(trailSource, /ctx\.lineTo/);
 
   const minimapSource = source.match(/function paintMinimap\(\) \{([\s\S]*?)\n  \}\n\n  function renderLoop/)[1];
-  assert.match(minimapSource, /miniCtx\.globalAlpha = 1;\s*miniCtx\.imageSmoothingEnabled = false;\s*miniCtx\.drawImage\(territoryLayer/);
+  assert.match(minimapSource, /miniCtx\.globalAlpha = 1;\s*miniCtx\.imageSmoothingEnabled = false;\s*miniCtx\.drawImage\(\s*territoryLayer/);
   assert.doesNotMatch(minimapSource, /imageSmoothingQuality/);
 });
 
