@@ -155,7 +155,8 @@ test("CatchMind prevents iPad drawing gestures from selecting the page", () => {
 });
 
 test("room host election skips members who switched to spectating", () => {
-  assert.match(game, /var eligible = list\.filter\(function \(member\) \{ return member\.hostEligible !== false; \}\)/);
+  assert.match(game, /function memberCanHost\(member\)[\s\S]*member\.hostEligible === false[\s\S]*ctrl\.canHost\(member\.nick\)/);
+  assert.match(game, /var eligible = list\.filter\(memberCanHost\)/);
   assert.match(game, /setHostEligible: function \(eligible\)[\s\S]{0,500}Net\.track\(myMetaObj\(null\)\)/);
   assert.match(game, /hostEligible: roomHostEligible/);
 });

@@ -77,6 +77,7 @@ function baseSnapshot(overrides) {
     drawSeq: 0,
     feed: [],
     revealWord: null,
+    revealOutcome: null,
     wordLength: 2,
     recordStatus: "idle"
   }, overrides || {});
@@ -409,6 +410,11 @@ test("countdown chat stays on the right and clears before drawing chat", () => {
   api.renderChatOverlayPosition();
   assert.equal(overlay.classList.contains("right"), true);
   assert.equal(overlay.innerHTML, "");
+
+  state.correct.B = false;
+  state.phase = "reveal";
+  api.renderChatOverlayPosition();
+  assert.equal(overlay.classList.contains("right"), true);
 
   state.phase = "finished";
   api.renderChatOverlayPosition();
@@ -1020,6 +1026,50 @@ test("countdown stage uses the simple CatchMind progress design", () => {
   assert.equal(steps.children[4].classList.contains("active"), true);
 });
 
+test("round reveal clearly distinguishes all-correct and timeout outcomes", () => {
+  const stage = fakeElement();
+  const kicker = fakeElement();
+  const title = fakeElement();
+  const sub = fakeElement();
+  const actions = fakeElement();
+  const start = fakeElement();
+  const practice = fakeElement();
+  const api = loadCatchMind({
+    elements: {
+      "catch-stage": stage,
+      "catch-stage-kicker": kicker,
+      "catch-stage-title": title,
+      "catch-stage-sub": sub,
+      "catch-stage-actions": actions,
+      "catch-start-btn": start,
+      "catch-practice-btn": practice
+    }
+  });
+  const state = api.freshState();
+  state.phase = "reveal";
+  state.revealWord = "사과";
+  state.revealOutcome = "all-correct";
+  api.setState(state);
+
+  api.renderStage();
+
+  assert.equal(stage.classList.contains("reveal"), true);
+  assert.equal(stage.classList.contains("reveal-success"), true);
+  assert.equal(stage.classList.contains("reveal-timeout"), false);
+  assert.equal(kicker.textContent, "전원 정답");
+  assert.equal(title.textContent, "모두 맞혔어요!");
+  assert.equal(sub.textContent, "사과");
+
+  state.revealOutcome = "timeout";
+  api.renderStage();
+
+  assert.equal(stage.classList.contains("reveal-success"), false);
+  assert.equal(stage.classList.contains("reveal-timeout"), true);
+  assert.equal(kicker.textContent, "시간 초과");
+  assert.equal(title.textContent, "아쉽게 시간이 끝났어요");
+  assert.equal(sub.textContent, "사과");
+});
+
 test("only the current drawer sees the word during the countdown", () => {
   const word = fakeElement();
   const api = loadCatchMind({ elements: { "catch-word": word } });
@@ -1255,6 +1305,30 @@ test("a correct guess records the player's fastest real answer time", () => {
   assert.ok(api.getState().stats.B.fastestMs >= 5000);
   assert.ok(api.getState().stats.B.fastestMs < 5200);
   assert.equal(api.formatHighlightSeconds(api.getState().stats.B.fastestMs), "5초");
+  assert.equal(api.getState().phase, "reveal");
+  assert.equal(api.getState().revealOutcome, "all-correct");
+});
+
+test("a timed-out round stores a synchronized timeout reveal outcome", () => {
+  const api = loadCatchMind();
+  api.setState(api.sanitizeSnapshot(baseSnapshot()));
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return [{ nick: "A" }, { nick: "B" }, { nick: "C" }]; },
+    send() {},
+    roomChanged() {},
+    toast() {}
+  });
+  api.setSecretWord("사과");
+
+  api.hostEndRound("시간이 끝났어요", "timeout");
+
+  assert.equal(api.getState().phase, "reveal");
+  assert.equal(api.getState().revealOutcome, "timeout");
+  assert.equal(api.snapshot().revealOutcome, "timeout");
+  assert.equal(api.sanitizeSnapshot(api.snapshot()).revealOutcome, "timeout");
 });
 
 test("match points reward speed in clear 15-second tiers", () => {
@@ -1734,6 +1808,7 @@ test("an absent drawer loses the turn after the reconnect deadline", () => {
   api.tick();
 
   assert.equal(api.getState().phase, "reveal");
+  assert.equal(api.getState().revealOutcome, "skipped");
   assert.equal(api.getState().pauseKind, null);
   assert.ok(api.getState().feed.some(item => item.text.includes("턴을 넘겼어요")));
 });
@@ -1906,6 +1981,7 @@ test("the round advances when every remaining guesser has left", () => {
 
   api.onPresence([], { becameHost: false });
   assert.equal(api.getState().phase, "reveal");
+  assert.equal(api.getState().revealOutcome, "skipped");
   assert.ok(api.getState().feed.some(item => item.text.includes("정답을 맞힐 사람이 없어")));
 });
 
@@ -2019,13 +2095,14 @@ test("a spectator can switch back to participant before the match", () => {
 test("the host can move other players between participant and spectator from the top strip", () => {
   const strip = fakeElement();
   const toasts = [];
+  const sent = [];
   const api = loadCatchMind({ elements: { "catch-score-strip": strip } });
   api.setApi({
     isHost() { return true; },
     host() { return "A"; },
     me() { return { nick: "A", isAdmin: false }; },
     roster() { return [{ nick: "A", joinTs: 1 }, { nick: "B", joinTs: 2 }, { nick: "C", joinTs: 3 }]; },
-    send() {},
+    send(message) { sent.push(message); },
     roomChanged() {},
     toast(message) { toasts.push(message); }
   });
@@ -2037,11 +2114,15 @@ test("the host can move other players between participant and spectator from the
   assert.equal(api.hostTogglePlayerRole("B"), true);
   assert.deepEqual(Array.from(api.getState().spectators), ["B"]);
   assert.deepEqual(Array.from(api.getState().ready), []);
+  assert.equal(sent[sent.length - 1].t, "cm_role_ack");
+  assert.equal(sent[sent.length - 1].to, "B");
+  assert.equal(sent[sent.length - 1].spectating, true);
   assert.match(strip.innerHTML, /class="[^"]*spectator[^"]*host-manageable[^"]*"[^>]*data-catch-role-nick="B"/);
   assert.ok(toasts.some(message => message.includes("B님을 관전")));
 
   assert.equal(api.hostTogglePlayerRole("B"), true);
   assert.deepEqual(Array.from(api.getState().spectators), []);
+  assert.equal(sent[sent.length - 1].spectating, false);
   assert.ok(toasts.some(message => message.includes("B님을 참가")));
   assert.equal(api.hostTogglePlayerRole("A"), false);
 
@@ -2093,6 +2174,14 @@ test("a host yields room authority when switching to spectator", () => {
   assert.deepEqual(Array.from(api.getState().spectators), ["S", "A"]);
   assert.equal(eligibility[eligibility.length - 1], false);
   assert.ok(toasts.some(message => message.includes("방장을 넘기고")));
+});
+
+test("spectators are never eligible to become CatchMind host", () => {
+  const api = loadCatchMind();
+  api.getState().spectators = ["B"];
+
+  assert.equal(api.canHost("A"), true);
+  assert.equal(api.canHost("B"), false);
 });
 
 test("a host cannot spectate without another willing participant", () => {

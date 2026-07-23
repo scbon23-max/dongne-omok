@@ -198,6 +198,21 @@ body {
 .catch-stage.countdown .catch-stage-kicker { margin-bottom: 7px; color: var(--orange-dark); }
 .catch-stage.countdown .catch-stage-title { margin-bottom: 18px; color: var(--navy); font-size: 21px; }
 .catch-stage.countdown .catch-stage-sub { width: 112px; height: 112px; max-width: none; display: grid; place-items: center; margin: 0 0 14px; border: 3px solid #f2c5b4; border-radius: 50%; background: #fff; color: var(--orange); font-size: 64px; line-height: 1; font-weight: 900; font-variant-numeric: tabular-nums; }
+.catch-stage.reveal { gap: 0; padding: 24px 20px; background: #fbfaf7; color: var(--navy); }
+.catch-stage.reveal .catch-stage-main { width: 100%; }
+.catch-stage.reveal .catch-stage-copy { width: 100%; gap: 0; }
+.catch-stage.reveal .catch-stage-copy::before { width: 72px; height: 72px; display: grid; place-items: center; margin-bottom: 17px; border-radius: 50%; font-weight: 900; }
+.catch-stage.reveal .catch-stage-kicker { margin-bottom: 8px; font-size: 11px; line-height: 1; }
+.catch-stage.reveal .catch-stage-title { color: var(--navy); font-size: 27px; }
+.catch-stage.reveal .catch-stage-sub { width: min(240px, 100%); max-width: none; margin-top: 27px; padding-top: 17px; border-top: 1px solid #d6e0e4; color: var(--navy); font-size: 25px; line-height: 1.2; font-weight: 900; }
+.catch-stage.reveal .catch-stage-sub::before { content: "정답"; display: block; margin-bottom: 4px; color: #78909a; font-size: 10px; line-height: 1; }
+.catch-stage.reveal-success .catch-stage-copy::before { content: "✓"; background: #1f9b56; color: #fff; font-size: 46px; line-height: 1; }
+.catch-stage.reveal-success .catch-stage-kicker { color: #168349; }
+.catch-stage.reveal-timeout .catch-stage-copy::before { content: "0:00"; width: 84px; height: 84px; border: 3px solid var(--orange); background: transparent; color: var(--orange-dark); font-size: 21px; font-variant-numeric: tabular-nums; }
+.catch-stage.reveal-timeout .catch-stage-kicker { color: var(--orange-dark); }
+.catch-stage.reveal-timeout .catch-stage-sub { border-top-color: #efc1b0; }
+.catch-stage.reveal-skipped .catch-stage-copy::before { content: "→"; background: #e3eaed; color: #526b77; font-size: 38px; }
+.catch-stage.reveal-skipped .catch-stage-kicker { color: #526b77; }
 .catch-countdown-copy { color: #6f838d; font-size: 12px; line-height: 1.45; font-weight: 800; }
 .catch-countdown-steps { height: 10px; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 15px; }
 .catch-countdown-steps span { width: 32px; height: 5px; display: block; border-radius: 3px; background: #dfe8ec; }
@@ -494,6 +509,9 @@ body:has(.cm-gallery-backdrop:not(.hidden)) { overflow: hidden; }
   .catch-stage.countdown .catch-stage-kicker { margin-bottom: 4px; font-size: 9px; }
   .catch-stage.countdown .catch-stage-title { margin-bottom: 14px; font-size: 19px; }
   .catch-stage.countdown .catch-stage-sub { width: 96px; height: 96px; margin-bottom: 11px; font-size: 56px; }
+  .catch-stage.reveal { padding: 18px 14px; }
+  .catch-stage.reveal .catch-stage-title { font-size: 24px; }
+  .catch-stage.reveal .catch-stage-sub { font-size: 23px; }
   .catch-countdown-copy { font-size: 11px; }
   .catch-countdown-steps { height: 8px; margin-top: 11px; gap: 6px; }
   .catch-countdown-steps span { width: 28px; height: 5px; }

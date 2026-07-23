@@ -53,6 +53,7 @@ window.CatchMind = (function () {
   var FINISH_SFX_SRC = "assets/catchmind-finish.wav";
   var FINISH_SFX_VOLUME = 0.38;
   var RECORD_STATUSES = ["idle", "pending", "saved", "failed", "skipped"];
+  var REVEAL_OUTCOMES = ["all-correct", "timeout", "skipped"];
   var SAVE_RETRY_DELAYS = [1000, 3000, 7000];
   var FALLBACK_WORDS = [
     "가방", "가위", "강아지", "거북이", "고양이", "공룡", "기차", "나무", "냉장고", "눈사람",
@@ -148,6 +149,7 @@ window.CatchMind = (function () {
       drawSeq: 0,
       feed: [],
       revealWord: null,
+      revealOutcome: null,
       wordLength: 0,
       recordStatus: "idle",
       resultRatings: []
@@ -395,6 +397,7 @@ window.CatchMind = (function () {
       drawSeq: state.drawSeq,
       feed: state.feed,
       revealWord: state.revealWord,
+      revealOutcome: state.revealOutcome,
       wordLength: state.wordLength,
       recordStatus: state.recordStatus,
       resultRatings: state.resultRatings,
@@ -486,6 +489,9 @@ window.CatchMind = (function () {
       drawSeq: safeInteger(next.drawSeq, 0, Number.MAX_SAFE_INTEGER, 0),
       feed: safeFeed(next.feed),
       revealWord: next.revealWord == null ? null : safeText(next.revealWord, 40),
+      revealOutcome: phase === "reveal" && REVEAL_OUTCOMES.indexOf(next.revealOutcome) >= 0
+        ? next.revealOutcome
+        : null,
       wordLength: safeInteger(next.wordLength, 0, 10, 0),
       recordStatus: recordStatus,
       resultRatings: safeResultRatings(next.resultRatings, queue)
@@ -530,6 +536,7 @@ window.CatchMind = (function () {
       drawSeq: keepNewerCanvas ? state.drawSeq : clean.drawSeq,
       feed: clean.feed,
       revealWord: clean.revealWord,
+      revealOutcome: clean.revealOutcome,
       wordLength: clean.wordLength,
       recordStatus: clean.recordStatus,
       resultRatings: clean.resultRatings
@@ -698,6 +705,7 @@ window.CatchMind = (function () {
     state.drawSeq = 0;
     state.feed = [];
     state.revealWord = null;
+    state.revealOutcome = null;
     state.deadline = Date.now() + ROUND_COUNTDOWN_MS;
     state.nextAt = null;
     state.pauseKind = null;
@@ -738,7 +746,7 @@ window.CatchMind = (function () {
     var live = activeNicks();
     if (!has(live, state.drawer)) { hostPauseForDrawer(); return; }
     state.guessers = state.guessers.filter(function (nick) { return has(live, nick); });
-    if (!state.guessers.length) { hostEndRound("정답을 맞힐 사람이 없어 턴을 넘겼어요"); return; }
+    if (!state.guessers.length) { hostEndRound("정답을 맞힐 사람이 없어 턴을 넘겼어요", "skipped"); return; }
     if (!secretWord) secretWord = pickWord();
 
     state.phase = "drawing";
@@ -834,7 +842,7 @@ window.CatchMind = (function () {
     hostResumeRound();
   }
 
-  function hostEndRound(reason) {
+  function hostEndRound(reason, outcome) {
     if (!api || !api.isHost() || (state.phase !== "countdown" && state.phase !== "drawing")) return;
     var galleryDraft = galleryDraftFromRound();
     state.phase = "reveal";
@@ -844,6 +852,7 @@ window.CatchMind = (function () {
     state.pauseUntil = null;
     state.pausedRemainMs = null;
     state.revealWord = secretWord || "문제 취소";
+    state.revealOutcome = REVEAL_OUTCOMES.indexOf(outcome) >= 0 ? outcome : "skipped";
     if (reason) addFeed("", reason, "system");
     if (secretWord) addFeed("", "정답은 " + secretWord, "answer");
     commit();
@@ -861,6 +870,7 @@ window.CatchMind = (function () {
     state.pauseUntil = null;
     state.pausedRemainMs = null;
     state.revealWord = null;
+    state.revealOutcome = null;
     secretWord = null;
 
     var results = resultsFromState();
@@ -905,7 +915,7 @@ window.CatchMind = (function () {
       }
       addFeed("", nick + "님 정답! +" + guessScore, "correct");
       commit();
-      if (allGuessersCorrect()) hostEndRound("모두 맞혔어요");
+      if (allGuessersCorrect()) hostEndRound("모두 맞혔어요", "all-correct");
     } else {
       addFeed(nick, text, "guess");
       commit();
@@ -1052,8 +1062,20 @@ window.CatchMind = (function () {
     if (!nick || nick === me().nick || !has(activeNicks(), nick)) return false;
     var spectating = !has(state.spectators || [], nick);
     if (!hostSetSpectatorPreference(nick, spectating)) return false;
+    api.send({
+      t: "cm_role_ack",
+      from: me().nick,
+      to: nick,
+      spectating: spectating,
+      accepted: true
+    });
     api.toast(nick + "님을 " + (spectating ? "관전" : "참가") + "으로 변경했어요");
     return true;
+  }
+
+  function canHost(nick) {
+    nick = safeNick(nick);
+    return !!nick && !has(state.spectators || [], nick);
   }
 
   function validRoundMessage(msg) {
@@ -1650,9 +1672,9 @@ window.CatchMind = (function () {
       if (!has(live, state.drawer)) {
         hostPauseForDrawer();
       } else if (!activeGuessers.length) {
-        hostEndRound("정답을 맞힐 사람이 없어 턴을 넘겼어요");
+        hostEndRound("정답을 맞힐 사람이 없어 턴을 넘겼어요", "skipped");
       } else if (state.phase === "drawing" && activeGuessers.every(function (nick) { return !!state.correct[nick]; })) {
-        hostEndRound("남아 있는 참가자가 모두 맞혔어요");
+        hostEndRound("남아 있는 참가자가 모두 맞혔어요", "all-correct");
       } else if (state.pauseKind === "drawer") {
         if (state.phase === "drawing" && !secretWord) hostRequestSecretRecovery();
         else hostResumeRound();
@@ -1694,7 +1716,7 @@ window.CatchMind = (function () {
         if (state.phase === "drawing" && !secretWord) hostRequestSecretRecovery();
         else hostResumeRound();
       } else if (state.pauseUntil && now >= state.pauseUntil) {
-        hostEndRound(state.drawer + "님이 돌아오지 않아 턴을 넘겼어요");
+        hostEndRound(state.drawer + "님이 돌아오지 않아 턴을 넘겼어요", "skipped");
       }
       return;
     }
@@ -1704,7 +1726,7 @@ window.CatchMind = (function () {
       return;
     }
     if (state.phase === "countdown" && state.deadline && now >= state.deadline) hostBeginDrawing();
-    else if (state.phase === "drawing" && state.deadline && now >= state.deadline) hostEndRound("시간이 끝났어요");
+    else if (state.phase === "drawing" && state.deadline && now >= state.deadline) hostEndRound("시간이 끝났어요", "timeout");
     else if (state.phase === "reveal" && state.nextAt && now >= state.nextAt) hostStartRound(state.roundIndex + 1);
   }
 
@@ -2137,17 +2159,22 @@ window.CatchMind = (function () {
     var idle = state.phase === "idle" && !state.pauseKind;
     var finished = state.phase === "finished" && !state.pauseKind;
     var countdown = state.phase === "countdown" && !state.pauseKind;
+    var reveal = state.phase === "reveal" && !state.pauseKind;
     var showLobbyRoles = idle || finished;
     if (state.pauseKind) show = true;
     stage.classList.toggle("hidden", !show);
     stage.classList.remove("side");
     stage.classList.toggle("countdown", countdown);
+    stage.classList.toggle("reveal", reveal);
+    stage.classList.toggle("reveal-success", reveal && state.revealOutcome === "all-correct");
+    stage.classList.toggle("reveal-timeout", reveal && state.revealOutcome === "timeout");
+    stage.classList.toggle("reveal-skipped", reveal && state.revealOutcome !== "all-correct" && state.revealOutcome !== "timeout");
     stage.classList.toggle("paused", !!state.pauseKind);
     stage.classList.toggle("drawer-wait", state.pauseKind === "drawer");
     stage.classList.toggle("lobby-roles", showLobbyRoles);
     stage.classList.toggle("idle", idle);
     stage.classList.toggle("finished", finished);
-    kicker.classList.toggle("hidden", !idle && !finished && !countdown);
+    kicker.classList.toggle("hidden", !idle && !finished && !countdown && !reveal);
     if (marks) marks.classList.toggle("hidden", !idle && !finished);
     if (countdownCopy) countdownCopy.classList.toggle("hidden", !countdown);
     if (countdownSteps) countdownSteps.classList.toggle("hidden", !countdown);
@@ -2206,8 +2233,18 @@ window.CatchMind = (function () {
       start.classList.add("hidden");
       practice.classList.add("hidden");
     } else if (state.phase === "reveal") {
-      title.textContent = "정답 · " + (state.revealWord || "문제 취소");
-      sub.textContent = "다음 그림을 준비하고 있어요";
+      var revealOutcome = state.revealOutcome || "skipped";
+      if (revealOutcome === "all-correct") {
+        kicker.textContent = "전원 정답";
+        title.textContent = "모두 맞혔어요!";
+      } else if (revealOutcome === "timeout") {
+        kicker.textContent = "시간 초과";
+        title.textContent = "아쉽게 시간이 끝났어요";
+      } else {
+        kicker.textContent = "턴 종료";
+        title.textContent = "다음 차례로 넘어가요";
+      }
+      sub.textContent = state.revealWord || "문제 취소";
       sub.classList.remove("hidden");
       start.classList.add("hidden");
       practice.classList.add("hidden");
@@ -2286,7 +2323,7 @@ window.CatchMind = (function () {
     if (lastChatViewScope && lastChatViewScope !== scope) overlay.innerHTML = "";
     lastChatViewScope = scope;
     overlay.classList.remove("hidden");
-    var right = state.phase === "countdown" || state.phase === "idle" || state.phase === "finished" || group === "lounge";
+    var right = state.phase === "countdown" || state.phase === "reveal" || state.phase === "idle" || state.phase === "finished" || group === "lounge";
     overlay.classList.toggle("right", right);
   }
 
@@ -3236,6 +3273,7 @@ window.CatchMind = (function () {
     renderPlayers: renderPlayers,
     render: render,
     openGallery: openGallery,
+    canHost: canHost,
     rules: rules,
     get state() { return state; }
   };
@@ -3251,6 +3289,7 @@ window.CatchMind = (function () {
       hostStartMatch: hostStartMatch,
       hostStartRound: hostStartRound,
       hostBeginDrawing: hostBeginDrawing,
+      hostEndRound: hostEndRound,
       hostGuess: hostGuess,
       hostPauseForDrawer: hostPauseForDrawer,
       hostResumeRound: hostResumeRound,
@@ -3263,6 +3302,7 @@ window.CatchMind = (function () {
       toggleReady: toggleReady,
       hostSetSpectatorPreference: hostSetSpectatorPreference,
       hostTogglePlayerRole: hostTogglePlayerRole,
+      canHost: canHost,
       toggleRolePreference: toggleRolePreference,
       tick: tick,
       brushWidth: brushWidth,

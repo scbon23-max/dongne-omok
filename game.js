@@ -1776,9 +1776,14 @@
   }
 
   // ---------- 방장 선출 ----------
+  function memberCanHost(member) {
+    if (!member || member.hostEligible === false) return false;
+    var ctrl = activeController();
+    return !(ctrl && ctrl.canHost && !ctrl.canHost(member.nick));
+  }
   function electHostMember(list) {
     if (!list.length) return null;
-    var eligible = list.filter(function (member) { return member.hostEligible !== false; });
+    var eligible = list.filter(memberCanHost);
     var pool = (eligible.length ? eligible : list).slice().sort(function (a, b) {
       if (a.joinTs !== b.joinTs) return a.joinTs - b.joinTs;
       if (a.nick !== b.nick) return a.nick < b.nick ? -1 : 1;
