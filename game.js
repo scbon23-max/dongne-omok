@@ -424,6 +424,7 @@
     if (!lobbyConnected) { lobbyConnected = true; appConnect(); startRoomKeeper(); }
     renderRoomList();
     updateOnlineCounts(); renderLobbyOnline();
+    refreshFeedbackBadge();
     logLoginOnce();
     restoreOwnedRoomLease();
   }
@@ -589,6 +590,13 @@
       scheduleScoresRefresh(msg.game);
       if (!$("rank-modal").classList.contains("hidden") && $("rank-detail").classList.contains("hidden")
           && rankSeasons.length && rankSeasonIdx === rankSeasons.length - 1) openRank(rankGame);
+      return;
+    }
+    if (msg.t === "feedback_new" || msg.t === "feedback_updated") {
+      if (me.isAdmin) {
+        refreshFeedbackBadge();
+        if (!$("feedback-modal").classList.contains("hidden")) loadFeedbackList();
+      }
       return;
     }
     if (msg.t === "lobby_hello") { if (curRoomId && amHost) broadcastRoomOpen(); return; }
@@ -3450,6 +3458,136 @@
     }
   }
 
+  // ---------- 버그·의견 접수 ----------
+  var feedbackPosts = [], feedbackBadgeSeq = 0, feedbackListSeq = 0;
+  function setFeedbackBadge(count) {
+    var badge = $("feedback-badge"), button = $("lobby-feedback-btn");
+    if (!badge || !button) return;
+    count = me.isAdmin ? Math.max(0, Number(count) || 0) : 0;
+    badge.textContent = count > 99 ? "99+" : String(count);
+    badge.setAttribute("aria-label", "미완료 접수 " + count + "건");
+    badge.classList.toggle("hidden", count < 1);
+    button.classList.toggle("has-new", count > 0);
+  }
+  async function refreshFeedbackBadge() {
+    var seq = ++feedbackBadgeSeq;
+    if (!me.isAdmin || !window.Db || !Db.getFeedbackPosts) { setFeedbackBadge(0); return; }
+    try {
+      var posts = await withTimeout(Db.getFeedbackPosts(500), 8000);
+      if (seq !== feedbackBadgeSeq) return;
+      setFeedbackBadge(posts.filter(function (post) { return !post.completed; }).length);
+    } catch (e) {
+      if (seq === feedbackBadgeSeq) setFeedbackBadge(0);
+    }
+  }
+  function feedbackDate(value) {
+    var day = activityDayInfo(value);
+    return day.label + " " + activityTime(value);
+  }
+  function renderFeedbackList() {
+    var box = $("feedback-list"); if (!box) return;
+    var openCount = feedbackPosts.filter(function (post) { return !post.completed; }).length;
+    if ($("feedback-open-summary")) $("feedback-open-summary").textContent = "미완료 " + openCount + "건";
+    setFeedbackBadge(openCount);
+    if (!feedbackPosts.length) {
+      box.innerHTML = '<p class="feedback-empty">아직 접수된 글이 없어요.</p>';
+      return;
+    }
+    box.innerHTML = feedbackPosts.map(function (post) {
+      return '<article class="feedback-item ' + (post.completed ? "completed" : "") + '">'
+        + '<div class="feedback-item-head"><strong class="feedback-item-title">' + esc(post.title) + '</strong>'
+        + '<span class="feedback-state">' + (post.completed ? "완료" : "신규") + '</span></div>'
+        + '<p class="feedback-meta">' + esc(post.nick) + ' · ' + esc(feedbackDate(post.createdAt)) + '</p>'
+        + '<p class="feedback-content">' + esc(post.body) + '</p>'
+        + '<button class="feedback-done-btn" type="button" data-feedback-done="' + esc(post.id) + '"'
+        + (post.completed ? " disabled" : "") + '>' + (post.completed ? "완료됨" : "완료 표시") + '</button>'
+        + '</article>';
+    }).join("");
+    var buttons = box.querySelectorAll("[data-feedback-done]");
+    for (var i = 0; i < buttons.length; i++) buttons[i].addEventListener("click", function () {
+      completeFeedbackPost(this.getAttribute("data-feedback-done"), this);
+    });
+  }
+  async function loadFeedbackList() {
+    if (!me.isAdmin || !window.Db || !Db.getFeedbackPosts) return;
+    var seq = ++feedbackListSeq;
+    if ($("feedback-list")) $("feedback-list").innerHTML = '<p class="feedback-empty">접수 내역을 불러오는 중…</p>';
+    try {
+      var posts = await withTimeout(Db.getFeedbackPosts(500), 8000);
+      if (seq !== feedbackListSeq) return;
+      feedbackPosts = posts.slice().sort(function (a, b) {
+        if (!!a.completed !== !!b.completed) return a.completed ? 1 : -1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      renderFeedbackList();
+    } catch (e) {
+      if (seq === feedbackListSeq && $("feedback-list")) {
+        $("feedback-list").innerHTML = '<p class="feedback-empty">접수 내역을 불러오지 못했어요.</p>';
+      }
+    }
+  }
+  function openFeedbackModal() {
+    if ($("feedback-status")) {
+      $("feedback-status").textContent = "";
+      $("feedback-status").classList.remove("error");
+    }
+    openModal("feedback-modal");
+    if (me.isAdmin) loadFeedbackList();
+    else setTimeout(function () { if ($("feedback-title")) $("feedback-title").focus(); }, 0);
+  }
+  async function submitFeedbackForm() {
+    var title = $("feedback-title").value.trim().slice(0, 80);
+    var body = $("feedback-body").value.trim().slice(0, 1500);
+    var status = $("feedback-status"), button = $("feedback-send-btn");
+    status.classList.remove("error");
+    if (!title || !body) {
+      status.textContent = "제목과 내용을 모두 입력해 주세요.";
+      status.classList.add("error");
+      (!title ? $("feedback-title") : $("feedback-body")).focus();
+      return;
+    }
+    if (!window.Db || !Db.submitFeedback) {
+      status.textContent = "지금은 발송할 수 없어요. 잠시 후 다시 시도해 주세요.";
+      status.classList.add("error");
+      return;
+    }
+    button.disabled = true;
+    button.textContent = "발송 중…";
+    status.textContent = "";
+    try {
+      var result = await withTimeout(Db.submitFeedback(me.nick, title, body), 8000);
+      if (!result || !result.ok) throw new Error(result && result.reason || "send_failed");
+      $("feedback-title").value = "";
+      $("feedback-body").value = "";
+      status.textContent = "접수됐어요. 고맙습니다.";
+      toast("버그·의견을 접수했어요");
+      if (lobbyMode) Net.sendLobby({ t: "feedback_new", id: result.id, nick: me.nick });
+      if (me.isAdmin) loadFeedbackList();
+    } catch (e) {
+      status.textContent = "발송하지 못했어요. 잠시 후 다시 시도해 주세요.";
+      status.classList.add("error");
+    } finally {
+      button.disabled = false;
+      button.textContent = "발송";
+    }
+  }
+  async function completeFeedbackPost(id, button) {
+    if (!me.isAdmin || !window.Db || !Db.completeFeedback || !id) return;
+    button.disabled = true;
+    button.textContent = "처리 중…";
+    try {
+      var result = await withTimeout(Db.completeFeedback(me.nick, id), 8000);
+      if (!result || !result.ok) throw new Error(result && result.reason || "complete_failed");
+      toast("완료로 표시했어요");
+      if (lobbyMode) Net.sendLobby({ t: "feedback_updated", id: id });
+      await loadFeedbackList();
+    } catch (e) {
+      toast("완료 처리하지 못했어요");
+      button.disabled = false;
+      button.textContent = "완료 표시";
+    }
+  }
+
   // ---------- 랭킹 ----------
   // ---------- 시즌(분기제) ----------
   var SEASON_EPOCH_KEY = 2026 * 4 + 2; // 2026년 3분기 = 시즌1
@@ -5569,6 +5707,8 @@
 
     // 로비
     $("lobby-menu-btn").addEventListener("click", openMenu);
+    $("lobby-feedback-btn").addEventListener("click", openFeedbackModal);
+    $("feedback-send-btn").addEventListener("click", submitFeedbackForm);
     $("lobby-catch-gallery-btn").addEventListener("click", function () {
       if (window.CatchMind && CatchMind.openGallery) CatchMind.openGallery(controllerApi());
       else toast("갤러리를 열 수 없어요");

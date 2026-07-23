@@ -5,6 +5,8 @@ window.Db = (function () {
   var ACTIVITY_ROOM = "__admin_activity_v1__";
   var ACTIVITY_PREFIX = "@activity:";
   var ACTIVITY_TYPES = { login: true, logout: true, room_create: true, room_leave: true };
+  var FEEDBACK_ROOM = "__feedback_v1__";
+  var FEEDBACK_PREFIX = "@feedback:";
 
   async function sha256(str) {
     var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
@@ -287,6 +289,86 @@ window.Db = (function () {
       }
     }).filter(function (item) { return !!item && !!item.nick; });
   }
+  function feedbackId(value) {
+    value = String(value || "");
+    return /^[a-zA-Z0-9_-]{8,80}$/.test(value) ? value : "";
+  }
+  function newFeedbackId() {
+    return "fb-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+  }
+  async function submitFeedback(nick, title, body) {
+    nick = activityText(nick, 40);
+    title = activityText(title, 80);
+    body = activityText(body, 1500);
+    if (!sb || !nick || !title || !body) return { ok: false, reason: "invalid" };
+    var id = newFeedbackId();
+    var result = await sb.from("chat").insert({
+      room: FEEDBACK_ROOM,
+      nick: nick,
+      text: FEEDBACK_PREFIX + JSON.stringify({ v: 1, type: "post", id: id, title: title, body: body })
+    });
+    return result && result.error
+      ? { ok: false, reason: "database", error: result.error }
+      : { ok: true, id: id };
+  }
+  async function completeFeedback(nick, id) {
+    nick = activityText(nick, 40);
+    id = feedbackId(id);
+    if (!sb || nick !== ADMIN || !id) return { ok: false, reason: "forbidden" };
+    var result = await sb.from("chat").insert({
+      room: FEEDBACK_ROOM,
+      nick: nick,
+      text: FEEDBACK_PREFIX + JSON.stringify({ v: 1, type: "done", id: id })
+    });
+    return result && result.error
+      ? { ok: false, reason: "database", error: result.error }
+      : { ok: true };
+  }
+  async function getFeedbackPosts(limit) {
+    if (!sb) return [];
+    limit = Math.max(1, Math.min(500, Number(limit) || 300));
+    var result = await sb.from("chat").select("nick,text,created_at")
+      .eq("room", FEEDBACK_ROOM)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (result.error || !result.data) return [];
+    var completed = Object.create(null);
+    result.data.forEach(function (row) {
+      var text = String(row && row.text || "");
+      if (text.indexOf(FEEDBACK_PREFIX) !== 0 || row.nick !== ADMIN) return;
+      try {
+        var payload = JSON.parse(text.slice(FEEDBACK_PREFIX.length));
+        var id = payload && payload.v === 1 && payload.type === "done" ? feedbackId(payload.id) : "";
+        if (id) completed[id] = row.created_at || true;
+      } catch (e) {}
+    });
+    var seen = Object.create(null);
+    return result.data.map(function (row) {
+      var text = String(row && row.text || "");
+      if (text.indexOf(FEEDBACK_PREFIX) !== 0) return null;
+      try {
+        var payload = JSON.parse(text.slice(FEEDBACK_PREFIX.length));
+        var id = payload && payload.v === 1 && payload.type === "post" ? feedbackId(payload.id) : "";
+        if (!id || seen[id]) return null;
+        var title = activityText(payload.title, 80);
+        var body = activityText(payload.body, 1500);
+        var nick = activityText(row.nick, 40);
+        if (!title || !body || !nick) return null;
+        seen[id] = true;
+        return {
+          id: id,
+          nick: nick,
+          title: title,
+          body: body,
+          createdAt: row.created_at || null,
+          completed: !!completed[id],
+          completedAt: completed[id] || null
+        };
+      } catch (e) {
+        return null;
+      }
+    }).filter(function (item) { return !!item; });
+  }
   async function getAllowlist() {
     if (!sb) return [];
     var r = await sb.from("allowlist").select("nickname").order("nickname");
@@ -316,6 +398,7 @@ window.Db = (function () {
     getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves, deleteGame: deleteGame,
     addChatMsg: addChatMsg, getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,
     recordActivity: recordActivity, getActivityLogs: getActivityLogs,
+    submitFeedback: submitFeedback, completeFeedback: completeFeedback, getFeedbackPosts: getFeedbackPosts,
     getAllowlist: getAllowlist, addAllowed: addAllowed, removeAllowed: removeAllowed
   };
 })();

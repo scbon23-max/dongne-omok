@@ -108,9 +108,13 @@
 
 <!-- 로비 -->
 <section id="lobby" class="screen lobby-screen hidden">
+  <h1 class="lobby-page-title">로비화면</h1>
   <div class="bottom-row lobby-bottom">
     <div class="chat-panel">
-      <div class="chat-notice">🛠️ 오류·이상이 생기면 이곳에 증상을 자세히 적어주세요. 수정에 큰 도움이 됩니다 🙏</div>
+      <button id="lobby-feedback-btn" class="lobby-feedback-btn" type="button">
+        <span>버그·좋은 의견 보내기</span>
+        <span id="feedback-badge" class="feedback-badge admin-only hidden" aria-label="미완료 접수 0건">0</span>
+      </button>
       <div class="chat-log" id="lobby-chat-log"></div>
       <div class="chat-input-row">
         <input id="lobby-chat-input" class="chat-input" type="text" placeholder="전체 채팅…" autocomplete="off">
@@ -997,6 +1001,35 @@
       </div>
     </div>
     <button class="btn-primary modal-ok" data-close>닫기</button>
+  </div>
+</div>
+
+<!-- 버그·의견 접수 모달 -->
+<div id="feedback-modal" class="modal-overlay hidden">
+  <div class="modal feedback-modal">
+    <div class="modal-head">
+      <h2>버그·좋은 의견</h2>
+      <button class="modal-close" type="button" data-close aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      <section id="feedback-admin-section" class="feedback-admin-section admin-only">
+        <div class="feedback-list-head">
+          <strong>접수 목록</strong>
+          <span id="feedback-open-summary">미완료 0건</span>
+        </div>
+        <div id="feedback-list" class="feedback-list" aria-live="polite">
+          <p class="feedback-empty">접수 내역을 불러오는 중…</p>
+        </div>
+      </section>
+      <section class="feedback-compose">
+        <label for="feedback-title">제목</label>
+        <input id="feedback-title" type="text" maxlength="80" placeholder="어떤 내용인지 짧게 적어주세요" autocomplete="off">
+        <label for="feedback-body">내용</label>
+        <textarea id="feedback-body" maxlength="1500" rows="5" placeholder="발생한 상황이나 좋은 의견을 자세히 적어주세요"></textarea>
+        <p id="feedback-status" class="feedback-status" role="status" aria-live="polite"></p>
+        <button id="feedback-send-btn" class="btn-primary" type="button">발송</button>
+      </section>
+    </div>
   </div>
 </div>
 
