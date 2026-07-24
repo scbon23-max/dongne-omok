@@ -4962,19 +4962,30 @@
     } catch (e) {}
   }
   function showCatchBoardFrame(rewardId) {
-    var frames = catchBoardFrameCatalog();
-    var reward = catchBoardFrameById(rewardId) || frames[0] || null;
-    if (!reward) return false;
     var image = $("catch-board-frame");
+    if (!rewardId) {
+      if (image) {
+        image.classList.add("hidden");
+        image.removeAttribute("src");
+        image.removeAttribute("data-catch-frame-id");
+      }
+      return true;
+    }
+    var reward = catchBoardFrameById(rewardId);
+    if (!reward) return false;
     if (image && image.getAttribute("data-catch-frame-id") !== reward.id) {
       image.src = localAssetUrl(reward.asset);
       image.setAttribute("data-catch-frame-id", reward.id);
     }
+    if (image) image.classList.remove("hidden");
     return true;
   }
   function applyCatchBoardFrame(rewardId) {
-    var frames = catchBoardFrameCatalog();
-    var reward = catchBoardFrameById(rewardId) || frames[0] || null;
+    if (!rewardId) {
+      catchSelectedBoardFrameId = "";
+      return showCatchBoardFrame("");
+    }
+    var reward = catchBoardFrameById(rewardId);
     if (!reward) return false;
     catchSelectedBoardFrameId = reward.id;
     return showCatchBoardFrame(reward.id);
@@ -5054,10 +5065,8 @@
         catchPersonalProfileNick = requestedNick;
         catchPersonalProfile = result;
         var equippedId = catchEquippedFrameFromProfile(result);
-        if (equippedId) {
-          applyCatchBoardFrame(equippedId);
-          storeCatchBoardFrame(equippedId);
-        }
+        applyCatchBoardFrame(equippedId);
+        storeCatchBoardFrame(equippedId);
         publishCatchPersonalState();
       }
       return result || { ok: false, reason: "invalid_response" };
@@ -5115,7 +5124,14 @@
     if ($("catch-frame-picker-level")) $("catch-frame-picker-level").textContent = "현재 LV " + level;
     var box = $("catch-frame-picker-grid");
     if (!box) return;
-    box.innerHTML = frames.map(function (reward) {
+    var defaultSelected = !catchSelectedBoardFrameId;
+    var defaultCard = '<button class="catch-frame-card catch-frame-default ' + (defaultSelected ? "selected" : "") + '"'
+      + ' type="button" data-catch-frame-id="" aria-pressed="' + (defaultSelected ? "true" : "false") + '"'
+      + ' aria-label="기본 그림판, 테두리 없음, 선택 가능">'
+      + '<span class="catch-frame-preview" aria-hidden="true"></span>'
+      + '<span class="catch-frame-card-copy"><strong>기본</strong><small>' + (defaultSelected ? "선택됨" : "테두리 없음") + '</small></span>'
+      + '</button>';
+    box.innerHTML = defaultCard + frames.map(function (reward) {
       var unlocked = catchRewardUnlocked(reward);
       var selected = reward.id === catchSelectedBoardFrameId;
       var name = String(reward.name || "").replace(/\s*그림판 테두리$/, "");
@@ -5133,18 +5149,19 @@
   }
   function selectCatchBoardFrame(rewardId) {
     var reward = catchBoardFrameById(rewardId);
-    if (!reward || !catchRewardUnlocked(reward)) {
+    var isDefault = !rewardId;
+    if (!isDefault && (!reward || !catchRewardUnlocked(reward))) {
       toast("레벨 " + (reward ? reward.level : "") + "에 받을 수 있는 스킨이에요.");
       return;
     }
     var previousId = catchSelectedBoardFrameId;
-    applyCatchBoardFrame(reward.id);
-    storeCatchBoardFrame(reward.id);
+    applyCatchBoardFrame(isDefault ? "" : reward.id);
+    storeCatchBoardFrame(catchSelectedBoardFrameId);
     publishCatchBoardFrameSelection();
     renderCatchBoardFramePicker();
     renderCatchPersonalRewards();
     if (isCatchCosmeticsPreview()) {
-      toast(reward.name.replace(/\s*그림판 테두리$/, "") + " 적용 완료");
+      toast(isDefault ? "기본 그림판 적용 완료" : reward.name.replace(/\s*그림판 테두리$/, "") + " 적용 완료");
       return;
     }
     if (!window.Db || !Db.equipCatchmindReward || !sessionAuthHash) {
@@ -5154,13 +5171,13 @@
     Promise.resolve(Db.equipCatchmindReward({
       nick: me.nick,
       hash: sessionAuthHash
-    }, "board_frame", reward.id)).then(function (result) {
+    }, "board_frame", isDefault ? "" : reward.id)).then(function (result) {
       if (result && result.ok) {
         catchPersonalProfile = result;
         catchPersonalProfileNick = me.nick;
         renderCatchBoardFramePicker();
         renderCatchPersonalRewards();
-        toast("그림판 배경을 바꿨어요.");
+        toast(isDefault ? "기본 그림판으로 바꿨어요." : "그림판 배경을 바꿨어요.");
         return;
       }
       if (result && (result.reason === "locked_reward" || result.reason === "auth" || result.reason === "equip")) {

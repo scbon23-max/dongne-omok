@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260724-catchmind-levels-live-practice-frame-v2">
+<meta name="app-build" content="20260724-catchmind-default-board-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -372,7 +372,7 @@
       </div>
     </div>
     <canvas id="catch-board" width="720" height="720" aria-label="캐치마인드 그림판"></canvas>
-    <img id="catch-board-frame" class="catch-board-frame" src="assets/catchmind/board-frames/frame-color-pencil-v2.png" alt="" aria-hidden="true" draggable="false">
+    <img id="catch-board-frame" class="catch-board-frame hidden" alt="" aria-hidden="true" draggable="false">
     <div id="catch-reaction-layer" class="catch-reaction-layer" aria-hidden="true"></div>
     <div id="catch-chat-overlay" class="chat-overlay catch-chat-overlay"></div>
     <div id="catch-feed" class="catch-feed" aria-live="polite"></div>
@@ -951,7 +951,7 @@
       </div>
       <button id="catch-frame-picker-open" class="catch-frame-picker-open" type="button">
         <span aria-hidden="true">🎨</span>
-        <span><strong>그림판 배경 선택</strong><small>획득한 테두리 스킨을 바꿔요</small></span>
+        <span><strong>그림판 배경 선택</strong><small>기본 또는 획득한 테두리 스킨을 선택해요</small></span>
         <b aria-hidden="true">›</b>
       </button>
       <div class="catch-personal-list-head">
@@ -970,7 +970,7 @@
     <div class="modal-head">
       <div>
         <h2 id="catch-frame-picker-title">그림판 배경 선택</h2>
-        <p>흰 그림 영역은 그대로 두고 테두리만 바뀌어요.</p>
+        <p>기본은 테두리 없는 흰 그림판이에요.</p>
       </div>
       <button class="modal-close" type="button" data-close aria-label="그림판 배경 선택 닫기">✕</button>
     </div>

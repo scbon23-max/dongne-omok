@@ -553,7 +553,9 @@ test("CatchMind exposes a self-only reward menu and board-frame picker", () => {
   }
 
   assert.match(index, /이 화면은 내 메뉴에서만 보여요/);
-  assert.match(index, /흰 그림 영역은 그대로 두고 테두리만 바뀌어요/);
+  assert.match(index, /기본은 테두리 없는 흰 그림판이에요/);
+  assert.match(index, /id="catch-board-frame" class="catch-board-frame hidden" alt=""/);
+  assert.doesNotMatch(index, /id="catch-board-frame"[^>]+src=/);
   assert.match(catchmind, /nick === me\(\)\.nick/);
   assert.match(catchmind, /data-catch-personal-card="true"/);
   assert.match(catchmind, /api && api\.openBoardFramePicker/);
@@ -583,6 +585,11 @@ test("CatchMind exposes a self-only reward menu and board-frame picker", () => {
   assert.match(game, /catchLevel:\s*catchPersonalLevel\(\)/);
   assert.match(game, /getBoardFrameId:\s*function \(\) \{ return catchSelectedBoardFrameId; \}/);
   assert.match(game, /showBoardFrame:\s*showCatchBoardFrame/);
+  assert.match(game, /data-catch-frame-id="" aria-pressed=/);
+  assert.match(showFrame, /if \(!rewardId\)/);
+  assert.match(showFrame, /image\.classList\.add\("hidden"\)/);
+  assert.match(showFrame, /image\.removeAttribute\("src"\)/);
+  assert.doesNotMatch(showFrame, /frames\[0\]/);
   assert.match(game, /function showLobby\(\)[\s\S]*loadCatchPersonalProfile\(false\)/);
   assert.match(selectFrame, /publishCatchBoardFrameSelection\(\)/);
   assert.match(publishFrame, /Net\.track\(myMetaObj\(null\)\)/);
