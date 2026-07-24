@@ -707,13 +707,32 @@ button { cursor: pointer; }
 .nameplate.tier-master { --tier: #a92b4b; --tier-alt: #ef612f; --tier-soft: #f9e7eb; }
 .nameplate.tier-grand { --tier: #6944a3; --tier-alt: #c23d84; --tier-soft: #eee8f5; }
 .nameplate.tier-legend { --tier: #1b252d; --tier-alt: #b68217; --tier-soft: #fff3c6; }
-.nameplate.drawer { outline: 2px solid var(--orange); outline-offset: -1px; }
+.nameplate.milestone-start { --tier: #62757d; --tier-alt: #87979e; --tier-soft: #edf1f2; }
+.nameplate.milestone-10 { --tier: #198754; --tier-alt: #38a169; --tier-soft: #e6f4ea; }
+.nameplate.milestone-20 { --tier: #118a83; --tier-alt: #2db7aa; --tier-soft: #e0f5f2; }
+.nameplate.milestone-30 { --tier: #2578b8; --tier-alt: #51a5dd; --tier-soft: #e2eff8; }
+.nameplate.milestone-40 { --tier: #4f5fc5; --tier-alt: #7786e5; --tier-soft: #e8eaf9; }
+.nameplate.milestone-50 { --tier: #c67b0a; --tier-alt: #e5a11c; --tier-soft: #fbefd8; }
+.nameplate.milestone-60 { --tier: #d85622; --tier-alt: #ed8a2f; --tier-soft: #fbe9df; }
+.nameplate.milestone-70 { --tier: #c84455; --tier-alt: #ed6a72; --tier-soft: #f8e4e7; }
+.nameplate.milestone-80 { --tier: #a83b78; --tier-alt: #d45b9b; --tier-soft: #f6e4ef; }
+.nameplate.milestone-90 { --tier: #7045ad; --tier-alt: #a660ca; --tier-soft: #eee6f7; }
+.nameplate.milestone-100 { --tier: #27323a; --tier-alt: #b78521; --tier-soft: #fff1bf; }
+.nameplate.drawer { border-color: var(--tier); outline: 2px solid var(--tier-soft); outline-offset: 1px; }
 .nameplate .correct-mark {
-  flex: 0 0 auto;
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+  display: inline-grid;
+  place-items: center;
   margin-left: 4px;
-  color: var(--teal-dark);
+  border-radius: 50%;
+  background: #178c73;
+  color: #fff;
   font-size: 10px;
+  line-height: 1;
   font-weight: 1000;
+  box-shadow: 0 0 0 1px #fff, 0 0 0 2px rgba(23,140,115,.28);
 }
 .nameplate.spectator { opacity: .45; filter: grayscale(.25); }
 .nameplate .crown { flex: 0 0 auto; margin-left: 3px; font-size: 10px; }
@@ -788,11 +807,9 @@ button { cursor: pointer; }
   line-height: 1.05;
   font-weight: 1000;
 }
-.nameplate.style-a.drawer .plate-name {
-  background: var(--orange);
-  color: #fff;
-}
-.nameplate.style-a.drawer .plate-name .correct-mark { color: #fff; }
+.nameplate.style-a.drawer .plate-name,
+.nameplate.style-a.drawer .plate-level { background-color: var(--tier); color: #fff; }
+.nameplate.style-a.drawer .plate-level { box-shadow: inset 0 1px 0 rgba(255,255,255,.28); }
 .nameplate.style-a.milestone-40 { --motion-speed: 3.3s; }
 .nameplate.style-a.milestone-50 { --motion-speed: 3s; }
 .nameplate.style-a.milestone-60 { --motion-speed: 2.8s; }
@@ -838,6 +855,9 @@ button { cursor: pointer; }
   background: #fffdf5;
   box-shadow: inset 0 0 0 2px #f5e8bb, 0 0 0 1px rgba(196,154,54,.3), 0 3px 10px rgba(181,129,20,.22);
 }
+.nameplate.style-a.drawer.effect-color .plate-name {
+  animation: level-rail-color var(--motion-speed) ease-in-out infinite;
+}
 @keyframes level-rail-color {
   0%, 100% { background-color: var(--tier); }
   52% { background-color: var(--tier-alt); }
@@ -852,7 +872,7 @@ button { cursor: pointer; }
   50% { opacity: .24; }
 }
 .plate-list-row .nameplate.style-a .plate-name { padding-right: 3px; padding-left: 3px; font-size: 9.5px; }
-.plate-list-row .nameplate.style-a .correct-mark { margin-left: 2px; font-size: 8px; }
+.plate-list-row .nameplate.style-a .correct-mark { margin-left: 3px; font-size: 9px; }
 .plate-list-row .nameplate.style-a .crown { margin-left: 2px; font-size: 8px; }
 .nameplate.style-b {
   min-width: 104px;
@@ -1231,7 +1251,7 @@ button { cursor: pointer; }
 
   <section id="view-plates" class="view">
     <div class="section-head">
-      <h2>A+ · 10레벨 성장안</h2>
+          <h2>A+ · 1~100 성장안</h2>
       <p>10레벨마다 시각 효과가 하나씩 누적되어, 100레벨에서 가장 화려해집니다.</p>
     </div>
     <div class="plate-demo">
@@ -1414,8 +1434,9 @@ button { cursor: pointer; }
     { nick: "유진", level: 100, skin: "night" },
     { nick: "수빈", level: 25, spectator: true, skin: "sky" }
   ];
-  var growthLevels = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+  var growthLevels = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
   var growthLabels = {
+    1: "1~9 스케치",
     10: "기본",
     20: "입체",
     30: "광택",
@@ -1449,7 +1470,7 @@ button { cursor: pointer; }
   }
   function plateHtml(person, style) {
     var tier = Levels.tierForLevel(person.level);
-    var milestone = Math.min(100, Math.max(10, Math.floor(person.level / 10) * 10));
+    var milestone = person.level < 10 ? "start" : Math.min(100, Math.floor(person.level / 10) * 10);
     var classes = ["nameplate", "style-" + style, "tier-" + tier.id, "skin-" + (person.skin || "paper")];
     classes.push("milestone-" + milestone);
     if (person.level >= 20) classes.push("effect-depth");

@@ -207,8 +207,20 @@ test("CatchMind exposes every live UI state only through the authenticated admin
 });
 
 test("CatchMind A+ nameplates add one visible milestone effect every ten levels", () => {
-  assert.match(catchmindLevelMockup, /A\+ · 10레벨 성장안/);
-  assert.match(catchmindLevelMockup, /var growthLevels = \[10, 20, 30, 40, 50, 60, 70, 80, 90, 100\]/);
+  assert.match(catchmindLevelMockup, /A\+ · 1~100 성장안/);
+  assert.match(catchmindLevelMockup, /var growthLevels = \[1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100\]/);
+  const starterColor = styles.match(/milestone-start \{ --level-tier: (#[0-9a-f]{6})/i);
+  assert.ok(starterColor, "missing level 1~9 nameplate color");
+  const milestoneColors = [starterColor[1].toLowerCase()];
+  for (let level = 10; level <= 100; level += 10) {
+    const match = styles.match(new RegExp(`milestone-${level} \\{ --level-tier: (#[0-9a-f]{6})`, "i"));
+    assert.ok(match, `missing level ${level} nameplate color`);
+    milestoneColors.push(match[1].toLowerCase());
+  }
+  assert.equal(new Set(milestoneColors).size, 11);
+  assert.match(styles, /\.cm-level-correct \{[^}]*width: 15px;[^}]*border-radius: 50%;[^}]*background: #178c73;/);
+  assert.match(styles, /span\.drawer \.cm-level-name-row,\s*\.catch-score-strip\.level-preview > span\.drawer \.cm-level-line \{ background-color: var\(--level-tier\); color: #fff; \}/);
+  assert.match(catchmindLevelMockup, /\.nameplate\.style-a\.drawer \.plate-name,\s*\.nameplate\.style-a\.drawer \.plate-level \{ background-color: var\(--tier\); color: #fff; \}/);
   for (const state of ["방장", "정답", "그리는 중", "관전"]) {
     assert.match(catchmindLevelMockup, new RegExp("<span>" + state + "<\\/span>"));
   }
