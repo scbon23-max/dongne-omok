@@ -666,7 +666,7 @@ button { cursor: pointer; }
 .plate-state-head span:first-child { text-align: left; }
 .plate-list { padding: 0 12px 12px; }
 .plate-list-row {
-  min-height: 58px;
+  min-height: 52px;
   padding: 4px 0;
   border-bottom: 1px solid #e4e0d9;
 }
@@ -743,9 +743,9 @@ button { cursor: pointer; }
 .nameplate.style-a {
   --motion-speed: 3.6s;
   min-width: 56px;
-  min-height: 50px;
+  min-height: 44px;
   display: inline-grid;
-  grid-template-rows: 31px 17px;
+  grid-template-rows: 27px 15px;
   align-content: stretch;
   overflow: hidden;
   border: 1px solid #c6d2d6;
@@ -781,8 +781,8 @@ button { cursor: pointer; }
 .nameplate.style-a .plate-name {
   grid-row: 1;
   justify-content: center;
-  padding: 6px 6px 5px;
-  font-size: 11px;
+  padding: 4px 5px 3px;
+  font-size: 10.5px;
   line-height: 1.05;
   font-weight: 1000;
 }
@@ -804,26 +804,15 @@ button { cursor: pointer; }
 .nameplate.style-a.effect-rain .plate-level::after {
   animation: level-rail-glint var(--motion-speed) ease-in-out infinite;
 }
-.nameplate.style-a.effect-corners::before {
-  content: "";
-  position: absolute;
-  z-index: 3;
-  top: 4px;
-  right: 5px;
-  width: 4px;
-  height: 4px;
-  border: 1px solid var(--tier);
-  transform: rotate(45deg);
-}
+.nameplate.style-a.effect-corners .plate-level { box-shadow: inset 0 1px 0 rgba(255,255,255,.62); }
 .nameplate.style-a.effect-color .plate-level {
   animation: level-rail-color var(--motion-speed) ease-in-out infinite;
 }
 .nameplate.style-a.effect-aura {
-  border-color: var(--tier);
-  box-shadow: inset 0 0 0 1px var(--tier-soft), 0 0 7px var(--tier-soft), 0 3px 7px rgba(14,42,58,.13);
+  box-shadow: inset 0 0 0 1px var(--tier-soft), 0 2px 6px rgba(14,42,58,.14);
 }
 .nameplate.style-a.effect-double {
-  box-shadow: inset 0 0 0 2px var(--tier-soft), 0 0 0 1px var(--tier), 0 3px 8px rgba(14,42,58,.15);
+  box-shadow: inset 0 0 0 2px var(--tier-soft), 0 3px 7px rgba(14,42,58,.15);
 }
 .nameplate.style-a.effect-pulse::after {
   content: "";
@@ -837,22 +826,15 @@ button { cursor: pointer; }
   animation: level-frame-pulse var(--motion-speed) ease-in-out infinite;
 }
 .nameplate.style-a.effect-gem::before {
-  top: 3px;
-  right: 4px;
-  width: 5px;
-  height: 5px;
-  border-color: var(--tier);
-  background: var(--tier-soft);
-  box-shadow: -5px 5px 0 -2px var(--tier);
+  content: none;
+}
+.nameplate.style-a.effect-gem {
+  box-shadow: inset 0 0 0 2px var(--tier-soft), 0 0 6px var(--tier-soft), 0 3px 8px rgba(14,42,58,.16);
 }
 .nameplate.style-a.effect-legend {
   border-color: #c49a36;
   background: #fffdf5;
   box-shadow: inset 0 0 0 2px #f5e8bb, 0 0 0 1px rgba(196,154,54,.3), 0 3px 10px rgba(181,129,20,.22);
-}
-.nameplate.style-a.effect-legend::before {
-  background: #d5ad45;
-  box-shadow: -5px 5px 0 -2px #d5ad45;
 }
 @keyframes level-rail-color {
   0%, 100% { background-color: var(--tier); }
@@ -864,8 +846,8 @@ button { cursor: pointer; }
   58%, 100% { left: calc(100% + 12px); opacity: 0; }
 }
 @keyframes level-frame-pulse {
-  0%, 100% { opacity: .08; }
-  50% { opacity: .48; }
+  0%, 100% { opacity: .04; }
+  50% { opacity: .24; }
 }
 .plate-list-row .nameplate.style-a .plate-name { padding-right: 3px; padding-left: 3px; font-size: 9.5px; }
 .plate-list-row .nameplate.style-a .correct-mark { margin-left: 2px; font-size: 8px; }
@@ -1433,14 +1415,14 @@ button { cursor: pointer; }
   var growthLevels = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
   var growthLabels = {
     10: "기본",
-    20: "깊이",
-    30: "빗줄",
-    40: "모서리",
+    20: "입체",
+    30: "광택",
+    40: "레이어",
     50: "컬러",
     60: "광휘",
     70: "이중",
     80: "맥동",
-    90: "보석",
+    90: "프리즘",
     100: "레전드"
   };
 
