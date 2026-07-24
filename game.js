@@ -1284,6 +1284,7 @@
     $("catch-preview-prev").addEventListener("click", function () { stepCatchPreview(-1); });
     $("catch-preview-next").addEventListener("click", function () { stepCatchPreview(1); });
     $("catch-preview-phase").addEventListener("change", function () { showCatchPreviewPhase(this.value, true); });
+    $("catch-preview-skins").addEventListener("click", openCatchBoardFramePicker);
     $("catch-preview-exit").addEventListener("click", exitCatchPreview);
     var viewportButtons = document.querySelectorAll("[data-catch-preview-viewport]");
     for (var i = 0; i < viewportButtons.length; i++) viewportButtons[i].addEventListener("click", function () {

@@ -183,11 +183,13 @@ test("CatchMind exposes every live UI state only through the authenticated admin
   assert.match(index, /id="catch-preview-menu-btn" class="menu-item admin-only"/);
   assert.match(index, /data-catch-preview-viewport="desktop"/);
   assert.match(index, /data-catch-preview-viewport="mobile"/);
+  assert.match(index, /id="catch-preview-skins"[^>]*>배경 18종<\/button>/);
   assert.match(game, /var catchPreviewPhases = \[[\s\S]*"reveal-success"[\s\S]*"result"/);
   assert.match(game, /params\.has\("catch-preview"\)/);
   assert.match(game, /if \(!phase \|\| !isGunaAdmin\(\) \|\| !window\.CatchMind \|\| !CatchMind\.enterPreview/);
   assert.match(game, /if \(startCatchmindUiPreview\(\) \|\| startRelayUiPreview\(\)\)/);
   assert.match(game, /CatchMind\.enterPreview\(previewApi, phase\)/);
+  assert.match(game, /\$\("catch-preview-skins"\)\.addEventListener\("click", openCatchBoardFramePicker\)/);
   const previewBlock = game.slice(
     game.indexOf("function startCatchmindUiPreview"),
     game.indexOf("var relayPreviewPhases")
@@ -553,6 +555,7 @@ test("CatchMind exposes a self-only reward menu and board-frame picker", () => {
   assert.match(game, /openBoardFramePicker:\s*openCatchBoardFramePicker/);
   assert.match(game, /function openCatchPersonalRewards\(\)/);
   assert.match(game, /function openCatchBoardFramePicker\(\)/);
+  assert.match(game, /function catchPersonalLevel\(\)\s*\{\s*if \(isCatchCosmeticsPreview\(\)\) return 100;/);
   assert.match(game, /CATCH_BOARD_FRAME_STORAGE_PREFIX = "catchmind_board_frame_v1:"/);
   assert.match(game, /Db\.equipCatchmindReward/);
   assert.match(styles, /\.catch-frame-picker-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(3/);
