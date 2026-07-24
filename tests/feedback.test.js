@@ -106,6 +106,7 @@ test("the lobby exposes feedback composition while the admin gets an expandable 
   assert.match(indexSource, /class="lobby-page-title">로비화면<\/h1>/);
   assert.doesNotMatch(indexSource, /오류·이상이 생기면/);
   assert.match(indexSource, /id="lobby-feedback-btn"/);
+  assert.match(indexSource, /class="lobby-feedback-icon" aria-hidden="true">💬<\/span>/);
   assert.match(indexSource, /id="lobby-feedback-label"/);
   assert.match(indexSource, /id="feedback-badge" class="feedback-badge admin-only hidden"/);
   assert.ok(indexSource.indexOf('id="lobby-feedback-btn"') > indexSource.indexOf('id="lobby-chat-input"'));
