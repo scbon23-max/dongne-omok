@@ -16,6 +16,10 @@ const boardFrameOnlyMigration = fs.readFileSync(
   path.join(root, "supabase", "migrations", "202607240003_catchmind_board_frame_rewards_only.sql"),
   "utf8"
 );
+const randomMvpTieMigration = fs.readFileSync(
+  path.join(root, "supabase", "migrations", "202607240004_randomize_catchmind_mvp_ties.sql"),
+  "utf8"
+);
 const edge = fs.readFileSync(
   path.join(root, "supabase", "functions", "catchmind-progression", "index.ts"),
   "utf8"
@@ -78,6 +82,27 @@ test("MVP voting excludes self, accepts one vote, and grants one fixed server bo
   assert.match(edge, /body\.action === "mvp_vote"/);
   assert.match(edge, /body\.action === "mvp_result"/);
   assert.match(edge, /nominee === nick/);
+});
+
+test("MVP vote ties select one random winner and persist the finalized result", () => {
+  assert.match(
+    randomMvpTieMigration,
+    /create or replace function public\.finalize_catchmind_mvp/i
+  );
+  assert.match(
+    randomMvpTieMigration,
+    /with vote_totals as\s*\([\s\S]*group by nominee_nickname[\s\S]*leaders as\s*\([\s\S]*where vote_count = \(select max\(vote_count\) from vote_totals\)[\s\S]*from leaders\s+order by random\(\)\s+limit 1/i
+  );
+  assert.doesNotMatch(randomMvpTieMigration, /md5\s*\(/i);
+  assert.match(randomMvpTieMigration, /pg_advisory_xact_lock/i);
+  assert.match(
+    randomMvpTieMigration,
+    /from public\.catchmind_mvp_results\s+where match_id = p_match_id[\s\S]*if found then/i
+  );
+  assert.match(
+    randomMvpTieMigration,
+    /insert into public\.catchmind_mvp_results\s*\([\s\S]*winner_nickname[\s\S]*\)\s*values\s*\(\s*p_match_id,\s*v_winner/i
+  );
 });
 
 test("reward equipment has category limits and the function is locally configured", () => {
