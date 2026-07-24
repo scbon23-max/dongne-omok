@@ -12,6 +12,7 @@ const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
 const net = fs.readFileSync(path.join(root, "net.js"), "utf8");
 const alkkagi = fs.readFileSync(path.join(root, "alkkagi.js"), "utf8");
 const catchmind = fs.readFileSync(path.join(root, "catchmind.js"), "utf8");
+const catchmindLevelMockup = fs.readFileSync(path.join(root, "catchmind-level-system-mockup.html"), "utf8");
 const relayDrawing = fs.readFileSync(path.join(root, "relay-drawing.js"), "utf8");
 const territoryRush = fs.readFileSync(path.join(root, "territory-rush.js"), "utf8");
 const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
@@ -38,6 +39,7 @@ test("the app shell versions every local runtime asset from one build", () => {
     "alkkagi.js",
     "game-catalog.js",
     "catchmind-words.js",
+    "catchmind-levels.js",
     "catchmind.js",
     "relay-drawing.js",
     "territory-rush.js",
@@ -87,12 +89,13 @@ test("the app shell loads local scripts sequentially with the same revision", ()
   assert.equal(styles[0].href, "styles.css?v=" + encodeURIComponent(version));
   assert.equal(scripts[0].src, "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2");
 
-  while (scripts.length < 17) scripts[scripts.length - 1].onload();
+  while (scripts.length < 18) scripts[scripts.length - 1].onload();
   assert.equal(scripts[1].src, "config.js?v=" + encodeURIComponent(version));
   assert.equal(scripts[5].src, "pro-hint-explain.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[14].src, "relay-drawing.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[15].src, "territory-rush.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[16].src, "game.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[13].src, "catchmind-levels.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[15].src, "relay-drawing.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[16].src, "territory-rush.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[17].src, "game.js?v=" + encodeURIComponent(version));
 });
 
 test("room entry is not blocked by an HTML and JavaScript build label mismatch", () => {
@@ -105,20 +108,21 @@ test("late-loaded game code still binds the interface", () => {
   assert.match(game, /if \(document\.readyState === "loading"\) document\.addEventListener\("DOMContentLoaded", bind\);\s*else bind\(\);/);
 });
 
-test("the CatchMind result dialog is wired to the shared season rating calculation", () => {
-  assert.match(index, /id="catch-result-backdrop"/);
-  assert.match(index, /id="catch-result-list"/);
-  assert.match(index, /id="catch-result-open-btn"/);
+test("CatchMind keeps its level flow while the retired ranking UI stays removed", () => {
+  assert.doesNotMatch(index, /id="catch-rank-btn"/);
+  assert.doesNotMatch(index, /id="catch-result-backdrop"/);
+  assert.doesNotMatch(index, /id="catch-result-open-btn"/);
   assert.match(index, /id="catch-ready-btn"/);
   assert.match(index, /id="catch-stage-marks"/);
   assert.match(index, /id="catch-lobby-roles"/);
   assert.match(index, /id="catch-round-highlights"/);
   assert.match(index, /id="catch-highlight-fast-value"/);
-  assert.match(game, /resultSummary: function \(matchId, results\)/);
-  assert.match(game, /function buildCatchmindResultSummary\(matchId, results\)/);
-  assert.match(game, /aggregateCatchmind\(priorGames\.concat\(virtualRows\)\)/);
-  assert.match(game, /if \(!isFinite\(score\)\) score = points/);
-  assert.match(game, /row\.points, row\.maxPoints, row\.correct, row\.drawCorrect, row\.score/);
+  assert.match(index, /id="catch-level-mvp-backdrop"/);
+  assert.match(index, /id="catch-level-xp-backdrop"/);
+  assert.match(index, /\{ src: "catchmind-levels\.js" \}/);
+  assert.doesNotMatch(catchmind, /api\.recordMatch|api\.resultSummary|syncResultPopup/);
+  assert.match(catchmind, /<h3>3\. 경험치와 레벨<\/h3>/);
+  assert.doesNotMatch(catchmind, /<h3>3\. 시즌 랭킹 점수<\/h3>/);
 });
 
 test("CatchMind ships the balanced looping match audio asset", () => {
@@ -168,19 +172,11 @@ test("CatchMind prevents iPad drawing gestures from selecting the page", () => {
   assert.match(styles, /#catch-board\s*\{[^}]*touch-action:\s*none;[^}]*-webkit-user-drag:\s*none;/);
 });
 
-test("CatchMind removes level progression and keeps mobile nickname labels unclipped", () => {
-  assert.doesNotMatch(index, /catchmind-levels\.js|id="catch-level-|id="menu-catch-rewards|id="catch-frame-picker/);
-  assert.doesNotMatch(game, /CatchMindLevels|openCatchPersonalRewards|openCatchBoardFramePicker/);
-  assert.doesNotMatch(catchmind, /levelPreviewClasses|syncLevelPreview|mvp-vote|xp-levelup/);
-  assert.doesNotMatch(styles, /\.catch-score-strip\.level-preview|\.cm-level-backdrop/);
-  assert.match(styles, /\.catch-score-strip > span \{[^}]*min-height: 36px;[^}]*padding: 6px 10px 5px;[^}]*line-height: 1\.35;/);
-  assert.match(styles, /\.catch-score-strip b \{[^}]*padding: 1px 0;[^}]*line-height: 1\.35;/);
-});
-
 test("CatchMind exposes every live UI state only through the authenticated admin preview", () => {
   for (const phase of [
     "waiting", "countdown", "drawing", "guessing", "solved", "paused",
-    "reveal-success", "reveal-timeout", "finished", "result"
+    "reveal-success", "reveal-timeout", "finished", "level-plates",
+    "mvp-vote", "xp-result", "xp-mvp", "xp-levelup"
   ]) {
     assert.match(index, new RegExp('<option value="' + phase + '">'));
   }
@@ -188,20 +184,77 @@ test("CatchMind exposes every live UI state only through the authenticated admin
   assert.match(index, /id="catch-preview-menu-btn" class="menu-item admin-only"/);
   assert.match(index, /data-catch-preview-viewport="desktop"/);
   assert.match(index, /data-catch-preview-viewport="mobile"/);
-  assert.match(game, /var catchPreviewPhases = \[[\s\S]*"reveal-success"[\s\S]*"result"/);
+  assert.match(index, /id="catch-preview-skins"[^>]*>배경 18종<\/button>/);
+  assert.match(game, /var catchPreviewPhases = \[[\s\S]*"reveal-success"[\s\S]*"level-plates"/);
+  assert.doesNotMatch(game.match(/var catchPreviewPhases = \[[\s\S]*?\];/)[0], /"result"/);
   assert.match(game, /params\.has\("catch-preview"\)/);
   assert.match(game, /if \(!phase \|\| !isGunaAdmin\(\) \|\| !window\.CatchMind \|\| !CatchMind\.enterPreview/);
   assert.match(game, /if \(startCatchmindUiPreview\(\) \|\| startRelayUiPreview\(\)\)/);
   assert.match(game, /CatchMind\.enterPreview\(previewApi, phase\)/);
+  assert.match(game, /\$\("catch-preview-skins"\)\.addEventListener\("click", openCatchBoardFramePicker\)/);
   const previewBlock = game.slice(
     game.indexOf("function startCatchmindUiPreview"),
     game.indexOf("var relayPreviewPhases")
   );
   assert.doesNotMatch(previewBlock, /Db\.saveCatchmindDrawing|Db\.toggleCatchmindFavorite/);
-  assert.match(previewBlock, /recordMatch:\s*function \(\) \{\s*return Promise\.resolve\(null\)/);
+  assert.doesNotMatch(previewBlock, /recordMatch|resultSummary|scoresChanged/);
   assert.match(catchmind, /enterPreview:\s*enterPreview/);
   assert.match(catchmind, /setPreviewPhase:\s*setPreviewPhase/);
   assert.match(styles, /body\.catch-preview-mobile #catchgame/);
+  assert.match(index, /id="catch-level-mvp-backdrop"/);
+  assert.match(index, /id="catch-level-xp-backdrop"/);
+  assert.match(catchmind, /function syncLevelPreview/);
+  assert.match(styles, /\.catch-score-strip\.level-preview/);
+  assert.match(catchmind, /class="cm-level-line"><strong><small>LV<\/small>/);
+  assert.doesNotMatch(catchmind, /class="cm-level-line"[\s\S]{0,120}tier\.label/);
+  assert.match(styles, /@keyframes cm-level-rail-glint/);
+});
+
+test("CatchMind A+ nameplates add one visible milestone effect every ten levels", () => {
+  assert.match(catchmindLevelMockup, /A\+ · 1~100 성장안/);
+  assert.match(catchmindLevelMockup, /var growthLevels = \[1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100\]/);
+  const starterColor = styles.match(/milestone-start \{ --level-tier: (#[0-9a-f]{6})/i);
+  assert.ok(starterColor, "missing level 1~9 nameplate color");
+  const milestoneColors = [starterColor[1].toLowerCase()];
+  for (let level = 10; level <= 100; level += 10) {
+    const match = styles.match(new RegExp(`milestone-${level} \\{ --level-tier: (#[0-9a-f]{6})`, "i"));
+    assert.ok(match, `missing level ${level} nameplate color`);
+    milestoneColors.push(match[1].toLowerCase());
+  }
+  assert.equal(new Set(milestoneColors).size, 11);
+  assert.match(styles, /\.cm-level-correct \{[^}]*width: 13px;[^}]*border-radius: 50%;[^}]*background: #178c73;[^}]*box-shadow: none;/);
+  assert.match(styles, /\.cm-level-correct::before \{[^}]*content: "\\2714\\FE0E";[^}]*color: #fff;[^}]*-webkit-text-fill-color: #fff;[^}]*font-weight: 900;/);
+  assert.match(styles, /span\.drawer \.cm-level-name-row,\s*\.catch-score-strip\.level-preview > span\.drawer \.cm-level-line \{ background-color: var\(--level-tier\); color: #fff; \}/);
+  assert.match(styles, /span\.drawer \.cm-level-line \{ border-top: 1px solid rgba\(0,0,0,.12\); box-shadow: none; \}/);
+  assert.match(styles, /span\.drawer\.effect-color \.cm-level-name-row,\s*\.catch-score-strip\.level-preview > span\.drawer\.effect-color \.cm-level-line \{ animation: none; background-color: var\(--level-tier\); \}/);
+  assert.match(catchmindLevelMockup, /\.nameplate\.style-a\.drawer \.plate-name,\s*\.nameplate\.style-a\.drawer \.plate-level \{ background-color: var\(--tier\); color: #fff; \}/);
+  for (const state of ["방장", "정답", "그리는 중", "관전"]) {
+    assert.match(catchmindLevelMockup, new RegExp("<span>" + state + "<\\/span>"));
+  }
+  for (const effect of ["depth", "rain", "corners", "color", "aura", "double", "pulse", "gem", "legend"]) {
+    assert.match(catchmindLevelMockup, new RegExp('classes\\.push\\("effect-' + effect + '"\\)'));
+    assert.match(catchmind, new RegExp('classes\\.push\\("effect-' + effect + '"\\)'));
+  }
+  assert.match(catchmindLevelMockup, /plate-level-num/);
+  assert.match(catchmindLevelMockup, /justify-content: center/);
+  assert.match(catchmindLevelMockup, /@keyframes level-rail-glint/);
+  assert.match(catchmindLevelMockup, /prefers-reduced-motion: reduce/);
+});
+
+test("CatchMind level results stay readable and scroll on short mobile screens", () => {
+  assert.match(index, /class="cm-xp-scroll"/);
+  assert.match(styles, /\.cm-xp-dialog \{[^}]*grid-template-rows: auto minmax\(0, 1fr\) auto;/);
+  assert.match(styles, /\.cm-xp-scroll \{[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain;/);
+  assert.match(styles, /\.cm-xp-head h2 \{[^}]*font-size: 23px;/);
+  assert.match(styles, /\.cm-xp-reason strong \{[^}]*font-size: 13px;/);
+  assert.match(styles, /\.cm-xp-reason small \{[^}]*font-size: 11px;[^}]*white-space: normal;/);
+  assert.match(styles, /\.cm-mvp-candidates \{[^}]*overflow-y: auto;/);
+  assert.match(styles, /\.cm-mvp-plate-wrap > span \{[^}]*width: 100%;[^}]*max-width: none;/);
+  assert.match(catchmind, /catch-score-strip level-preview cm-mvp-plate-wrap/);
+  assert.match(catchmind, /function levelPreviewClasses\(level\)/);
+  assert.match(catchmindLevelMockup, /plateHtml\(\{ nick: person\.nick, level: person\.level, skin: person\.skin \}, "a"\)/);
+  assert.match(styles, /\.catch-score-strip\.level-preview > span \{[^}]*min-height: 52px;[^}]*grid-template-rows: 33px 17px;/);
+  assert.match(styles, /\.cm-level-name-row b \{[^}]*padding-top: 1px;[^}]*line-height: 1.3;/);
 });
 
 test("room host election skips members who switched to spectating", () => {
@@ -484,4 +537,37 @@ test("room presence heals duplicate connections and active ghost speakers", () =
   assert.match(game, /function noteActiveRoomSpeaker\(nick\)/);
   assert.match(game, /noteActiveRoomSpeaker\(msg\.nick\);\s*addChatTo/);
   assert.match(game, /inferredFromActivity: true/);
+});
+
+test("CatchMind exposes a self-only reward menu and board-frame picker", () => {
+  for (const id of [
+    "menu-catch-rewards-btn",
+    "menu-catch-rewards",
+    "catch-personal-reward-list",
+    "catch-frame-picker-open",
+    "catch-frame-picker-modal",
+    "catch-frame-picker-grid"
+  ]) {
+    assert.match(index, new RegExp('id="' + id + '"'));
+  }
+
+  assert.match(index, /이 화면은 내 메뉴에서만 보여요/);
+  assert.match(index, /흰 그림 영역은 그대로 두고 테두리만 바뀌어요/);
+  assert.match(catchmind, /nick === me\(\)\.nick/);
+  assert.match(catchmind, /data-catch-personal-card="true"/);
+  assert.match(catchmind, /api && api\.openBoardFramePicker/);
+  assert.match(game, /openBoardFramePicker:\s*openCatchBoardFramePicker/);
+  assert.match(game, /function openCatchPersonalRewards\(\)/);
+  assert.match(game, /function openCatchBoardFramePicker\(\)/);
+  assert.match(game, /function catchPersonalLevel\(\)\s*\{\s*if \(isCatchCosmeticsPreview\(\)\) return 100;/);
+  assert.match(game, /CATCH_BOARD_FRAME_STORAGE_PREFIX = "catchmind_board_frame_v1:"/);
+  assert.match(game, /Db\.equipCatchmindReward/);
+  assert.match(styles, /\.catch-frame-picker-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(3/);
+  assert.match(styles, /\.catch-score-strip > span\.catch-personal-card/);
+
+  const selectFrame = game.slice(
+    game.indexOf("function selectCatchBoardFrame"),
+    game.indexOf("function openCatchBoardFramePicker")
+  );
+  assert.doesNotMatch(selectFrame, /Net\.(send|track)/);
 });

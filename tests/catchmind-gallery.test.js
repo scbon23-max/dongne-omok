@@ -16,7 +16,8 @@ const edgeFunction = fs.readFileSync(path.join(root, "supabase", "functions", "c
 
 test("the main lobby opens CatchMind gallery before ranking", () => {
   assert.match(index, /id="lobby-catch-gallery-btn"[\s\S]*?id="lobby-rank-btn"[\s\S]*?id="lobby-menu-btn"/);
-  assert.match(index, /id="catch-rank-btn"[\s\S]*?id="catch-gallery-btn"[\s\S]*?id="catch-role-btn"/);
+  assert.match(index, /id="catch-gallery-btn"[\s\S]*?id="catch-role-btn"/);
+  assert.doesNotMatch(index, /id="catch-rank-btn"/);
   assert.match(game, /lobby-catch-gallery-btn[\s\S]{0,300}CatchMind\.openGallery\(controllerApi\(\)\)/);
   assert.match(catchmind, /openGallery:\s*openGallery/);
   assert.match(catchmind, /function openGallery\(nextApi\)[\s\S]{0,120}bindGallery\(\)/);

@@ -54,7 +54,6 @@ window.CatchMind = (function () {
   var FINISH_SFX_VOLUME = 0.38;
   var RECORD_STATUSES = ["idle", "pending", "saved", "failed", "skipped"];
   var REVEAL_OUTCOMES = ["all-correct", "timeout", "skipped"];
-  var SAVE_RETRY_DELAYS = [1000, 3000, 7000];
   var FALLBACK_WORDS = [
     "가방", "가위", "강아지", "거북이", "고양이", "공룡", "기차", "나무", "냉장고", "눈사람",
     "다리미", "달팽이", "도넛", "딸기", "라면", "로봇", "마이크", "모자", "문어", "바나나",
@@ -88,6 +87,8 @@ window.CatchMind = (function () {
   var reactionScope = "";
   var previewMode = false;
   var previewPhaseKey = "";
+  var previewMvpSelection = "";
+  var previewDismissedOverlay = "";
   var bgmEl = null;
   var bgmPlayPending = false;
   var startSfxEl = null;
@@ -102,17 +103,10 @@ window.CatchMind = (function () {
   var pendingStrokeTimer = null;
   var strokeSentCount = 0;
   var canvasLimitNotified = false;
-  var saveTimer = null;
-  var pendingSave = null;
   var guessTimes = Object.create(null);
   var stateHost = null;
   var lastSyncRequestAt = 0;
   var lastCanvasRequestAt = 0;
-  var resultInfo = null;
-  var resultInfoMatchId = null;
-  var resultLoadMatchId = null;
-  var resultLoadToken = 0;
-  var resultPopupShownMatchId = null;
   var lastChatViewScope = "";
   var galleryMode = "recent";
   var galleryDrawer = "";
@@ -162,7 +156,8 @@ window.CatchMind = (function () {
     value = String(value || "").toLowerCase();
     return [
       "waiting", "countdown", "drawing", "guessing", "solved", "paused",
-      "reveal-success", "reveal-timeout", "finished", "result"
+      "reveal-success", "reveal-timeout", "finished", "level-plates",
+      "mvp-vote", "xp-result", "xp-mvp", "xp-levelup"
     ].indexOf(value) >= 0 ? value : "waiting";
   }
 
@@ -206,7 +201,7 @@ window.CatchMind = (function () {
     var next = freshState();
     next.rev = state.rev + 1;
     next.matchId = "catchmind-ui-preview";
-    next.spectators = ["수빈"];
+    next.spectators = ["수빈", "소연"];
     next.ready = players.slice(1);
     next.recordStatus = "saved";
     next.feed = [
@@ -255,7 +250,7 @@ window.CatchMind = (function () {
         next.deadline = Date.now() + 4000;
         next.strokes = [];
         next.feed = [{ who: "", text: selfNick + "님이 그릴 차례예요", kind: "system", channel: "all" }];
-      } else if (key === "drawing" || key === "guessing" || key === "solved" || key === "paused") {
+      } else if (key === "drawing" || key === "guessing" || key === "solved" || key === "paused" || key === "level-plates") {
         next.phase = "drawing";
         next.deadline = Date.now() + 58000;
         if (key !== "drawing") next.correct["서준"] = true;
@@ -291,8 +286,9 @@ window.CatchMind = (function () {
     }
 
     previewPhaseKey = key;
+    previewMvpSelection = "";
+    previewDismissedOverlay = "";
     state = next;
-    resetResultPopup();
     render();
     return key;
   }
@@ -723,11 +719,6 @@ window.CatchMind = (function () {
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
-  function clearSaveRetry() {
-    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-    pendingSave = null;
-  }
-
   function resetMatchState(queue, matchId) {
     var currentRev = state.rev;
     var currentSpectators = (state.spectators || []).slice();
@@ -739,62 +730,11 @@ window.CatchMind = (function () {
     return state;
   }
 
-  function resultsFromState() {
-    return state.queue.map(function (nick) {
-      var s = state.stats[nick];
-      if (!s || !s.maxPoints) return null;
-      return {
-        nick: nick,
-        score: state.scores[nick] || 0,
-        points: s.points,
-        maxPoints: s.maxPoints,
-        correct: s.correct,
-        drawCorrect: s.drawCorrect
-      };
-    }).filter(Boolean);
-  }
-
-  function recordSaveFailed(matchId, results, attempt) {
-    if (!api || !api.isHost() || state.matchId !== matchId || state.phase !== "finished") return;
-    if (attempt < SAVE_RETRY_DELAYS.length) {
-      pendingSave = { matchId: matchId, results: results, attempt: attempt };
-      saveTimer = setTimeout(function () {
-        saveTimer = null;
-        persistResults(matchId, results, attempt + 1);
-      }, SAVE_RETRY_DELAYS[attempt]);
-      return;
-    }
-    pendingSave = null;
-    state.recordStatus = "failed";
-    commit();
-    api.toast("랭킹 기록 저장에 실패했어요");
-  }
-
-  function persistResults(matchId, results, attempt) {
-    if (!api || !api.isHost() || state.matchId !== matchId || state.phase !== "finished") return;
-    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-    pendingSave = { matchId: matchId, results: results, attempt: attempt };
-    var request;
-    try { request = api.recordMatch(matchId, results); }
-    catch (error) { recordSaveFailed(matchId, results, attempt); return; }
-    Promise.resolve(request).then(function (res) {
-      if (!pendingSave || pendingSave.matchId !== matchId || pendingSave.attempt !== attempt) return;
-      if (res && res.error) { recordSaveFailed(matchId, results, attempt); return; }
-      pendingSave = null;
-      if (api && api.isHost() && state.matchId === matchId && state.phase === "finished") {
-        state.recordStatus = "saved";
-        commit();
-      }
-      if (api) api.scoresChanged();
-    }).catch(function () { recordSaveFailed(matchId, results, attempt); });
-  }
-
   function hostStartMatch() {
     if (!api || !api.isHost() || !canChangeRole()) return;
     var queue = safeNickList(desiredParticipantNicks());
     if (queue.length < 2) { api.toast("참가자가 2명 이상이어야 시작할 수 있어요"); return; }
     if (!allParticipantsReady()) { api.toast("참가자 모두가 레디해야 시작할 수 있어요"); return; }
-    clearSaveRetry();
     resetMatchState(queue);
     state.queue.forEach(initStats);
     secretWord = null;
@@ -805,7 +745,6 @@ window.CatchMind = (function () {
   function startPractice() {
     if (!api) return;
     if (activePeople().length > 1) { api.toast("연습모드는 방에 혼자 있을 때만 쓸 수 있어요"); return; }
-    clearSaveRetry();
     state = freshState();
     state.phase = "practice";
     state.matchId = "practice-" + Date.now().toString(36);
@@ -1014,13 +953,11 @@ window.CatchMind = (function () {
     state.revealOutcome = null;
     secretWord = null;
 
-    var results = resultsFromState();
-    state.recordStatus = results.length >= 2 ? "pending" : "skipped";
-    addFeed("", "게임이 끝났어요. 최종 점수를 확인해 보세요", "system");
+    state.recordStatus = "skipped";
+    state.resultRatings = [];
+    addFeed("", "게임이 끝났어요. 이번 판 기록을 확인해 보세요", "system");
     playFinishSfx();
     commit();
-
-    if (state.recordStatus === "pending") persistResults(state.matchId, results, 0);
   }
 
   function allGuessersCorrect() {
@@ -1834,12 +1771,6 @@ window.CatchMind = (function () {
     } else if (isHost) {
       broadcastState();
     }
-    if (isHost && becameHost && state.phase === "finished" && state.recordStatus === "pending") {
-      persistResults(state.matchId, resultsFromState(), 0);
-    }
-    if (isHost && becameHost && state.phase === "finished" && (!state.resultRatings || !state.resultRatings.length)) {
-      resultLoadMatchId = null;
-    }
     if (isHost && (state.phase === "countdown" || state.phase === "drawing")
         && !state.pauseKind && has(activeNicks(), state.drawer)) {
       sendSecretToDrawer();
@@ -1931,218 +1862,8 @@ window.CatchMind = (function () {
       var text = highlights.totalCorrect
         ? "이번 게임에서 모두 " + highlights.totalCorrect + "개의 정답을 만들었어요"
         : "이번 게임에서는 정답이 나오지 않았어요";
-      if (state.recordStatus === "pending") text += " · 결과 저장 중";
-      else if (state.recordStatus === "saved") text += " · 시즌 기록 반영 완료";
-      else if (state.recordStatus === "failed") text += " · 기록 저장 실패";
       note.textContent = text;
     }
-  }
-
-  function formatResultNumber(value) {
-    return String(Math.round(Number(value) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  }
-
-  function fallbackResultInfo() {
-    return {
-      matchId: state.matchId,
-      players: scoreOrder().map(function (nick) {
-        var stats = state.stats[nick] || {};
-        var points = safeInteger(stats.points, 0, MAX_SCORE, state.scores[nick] || 0);
-        var maxPoints = safeInteger(stats.maxPoints, 0, MAX_SCORE, 0);
-        return {
-          nick: nick,
-          score: safeInteger(state.scores[nick], 0, MAX_SCORE, 0),
-          correct: safeInteger(stats.correct, 0, MAX_SCORE, 0),
-          drawCorrect: safeInteger(stats.drawCorrect, 0, MAX_SCORE, 0),
-          performance: maxPoints ? Math.min(100, Math.round(points / maxPoints * 100)) : 0,
-          ratingReady: false,
-          beforeRating: 0,
-          rating: 0,
-          delta: 0,
-          games: 0,
-          rankText: "",
-          rankMove: 0
-        };
-      })
-    };
-  }
-
-  function mergeResultInfo(raw) {
-    var fallback = fallbackResultInfo();
-    if (!raw || typeof raw !== "object" || String(raw.matchId || "") !== String(state.matchId || "")
-        || !Array.isArray(raw.players)) return fallback;
-    var computed = Object.create(null);
-    raw.players.forEach(function (player) {
-      if (!player || typeof player !== "object") return;
-      var nick = safeNick(player.nick);
-      if (!nick || !has(state.queue, nick) || computed[nick]) return;
-      var beforeRating = safeInteger(player.beforeRating, 0, MAX_SCORE, null);
-      var rating = safeInteger(player.rating, 0, MAX_SCORE, null);
-      if (beforeRating == null || rating == null) return;
-      computed[nick] = {
-        beforeRating: beforeRating,
-        rating: rating,
-        delta: safeInteger(player.delta, -MAX_SCORE, MAX_SCORE, rating - beforeRating),
-        games: safeInteger(player.games, 0, MAX_SCORE, 0),
-        rankText: safeText(player.rankText, 20),
-        rankMove: safeInteger(player.rankMove, -MAX_SCORE, MAX_SCORE, 0)
-      };
-    });
-    fallback.players.forEach(function (player) {
-      var row = computed[player.nick];
-      if (!row) return;
-      player.ratingReady = true;
-      player.beforeRating = row.beforeRating;
-      player.rating = row.rating;
-      player.delta = row.delta;
-      player.games = row.games;
-      player.rankText = row.rankText;
-      player.rankMove = row.rankMove;
-    });
-    return fallback;
-  }
-
-  function resultRatingHtml(player) {
-    if (state.recordStatus !== "saved" || !player.ratingReady) {
-      var label = "계산 중";
-      var cls = "";
-      if (state.recordStatus === "pending") label = "저장 중";
-      else if (state.recordStatus === "failed") { label = "저장 실패"; cls = " failed"; }
-      else if (state.recordStatus === "skipped") label = "미반영";
-      else if (state.recordStatus === "saved") label = "반영 완료";
-      return '<span class="cm-result-rating-state' + cls + '">' + label + '</span>';
-    }
-    var delta = player.delta || 0;
-    var deltaClass = delta > 0 ? "up" : delta < 0 ? "down" : "same";
-    var deltaText = (delta > 0 ? "+" : "") + delta;
-    var rankClass = player.rankMove > 0 ? "up" : player.rankMove < 0 ? "down" : "same";
-    var rankPrefix = player.rankMove > 0 ? "▲ " : player.rankMove < 0 ? "▼ " : "";
-    return '<div class="cm-result-rating-main"><span class="cm-result-before">'
-      + formatResultNumber(player.beforeRating) + ' →</span><strong>' + formatResultNumber(player.rating)
-      + '</strong><span class="cm-result-delta ' + deltaClass + '">' + deltaText + '</span></div>'
-      + (player.rankText ? '<span class="cm-result-rank ' + rankClass + '">' + rankPrefix + esc(player.rankText) + '</span>' : "");
-  }
-
-  function resultPlace(players, index) {
-    var score = safeInteger(players[index] && players[index].score, 0, MAX_SCORE, 0);
-    for (var i = 0; i < index; i++) {
-      if (safeInteger(players[i] && players[i].score, 0, MAX_SCORE, 0) === score) return i + 1;
-    }
-    return index + 1;
-  }
-
-  function renderResultPopup() {
-    var list = $("catch-result-list");
-    var meta = $("catch-result-meta");
-    var winnerName = $("catch-result-winner");
-    var winnerScore = $("catch-result-winner-score");
-    var winnerRate = $("catch-result-winner-rate");
-    if (!list || !meta || !winnerName || !winnerScore || !winnerRate) return;
-    var info = resultInfo && resultInfoMatchId === state.matchId ? resultInfo : fallbackResultInfo();
-    var players = info.players || [];
-    var winner = players[0] || null;
-    meta.textContent = "캐치마인드 · 참가자 " + players.length + "명";
-    winnerName.textContent = winner ? winner.nick : "-";
-    winnerScore.textContent = winner ? winner.score + "점" : "0점";
-    winnerRate.textContent = "활약도 " + (winner ? winner.performance : 0) + "%";
-    list.innerHTML = players.map(function (player, index) {
-      var mine = player.nick === me().nick;
-      return '<li class="cm-result-row' + (mine ? " me" : "") + '">'
-        + '<span class="cm-result-place">' + resultPlace(players, index) + '</span>'
-        + '<div class="cm-result-person"><div class="cm-result-person-name"><strong>' + esc(player.nick) + '</strong>'
-        + (mine ? '<span class="cm-result-me">나</span>' : "") + '</div>'
-        + '<span class="cm-result-match">' + player.score + '점 · 정답 ' + player.correct
-        + ' · 그림 성공 ' + player.drawCorrect + '</span></div>'
-        + '<div class="cm-result-rating">' + resultRatingHtml(player) + '</div></li>';
-    }).join("");
-  }
-
-  function setResultPopupOpen(open) {
-    var backdrop = $("catch-result-backdrop"); if (!backdrop) return;
-    backdrop.classList.toggle("hidden", !open);
-    if (backdrop.setAttribute) backdrop.setAttribute("aria-hidden", open ? "false" : "true");
-  }
-
-  function openResultPopup() {
-    if (state.phase !== "finished") return;
-    renderResultPopup();
-    resultPopupShownMatchId = state.matchId;
-    setResultPopupOpen(true);
-  }
-
-  function closeResultPopup() {
-    setResultPopupOpen(false);
-  }
-
-  function requestResultInfo() {
-    if (!api || !api.isHost() || !api.resultSummary || !state.matchId
-        || state.recordStatus === "skipped" || resultLoadMatchId === state.matchId) return;
-    var matchId = state.matchId;
-    var token = ++resultLoadToken;
-    resultLoadMatchId = matchId;
-    var request;
-    try { request = api.resultSummary(matchId, resultsFromState()); }
-    catch (error) { return; }
-    Promise.resolve(request).then(function (summary) {
-      if (!api || !api.isHost() || token !== resultLoadToken || state.phase !== "finished" || state.matchId !== matchId) return;
-      resultInfo = mergeResultInfo(summary);
-      resultInfoMatchId = matchId;
-      state.resultRatings = resultInfo.players.filter(function (player) {
-        return player.ratingReady;
-      }).map(function (player) {
-        return {
-          nick: player.nick,
-          beforeRating: player.beforeRating,
-          rating: player.rating,
-          delta: player.delta,
-          games: player.games,
-          rankText: player.rankText,
-          rankMove: player.rankMove
-        };
-      });
-      if (state.resultRatings.length) commit();
-      else renderResultPopup();
-    }).catch(function () {});
-  }
-
-  function syncResultPopup() {
-    if (!$("catch-result-backdrop")) return;
-    if (previewMode) {
-      if (state.phase !== "finished" || !state.matchId) {
-        setResultPopupOpen(false);
-        return;
-      }
-      resultInfo = mergeResultInfo({ matchId: state.matchId, players: state.resultRatings });
-      resultInfoMatchId = state.matchId;
-      renderResultPopup();
-      setResultPopupOpen(previewPhaseKey === "result");
-      return;
-    }
-    if (state.phase !== "finished" || !state.matchId) {
-      setResultPopupOpen(false);
-      return;
-    }
-    if (resultInfoMatchId !== state.matchId) {
-      resultInfoMatchId = state.matchId;
-      resultInfo = fallbackResultInfo();
-      resultLoadMatchId = null;
-    }
-    if (state.resultRatings && state.resultRatings.length) {
-      resultInfo = mergeResultInfo({ matchId: state.matchId, players: state.resultRatings });
-      resultInfoMatchId = state.matchId;
-    }
-    renderResultPopup();
-    if (resultPopupShownMatchId !== state.matchId) openResultPopup();
-    if (!state.resultRatings || !state.resultRatings.length) requestResultInfo();
-  }
-
-  function resetResultPopup() {
-    resultLoadToken++;
-    resultInfo = null;
-    resultInfoMatchId = null;
-    resultLoadMatchId = null;
-    resultPopupShownMatchId = null;
-    setResultPopupOpen(false);
   }
 
   function participantNicks() {
@@ -2178,15 +1899,36 @@ window.CatchMind = (function () {
     }
   }
 
+  function levelPreviewClasses(level) {
+    var normalized = Math.max(1, Math.min(100, Math.round(Number(level) || 1)));
+    var tier = window.CatchMindLevels && CatchMindLevels.tierForLevel
+      ? CatchMindLevels.tierForLevel(normalized)
+      : { id: "sketch" };
+    var milestone = normalized < 10 ? "start" : Math.min(100, Math.floor(normalized / 10) * 10);
+    var classes = ["tier-" + tier.id, "milestone-" + milestone];
+    if (normalized >= 20) classes.push("effect-depth");
+    if (normalized >= 30) classes.push("effect-rain");
+    if (normalized >= 40) classes.push("effect-corners");
+    if (normalized >= 50) classes.push("effect-color");
+    if (normalized >= 60) classes.push("effect-aura");
+    if (normalized >= 70) classes.push("effect-double");
+    if (normalized >= 80) classes.push("effect-pulse");
+    if (normalized >= 90) classes.push("effect-gem");
+    if (normalized >= 100) classes.push("effect-legend");
+    return { level: normalized, classes: classes };
+  }
+
   function renderScores() {
     var box = $("catch-score-strip"); if (!box) return;
     var shownPeople = orderedPeople();
     if (!shownPeople.length) {
       box.textContent = "";
       box.classList.add("hidden");
+      box.classList.remove("level-preview");
       return;
     }
     box.classList.remove("hidden");
+    box.classList.toggle("level-preview", previewMode);
     var shownNicks = shownPeople.map(function (person) { return person.nick; });
     var peopleByNick = Object.create(null);
     shownPeople.forEach(function (person) { peopleByNick[person.nick] = person; });
@@ -2197,7 +1939,8 @@ window.CatchMind = (function () {
     participantSource.forEach(function (nick) { participantSet[nick] = true; });
     var ordered = participantSource.filter(function (nick) { return has(shownNicks, nick); });
     shownPeople.forEach(function (person) { if (!has(ordered, person.nick)) ordered.push(person.nick); });
-    box.innerHTML = ordered.map(function (nick) {
+    var previewLevels = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+    box.innerHTML = ordered.map(function (nick, index) {
       var person = peopleByNick[nick] || {};
       var isAway = !!person.away;
       var isParticipant = canChangeRole()
@@ -2206,6 +1949,8 @@ window.CatchMind = (function () {
       var wasParticipant = !!participantSet[nick];
       var isCorrect = state.phase === "drawing" && !!state.correct[nick];
       var classes = [];
+      var mine = nick === me().nick;
+      if (mine) classes.push("mine", "catch-personal-card");
       if (nick === state.drawer) classes.push("drawer");
       if (isCorrect) classes.push("correct");
       if (!isParticipant) classes.push("spectator");
@@ -2222,8 +1967,21 @@ window.CatchMind = (function () {
       var roleAttrs = manageable
         ? ' role="button" tabindex="0" data-catch-role-nick="' + esc(nick) + '" aria-label="' + esc(nick) + '님 ' + (isParticipant ? '관전' : '참가') + '으로 전환" title="눌러서 ' + (isParticipant ? '관전' : '참가') + '으로 전환"'
         : "";
+      var personalAttrs = mine
+        ? ' role="button" tabindex="0" data-catch-personal-card="true" aria-label="내 그림판 스킨 선택" title="눌러서 내 그림판 스킨 선택"'
+        : "";
+      var interactionAttrs = personalAttrs || roleAttrs;
       if (manageable) classes.push("host-manageable");
-      return '<span class="' + classes.join(" ") + '"' + roleAttrs + '><b>' + esc(nick) + '</b>' + crown + awayBadge + badge + score + '</span>';
+      if (previewMode) {
+        var presentation = levelPreviewClasses(previewLevels[index % previewLevels.length]);
+        var level = presentation.level;
+        classes = classes.concat(presentation.classes);
+        var correctMark = isCorrect ? '<i class="cm-level-correct" aria-label="정답">✓</i>' : "";
+        return '<span class="' + classes.join(" ") + '"' + interactionAttrs + '>'
+          + '<span class="cm-level-name-row"><b>' + esc(nick) + '</b>' + correctMark + crown + awayBadge + '</span>'
+          + '<span class="cm-level-line"><strong><small>LV</small>' + level + '</strong></span></span>';
+      }
+      return '<span class="' + classes.join(" ") + '"' + interactionAttrs + '><b>' + esc(nick) + '</b>' + crown + awayBadge + badge + score + '</span>';
     }).join("");
   }
 
@@ -2302,7 +2060,6 @@ window.CatchMind = (function () {
     var stage = $("catch-stage"), kicker = $("catch-stage-kicker"), title = $("catch-stage-title"), sub = $("catch-stage-sub");
     var actions = $("catch-stage-actions"), start = $("catch-start-btn"), practice = $("catch-practice-btn");
     var readyButton = $("catch-ready-btn");
-    var resultOpen = $("catch-result-open-btn");
     var marks = $("catch-stage-marks"), hostReady = $("catch-host-ready"), hostReadyText = $("catch-host-ready-text");
     var highlights = $("catch-round-highlights"), finishNote = $("catch-finish-note");
     var countdownCopy = $("catch-countdown-copy"), countdownSteps = $("catch-countdown-steps");
@@ -2333,7 +2090,6 @@ window.CatchMind = (function () {
     if (hostReady) hostReady.classList.add("hidden");
     if (highlights) highlights.classList.toggle("hidden", !finished);
     if (finishNote) finishNote.classList.toggle("hidden", !finished);
-    if (resultOpen) resultOpen.classList.toggle("hidden", !finished);
     if (readyButton) readyButton.classList.add("hidden");
     if (!show) return;
     var participantNicks = desiredParticipantNicks();
@@ -2408,7 +2164,7 @@ window.CatchMind = (function () {
       renderMatchHighlights();
       start.textContent = "다시 시작";
       start.classList.toggle("hidden", !canStart);
-      start.disabled = state.recordStatus === "pending" || !everyoneReady;
+      start.disabled = !everyoneReady;
       practice.classList.toggle("hidden", !canPractice);
       practice.disabled = !canPractice;
     } else {
@@ -2437,8 +2193,7 @@ window.CatchMind = (function () {
       practice.disabled = !canPractice;
     }
     actions.classList.toggle("hidden", start.classList.contains("hidden") && practice.classList.contains("hidden")
-      && (!readyButton || readyButton.classList.contains("hidden"))
-      && (!resultOpen || resultOpen.classList.contains("hidden")));
+      && (!readyButton || readyButton.classList.contains("hidden")));
   }
 
   function renderControls() {
@@ -2489,6 +2244,144 @@ window.CatchMind = (function () {
     button.setAttribute("aria-label", spectating ? "다음 게임에 참가하기" : "다음 게임 관전하기");
   }
 
+  function setLevelPreviewBackdrop(id, visible) {
+    var backdrop = $(id);
+    if (!backdrop) return;
+    backdrop.classList.toggle("hidden", !visible);
+    backdrop.setAttribute("aria-hidden", visible ? "false" : "true");
+    if (!visible) backdrop.removeAttribute("data-preview-phase");
+  }
+
+  function hideLevelPreviewOverlays() {
+    setLevelPreviewBackdrop("catch-level-mvp-backdrop", false);
+    setLevelPreviewBackdrop("catch-level-xp-backdrop", false);
+  }
+
+  function renderMvpPreview() {
+    var backdrop = $("catch-level-mvp-backdrop");
+    var list = $("catch-level-mvp-candidates");
+    var choice = $("catch-level-mvp-choice");
+    var confirm = $("catch-level-mvp-confirm");
+    if (!backdrop || !list || !choice || !confirm) return;
+    var levels = [12, 31, 56, 81, 94, 100, 25];
+    var candidates = orderedPeople().filter(function (person) {
+      return person.nick !== me().nick && !has(state.spectators || [], person.nick);
+    });
+    list.innerHTML = candidates.map(function (person, index) {
+      var selected = person.nick === previewMvpSelection;
+      var presentation = levelPreviewClasses(person.level || levels[index % levels.length]);
+      return '<button class="cm-mvp-candidate' + (selected ? ' selected' : '') + '" type="button" data-catch-mvp-nick="'
+        + esc(person.nick) + '" aria-pressed="' + String(selected) + '" aria-label="' + esc(person.nick) + '님을 MVP로 선택">'
+        + '<span class="catch-score-strip level-preview cm-mvp-plate-wrap" aria-hidden="true"><span class="'
+        + presentation.classes.join(" ") + '"><span class="cm-level-name-row"><b>' + esc(person.nick)
+        + '</b></span><span class="cm-level-line"><strong><small>LV</small>' + presentation.level
+        + '</strong></span></span></span>'
+        + '<i class="cm-mvp-check">✓</i></button>';
+    }).join("");
+    choice.textContent = previewMvpSelection
+      ? previewMvpSelection + "님을 선택했어요"
+      : "아직 선택하지 않았어요";
+    confirm.textContent = "선택 완료";
+    confirm.disabled = !previewMvpSelection;
+    setLevelPreviewBackdrop("catch-level-xp-backdrop", false);
+    backdrop.setAttribute("data-preview-phase", previewPhaseKey);
+    setLevelPreviewBackdrop("catch-level-mvp-backdrop", true);
+  }
+
+  function levelXpRows(award) {
+    var times = award.metrics.answerTimesMs || [];
+    var values = award.metrics.answerXp || [];
+    var answerDetail = times.map(function (milliseconds, index) {
+      return Math.round(milliseconds / 1000) + "초 +" + values[index];
+    }).join(" · ");
+    var rows = [
+      ["게임 완료", "끝까지 플레이한 게임", award.breakdown.completion],
+      ["정답 속도 · " + times.length + "회", answerDetail || "이번 게임에서는 정답이 없었어요", award.breakdown.answers],
+      ["MVP 보너스", award.metrics.mvp ? "이번 게임 MVP로 선정됐어요" : "MVP 선정 시 15 XP", award.breakdown.mvp]
+    ];
+    return rows.map(function (row) {
+      return '<li' + (row[2] ? "" : ' class="empty"') + '><span class="cm-xp-reason"><strong>'
+        + row[0] + '</strong><small>' + row[1] + '</small></span><b class="cm-xp-value">+'
+        + row[2] + ' XP</b></li>';
+    }).join("");
+  }
+
+  function renderXpPreview() {
+    var Levels = window.CatchMindLevels;
+    var backdrop = $("catch-level-xp-backdrop");
+    if (!Levels || !backdrop) return;
+    var wonMvp = previewPhaseKey === "xp-mvp" || previewPhaseKey === "xp-levelup";
+    var award = Levels.matchXp({
+      eligibleRounds: 6,
+      answerTimesMs: [12000, 27000, 48000]
+    }, {
+      humanPlayers: 6,
+      completed: true
+    });
+    award = Levels.applyMvpBonus(award, wonMvp);
+    var beforeXp = previewPhaseKey === "xp-levelup"
+      ? Levels.totalXpForLevel(25) - 34
+      : Levels.totalXpForLevel(18) + Math.round(Levels.xpToNext(18) * .42);
+    var summary = Levels.progression(beforeXp, award.total);
+    var progress = summary.after;
+    $("catch-level-xp-level").textContent = progress.level;
+    $("catch-level-xp-name").textContent = me().nick || "구나";
+    $("catch-level-xp-tier").textContent = progress.tier.label + " 등급";
+    $("catch-level-xp-earned").textContent = "+" + summary.appliedXp + " XP";
+    $("catch-level-xp-current").textContent = progress.isMax
+      ? Levels.formatXp(Levels.MAX_TOTAL_XP) + " XP"
+      : Levels.formatXp(progress.currentXp) + " / " + Levels.formatXp(progress.neededXp) + " XP";
+    $("catch-level-xp-next").textContent = progress.isMax
+      ? "MAX LEVEL"
+      : "다음 레벨까지 " + Levels.formatXp(progress.neededXp - progress.currentXp) + " XP";
+    var meter = $("catch-level-xp-meter");
+    var fill = $("catch-level-xp-fill");
+    var ratio = Math.round(progress.ratio * 10000) / 100;
+    fill.style.width = ratio + "%";
+    meter.setAttribute("aria-valuenow", String(Math.round(progress.ratio * 100)));
+    meter.setAttribute("aria-valuemin", "0");
+    meter.setAttribute("aria-valuemax", "100");
+    $("catch-level-xp-breakdown").innerHTML = levelXpRows(award);
+    var levelup = previewPhaseKey === "xp-levelup";
+    var seal = $("catch-level-seal-stage");
+    var reward = $("catch-level-reward");
+    seal.classList.remove("celebrate");
+    reward.classList.toggle("hidden", !levelup);
+    if (levelup) {
+      var unlockedNames = summary.rewards.map(function (unlocked) { return unlocked.name; });
+      $("catch-level-reward-name").textContent = unlockedNames.length
+        ? unlockedNames.join(" · ")
+        : "레벨 " + progress.level + " 보상";
+      void seal.offsetWidth;
+      seal.classList.add("celebrate");
+    }
+    setLevelPreviewBackdrop("catch-level-mvp-backdrop", false);
+    backdrop.setAttribute("data-preview-phase", previewPhaseKey);
+    setLevelPreviewBackdrop("catch-level-xp-backdrop", true);
+  }
+
+  function syncLevelPreview() {
+    if (!previewMode || previewDismissedOverlay === previewPhaseKey) {
+      hideLevelPreviewOverlays();
+      return;
+    }
+    if (previewPhaseKey === "mvp-vote") {
+      var mvpBackdrop = $("catch-level-mvp-backdrop");
+      if (mvpBackdrop && mvpBackdrop.getAttribute("data-preview-phase") === previewPhaseKey
+          && !mvpBackdrop.classList.contains("hidden")) return;
+      renderMvpPreview();
+      return;
+    }
+    if (previewPhaseKey === "xp-result" || previewPhaseKey === "xp-mvp" || previewPhaseKey === "xp-levelup") {
+      var xpBackdrop = $("catch-level-xp-backdrop");
+      if (xpBackdrop && xpBackdrop.getAttribute("data-preview-phase") === previewPhaseKey
+          && !xpBackdrop.classList.contains("hidden")) return;
+      renderXpPreview();
+      return;
+    }
+    hideLevelPreviewOverlays();
+  }
+
   function render() {
     if (!api) return;
     syncAudio();
@@ -2502,7 +2395,7 @@ window.CatchMind = (function () {
     renderControls();
     renderRoleButton();
     renderChatOverlayPosition();
-    syncResultPopup();
+    syncLevelPreview();
     redraw();
   }
 
@@ -3175,12 +3068,23 @@ window.CatchMind = (function () {
     bindHorizontalDrag(scoreStrip);
     if (scoreStrip) {
       scoreStrip.addEventListener("click", function (event) {
+        var personalCard = event.target.closest("[data-catch-personal-card]");
+        if (personalCard && scoreStrip.contains(personalCard)) {
+          if (api && api.openBoardFramePicker) api.openBoardFramePicker();
+          return;
+        }
         var target = event.target.closest("[data-catch-role-nick]");
         if (!target || !scoreStrip.contains(target)) return;
         hostTogglePlayerRole(target.getAttribute("data-catch-role-nick"));
       });
       scoreStrip.addEventListener("keydown", function (event) {
         if (event.key !== "Enter" && event.key !== " ") return;
+        var personalCard = event.target.closest("[data-catch-personal-card]");
+        if (personalCard && scoreStrip.contains(personalCard)) {
+          event.preventDefault();
+          if (api && api.openBoardFramePicker) api.openBoardFramePicker();
+          return;
+        }
         var target = event.target.closest("[data-catch-role-nick]");
         if (!target || !scoreStrip.contains(target)) return;
         event.preventDefault();
@@ -3195,17 +3099,35 @@ window.CatchMind = (function () {
     $("catch-start-btn").addEventListener("click", hostStartMatch);
     $("catch-ready-btn").addEventListener("click", toggleReady);
     $("catch-practice-btn").addEventListener("click", startPractice);
-    var resultOpenButton = $("catch-result-open-btn");
-    var resultCloseButton = $("catch-result-close");
-    var resultConfirmButton = $("catch-result-confirm");
-    var resultRankButton = $("catch-result-rank");
-    if (resultOpenButton) resultOpenButton.addEventListener("click", openResultPopup);
-    if (resultCloseButton) resultCloseButton.addEventListener("click", closeResultPopup);
-    if (resultConfirmButton) resultConfirmButton.addEventListener("click", closeResultPopup);
-    if (resultRankButton) resultRankButton.addEventListener("click", function () {
-        closeResultPopup();
-        if (api) api.openRank();
-      });
+    var mvpCandidates = $("catch-level-mvp-candidates");
+    var mvpConfirm = $("catch-level-mvp-confirm");
+    if (mvpCandidates) mvpCandidates.addEventListener("click", function (event) {
+      var target = event.target.closest("[data-catch-mvp-nick]");
+      if (!target || !mvpCandidates.contains(target)) return;
+      previewMvpSelection = target.getAttribute("data-catch-mvp-nick") || "";
+      renderMvpPreview();
+    });
+    if (mvpConfirm) mvpConfirm.addEventListener("click", function () {
+      if (!previewMvpSelection) return;
+      $("catch-level-mvp-choice").textContent = previewMvpSelection + "님에게 투표했어요";
+      mvpConfirm.textContent = "투표 완료";
+      mvpConfirm.disabled = true;
+    });
+    function dismissLevelPreview() {
+      previewDismissedOverlay = previewPhaseKey;
+      hideLevelPreviewOverlays();
+    }
+    var xpClose = $("catch-level-xp-close");
+    var xpConfirm = $("catch-level-xp-confirm");
+    var xpReplay = $("catch-level-xp-replay");
+    if (xpClose) xpClose.addEventListener("click", dismissLevelPreview);
+    if (xpConfirm) xpConfirm.addEventListener("click", dismissLevelPreview);
+    if (xpReplay) xpReplay.addEventListener("click", function () {
+      previewDismissedOverlay = "";
+      var backdrop = $("catch-level-xp-backdrop");
+      if (backdrop) backdrop.removeAttribute("data-preview-phase");
+      renderXpPreview();
+    });
     $("catch-chat-input").addEventListener("keydown", function (event) {
       if (event.key === "Enter" && !event.isComposing) sendInput();
     });
@@ -3216,7 +3138,6 @@ window.CatchMind = (function () {
     $("catch-leave-btn").addEventListener("click", function () { if (api) api.leaveRoom(); });
     $("catch-role-btn").addEventListener("click", toggleRolePreference);
     $("catch-people-btn").addEventListener("click", function () { if (api) api.openPlayers(); });
-    $("catch-rank-btn").addEventListener("click", function () { if (api) api.openRank(); });
     bindGallery();
     $("catch-menu-btn").addEventListener("click", function () { if (api) api.openMenu(); });
 
@@ -3253,9 +3174,11 @@ window.CatchMind = (function () {
   }
 
   function enter(nextApi, asPreview) {
-    clearSaveRetry();
     previewMode = !!asPreview;
     previewPhaseKey = "";
+    previewMvpSelection = "";
+    previewDismissedOverlay = "";
+    hideLevelPreviewOverlays();
     api = nextApi;
     state = freshState();
     secretWord = null;
@@ -3270,7 +3193,6 @@ window.CatchMind = (function () {
     lastCanvasRequestAt = 0;
     lastChatViewScope = "";
     gallerySavedRounds = Object.create(null);
-    resetResultPopup();
     lastStartSfxMatchId = null;
     stopStartSfx(true);
     lastCountdownCue = "";
@@ -3301,14 +3223,12 @@ window.CatchMind = (function () {
     lastStartSfxMatchId = null;
     lastCountdownCue = "";
     stopCountdownSfx();
-    resetResultPopup();
     closeGallery();
     if (finishSfxEl) {
       try { finishSfxEl.pause(); finishSfxEl.currentTime = 0; } catch (e) {}
     }
     if (tickId) { clearInterval(tickId); tickId = null; }
     if (pendingStrokeTimer) { clearTimeout(pendingStrokeTimer); pendingStrokeTimer = null; }
-    clearSaveRetry();
     api = null;
     state = freshState();
     secretWord = null;
@@ -3323,6 +3243,9 @@ window.CatchMind = (function () {
     lastChatViewScope = "";
     previewMode = false;
     previewPhaseKey = "";
+    previewMvpSelection = "";
+    previewDismissedOverlay = "";
+    hideLevelPreviewOverlays();
   }
 
   function onReady() {
@@ -3388,7 +3311,7 @@ window.CatchMind = (function () {
         + '<p class="rule-intro">한 사람씩 제시어를 보고 그림을 그려요. 나머지 참가자는 그림을 보고 정답을 맞히며, <b>게임이 끝났을 때 경기 점수가 가장 높은 사람이 1등</b>입니다.</p>'
         + '<section class="cm-rule-section"><h3>1. 게임 진행</h3>'
         + '<ul class="cm-rule-list">'
-        + '<li>내 차례가 되면 준비 화면에서 <b>3초</b>를 센 뒤 그림을 시작해요.</li>'
+        + '<li>내 차례가 되면 준비 화면에서 <b>5초</b>를 센 뒤 그림을 시작해요.</li>'
         + '<li>그림을 그릴 수 있는 시간은 한 사람당 <b>90초</b>예요.</li>'
         + '<li>참가자가 모두 맞히거나 90초가 지나면 다음 사람 차례로 넘어가요.</li>'
         + '<li>모든 참가자가 한 번씩 그림을 그리면 게임이 끝나요.</li>'
@@ -3407,14 +3330,13 @@ window.CatchMind = (function () {
         + '</tbody></table>'
         + '<p class="cm-rule-example"><b>예시</b> · 그림 시작 38초 뒤에 맞히면 정답자는 8점, 출제자는 2점을 받아요.</p>'
         + '<p class="cm-rule-muted">틀린 답을 입력해도 점수는 깎이지 않아요.</p></section>'
-        + '<section class="cm-rule-section"><h3>3. 시즌 랭킹 점수</h3>'
-        + '<p>시즌 점수는 이번 게임의 <b>최종 경기 점수 순위</b>와 상대의 시즌 점수를 함께 비교해 계산해요.</p>'
+        + '<section class="cm-rule-section"><h3>3. 경험치와 레벨</h3>'
+        + '<p>캐치마인드는 게임에 참여한 기록을 <b>경험치</b>로 쌓아 레벨을 올려요.</p>'
         + '<ul class="cm-rule-list">'
-        + '<li>내 최종 점수가 상대보다 높으면 승리, 같으면 동점, 낮으면 패배로 계산해요.</li>'
-        + '<li>시즌 점수가 높은 상대를 이길수록 더 많이 오르고, 낮은 상대에게 지면 더 많이 내려갈 수 있어요.</li>'
-        + '<li><b>단독 1등은 시즌 점수가 깎이지 않고 최소 1점 올라요.</b></li>'
-        + '</ul>'
-        + '<p class="cm-rule-muted">활약도는 정답과 그림 성공 기록을 보여주는 참고 통계이며, 시즌 점수의 승패는 최종 경기 점수로 정해요.</p></section>'
+        + '<li>게임을 끝까지 완료하면 기본 경험치를 받아요.</li>'
+        + '<li>정답을 빨리 맞힐수록 더 많은 경험치를 받고, 경기 MVP는 추가 경험치를 받아요.</li>'
+        + '<li>경험치는 깎이지 않으며, 레벨이 오르면 닉네임 박스와 그림판 꾸미기 보상이 열려요.</li>'
+        + '</ul></section>'
         + '<section class="cm-rule-section"><h3>4. 알아두기</h3>'
         + '<ul class="cm-rule-list">'
         + '<li>관전자와 이미 정답을 맞힌 참가자는 전용 채팅에서 정답을 포함해 자유롭게 이야기할 수 있어요. 게임 중인 참가자에게는 이 채팅이 보이지 않아요.</li>'
@@ -3460,6 +3382,7 @@ window.CatchMind = (function () {
       hostStartRound: hostStartRound,
       hostBeginDrawing: hostBeginDrawing,
       hostEndRound: hostEndRound,
+      hostFinishMatch: hostFinishMatch,
       hostGuess: hostGuess,
       hostPauseForDrawer: hostPauseForDrawer,
       hostResumeRound: hostResumeRound,
@@ -3482,8 +3405,6 @@ window.CatchMind = (function () {
       canChat: canChat,
       onMessage: onMessage,
       onPresence: onPresence,
-      persistResults: persistResults,
-      clearSaveRetry: clearSaveRetry,
       guessScoreForElapsed: guessScoreForElapsed,
       drawerScoreForGuess: drawerScoreForGuess,
       rules: rules,
@@ -3508,13 +3429,6 @@ window.CatchMind = (function () {
       sendInput: sendInput,
       matchHighlights: matchHighlights,
       formatHighlightSeconds: formatHighlightSeconds,
-      fallbackResultInfo: fallbackResultInfo,
-      mergeResultInfo: mergeResultInfo,
-      renderResultPopup: renderResultPopup,
-      resultPlace: resultPlace,
-      syncResultPopup: syncResultPopup,
-      openResultPopup: openResultPopup,
-      closeResultPopup: closeResultPopup,
       syncAudio: syncAudio,
       stopBgm: stopBgm,
       stopStartSfx: stopStartSfx,

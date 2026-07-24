@@ -1090,7 +1090,7 @@ test("admin preview builds every CatchMind screen from real controller state", (
 
   assert.equal(api.setPreviewPhase("waiting"), "waiting");
   assert.equal(api.getState().phase, "idle");
-  assert.deepEqual(Array.from(api.getState().spectators), ["수빈"]);
+  assert.deepEqual(Array.from(api.getState().spectators), ["수빈", "소연"]);
 
   api.setPreviewPhase("countdown");
   assert.equal(api.getState().phase, "countdown");
@@ -1122,8 +1122,16 @@ test("admin preview builds every CatchMind screen from real controller state", (
   assert.equal(api.getState().phase, "finished");
   assert.equal(api.getState().resultRatings.length, 8);
 
-  assert.equal(api.setPreviewPhase("result"), "result");
-  assert.equal(api.getState().phase, "finished");
+  assert.equal(api.normalizePreviewPhase("result"), "waiting");
+
+  assert.equal(api.setPreviewPhase("level-plates"), "level-plates");
+  assert.equal(api.getState().phase, "drawing");
+  assert.equal(api.getState().correct["서준"], true);
+
+  for (const phase of ["mvp-vote", "xp-result", "xp-mvp", "xp-levelup"]) {
+    assert.equal(api.setPreviewPhase(phase), phase);
+    assert.equal(api.getState().phase, "finished");
+  }
 });
 
 test("only the current drawer sees the word during the countdown", () => {
@@ -1166,7 +1174,6 @@ test("waiting and finished stages share the light CatchMind status hierarchy", (
   const actions = fakeElement();
   const start = fakeElement();
   const practice = fakeElement();
-  const resultOpen = fakeElement();
   const marks = fakeElement();
   const hostReady = fakeElement();
   const hostReadyText = fakeElement();
@@ -1182,7 +1189,6 @@ test("waiting and finished stages share the light CatchMind status hierarchy", (
   actions.classList.add("hidden");
   start.classList.add("hidden");
   practice.classList.add("hidden");
-  resultOpen.classList.add("hidden");
   marks.classList.add("hidden");
   hostReady.classList.add("hidden");
   highlights.classList.add("hidden");
@@ -1206,7 +1212,6 @@ test("waiting and finished stages share the light CatchMind status hierarchy", (
       "catch-highlight-draw-name": drawName,
       "catch-highlight-draw-value": drawValue,
       "catch-stage-actions": actions,
-      "catch-result-open-btn": resultOpen,
       "catch-start-btn": start,
       "catch-practice-btn": practice
     }
@@ -1263,8 +1268,7 @@ test("waiting and finished stages share the light CatchMind status hierarchy", (
   assert.equal(fastValue.textContent, "4.2초");
   assert.equal(drawName.textContent, "A");
   assert.equal(drawValue.textContent, "4명 정답");
-  assert.equal(finishNote.textContent, "이번 게임에서 모두 5개의 정답을 만들었어요 · 시즌 기록 반영 완료");
-  assert.equal(resultOpen.classList.contains("hidden"), false);
+  assert.equal(finishNote.textContent, "이번 게임에서 모두 5개의 정답을 만들었어요");
   assert.equal(start.textContent, "다시 시작");
   assert.equal(start.classList.contains("hidden"), false);
   assert.equal(start.disabled, true);
@@ -1403,20 +1407,22 @@ test("match points reward speed in clear 15-second tiers", () => {
   assert.equal(api.drawerScoreForGuess(5), 1);
 });
 
-test("rules explain rank-based season rating", () => {
+test("rules explain experience and levels without the retired season ranking", () => {
   const content = loadCatchMind().rules();
 
   assert.equal(content.title, "캐치마인드 규칙");
+  assert.match(content.html, /준비 화면에서 <b>5초<\/b>/);
   assert.match(content.html, /0~14초[\s\S]*10점[\s\S]*3점/);
   assert.match(content.html, /75~90초[\s\S]*5점[\s\S]*1점/);
   assert.match(content.html, /38초 뒤에 맞히면 정답자는 8점, 출제자는 2점/);
-  assert.match(content.html, /최종 경기 점수 순위[\s\S]*상대의 시즌 점수/);
-  assert.match(content.html, /단독 1등은 시즌 점수가 깎이지 않고 최소 1점/);
-  assert.match(content.html, /활약도는[\s\S]*참고 통계/);
+  assert.match(content.html, /경험치와 레벨/);
+  assert.match(content.html, /정답을 빨리 맞힐수록[\s\S]*경기 MVP/);
+  assert.match(content.html, /경험치는 깎이지 않으며/);
+  assert.doesNotMatch(content.html, /시즌 랭킹|시즌 점수/);
   assert.match(content.html, /틀린 답을 입력해도 점수는 깎이지 않아요/);
 });
 
-test("speed affects match score without changing season performance points", () => {
+test("speed affects match score while retaining contribution stats", () => {
   const api = loadCatchMind();
   const now = Date.now();
   const state = api.freshState();
@@ -1456,129 +1462,31 @@ test("speed affects match score without changing season performance points", () 
   assert.match(scored.feed.find(item => item.kind === "correct").text, /\+7$/);
 });
 
-test("finished matches open a reusable result popup with every player's rating change", async () => {
-  const backdrop = fakeElement();
-  backdrop.classList.add("hidden");
-  const meta = fakeElement();
-  const winner = fakeElement();
-  const winnerScore = fakeElement();
-  const winnerRate = fakeElement();
-  const list = fakeElement();
-  const api = loadCatchMind({
-    elements: {
-      "catch-result-backdrop": backdrop,
-      "catch-result-meta": meta,
-      "catch-result-winner": winner,
-      "catch-result-winner-score": winnerScore,
-      "catch-result-winner-rate": winnerRate,
-      "catch-result-list": list
-    }
-  });
-  api.setState(api.sanitizeSnapshot(baseSnapshot({
-    phase: "finished",
-    matchId: "match-a",
-    drawer: null,
-    guessers: [],
-    remainMs: null,
-    scores: { A: 42, B: 25 },
-    stats: {
-      A: { points: 42, maxPoints: 50, correct: 3, drawCorrect: 4 },
-      B: { points: 25, maxPoints: 50, correct: 2, drawCorrect: 1 }
-    },
-    queue: ["A", "B"],
-    recordStatus: "saved"
-  })));
-  api.setApi({
-    isHost() { return true; },
-    me() { return { nick: "A", isAdmin: false }; },
-    send() {},
-    roomChanged() {},
-    resultSummary() {
-      return Promise.resolve({
-        matchId: "match-a",
-        players: [
-          { nick: "A", beforeRating: 1066, rating: 1084, delta: 18, games: 8, rankText: "1등", rankMove: 2 },
-          { nick: "B", beforeRating: 1005, rating: 997, delta: -8, games: 8, rankText: "7등", rankMove: -1 }
-        ]
-      });
-    }
-  });
-
-  api.syncResultPopup();
-  await new Promise(resolve => setImmediate(resolve));
-
-  assert.equal(backdrop.classList.contains("hidden"), false);
-  assert.equal(meta.textContent, "캐치마인드 · 참가자 2명");
-  assert.equal(winner.textContent, "A");
-  assert.equal(winnerScore.textContent, "42점");
-  assert.equal(winnerRate.textContent, "활약도 84%");
-  assert.match(list.innerHTML, /A/);
-  assert.match(list.innerHTML, /B/);
-  assert.match(list.innerHTML, /1,066 →/);
-  assert.match(list.innerHTML, /1,084/);
-  assert.match(list.innerHTML, /\+18/);
-  assert.match(list.innerHTML, /▲ 1등/);
-  assert.match(list.innerHTML, /▼ 7등/);
-  assert.equal(api.getState().resultRatings.length, 2);
-
-  api.closeResultPopup();
-  api.syncResultPopup();
-  assert.equal(backdrop.classList.contains("hidden"), true);
-  api.openResultPopup();
-  assert.equal(backdrop.classList.contains("hidden"), false);
-});
-
-test("equal match scores share the same displayed place", () => {
+test("finished CatchMind games skip the retired ranking save", () => {
   const api = loadCatchMind();
-  const players = [{ score: 30 }, { score: 30 }, { score: 20 }];
-
-  assert.equal(api.resultPlace(players, 0), 1);
-  assert.equal(api.resultPlace(players, 1), 1);
-  assert.equal(api.resultPlace(players, 2), 3);
-});
-
-test("ranking saves retry before reporting success", async () => {
-  const api = loadCatchMind({
-    setTimeout(callback) { queueMicrotask(callback); return 1; },
-    clearTimeout() {}
-  });
-  let attempts = 0;
-  let scoreRefreshes = 0;
   api.setState(api.sanitizeSnapshot(baseSnapshot({
-    phase: "finished",
-    rev: 30,
-    drawer: null,
-    guessers: [],
-    remainMs: null,
-    recordStatus: "pending"
+    phase: "drawing",
+    matchId: "match-a",
+    drawer: "A",
+    guessers: ["B"],
+    remainMs: 1000,
+    recordStatus: "idle"
   })));
   api.setApi({
     isHost() { return true; },
     host() { return "A"; },
     me() { return { nick: "A", isAdmin: false }; },
-    roster() { return []; },
+    roster() { return [{ nick: "A" }, { nick: "B" }]; },
     send() {},
     roomChanged() {},
-    recordMatch() {
-      attempts++;
-      return Promise.resolve(attempts < 3 ? { error: { message: "temporary" } } : { data: [] });
-    },
-    scoresChanged() { scoreRefreshes++; },
     toast() {}
   });
 
-  api.persistResults("match-a", [
-    { nick: "A", points: 6, maxPoints: 6, correct: 0, drawCorrect: 2 },
-    { nick: "B", points: 10, maxPoints: 10, correct: 1, drawCorrect: 0 }
-  ], 0);
-  for (let i = 0; i < 8 && api.getState().recordStatus !== "saved"; i++) {
-    await new Promise(resolve => setImmediate(resolve));
-  }
+  api.hostFinishMatch();
 
-  assert.equal(attempts, 3);
-  assert.equal(api.getState().recordStatus, "saved");
-  assert.equal(scoreRefreshes, 1);
-  api.clearSaveRetry();
+  assert.equal(api.getState().phase, "finished");
+  assert.equal(api.getState().recordStatus, "skipped");
+  assert.deepEqual(Array.from(api.getState().resultRatings), []);
 });
 
 test("only the elected host can replace game state", () => {

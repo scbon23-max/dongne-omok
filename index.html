@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260724-catchmind-level-removed-v1">
+<meta name="app-build" content="20260724-catchmind-level-ranking-removed-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -337,7 +337,11 @@
           <option value="reveal-success">전원 정답 공개</option>
           <option value="reveal-timeout">시간 초과 공개</option>
           <option value="finished">게임 종료</option>
-          <option value="result">점수 팝업</option>
+          <option value="level-plates">레벨 닉네임 박스</option>
+          <option value="mvp-vote">MVP 선택</option>
+          <option value="xp-result">경험치 결과</option>
+          <option value="xp-mvp">MVP 경험치 결과</option>
+          <option value="xp-levelup">레벨업 결과</option>
         </select>
       </label>
       <button id="catch-preview-next" type="button" aria-label="다음 화면">→</button>
@@ -346,13 +350,13 @@
       <button type="button" data-catch-preview-viewport="desktop">PC</button>
       <button type="button" data-catch-preview-viewport="mobile">모바일</button>
     </div>
+    <button id="catch-preview-skins" type="button" aria-label="그림판 배경 18종 점검">배경 18종</button>
     <button id="catch-preview-exit" class="relay-preview-exit" type="button">점검 종료</button>
   </nav>
 
   <div id="catch-score-strip" class="catch-score-strip hidden"></div>
 
   <div class="action-row slim catch-action-row">
-    <button id="catch-rank-btn" class="btn-flat">🏅 랭킹</button>
     <button id="catch-gallery-btn" class="btn-flat">▧ 갤러리</button>
     <button id="catch-role-btn" class="btn-flat catch-role-btn" type="button" aria-pressed="false">관전하기</button>
     <button id="catch-leave-btn" class="btn-flat">나가기</button>
@@ -368,6 +372,7 @@
       </div>
     </div>
     <canvas id="catch-board" width="720" height="720" aria-label="캐치마인드 그림판"></canvas>
+    <img id="catch-board-frame" class="catch-board-frame" src="assets/catchmind/board-frames/frame-color-pencil-v2.png" alt="" aria-hidden="true" draggable="false">
     <div id="catch-reaction-layer" class="catch-reaction-layer" aria-hidden="true"></div>
     <div id="catch-chat-overlay" class="chat-overlay catch-chat-overlay"></div>
     <div id="catch-feed" class="catch-feed" aria-live="polite"></div>
@@ -432,7 +437,6 @@
   </div>
 
   <div id="catch-stage-actions" class="catch-stage-actions hidden">
-    <button id="catch-result-open-btn" class="catch-result-open-btn hidden" type="button">결과 보기</button>
     <button id="catch-ready-btn" class="center-btn catch-start-btn catch-ready-btn hidden" type="button" aria-pressed="false">레디</button>
     <button id="catch-start-btn" class="center-btn catch-start-btn hidden" type="button">게임 시작</button>
     <button id="catch-practice-btn" class="center-btn catch-start-btn catch-practice-btn hidden" type="button">연습모드</button>
@@ -721,41 +725,68 @@
   <div class="room-strip" id="room-strip-territory"></div>
 </section>
 
-<!-- 캐치마인드 경기 결과 팝업 -->
-<div id="catch-result-backdrop" class="cm-result-backdrop hidden" aria-hidden="true">
-  <section class="cm-result-dialog" role="dialog" aria-modal="true" aria-labelledby="catch-result-title">
-    <header class="cm-result-head">
-      <div class="cm-result-title">
-        <span id="catch-result-meta">캐치마인드 · 참가자 0명</span>
-        <h2 id="catch-result-title">게임 결과</h2>
+<!-- 캐치마인드 MVP 선택 -->
+<div id="catch-level-mvp-backdrop" class="cm-level-backdrop hidden" aria-hidden="true">
+  <section class="cm-mvp-dialog" role="dialog" aria-modal="true" aria-labelledby="catch-level-mvp-title">
+    <header class="cm-mvp-head">
+      <div>
+        <span>경기 종료</span>
+        <h2 id="catch-level-mvp-title">오늘의 MVP는?</h2>
       </div>
-      <button id="catch-result-close" class="cm-result-close" type="button" aria-label="결과 닫기">✕</button>
+      <div class="cm-mvp-timer"><strong>15</strong><small>남은 시간</small></div>
     </header>
+    <p class="cm-mvp-copy">나를 제외한 참가자 한 명을 골라주세요.</p>
+    <div id="catch-level-mvp-candidates" class="cm-mvp-candidates"></div>
+    <footer class="cm-mvp-foot">
+      <span id="catch-level-mvp-choice" class="cm-mvp-choice">아직 선택하지 않았어요</span>
+      <button id="catch-level-mvp-confirm" class="cm-mvp-confirm" type="button" disabled>선택 완료</button>
+    </footer>
+  </section>
+</div>
 
-    <div class="cm-result-winner">
-      <div class="cm-result-winner-label">
-        <span>이번 게임 1위</span>
-        <strong id="catch-result-winner">-</strong>
+<!-- 캐치마인드 경험치 결과 -->
+<div id="catch-level-xp-backdrop" class="cm-level-backdrop hidden" aria-hidden="true">
+  <section class="cm-xp-dialog" role="dialog" aria-modal="true" aria-labelledby="catch-level-xp-title">
+    <header class="cm-xp-head">
+      <div>
+        <span>캐치마인드 성장</span>
+        <h2 id="catch-level-xp-title">이번 게임 경험치</h2>
       </div>
-      <div class="cm-result-winner-score">
-        <strong id="catch-result-winner-score">0점</strong>
-        <span id="catch-result-winner-rate">활약도 0%</span>
+      <button id="catch-level-xp-close" class="cm-xp-close" type="button" aria-label="경험치 결과 닫기">✕</button>
+    </header>
+    <div class="cm-xp-scroll">
+    <div class="cm-xp-summary">
+      <div id="catch-level-seal-stage" class="cm-level-seal-stage">
+        <div class="cm-level-particles" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="cm-level-seal"><small>LEVEL</small><strong id="catch-level-xp-level">18</strong></div>
+        <span id="catch-level-up-tag" class="cm-level-up-tag">LEVEL UP</span>
+      </div>
+      <div class="cm-xp-person">
+        <strong id="catch-level-xp-name">구나</strong>
+        <span id="catch-level-xp-tier">새싹 등급</span>
+      </div>
+      <div class="cm-xp-earned"><span>획득</span><b id="catch-level-xp-earned">+42 XP</b></div>
+    </div>
+    <div class="cm-xp-meter-block">
+      <div class="cm-xp-meter-head">
+        <span id="catch-level-xp-current">0 XP</span>
+        <span id="catch-level-xp-next">다음 레벨까지 0 XP</span>
+      </div>
+      <div id="catch-level-xp-meter" class="cm-xp-meter" role="progressbar" aria-label="레벨 경험치">
+        <div id="catch-level-xp-fill" class="cm-xp-fill"></div>
       </div>
     </div>
-
-    <div class="cm-result-columns" aria-hidden="true">
-      <span>순위</span>
-      <span>참가자 · 게임 기록</span>
-      <span>랭킹 점수 변동</span>
+    <ul id="catch-level-xp-breakdown" class="cm-xp-breakdown"></ul>
+    <div id="catch-level-reward" class="cm-level-reward hidden">
+      <span aria-hidden="true">🏷</span>
+      <div><small>새 보상 획득</small><strong id="catch-level-reward-name">그림판 배경</strong></div>
     </div>
-
-    <div class="cm-result-scroll">
-      <ol id="catch-result-list" class="cm-result-list" aria-live="polite"></ol>
     </div>
-
-    <footer class="cm-result-foot">
-      <button id="catch-result-rank" class="cm-result-rank-btn" type="button">🏅 랭킹 보기</button>
-      <button id="catch-result-confirm" class="cm-result-confirm" type="button">확인</button>
+    <footer class="cm-xp-foot">
+      <button id="catch-level-xp-replay" type="button">다시 보기</button>
+      <button id="catch-level-xp-confirm" type="button">대기실로</button>
     </footer>
   </section>
 </div>
@@ -890,6 +921,10 @@
     <div class="modal-body menu-body" id="menu-main">
       <button id="menu-rules-btn" class="menu-item">📖 규칙</button>
       <button id="menu-sound-btn" class="menu-item">🔊 소리 켜짐</button>
+      <button id="menu-catch-rewards-btn" class="menu-item menu-personal-rewards" type="button">
+        <span>🎁 내 레벨 보상</span>
+        <small>내 진행도와 받을 수 있는 보상 보기</small>
+      </button>
       <button id="catch-preview-menu-btn" class="menu-item admin-only">캐치마인드 화면 점검</button>
       <button id="relay-preview-menu-btn" class="menu-item admin-only">이어그리기 화면 점검</button>
       <button id="admin-btn" class="menu-item admin-only">관리자</button>
@@ -905,8 +940,47 @@
       <button class="menu-item hidden" data-rules="relay">이어그리기 규칙</button>
       <button class="menu-item admin-only" data-rules="territory">땅따먹기 규칙</button>
     </div>
+    <div class="modal-body menu-body hidden" id="menu-catch-rewards">
+      <button id="menu-catch-rewards-back" class="menu-item menu-back" type="button">← 뒤로</button>
+      <div class="catch-personal-summary">
+        <span class="catch-personal-level" id="catch-personal-level">LV 1</span>
+        <div>
+          <strong id="catch-personal-nick">내 레벨 보상</strong>
+          <small>이 화면은 내 메뉴에서만 보여요.</small>
+        </div>
+      </div>
+      <button id="catch-frame-picker-open" class="catch-frame-picker-open" type="button">
+        <span aria-hidden="true">🎨</span>
+        <span><strong>그림판 배경 선택</strong><small>획득한 테두리 스킨을 바꿔요</small></span>
+        <b aria-hidden="true">›</b>
+      </button>
+      <div class="catch-personal-list-head">
+        <strong>레벨별 보상</strong>
+        <span id="catch-personal-reward-count">보상 확인 중</span>
+      </div>
+      <div id="catch-personal-reward-list" class="catch-personal-reward-list" aria-live="polite"></div>
+    </div>
     <button class="btn-primary modal-ok" data-close>닫기</button>
   </div>
+</div>
+
+<!-- 캐치마인드 개인 그림판 스킨 -->
+<div id="catch-frame-picker-modal" class="modal-overlay hidden">
+  <section class="modal catch-frame-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="catch-frame-picker-title">
+    <div class="modal-head">
+      <div>
+        <h2 id="catch-frame-picker-title">그림판 배경 선택</h2>
+        <p>흰 그림 영역은 그대로 두고 테두리만 바뀌어요.</p>
+      </div>
+      <button class="modal-close" type="button" data-close aria-label="그림판 배경 선택 닫기">✕</button>
+    </div>
+    <div class="catch-frame-picker-status">
+      <span id="catch-frame-picker-level">현재 LV 1</span>
+      <small>내 화면에만 적용되는 개인 꾸미기</small>
+    </div>
+    <div id="catch-frame-picker-grid" class="catch-frame-picker-grid" aria-live="polite"></div>
+    <button class="btn-primary modal-ok" type="button" data-close>선택 완료</button>
+  </section>
 </div>
 
 <!-- 규칙 모달 -->
@@ -1187,6 +1261,7 @@
     { src: "alkkagi.js" },
     { src: "game-catalog.js" },
     { src: "catchmind-words.js" },
+    { src: "catchmind-levels.js" },
     { src: "catchmind.js" },
     { src: "relay-drawing.js" },
     { src: "territory-rush.js" },

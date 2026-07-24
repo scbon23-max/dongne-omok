@@ -148,6 +148,33 @@ window.Db = (function () {
       favorite: !!favorite
     });
   }
+  async function catchmindProgressionInvoke(action, auth, payload) {
+    if (!sb || !sb.functions || !sb.functions.invoke) return { ok: false, reason: "unavailable" };
+    auth = auth || {};
+    payload = payload || {};
+    var body = Object.assign({}, payload, {
+      action: action,
+      auth: {
+        nick: String(auth.nick || "").slice(0, 40),
+        hash: String(auth.hash || "").slice(0, 128)
+      }
+    });
+    if (!body.auth.nick || !body.auth.hash) return { ok: false, reason: "auth" };
+    var response = await sb.functions.invoke("catchmind-progression", { body: body });
+    if (response.error) return { ok: false, reason: "network", msg: response.error.message || String(response.error) };
+    return response.data && typeof response.data === "object"
+      ? response.data
+      : { ok: false, reason: "invalid_response" };
+  }
+  async function getCatchmindProfile(auth) {
+    return catchmindProgressionInvoke("profile", auth);
+  }
+  async function equipCatchmindReward(auth, kind, rewardId) {
+    return catchmindProgressionInvoke("equip", auth, {
+      kind: String(kind || "").slice(0, 20),
+      rewardId: String(rewardId || "").slice(0, 80)
+    });
+  }
   async function relayGalleryInvoke(action, auth, payload) {
     if (!sb || !sb.functions || !sb.functions.invoke) return { ok: false, reason: "unavailable" };
     auth = auth || {};
@@ -392,6 +419,7 @@ window.Db = (function () {
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
     recordGame: recordGame, recordAlkGame: recordAlkGame, recordCatchmindMatch: recordCatchmindMatch,
     saveCatchmindDrawing: saveCatchmindDrawing, getCatchmindGallery: getCatchmindGallery, toggleCatchmindFavorite: toggleCatchmindFavorite,
+    getCatchmindProfile: getCatchmindProfile, equipCatchmindReward: equipCatchmindReward,
     saveRelayAlbum: saveRelayAlbum, getRelayAlbums: getRelayAlbums, getRelayAlbum: getRelayAlbum,
     claimRoomLease: claimRoomLease, renewRoomLease: renewRoomLease, releaseRoomLease: releaseRoomLease,
     getGames: getGames, getGamesByType: getGamesByType,
