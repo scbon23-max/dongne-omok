@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>캐치마인드 레벨 시스템 목업</title>
+<style>
+:root {
+  --navy: #0e2a3a;
+  --navy-2: #16384a;
+  --navy-3: #24495b;
+  --ink: #17252f;
+  --paper: #fbfaf7;
+  --paper-2: #f5f0e8;
+  --line: #d9d4cb;
+  --muted: #78909a;
+  --teal: #38c6b0;
+  --teal-dark: #167d70;
+  --orange: #f3612a;
+  --orange-dark: #d94b19;
+  --blue: #2474b5;
+  --red: #d23b3b;
+  --yellow: #eab308;
+  --green: #22a873;
+  --violet: #7c3aed;
+}
+* { box-sizing: border-box; letter-spacing: 0; }
+html, body { min-width: 320px; min-height: 100%; margin: 0; background: #081820; }
+body {
+  color: #eaf2f6;
+  font-family: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", Arial, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+button, select { font: inherit; }
+button { cursor: pointer; }
+.hidden { display: none !important; }
+.app {
+  width: min(420px, 100%);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 8px 12px 24px;
+  background: var(--navy);
+}
+.mock-head {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+}
+.mock-head img { width: 34px; height: 34px; flex: 0 0 auto; }
+.mock-title { min-width: 0; }
+.mock-title strong { display: block; color: #fff; font-size: 15px; font-weight: 1000; }
+.mock-title span { display: block; margin-top: 2px; color: #8fa6b2; font-size: 10px; font-weight: 800; }
+.view-tabs {
+  width: 100%;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 9px;
+  padding: 4px;
+  border-radius: 8px;
+  background: #0a2230;
+}
+.view-tabs button {
+  min-width: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #8fa6b2;
+  font-size: 10px;
+  font-weight: 900;
+}
+.view-tabs button.active { background: var(--navy-3); color: #fff; }
+.view { display: none; }
+.view.active { display: block; }
+.scenario-bar,
+.plate-choice {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.scenario-bar { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.plate-choice { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.scenario-bar button,
+.plate-choice button {
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid #31576a;
+  border-radius: 7px;
+  background: var(--navy-2);
+  color: #a8bbc4;
+  font-size: 10.5px;
+  font-weight: 900;
+}
+.scenario-bar button.active,
+.plate-choice button.active {
+  border-color: var(--teal);
+  background: var(--teal);
+  color: var(--navy);
+}
+.game-shell { position: relative; }
+.game-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 34px;
+  gap: 5px;
+  margin-bottom: 7px;
+}
+.game-actions button {
+  min-width: 0;
+  height: 34px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: var(--navy-2);
+  color: #cfe0e7;
+  font-size: 10.5px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.player-strip {
+  width: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  margin-bottom: 7px;
+  scrollbar-width: none;
+}
+.player-strip::-webkit-scrollbar { display: none; }
+.game-board {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 4px 14px rgba(0,0,0,.35);
+}
+.wordbar {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  border-bottom: 1px solid #ddd3c7;
+  background: var(--paper-2);
+  color: #73808a;
+  font-size: 12px;
+}
+.wordbar b { margin-left: 7px; color: var(--navy); font-size: 16px; }
+.wordbar strong { color: var(--orange-dark); font-size: 13px; }
+.waiting-stage {
+  position: absolute;
+  inset: 40px 0 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: 26px 22px 17px;
+  background: rgba(251,250,247,.96);
+  color: var(--ink);
+}
+.waiting-main { align-self: center; text-align: center; }
+.paint-marks {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+.paint-marks span { width: 8px; display: block; border-radius: 4px; transform: rotate(8deg); }
+.paint-marks span:nth-child(1) { height: 25px; background: var(--blue); }
+.paint-marks span:nth-child(2) { height: 39px; background: var(--red); transform: rotate(-6deg); }
+.paint-marks span:nth-child(3) { height: 31px; background: var(--yellow); }
+.paint-marks span:nth-child(4) { height: 44px; background: var(--orange); transform: rotate(-4deg); }
+.paint-marks span:nth-child(5) { height: 34px; background: #22c55e; }
+.paint-marks span:nth-child(6) { height: 40px; background: var(--violet); transform: rotate(-7deg); }
+.waiting-main h2 { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 1000; }
+.waiting-main p { margin: 8px 0 0; color: #6d838e; font-size: 11px; font-weight: 800; }
+.waiting-roster {
+  padding-top: 10px;
+  border-top: 1px solid #ded8cf;
+  color: #718892;
+  font-size: 10px;
+  line-height: 1.65;
+  font-weight: 800;
+}
+.waiting-roster b { color: #49616c; }
+.mock-chat {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  margin-top: 7px;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--navy-2);
+}
+.mock-chat span {
+  width: 100%;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 0 11px;
+  border-radius: 6px;
+  background: var(--navy);
+  color: #547586;
+  font-size: 12px;
+}
+.reopen-xp {
+  width: 100%;
+  height: 42px;
+  margin-top: 8px;
+  border: 1px solid #31576a;
+  border-radius: 8px;
+  background: var(--navy-2);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+.xp-backdrop,
+.mvp-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgba(3,12,17,.8);
+}
+.mvp-backdrop { z-index: 21; }
+.mvp-dialog {
+  width: min(388px, 100%);
+  overflow: hidden;
+  border: 1px solid #31576a;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 18px 44px rgba(0,0,0,.52);
+}
+.mvp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.mvp-head span {
+  display: block;
+  color: var(--orange-dark);
+  font-size: 9px;
+  font-weight: 1000;
+}
+.mvp-head h2 {
+  margin: 3px 0 0;
+  font-size: 21px;
+  line-height: 1.15;
+  font-weight: 1000;
+}
+.mvp-timer {
+  flex: 0 0 auto;
+  min-width: 50px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  background: var(--navy);
+  color: #fff;
+  text-align: center;
+}
+.mvp-timer strong { display: block; font-size: 16px; line-height: 1; font-weight: 1000; }
+.mvp-timer small { display: block; margin-top: 3px; color: #9fb3bd; font-size: 7px; font-weight: 900; }
+.mvp-copy {
+  margin: 0;
+  padding: 12px 14px 9px;
+  color: #607984;
+  font-size: 10px;
+  font-weight: 850;
+}
+.mvp-candidates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  padding: 0 14px 13px;
+}
+.mvp-candidate {
+  min-width: 0;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #d2dadc;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+}
+.mvp-candidate.selected {
+  border-color: var(--orange);
+  background: #fff3ed;
+  box-shadow: inset 0 0 0 1px var(--orange);
+}
+.mvp-avatar {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #dce8ec;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 1000;
+}
+.mvp-candidate.selected .mvp-avatar { background: var(--orange); color: #fff; }
+.mvp-candidate strong,
+.mvp-candidate small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mvp-candidate strong { font-size: 11px; font-weight: 1000; }
+.mvp-candidate small { margin-top: 3px; color: var(--muted); font-size: 8px; font-weight: 900; }
+.mvp-check {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #bdc9cd;
+  border-radius: 50%;
+  color: transparent;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 1000;
+}
+.mvp-candidate.selected .mvp-check { border-color: var(--orange); background: var(--orange); color: #fff; }
+.mvp-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px 14px;
+  border-top: 1px solid var(--line);
+}
+.mvp-choice {
+  min-width: 0;
+  overflow: hidden;
+  color: #718892;
+  font-size: 9px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mvp-confirm {
+  height: 40px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--orange);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 1000;
+}
+.mvp-confirm:disabled { background: #d8dedf; color: #99a8ae; }
+.xp-dialog {
+  position: relative;
+  width: min(388px, 100%);
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
+  border: 1px solid #31576a;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 18px 44px rgba(0,0,0,.52);
+}
+.xp-head {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 13px;
+  border-bottom: 1px solid #31576a;
+  background: var(--navy);
+}
+.xp-head span { display: block; color: var(--teal); font-size: 9px; font-weight: 900; }
+.xp-head h2 { margin: 3px 0 0; color: #fff; font-size: 20px; line-height: 1.1; font-weight: 1000; }
+.xp-close {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--navy-2);
+  color: #cfe0e7;
+  font-size: 17px;
+}
+.xp-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 15px 14px 12px;
+}
+.level-seal {
+  position: relative;
+  z-index: 2;
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--orange);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--orange-dark);
+}
+.level-seal small { display: block; font-size: 8px; line-height: 1; font-weight: 900; }
+.level-seal strong { display: block; margin-top: 2px; font-size: 20px; line-height: 1; font-weight: 1000; }
+.level-seal-stage {
+  position: relative;
+  width: 62px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+}
+.level-seal-stage::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 4px;
+  border: 2px solid var(--orange);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+.level-up-tag {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: -5px;
+  width: max-content;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--navy);
+  color: #fff;
+  font-size: 7px;
+  line-height: 1.2;
+  font-weight: 1000;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  pointer-events: none;
+}
+.level-particles {
+  position: absolute;
+  z-index: 3;
+  inset: 50%;
+  pointer-events: none;
+}
+.level-particles i {
+  --x: 0px;
+  --y: -35px;
+  --r: 0deg;
+  position: absolute;
+  width: 4px;
+  height: 11px;
+  margin: -5px 0 0 -2px;
+  border-radius: 2px;
+  background: var(--orange);
+  opacity: 0;
+}
+.level-particles i:nth-child(2) { --x: 26px; --y: -29px; --r: 34deg; background: var(--blue); }
+.level-particles i:nth-child(3) { --x: 38px; --y: -5px; --r: 72deg; background: var(--yellow); }
+.level-particles i:nth-child(4) { --x: 31px; --y: 25px; --r: 116deg; background: var(--teal); }
+.level-particles i:nth-child(5) { --x: 8px; --y: 38px; --r: 158deg; background: var(--red); }
+.level-particles i:nth-child(6) { --x: -22px; --y: 31px; --r: 205deg; background: var(--violet); }
+.level-particles i:nth-child(7) { --x: -38px; --y: 7px; --r: 248deg; background: var(--orange); }
+.level-particles i:nth-child(8) { --x: -31px; --y: -24px; --r: 296deg; background: var(--green); }
+.level-seal-stage.celebrate .level-seal {
+  animation: level-seal-pop 1.15s cubic-bezier(.2,.82,.24,1) both;
+}
+.level-seal-stage.celebrate::after { animation: level-ring 1.05s ease-out both; }
+.level-seal-stage.celebrate .level-up-tag { animation: level-tag 1.35s ease both; }
+.level-seal-stage.celebrate .level-particles i {
+  animation: level-particle .9s cubic-bezier(.12,.7,.22,1) both;
+}
+.level-seal-stage.celebrate .level-particles i:nth-child(2) { animation-delay: .03s; }
+.level-seal-stage.celebrate .level-particles i:nth-child(3) { animation-delay: .06s; }
+.level-seal-stage.celebrate .level-particles i:nth-child(4) { animation-delay: .09s; }
+.level-seal-stage.celebrate .level-particles i:nth-child(5) { animation-delay: .12s; }
+.level-seal-stage.celebrate .level-particles i:nth-child(6) { animation-delay: .15s; }
+.level-seal-stage.celebrate .level-particles i:nth-child(7) { animation-delay: .18s; }
+.level-seal-stage.celebrate .level-particles i:nth-child(8) { animation-delay: .21s; }
+@keyframes level-seal-pop {
+  0% { color: var(--orange-dark); background: #fff; transform: scale(1) rotate(0); }
+  20% { color: #fff; background: var(--orange); transform: scale(1.28) rotate(-7deg); box-shadow: 0 8px 18px rgba(243,97,42,.35); }
+  45% { transform: scale(.94) rotate(4deg); }
+  68% { transform: scale(1.12) rotate(-2deg); }
+  100% { color: var(--orange-dark); background: #fff; transform: scale(1) rotate(0); box-shadow: none; }
+}
+@keyframes level-ring {
+  0% { opacity: .8; transform: scale(.8); }
+  100% { opacity: 0; transform: scale(1.65); }
+}
+@keyframes level-particle {
+  0% { opacity: 0; transform: translate(0, 0) scale(.4) rotate(0); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(1) rotate(var(--r)); }
+}
+@keyframes level-tag {
+  0% { opacity: 0; transform: translate(-50%, 5px) scale(.8); }
+  20%, 72% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -5px) scale(.94); }
+}
+.xp-person { min-width: 0; }
+.xp-person strong {
+  display: block;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 1000;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.xp-person span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; font-weight: 900; }
+.xp-earned { color: var(--orange); text-align: right; font-size: 22px; line-height: 1; font-weight: 1000; }
+.xp-earned span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 9px; }
+.xp-meter-block { padding: 0 14px 15px; }
+.xp-meter-head {
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: #607984;
+  font-size: 9px;
+  font-weight: 900;
+}
+.xp-meter {
+  position: relative;
+  height: 13px;
+  overflow: hidden;
+  border: 1px solid #cfd8dc;
+  border-radius: 7px;
+  background: #e6ecee;
+}
+.xp-meter-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--teal);
+  transition: width 1.05s cubic-bezier(.2,.78,.28,1);
+}
+.xp-breakdown {
+  margin: 0;
+  padding: 0 14px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  list-style: none;
+}
+.xp-breakdown li {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #647b85;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+.xp-breakdown li + li { border-top: 1px solid #e8e4dd; }
+.xp-breakdown li.empty { opacity: .52; }
+.xp-reason { min-width: 0; }
+.xp-reason strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 10.5px;
+  font-weight: 1000;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.xp-reason small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 8.5px;
+  font-weight: 800;
+}
+.xp-breakdown .xp-value { flex: 0 0 auto; color: var(--ink); font-size: 11px; font-weight: 1000; }
+.xp-breakdown .cap-row .xp-value { color: var(--orange-dark); }
+.reward-unlock {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin: 11px 14px 0;
+  padding: 9px 10px;
+  border: 1px solid #efc0ac;
+  border-radius: 7px;
+  background: #fff2eb;
+}
+.reward-unlock .reward-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--orange);
+  font-size: 20px;
+}
+.reward-unlock span { display: block; color: var(--orange-dark); font-size: 9px; font-weight: 900; }
+.reward-unlock strong { display: block; margin-top: 2px; font-size: 12px; font-weight: 1000; }
+.xp-foot {
+  display: grid;
+  grid-template-columns: .8fr 1.2fr;
+  gap: 7px;
+  padding: 12px 14px 14px;
+}
+.xp-foot button {
+  min-width: 0;
+  height: 42px;
+  border: 0;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 1000;
+}
+.xp-replay { background: #e1e7e9; color: #526b77; }
+.xp-confirm { background: var(--teal); color: var(--navy); }
+.section-head { margin: 4px 1px 10px; }
+.section-head h2 { margin: 0; color: #fff; font-size: 20px; font-weight: 1000; }
+.section-head p { margin: 5px 0 0; color: #8fa6b2; font-size: 10.5px; line-height: 1.5; font-weight: 800; }
+.plate-demo {
+  min-height: 420px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--paper);
+}
+.plate-demo-head {
+  min-height: 53px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.plate-demo-head strong { display: block; font-size: 14px; font-weight: 1000; }
+.plate-demo-head span { display: block; margin-top: 3px; color: var(--muted); font-size: 9.5px; font-weight: 800; }
+.plate-scroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 10px 11px;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: none;
+}
+.plate-scroll::-webkit-scrollbar { display: none; }
+.plate-list { padding: 4px 12px 12px; }
+.plate-list-row {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid #e4e0d9;
+}
+.plate-list-row:last-child { border-bottom: 0; }
+.plate-status { flex: 0 0 auto; color: #82969f; font-size: 9px; font-weight: 900; }
+.nameplate {
+  --tier: #78909a;
+  --tier-alt: #78909a;
+  --tier-soft: #edf1f2;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 180px;
+  color: var(--ink);
+}
+.nameplate.tier-sketch { --tier: #71838b; --tier-alt: #71838b; --tier-soft: #edf0f1; }
+.nameplate.tier-sprout { --tier: #178c73; --tier-alt: #178c73; --tier-soft: #e2f5ef; }
+.nameplate.tier-color { --tier: #2474b5; --tier-alt: #2474b5; --tier-soft: #e3eff8; }
+.nameplate.tier-artist { --tier: #df551f; --tier-alt: #e9a11b; --tier-soft: #fff0e8; }
+.nameplate.tier-master { --tier: #b02f48; --tier-alt: #ef6a2c; --tier-soft: #f9e7eb; }
+.nameplate.tier-grand { --tier: #7350a6; --tier-alt: #c23d84; --tier-soft: #eee8f5; }
+.nameplate.tier-legend { --tier: #17252f; --tier-alt: #a56b08; --tier-soft: #fff3c6; }
+.nameplate.drawer { box-shadow: 0 0 0 2px var(--orange); }
+.nameplate .correct-mark {
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--teal-dark);
+  font-size: 10px;
+  font-weight: 1000;
+}
+.nameplate.spectator { opacity: .45; filter: grayscale(.25); }
+.nameplate .crown { margin-left: 3px; font-size: 10px; }
+.nameplate.style-a {
+  min-height: 45px;
+  display: inline-grid;
+  grid-template-rows: auto auto;
+  align-content: stretch;
+  overflow: hidden;
+  border: 1px solid #cbd6da;
+  border-radius: 7px;
+  background: #fff;
+}
+.nameplate.style-a .plate-level {
+  grid-row: 2;
+  align-self: end;
+  min-width: 50px;
+  padding: 3px 9px;
+  background-color: var(--tier);
+  color: #fff;
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 1000;
+}
+.nameplate.style-a .plate-name {
+  grid-row: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 6px 9px 4px;
+  font-size: 11px;
+  line-height: 1.05;
+  font-weight: 1000;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nameplate.style-a.tier-artist .plate-level,
+.nameplate.style-a.tier-master .plate-level,
+.nameplate.style-a.tier-grand .plate-level,
+.nameplate.style-a.tier-legend .plate-level {
+  animation: level-line-color 3s ease-in-out infinite;
+}
+.nameplate.style-a.tier-master .plate-level { animation-duration: 2.7s; }
+.nameplate.style-a.tier-grand .plate-level { animation-duration: 2.35s; }
+.nameplate.style-a.tier-legend .plate-level {
+  animation-duration: 1.9s;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.28);
+}
+@keyframes level-line-color {
+  0%, 100% { background-color: var(--tier); }
+  50% { background-color: var(--tier-alt); }
+}
+.nameplate.style-b {
+  min-height: 34px;
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px 0 7px;
+  border: 2px solid var(--tier);
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: inset 4px 0 0 var(--tier-soft);
+}
+.nameplate.style-b .plate-level {
+  color: var(--tier);
+  font-size: 9px;
+  font-weight: 1000;
+}
+.nameplate.style-b .plate-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 1000;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nameplate.style-c {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px 0 6px;
+  border: 1px solid #ccd6d9;
+  border-radius: 7px;
+  background: #fff;
+}
+.nameplate.style-c .plate-level {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  border-radius: 50%;
+  background: var(--tier);
+  color: #fff;
+  font-size: 7px;
+  line-height: 1;
+  font-weight: 1000;
+  white-space: nowrap;
+  transform: rotate(-6deg);
+}
+.nameplate.style-c .plate-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 1000;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reward-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.reward-summary div {
+  min-height: 62px;
+  padding: 9px;
+  border-radius: 7px;
+  background: var(--navy-2);
+}
+.reward-summary span { display: block; color: #7f9ba8; font-size: 9px; font-weight: 900; }
+.reward-summary strong { display: block; margin-top: 5px; color: #fff; font-size: 15px; font-weight: 1000; }
+.curve-band {
+  overflow: hidden;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.curve-head {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-2);
+}
+.curve-head strong { font-size: 13px; font-weight: 1000; }
+.curve-head span { color: var(--orange-dark); font-size: 10px; font-weight: 1000; }
+.curve-row {
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 45px minmax(0, 1fr) 66px;
+  align-items: center;
+  gap: 8px;
+  margin: 0 11px;
+  border-bottom: 1px solid #e7e3dc;
+}
+.curve-row:last-child { border-bottom: 0; }
+.curve-row b { font-size: 10px; }
+.curve-track { height: 6px; overflow: hidden; border-radius: 3px; background: #e1e8ea; }
+.curve-track i { height: 100%; display: block; border-radius: inherit; background: var(--blue); }
+.curve-row span { color: #667e89; text-align: right; font-size: 9px; font-weight: 900; }
+.reward-track {
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.reward-track-head {
+  min-height: 50px;
+  padding: 10px 11px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-2);
+}
+.reward-track-head strong { display: block; font-size: 13px; font-weight: 1000; }
+.reward-track-head span { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; font-weight: 800; }
+.reward-row {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 36px 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin: 0 11px;
+  border-bottom: 1px solid #e7e3dc;
+}
+.reward-row:last-child { border-bottom: 0; }
+.reward-level {
+  color: var(--orange-dark);
+  font-size: 10px;
+  font-weight: 1000;
+}
+.reward-kind-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: #e8eef0;
+  font-size: 17px;
+}
+.reward-copy { min-width: 0; }
+.reward-copy strong {
+  display: block;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 1000;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reward-copy span { display: block; margin-top: 2px; color: var(--muted); font-size: 8.5px; font-weight: 800; }
+.level-table-shell {
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.level-table-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 52px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-2);
+}
+.level-table-summary strong { font-size: 13px; font-weight: 1000; }
+.level-table-summary span { color: var(--orange-dark); font-size: 10px; font-weight: 1000; }
+.level-table-scroll {
+  max-height: calc(100dvh - 190px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.level-table-head,
+.level-table-row {
+  display: grid;
+  grid-template-columns: 62px minmax(0, .8fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+.level-table-head {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  min-height: 34px;
+  border-bottom: 1px solid var(--line);
+  background: #e9eef0;
+  color: #627b86;
+  font-size: 8.5px;
+  font-weight: 1000;
+}
+.level-table-row {
+  min-height: 36px;
+  border-bottom: 1px solid #e8e4dd;
+  font-size: 9.5px;
+}
+.level-table-row:last-child { border-bottom: 0; }
+.level-table-row b { color: var(--orange-dark); font-size: 10px; }
+.level-table-row span { color: #607984; text-align: right; font-weight: 900; }
+.level-table-row span:last-child { color: var(--ink); }
+.level-table-row.milestone { background: #fff6f0; }
+@media (max-width: 360px) {
+  .app { padding-left: 9px; padding-right: 9px; }
+  .game-actions { grid-template-columns: 1fr 1fr .9fr .9fr 32px; gap: 4px; }
+  .game-actions button { font-size: 9.5px; }
+  .xp-summary { gap: 8px; padding-left: 11px; padding-right: 11px; }
+  .xp-meter-block, .xp-breakdown, .xp-foot { padding-left: 11px; padding-right: 11px; }
+  .xp-earned { font-size: 19px; }
+  .waiting-main h2 { font-size: 23px; }
+  .mvp-candidates { gap: 5px; padding-left: 10px; padding-right: 10px; }
+  .mvp-head, .mvp-copy, .mvp-foot { padding-left: 10px; padding-right: 10px; }
+  .mvp-candidate { grid-template-columns: 29px minmax(0, 1fr) 16px; gap: 6px; padding: 6px; }
+  .mvp-avatar { width: 29px; height: 29px; }
+}
+@media (max-height: 760px) {
+  .xp-backdrop, .mvp-backdrop { padding: 8px; }
+  .xp-dialog { max-height: calc(100dvh - 16px); }
+  .xp-head { min-height: 50px; padding: 8px 11px; }
+  .xp-head h2 { font-size: 17px; }
+  .xp-close { width: 30px; height: 30px; }
+  .xp-summary { gap: 8px; padding: 8px 12px 7px; }
+  .level-seal-stage { width: 54px; height: 54px; }
+  .level-seal { width: 48px; height: 48px; }
+  .level-seal strong { font-size: 18px; }
+  .xp-person strong { font-size: 14px; }
+  .xp-earned { font-size: 19px; }
+  .xp-meter-block { padding: 0 12px 9px; }
+  .xp-meter-head { margin-bottom: 4px; }
+  .xp-breakdown { padding: 0 12px; }
+  .xp-breakdown li { min-height: 36px; }
+  .xp-reason strong { font-size: 9.5px; }
+  .xp-reason small { margin-top: 2px; font-size: 7.5px; }
+  .xp-breakdown .xp-value { font-size: 10px; }
+  .reward-unlock {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 8px;
+    margin: 6px 12px 0;
+    padding: 5px 8px;
+  }
+  .reward-unlock .reward-icon { width: 32px; height: 32px; font-size: 17px; }
+  .reward-unlock strong { font-size: 10.5px; }
+  .xp-foot { gap: 6px; padding: 8px 12px 10px; }
+  .xp-foot button { height: 36px; font-size: 11px; }
+}
+@media (max-height: 600px) {
+  .xp-head { min-height: 46px; padding-top: 6px; padding-bottom: 6px; }
+  .xp-summary { padding-top: 5px; padding-bottom: 4px; }
+  .xp-breakdown li { min-height: 31px; }
+  .xp-reason strong { font-size: 8.7px; }
+  .xp-reason small {
+    max-width: 210px;
+    overflow: hidden;
+    font-size: 7px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .reward-unlock { margin-top: 4px; padding-top: 4px; padding-bottom: 4px; }
+  .xp-foot { padding-top: 6px; padding-bottom: 7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="mock-head">
+    <img src="assets/game-icon-catchmind.svg" alt="">
+    <div class="mock-title">
+      <strong>캐치마인드 레벨 시스템</strong>
+      <span>1차 구조 목업 · 최대 레벨 100</span>
+    </div>
+  </header>
+
+  <nav class="view-tabs" aria-label="목업 화면">
+    <button class="active" type="button" data-view="result">경험치 결과</button>
+    <button type="button" data-view="plates">닉네임 박스</button>
+    <button type="button" data-view="rewards">보상 구조</button>
+    <button type="button" data-view="levels">1~100 표</button>
+  </nav>
+
+  <section id="view-result" class="view active">
+    <div class="scenario-bar" aria-label="경험치 시나리오">
+      <button class="active" type="button" data-scenario="vote">MVP 선택</button>
+      <button type="button" data-scenario="normal">일반 결과</button>
+      <button type="button" data-scenario="mvp">MVP 결과</button>
+      <button type="button" data-scenario="levelup">레벨업</button>
+    </div>
+    <div class="game-shell">
+      <div class="game-actions">
+        <button type="button">🏅 랭킹</button>
+        <button type="button">▧ 갤러리</button>
+        <button type="button">관전하기</button>
+        <button type="button">나가기</button>
+        <button type="button" aria-label="더보기">···</button>
+      </div>
+      <div id="waiting-player-strip" class="player-strip"></div>
+      <div class="game-board">
+        <div class="wordbar">
+          <span>제시어 <b>준비 중</b></span>
+          <strong>--　6명</strong>
+        </div>
+        <div class="waiting-stage">
+          <div class="waiting-main">
+            <div class="paint-marks" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <h2>그릴 준비 됐나요?</h2>
+            <p>모두 레디했어요. 방장이 게임을 시작할 수 있어요</p>
+          </div>
+          <div class="waiting-roster">
+            참가 6명　<b>구나 · 민서 · 서준 · 지우 · 도윤 · 하린</b><br>
+            관전 1명　수빈
+          </div>
+        </div>
+      </div>
+      <div class="mock-chat"><span>채팅 입력</span></div>
+      <button id="reopen-xp" class="reopen-xp hidden" type="button">경험치 화면 다시 보기</button>
+    </div>
+  </section>
+
+  <section id="view-plates" class="view">
+    <div class="section-head">
+      <h2>닉네임 박스 확정안</h2>
+      <p>닉네임은 위, 레벨은 아래에 두어 빠르게 읽히는 2줄 구조입니다.</p>
+    </div>
+    <div class="plate-demo">
+      <header class="plate-demo-head">
+        <strong id="plate-design-name">A형 · 2줄 레벨형</strong>
+        <span id="plate-design-note">아래 레벨 줄에 구간 색을 넣고, 50레벨부터 두 색이 천천히 교차합니다.</span>
+      </header>
+      <div id="plate-strip" class="plate-scroll"></div>
+      <div id="plate-list" class="plate-list"></div>
+    </div>
+  </section>
+
+  <section id="view-rewards" class="view">
+    <div class="section-head">
+      <h2>1~100 성장 뼈대</h2>
+      <p>경험치는 영구 누적되고, 보상 종류와 실제 디자인은 카탈로그에서 교체할 수 있습니다.</p>
+    </div>
+    <div class="reward-summary">
+      <div><span>최대 레벨</span><strong>100</strong></div>
+      <div><span>누적 경험치</span><strong id="max-xp-summary">883,080</strong></div>
+      <div><span>보상 슬롯</span><strong>99개</strong></div>
+    </div>
+    <div class="curve-band">
+      <div class="curve-head">
+        <strong>성장 곡선</strong>
+        <span>후반 급상승</span>
+      </div>
+      <div id="curve-rows"></div>
+    </div>
+    <div class="reward-track">
+      <header class="reward-track-head">
+        <strong>구간 보상 예시</strong>
+        <span>그림판 테두리 · 스티커 · 텍스트 이모티콘 · 닉네임 박스</span>
+      </header>
+      <div id="reward-rows"></div>
+    </div>
+  </section>
+
+  <section id="view-levels" class="view">
+    <div class="section-head">
+      <h2>레벨 1~100 경험치</h2>
+      <p>다음 레벨에 필요한 경험치와 해당 레벨 시작 시점의 누적 경험치를 모두 표시합니다.</p>
+    </div>
+    <div class="level-table-shell">
+      <div class="level-table-summary">
+        <strong>전체 성장표</strong>
+        <span>LV 100 · 883,080 XP</span>
+      </div>
+      <div class="level-table-scroll">
+        <div class="level-table-head">
+          <span>레벨</span><span>다음 레벨</span><span>누적 XP</span>
+        </div>
+        <div id="level-table-rows"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="mvp-backdrop" class="mvp-backdrop" aria-hidden="false">
+  <section class="mvp-dialog" role="dialog" aria-modal="true" aria-labelledby="mvp-title">
+    <header class="mvp-head">
+      <div>
+        <span>경기 종료</span>
+        <h2 id="mvp-title">오늘의 MVP는?</h2>
+      </div>
+      <div class="mvp-timer"><strong id="mvp-seconds">15</strong><small>남은 시간</small></div>
+    </header>
+    <p class="mvp-copy">나를 제외한 참가자 한 명을 골라주세요.</p>
+    <div id="mvp-candidates" class="mvp-candidates"></div>
+    <footer class="mvp-foot">
+      <span id="mvp-choice" class="mvp-choice">아직 선택하지 않았어요</span>
+      <button id="mvp-confirm" class="mvp-confirm" type="button" disabled>선택 완료</button>
+    </footer>
+  </section>
+</div>
+
+<div id="xp-backdrop" class="xp-backdrop hidden" aria-hidden="true">
+  <section class="xp-dialog" role="dialog" aria-modal="true" aria-labelledby="xp-title">
+    <header class="xp-head">
+      <div>
+        <span>캐치마인드 성장</span>
+        <h2 id="xp-title">이번 게임 경험치</h2>
+      </div>
+      <button id="xp-close" class="xp-close" type="button" aria-label="경험치 화면 닫기">✕</button>
+    </header>
+    <div class="xp-summary">
+      <div id="level-seal-stage" class="level-seal-stage">
+        <div class="level-particles" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="level-seal">
+          <div><small>LEVEL</small><strong id="xp-level">24</strong></div>
+        </div>
+        <span id="level-up-tag" class="level-up-tag">LEVEL UP</span>
+      </div>
+      <div class="xp-person">
+        <strong>구나</strong>
+        <span id="xp-tier">새싹 등급</span>
+      </div>
+      <div class="xp-earned"><span id="xp-earned-label">획득</span><b id="xp-earned">+88 XP</b></div>
+    </div>
+    <div class="xp-meter-block">
+      <div class="xp-meter-head">
+        <span id="xp-meter-current">0 XP</span>
+        <span id="xp-meter-next">다음 레벨까지 0 XP</span>
+      </div>
+      <div class="xp-meter" role="progressbar" aria-label="레벨 경험치">
+        <div id="xp-meter-fill" class="xp-meter-fill"></div>
+      </div>
+    </div>
+    <ul id="xp-breakdown" class="xp-breakdown"></ul>
+    <div id="reward-unlock" class="reward-unlock hidden">
+      <div id="reward-icon" class="reward-icon">🎨</div>
+      <div><span>새 보상 획득</span><strong id="reward-name">컬러 닉네임 박스</strong></div>
+    </div>
+    <footer class="xp-foot">
+      <button id="xp-replay" class="xp-replay" type="button">다시 보기</button>
+      <button id="xp-confirm" class="xp-confirm" type="button">대기실로</button>
+    </footer>
+  </section>
+</div>
+
+<script src="catchmind-levels.js"></script>
+<script>
+(function () {
+  "use strict";
+  var Levels = window.CatchMindLevels;
+  var currentView = "result";
+  var currentScenario = "normal";
+  var plateStyle = "a";
+  var animationTimers = [];
+  var selectedMvp = "";
+  var mvpTimer = null;
+
+  function makeScenario(beforeXp, answerTimesMs, wonMvp) {
+    var award = Levels.matchXp({
+      eligibleRounds: 6,
+      answerTimesMs: answerTimesMs
+    }, {
+      humanPlayers: 6,
+      completed: true
+    });
+    award = Levels.applyMvpBonus(award, wonMvp);
+    return {
+      beforeXp: beforeXp,
+      earned: award.total,
+      breakdown: award.breakdown,
+      metrics: award.metrics
+    };
+  }
+
+  var sampleAnswers = [12000, 27000, 48000];
+  var scenarios = {
+    normal: makeScenario(
+      Levels.totalXpForLevel(18) + Math.round(Levels.xpToNext(18) * .42),
+      sampleAnswers,
+      false
+    ),
+    mvp: makeScenario(
+      Levels.totalXpForLevel(18) + Math.round(Levels.xpToNext(18) * .42),
+      sampleAnswers,
+      true
+    ),
+    levelup: makeScenario(
+      Levels.totalXpForLevel(25) - 34,
+      sampleAnswers,
+      true
+    )
+  };
+
+  var people = [
+    { nick: "구나", level: 4, host: true },
+    { nick: "민서", level: 12 },
+    { nick: "서준", level: 31, correct: true },
+    { nick: "지우", level: 56, drawer: true },
+    { nick: "도윤", level: 81 },
+    { nick: "하린", level: 94 },
+    { nick: "유진", level: 100 },
+    { nick: "수빈", level: 25, spectator: true }
+  ];
+
+  var rewardIcons = {
+    board_frame: "▣",
+    sticker: "✨",
+    text_emote: "💬",
+    nameplate: "🏷",
+    bundle: "🎁"
+  };
+
+  function $(id) { return document.getElementById(id); }
+  function clearAnimation() {
+    animationTimers.forEach(function (timer) { clearTimeout(timer); });
+    animationTimers = [];
+    $("level-seal-stage").classList.remove("celebrate");
+  }
+  function later(callback, delay) {
+    var timer = setTimeout(callback, delay);
+    animationTimers.push(timer);
+    return timer;
+  }
+  function plateHtml(person, style) {
+    var tier = Levels.tierForLevel(person.level);
+    var classes = ["nameplate", "style-" + style, "tier-" + tier.id];
+    if (person.drawer) classes.push("drawer");
+    if (person.correct) classes.push("correct");
+    if (person.spectator) classes.push("spectator");
+    return '<span class="' + classes.join(" ") + '">'
+      + '<span class="plate-name">' + person.nick
+      + (person.correct ? '<span class="correct-mark" aria-label="정답">✓</span>' : "")
+      + (person.host ? '<span class="crown">👑</span>' : "") + '</span>'
+      + '<span class="plate-level">LV ' + person.level + '</span>'
+      + '</span>';
+  }
+  function renderWaitingStrip() {
+    $("waiting-player-strip").innerHTML = people.slice(0, 7).map(function (person) {
+      return plateHtml(person, "a");
+    }).join("");
+  }
+  function renderPlates() {
+    $("plate-strip").innerHTML = people.map(function (person) {
+      return plateHtml(person, plateStyle);
+    }).join("");
+    $("plate-list").innerHTML = people.map(function (person) {
+      var tier = Levels.tierForLevel(person.level);
+      var state = person.drawer ? "그리는 중" : person.correct ? "정답" : person.spectator ? "관전" : tier.label;
+      return '<div class="plate-list-row">' + plateHtml(person, plateStyle)
+        + '<span class="plate-status">' + state + '</span></div>';
+    }).join("");
+  }
+  function renderRewards() {
+    $("max-xp-summary").textContent = Levels.formatXp(Levels.MAX_TOTAL_XP);
+    var checkpoints = [10, 25, 50, 75, 90, 100];
+    $("curve-rows").innerHTML = checkpoints.map(function (level) {
+      var xp = Levels.totalXpForLevel(level);
+      var width = Math.max(3, xp / Levels.MAX_TOTAL_XP * 100);
+      return '<div class="curve-row"><b>LV ' + level + '</b><div class="curve-track"><i style="width:'
+        + width.toFixed(2) + '%"></i></div><span>' + Levels.formatXp(xp) + ' XP</span></div>';
+    }).join("");
+    $("reward-rows").innerHTML = Levels.REWARD_CATALOG.map(function (reward) {
+      return '<div class="reward-row"><span class="reward-level">LV ' + reward.level + '</span>'
+        + '<span class="reward-kind-icon">' + (rewardIcons[reward.kind] || "🎁") + '</span>'
+        + '<div class="reward-copy"><strong>' + reward.name + '</strong><span>' + reward.kind.replace("_", " ") + '</span></div></div>';
+    }).join("");
+  }
+  function renderLevelTable() {
+    var milestones = { 10: true, 25: true, 50: true, 75: true, 90: true, 100: true };
+    var rows = [];
+    for (var level = 1; level <= Levels.MAX_LEVEL; level++) {
+      rows.push('<div class="level-table-row' + (milestones[level] ? ' milestone' : '') + '">'
+        + '<b>LV ' + level + '</b>'
+        + '<span>' + (level === Levels.MAX_LEVEL ? 'MAX' : Levels.formatXp(Levels.xpToNext(level)) + ' XP') + '</span>'
+        + '<span>' + Levels.formatXp(Levels.totalXpForLevel(level)) + ' XP</span>'
+        + '</div>');
+    }
+    $("level-table-rows").innerHTML = rows.join("");
+  }
+  function setScenarioButton(name) {
+    document.querySelectorAll("[data-scenario]").forEach(function (item) {
+      item.classList.toggle("active", item.getAttribute("data-scenario") === name);
+    });
+  }
+  function renderMvpCandidates() {
+    var candidates = people.filter(function (person) {
+      return person.nick !== "구나" && !person.spectator;
+    });
+    $("mvp-candidates").innerHTML = candidates.map(function (person) {
+      return '<button class="mvp-candidate" type="button" data-mvp-nick="' + person.nick + '">'
+        + '<span class="mvp-avatar">' + person.nick.slice(0, 1) + '</span>'
+        + '<span><strong>' + person.nick + '</strong><small>LV ' + person.level + '</small></span>'
+        + '<i class="mvp-check">✓</i></button>';
+    }).join("");
+    document.querySelectorAll("[data-mvp-nick]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        selectedMvp = this.getAttribute("data-mvp-nick");
+        document.querySelectorAll("[data-mvp-nick]").forEach(function (item) {
+          item.classList.toggle("selected", item.getAttribute("data-mvp-nick") === selectedMvp);
+        });
+        $("mvp-choice").textContent = selectedMvp + "님을 선택했어요";
+        $("mvp-confirm").disabled = false;
+      });
+    });
+  }
+  function stopMvpTimer() {
+    if (mvpTimer) clearInterval(mvpTimer);
+    mvpTimer = null;
+  }
+  function closeMvpVote() {
+    stopMvpTimer();
+    $("mvp-backdrop").classList.add("hidden");
+    $("mvp-backdrop").setAttribute("aria-hidden", "true");
+  }
+  function finishMvpVote() {
+    stopMvpTimer();
+    $("mvp-confirm").disabled = true;
+    $("mvp-confirm").textContent = selectedMvp ? "투표 완료" : "시간 종료";
+    $("mvp-choice").textContent = selectedMvp
+      ? selectedMvp + "님에게 투표했어요"
+      : "이번 투표는 선택 없이 끝났어요";
+    later(function () {
+      closeMvpVote();
+      currentScenario = "normal";
+      setScenarioButton("normal");
+      playXpAnimation();
+    }, 650);
+  }
+  function openMvpVote() {
+    clearAnimation();
+    $("xp-backdrop").classList.add("hidden");
+    $("xp-backdrop").setAttribute("aria-hidden", "true");
+    selectedMvp = "";
+    $("mvp-seconds").textContent = "15";
+    $("mvp-choice").textContent = "아직 선택하지 않았어요";
+    $("mvp-confirm").textContent = "선택 완료";
+    $("mvp-confirm").disabled = true;
+    renderMvpCandidates();
+    $("mvp-backdrop").classList.remove("hidden");
+    $("mvp-backdrop").setAttribute("aria-hidden", "false");
+    $("reopen-xp").classList.add("hidden");
+    stopMvpTimer();
+    var seconds = 15;
+    mvpTimer = setInterval(function () {
+      seconds -= 1;
+      $("mvp-seconds").textContent = String(Math.max(0, seconds));
+      if (seconds <= 0) finishMvpVote();
+    }, 1000);
+  }
+  function breakdownRows(scenario) {
+    var data = scenario.breakdown;
+    var metrics = scenario.metrics;
+    var answerDetail = metrics.answerTimesMs.map(function (milliseconds, index) {
+      return Math.round(milliseconds / 1000) + "초 +" + metrics.answerXp[index];
+    }).join(" · ");
+    var rows = [
+      ["게임 완료", "끝까지 플레이한 게임", data.completion],
+      ["정답 속도 · " + metrics.correctCount + "회",
+        answerDetail || "이번 게임에서는 정답이 없었어요", data.answers],
+      ["MVP 보너스",
+        metrics.mvp ? "이번 게임 MVP로 선정됐어요" : "MVP 선정 시 15 XP", data.mvp]
+    ];
+    return rows.map(function (row) {
+      return '<li' + (row[2] ? "" : ' class="empty"') + '><span class="xp-reason"><strong>'
+        + row[0] + '</strong><small>' + row[1]
+        + '</small></span><b class="xp-value">+' + row[2] + ' XP</b></li>';
+    }).join("");
+  }
+  function setMeter(progress, immediate) {
+    var fill = $("xp-meter-fill");
+    if (immediate) fill.style.transition = "none";
+    fill.style.width = Math.round(progress.ratio * 10000) / 100 + "%";
+    fill.parentElement.setAttribute("aria-valuenow", String(Math.round(progress.ratio * 100)));
+    fill.parentElement.setAttribute("aria-valuemin", "0");
+    fill.parentElement.setAttribute("aria-valuemax", "100");
+    if (immediate) {
+      void fill.offsetWidth;
+      fill.style.transition = "";
+    }
+    $("xp-level").textContent = progress.level;
+    $("xp-tier").textContent = progress.tier.label + " 등급";
+    $("xp-meter-current").textContent = progress.isMax
+      ? Levels.formatXp(Levels.MAX_TOTAL_XP) + " XP"
+      : Levels.formatXp(progress.currentXp) + " / " + Levels.formatXp(progress.neededXp) + " XP";
+    $("xp-meter-next").textContent = progress.isMax
+      ? "MAX LEVEL"
+      : "다음 레벨까지 " + Levels.formatXp(progress.neededXp - progress.currentXp) + " XP";
+  }
+  function rewardForProgress(summary) {
+    if (summary.rewards.length) return summary.rewards[summary.rewards.length - 1];
+    if (summary.levelsGained > 0) {
+      return { name: "레벨 " + summary.after.level + " 보상 슬롯", kind: "bundle" };
+    }
+    return null;
+  }
+  function playXpAnimation() {
+    clearAnimation();
+    closeMvpVote();
+    var scenario = scenarios[currentScenario];
+    var summary = Levels.progression(scenario.beforeXp, scenario.earned);
+    var reward = rewardForProgress(summary);
+    $("xp-earned-label").textContent = summary.appliedXp < scenario.earned ? "최종 반영" : "획득";
+    $("xp-earned").textContent = "+" + summary.appliedXp + " XP";
+    $("xp-breakdown").innerHTML = breakdownRows(scenario);
+    $("reward-unlock").classList.add("hidden");
+    setMeter(summary.before, true);
+    $("xp-backdrop").classList.remove("hidden");
+    $("xp-backdrop").setAttribute("aria-hidden", "false");
+    $("reopen-xp").classList.add("hidden");
+
+    later(function () {
+      if (!summary.levelsGained) {
+        setMeter(summary.after, false);
+        return;
+      }
+      var fill = $("xp-meter-fill");
+      fill.style.width = "100%";
+      later(function () {
+        $("level-up-tag").textContent = summary.after.isMax ? "MAX LEVEL" : "LEVEL UP";
+        setMeter(Object.assign({}, summary.after, { ratio: 0 }), true);
+        $("level-seal-stage").classList.remove("celebrate");
+        void $("level-seal-stage").offsetWidth;
+        $("level-seal-stage").classList.add("celebrate");
+        later(function () {
+          setMeter(summary.after, false);
+          if (reward) {
+            $("reward-icon").textContent = rewardIcons[reward.kind] || "🎁";
+            $("reward-name").textContent = reward.name;
+            $("reward-unlock").classList.remove("hidden");
+          }
+        }, 180);
+        later(function () {
+          $("level-seal-stage").classList.remove("celebrate");
+        }, 1450);
+      }, 1080);
+    }, 180);
+  }
+  function closeXp() {
+    clearAnimation();
+    $("xp-backdrop").classList.add("hidden");
+    $("xp-backdrop").setAttribute("aria-hidden", "true");
+    $("reopen-xp").classList.remove("hidden");
+  }
+  function setView(view) {
+    currentView = view;
+    document.querySelectorAll("[data-view]").forEach(function (button) {
+      button.classList.toggle("active", button.getAttribute("data-view") === view);
+    });
+    document.querySelectorAll(".view").forEach(function (section) {
+      section.classList.toggle("active", section.id === "view-" + view);
+    });
+    if (view !== "result") {
+      closeXp();
+      closeMvpVote();
+    }
+  }
+
+  document.querySelectorAll("[data-view]").forEach(function (button) {
+    button.addEventListener("click", function () { setView(this.getAttribute("data-view")); });
+  });
+  document.querySelectorAll("[data-scenario]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var scenario = this.getAttribute("data-scenario");
+      setScenarioButton(scenario);
+      if (scenario === "vote") {
+        openMvpVote();
+        return;
+      }
+      currentScenario = scenario;
+      playXpAnimation();
+    });
+  });
+  $("mvp-confirm").addEventListener("click", finishMvpVote);
+  $("xp-close").addEventListener("click", closeXp);
+  $("xp-confirm").addEventListener("click", closeXp);
+  $("xp-replay").addEventListener("click", playXpAnimation);
+  $("reopen-xp").addEventListener("click", playXpAnimation);
+
+  var previewParams = new URLSearchParams(window.location.search);
+  var previewView = previewParams.get("view");
+  var previewScenario = previewParams.get("scenario") || "vote";
+  if (["vote", "normal", "mvp", "levelup"].indexOf(previewScenario) >= 0) {
+    if (previewScenario !== "vote") currentScenario = previewScenario;
+    setScenarioButton(previewScenario);
+  }
+  renderWaitingStrip();
+  renderPlates();
+  renderRewards();
+  renderLevelTable();
+  if (["result", "plates", "rewards", "levels"].indexOf(previewView) >= 0 && previewView !== "result") {
+    setView(previewView);
+  } else if (previewScenario === "vote") {
+    openMvpVote();
+  } else {
+    playXpAnimation();
+  }
+})();
+</script>
+</body>
+</html>

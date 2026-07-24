@@ -1182,7 +1182,8 @@
   }
   var catchPreviewPhases = [
     "waiting", "countdown", "drawing", "guessing", "solved", "paused",
-    "reveal-success", "reveal-timeout", "finished", "result"
+    "reveal-success", "reveal-timeout", "finished", "result", "level-plates",
+    "mvp-vote", "xp-result", "xp-mvp", "xp-levelup"
   ];
   var catchPreviewBound = false;
   function catchPreviewPeople() {

@@ -1124,6 +1124,15 @@ test("admin preview builds every CatchMind screen from real controller state", (
 
   assert.equal(api.setPreviewPhase("result"), "result");
   assert.equal(api.getState().phase, "finished");
+
+  assert.equal(api.setPreviewPhase("level-plates"), "level-plates");
+  assert.equal(api.getState().phase, "drawing");
+  assert.equal(api.getState().correct["서준"], true);
+
+  for (const phase of ["mvp-vote", "xp-result", "xp-mvp", "xp-levelup"]) {
+    assert.equal(api.setPreviewPhase(phase), phase);
+    assert.equal(api.getState().phase, "finished");
+  }
 });
 
 test("only the current drawer sees the word during the countdown", () => {

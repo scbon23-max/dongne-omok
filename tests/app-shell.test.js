@@ -38,6 +38,7 @@ test("the app shell versions every local runtime asset from one build", () => {
     "alkkagi.js",
     "game-catalog.js",
     "catchmind-words.js",
+    "catchmind-levels.js",
     "catchmind.js",
     "relay-drawing.js",
     "territory-rush.js",
@@ -87,12 +88,13 @@ test("the app shell loads local scripts sequentially with the same revision", ()
   assert.equal(styles[0].href, "styles.css?v=" + encodeURIComponent(version));
   assert.equal(scripts[0].src, "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2");
 
-  while (scripts.length < 17) scripts[scripts.length - 1].onload();
+  while (scripts.length < 18) scripts[scripts.length - 1].onload();
   assert.equal(scripts[1].src, "config.js?v=" + encodeURIComponent(version));
   assert.equal(scripts[5].src, "pro-hint-explain.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[14].src, "relay-drawing.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[15].src, "territory-rush.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[16].src, "game.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[13].src, "catchmind-levels.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[15].src, "relay-drawing.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[16].src, "territory-rush.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[17].src, "game.js?v=" + encodeURIComponent(version));
 });
 
 test("room entry is not blocked by an HTML and JavaScript build label mismatch", () => {
@@ -161,7 +163,8 @@ test("CatchMind prevents iPad drawing gestures from selecting the page", () => {
 test("CatchMind exposes every live UI state only through the authenticated admin preview", () => {
   for (const phase of [
     "waiting", "countdown", "drawing", "guessing", "solved", "paused",
-    "reveal-success", "reveal-timeout", "finished", "result"
+    "reveal-success", "reveal-timeout", "finished", "result", "level-plates",
+    "mvp-vote", "xp-result", "xp-mvp", "xp-levelup"
   ]) {
     assert.match(index, new RegExp('<option value="' + phase + '">'));
   }
@@ -183,6 +186,10 @@ test("CatchMind exposes every live UI state only through the authenticated admin
   assert.match(catchmind, /enterPreview:\s*enterPreview/);
   assert.match(catchmind, /setPreviewPhase:\s*setPreviewPhase/);
   assert.match(styles, /body\.catch-preview-mobile #catchgame/);
+  assert.match(index, /id="catch-level-mvp-backdrop"/);
+  assert.match(index, /id="catch-level-xp-backdrop"/);
+  assert.match(catchmind, /function syncLevelPreview/);
+  assert.match(styles, /\.catch-score-strip\.level-preview/);
 });
 
 test("room host election skips members who switched to spectating", () => {

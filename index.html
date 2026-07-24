@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260724-territory-public-v18">
+<meta name="app-build" content="20260724-catchmind-level-preview-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -337,6 +337,11 @@
           <option value="reveal-timeout">시간 초과 공개</option>
           <option value="finished">게임 종료</option>
           <option value="result">점수 팝업</option>
+          <option value="level-plates">레벨 닉네임 박스</option>
+          <option value="mvp-vote">MVP 선택</option>
+          <option value="xp-result">경험치 결과</option>
+          <option value="xp-mvp">MVP 경험치 결과</option>
+          <option value="xp-levelup">레벨업 결과</option>
         </select>
       </label>
       <button id="catch-preview-next" type="button" aria-label="다음 화면">→</button>
@@ -367,6 +372,7 @@
       </div>
     </div>
     <canvas id="catch-board" width="720" height="720" aria-label="캐치마인드 그림판"></canvas>
+    <img id="catch-board-frame" class="catch-board-frame" src="assets/catchmind/board-frames/frame-color-pencil-v2.png" alt="" aria-hidden="true" draggable="false">
     <div id="catch-reaction-layer" class="catch-reaction-layer" aria-hidden="true"></div>
     <div id="catch-chat-overlay" class="chat-overlay catch-chat-overlay"></div>
     <div id="catch-feed" class="catch-feed" aria-live="polite"></div>
@@ -761,6 +767,70 @@
     <footer class="cm-result-foot">
       <button id="catch-result-rank" class="cm-result-rank-btn" type="button">🏅 랭킹 보기</button>
       <button id="catch-result-confirm" class="cm-result-confirm" type="button">확인</button>
+    </footer>
+  </section>
+</div>
+
+<!-- 캐치마인드 MVP 선택 -->
+<div id="catch-level-mvp-backdrop" class="cm-level-backdrop hidden" aria-hidden="true">
+  <section class="cm-mvp-dialog" role="dialog" aria-modal="true" aria-labelledby="catch-level-mvp-title">
+    <header class="cm-mvp-head">
+      <div>
+        <span>경기 종료</span>
+        <h2 id="catch-level-mvp-title">오늘의 MVP는?</h2>
+      </div>
+      <div class="cm-mvp-timer"><strong>15</strong><small>남은 시간</small></div>
+    </header>
+    <p class="cm-mvp-copy">나를 제외한 참가자 한 명을 골라주세요.</p>
+    <div id="catch-level-mvp-candidates" class="cm-mvp-candidates"></div>
+    <footer class="cm-mvp-foot">
+      <span id="catch-level-mvp-choice" class="cm-mvp-choice">아직 선택하지 않았어요</span>
+      <button id="catch-level-mvp-confirm" class="cm-mvp-confirm" type="button" disabled>선택 완료</button>
+    </footer>
+  </section>
+</div>
+
+<!-- 캐치마인드 경험치 결과 -->
+<div id="catch-level-xp-backdrop" class="cm-level-backdrop hidden" aria-hidden="true">
+  <section class="cm-xp-dialog" role="dialog" aria-modal="true" aria-labelledby="catch-level-xp-title">
+    <header class="cm-xp-head">
+      <div>
+        <span>캐치마인드 성장</span>
+        <h2 id="catch-level-xp-title">이번 게임 경험치</h2>
+      </div>
+      <button id="catch-level-xp-close" class="cm-xp-close" type="button" aria-label="경험치 결과 닫기">✕</button>
+    </header>
+    <div class="cm-xp-summary">
+      <div id="catch-level-seal-stage" class="cm-level-seal-stage">
+        <div class="cm-level-particles" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="cm-level-seal"><small>LEVEL</small><strong id="catch-level-xp-level">18</strong></div>
+        <span id="catch-level-up-tag" class="cm-level-up-tag">LEVEL UP</span>
+      </div>
+      <div class="cm-xp-person">
+        <strong id="catch-level-xp-name">구나</strong>
+        <span id="catch-level-xp-tier">새싹 등급</span>
+      </div>
+      <div class="cm-xp-earned"><span>획득</span><b id="catch-level-xp-earned">+42 XP</b></div>
+    </div>
+    <div class="cm-xp-meter-block">
+      <div class="cm-xp-meter-head">
+        <span id="catch-level-xp-current">0 XP</span>
+        <span id="catch-level-xp-next">다음 레벨까지 0 XP</span>
+      </div>
+      <div id="catch-level-xp-meter" class="cm-xp-meter" role="progressbar" aria-label="레벨 경험치">
+        <div id="catch-level-xp-fill" class="cm-xp-fill"></div>
+      </div>
+    </div>
+    <ul id="catch-level-xp-breakdown" class="cm-xp-breakdown"></ul>
+    <div id="catch-level-reward" class="cm-level-reward hidden">
+      <span aria-hidden="true">🏷</span>
+      <div><small>새 보상 획득</small><strong id="catch-level-reward-name">컬러 닉네임 박스</strong></div>
+    </div>
+    <footer class="cm-xp-foot">
+      <button id="catch-level-xp-replay" type="button">다시 보기</button>
+      <button id="catch-level-xp-confirm" type="button">대기실로</button>
     </footer>
   </section>
 </div>
@@ -1192,6 +1262,7 @@
     { src: "alkkagi.js" },
     { src: "game-catalog.js" },
     { src: "catchmind-words.js" },
+    { src: "catchmind-levels.js" },
     { src: "catchmind.js" },
     { src: "relay-drawing.js" },
     { src: "territory-rush.js" },
