@@ -49,6 +49,7 @@ test("the app shell versions every local runtime asset from one build", () => {
 
   assert.match(index, /script\.src = file\.external \? file\.src : shell\.assetUrl\(file\.src\)/);
   assert.doesNotMatch(index, /<script src="(?!https:\/\/)[^"]+\.js/);
+  assert.ok(index.indexOf('{ src: "catchmind-levels.js" }') < index.indexOf('{ src: "catchmind.js" }'));
 });
 
 test("the app shell loads local scripts sequentially with the same revision", () => {
@@ -399,7 +400,7 @@ test("Territory Rush is wired as a public non-ranked controller game", () => {
   assert.match(styles, /\.territory-chat-row\s*\{[^}]*position:\s*absolute;[^}]*bottom:\s*max\(8px, env\(safe-area-inset-bottom\)\);/);
   assert.match(territoryRush, /function canChat\(nick\)[\s\S]*state\.phase !== "playing"[\s\S]*has\(state\.spectators, nick\) \|\| !playerByNick\(nick\)/);
   assert.match(styles, /@media \(max-width: 360px\)[\s\S]*\.territory-scoreboard\s*\{[^}]*width:\s*min\(143px, calc\(100% - 116px\)\);[^}]*font-size:\s*14px;/);
-  const scoreboardSource = territoryRush.match(/function renderScoreboard\(\) \{([\s\S]*?)\n  \}\n\n  function renderFinished/)[1];
+  const scoreboardSource = territoryRush.match(/function renderScoreboard\(\) \{([\s\S]*?)\r?\n  \}\r?\n\r?\n  function renderFinished/)[1];
   assert.match(scoreboardSource, /territory-rank-number/);
   assert.doesNotMatch(scoreboardSource, /territory-dot|MASCOTS/);
   assert.doesNotMatch(styles, /\.territory-(?:event|risk)\b/);
@@ -569,5 +570,20 @@ test("CatchMind exposes a self-only reward menu and board-frame picker", () => {
     game.indexOf("function selectCatchBoardFrame"),
     game.indexOf("function openCatchBoardFramePicker")
   );
-  assert.doesNotMatch(selectFrame, /Net\.(send|track)/);
+  const publishFrame = game.slice(
+    game.indexOf("function publishCatchBoardFrameSelection"),
+    game.indexOf("function prepareCatchPersonalState")
+  );
+  const showFrame = game.slice(
+    game.indexOf("function showCatchBoardFrame"),
+    game.indexOf("function applyCatchBoardFrame")
+  );
+
+  assert.match(game, /catchBoardFrameId:\s*catchSelectedBoardFrameId/);
+  assert.match(game, /getBoardFrameId:\s*function \(\) \{ return catchSelectedBoardFrameId; \}/);
+  assert.match(game, /showBoardFrame:\s*showCatchBoardFrame/);
+  assert.match(game, /function showLobby\(\)[\s\S]*loadCatchPersonalProfile\(false\)/);
+  assert.match(selectFrame, /publishCatchBoardFrameSelection\(\)/);
+  assert.match(publishFrame, /Net\.track\(myMetaObj\(null\)\)/);
+  assert.doesNotMatch(showFrame, /catchSelectedBoardFrameId\s*=/);
 });

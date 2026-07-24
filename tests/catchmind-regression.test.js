@@ -6,6 +6,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
+const BOARD_FRAME_LEVELS = {
+  REWARD_KINDS: { BOARD_FRAME: "board_frame" },
+  REWARD_CATALOG: [
+    { id: "frame-a", kind: "board_frame" },
+    { id: "frame-b", kind: "board_frame" },
+    { id: "frame-c", kind: "board_frame" }
+  ]
+};
+
 function loadCatchMind(options) {
   options = options || {};
   const source = fs.readFileSync(path.join(__dirname, "..", "catchmind.js"), "utf8");
@@ -134,6 +143,205 @@ test("state sanitizing blocks markup and malformed values", () => {
   assert.equal(clean.feed[0].kind, "guess");
   assert.equal(clean.resultRatings.length, 1);
   assert.equal(clean.resultRatings[0].rankText, "<img>");
+});
+
+test("board frame ids are allowlisted in authoritative snapshots", () => {
+  const api = loadCatchMind({ window: { CatchMindLevels: BOARD_FRAME_LEVELS } });
+
+  assert.equal(api.safeBoardFrameId("frame-a"), "frame-a");
+  for (const invalid of ["", "missing", "../../frame-a", "javascript:alert(1)", "__proto__", "constructor"]) {
+    assert.equal(api.safeBoardFrameId(invalid), "");
+  }
+
+  assert.equal(api.sanitizeSnapshot(baseSnapshot({ boardFrameId: "frame-b" })).boardFrameId, "frame-b");
+  assert.equal(api.sanitizeSnapshot(baseSnapshot({ boardFrameId: "../../frame-b" })).boardFrameId, "");
+});
+
+test("each drawing turn publishes that drawer's selected board frame", () => {
+  const sent = [];
+  const roster = [
+    { nick: "A", catchBoardFrameId: "frame-a" },
+    { nick: "B", catchBoardFrameId: "frame-b" },
+    { nick: "C", catchBoardFrameId: "frame-c" }
+  ];
+  const api = loadCatchMind({ window: { CatchMindLevels: BOARD_FRAME_LEVELS } });
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return roster; },
+    getBoardFrameId() { return "frame-a"; },
+    showBoardFrame() {},
+    send(message) { sent.push(message); },
+    roomChanged() {},
+    toast() {}
+  });
+
+  const state = api.freshState();
+  state.queue = ["A", "B", "C"];
+  api.setState(state);
+  api.hostStartRound(1);
+
+  assert.equal(api.getState().drawer, "B");
+  assert.equal(api.getState().boardFrameId, "frame-b");
+  const published = sent.filter(message => message.t === "cm_state").pop();
+  assert.ok(published);
+  assert.equal(published.state.drawer, "B");
+  assert.equal(published.state.boardFrameId, "frame-b");
+});
+
+test("players and spectators render the active drawer frame without replacing their own selection", () => {
+  const shown = [];
+  const api = loadCatchMind({ window: { CatchMindLevels: BOARD_FRAME_LEVELS } });
+  api.setApi({
+    isHost() { return false; },
+    host() { return "A"; },
+    me() { return { nick: "S", isAdmin: false }; },
+    roster() {
+      return [
+        { nick: "A", catchBoardFrameId: "frame-a" },
+        { nick: "B", catchBoardFrameId: "frame-b" },
+        { nick: "S", catchBoardFrameId: "frame-c" }
+      ];
+    },
+    getBoardFrameId() { return "frame-c"; },
+    showBoardFrame(frameId) { shown.push(frameId); },
+    send() {},
+    roomChanged() {},
+    toast() {}
+  });
+
+  assert.equal(api.applyState(baseSnapshot({
+    rev: 2,
+    drawer: "A",
+    boardFrameId: "frame-a"
+  })), true);
+  assert.equal(shown[shown.length - 1], "frame-a");
+
+  assert.equal(api.applyState(baseSnapshot({
+    rev: 3,
+    roundIndex: 1,
+    drawer: "B",
+    guessers: ["A", "C"],
+    boardFrameId: "frame-b"
+  })), true);
+  assert.equal(shown[shown.length - 1], "frame-b");
+  assert.equal(api.boardFrameForNick("S"), "frame-c");
+});
+
+test("the active drawer keeps the newly selected local frame while host state catches up", () => {
+  const shown = [];
+  let selected = "frame-a";
+  const api = loadCatchMind({ window: { CatchMindLevels: BOARD_FRAME_LEVELS } });
+  api.setApi({
+    isHost() { return false; },
+    host() { return "A"; },
+    me() { return { nick: "B", isAdmin: false }; },
+    roster() {
+      return [
+        { nick: "A", catchBoardFrameId: "frame-a" },
+        { nick: "B", catchBoardFrameId: selected },
+        { nick: "C", catchBoardFrameId: "frame-c" }
+      ];
+    },
+    getBoardFrameId() { return selected; },
+    showBoardFrame(frameId) { shown.push(frameId); },
+    send() {},
+    roomChanged() {},
+    toast() {}
+  });
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    drawer: "B",
+    guessers: ["A", "C"],
+    boardFrameId: "frame-a"
+  })));
+
+  selected = "frame-b";
+  api.boardFrameChanged();
+  api.onPresence([], { becameHost: false });
+
+  assert.equal(shown[shown.length - 1], "frame-b");
+  assert.equal(api.getState().boardFrameId, "frame-a");
+});
+
+test("presence changes update only the current drawer's active frame", () => {
+  const sent = [];
+  const roster = [
+    { nick: "A", catchBoardFrameId: "frame-a" },
+    { nick: "B", catchBoardFrameId: "frame-b" },
+    { nick: "C", catchBoardFrameId: "frame-c" }
+  ];
+  const api = loadCatchMind({ window: { CatchMindLevels: BOARD_FRAME_LEVELS } });
+  api.setApi({
+    isHost() { return true; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return roster; },
+    getBoardFrameId() { return roster[0].catchBoardFrameId; },
+    showBoardFrame() {},
+    send(message) { sent.push(message); },
+    roomChanged() {},
+    toast() {}
+  });
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    rev: 5,
+    drawer: "B",
+    guessers: ["A", "C"],
+    boardFrameId: "frame-b"
+  })));
+  api.setSecretWord("word");
+
+  roster[2].catchBoardFrameId = "frame-a";
+  api.onPresence([], { becameHost: false });
+  assert.equal(api.getState().boardFrameId, "frame-b");
+
+  roster[1].catchBoardFrameId = "frame-c";
+  api.onPresence([], { becameHost: false });
+  assert.equal(api.getState().boardFrameId, "frame-c");
+  const published = sent.filter(message => message.t === "cm_state").pop();
+  assert.ok(published);
+  assert.equal(published.state.boardFrameId, "frame-c");
+
+  roster[1].catchBoardFrameId = "../../frame-a";
+  api.onPresence([], { becameHost: false });
+  assert.equal(api.getState().boardFrameId, "frame-c");
+});
+
+test("a newly elected host republishes the current drawer frame from presence", () => {
+  const sent = [];
+  let hostMode = false;
+  const roster = [
+    { nick: "A", catchBoardFrameId: "frame-a" },
+    { nick: "B", catchBoardFrameId: "frame-b" },
+    { nick: "C", catchBoardFrameId: "frame-c" }
+  ];
+  const api = loadCatchMind({ window: { CatchMindLevels: BOARD_FRAME_LEVELS } });
+  api.setApi({
+    isHost() { return hostMode; },
+    host() { return hostMode ? "A" : "C"; },
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() { return roster; },
+    getBoardFrameId() { return "frame-a"; },
+    showBoardFrame() {},
+    send(message) { sent.push(message); },
+    roomChanged() {},
+    toast() {}
+  });
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    rev: 8,
+    drawer: "B",
+    guessers: ["A", "C"],
+    boardFrameId: "frame-a"
+  })));
+  api.setSecretWord("word");
+
+  hostMode = true;
+  api.onPresence([], { becameHost: true });
+
+  assert.equal(api.getState().boardFrameId, "frame-b");
+  const published = sent.filter(message => message.t === "cm_state").pop();
+  assert.ok(published);
+  assert.equal(published.state.boardFrameId, "frame-b");
 });
 
 test("custom drawing colors allow safe hex values only", () => {

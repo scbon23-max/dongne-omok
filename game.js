@@ -167,7 +167,14 @@
       me: function () { return { nick: me.nick, isAdmin: me.isAdmin, clientSessionId: currentClientSessionId() }; },
       roster: function () {
         if (netMode && displayRoster.length) return displayRoster.slice();
-        return [{ nick: me.nick, isAdmin: me.isAdmin, joinTs: myJoinTs || 0, clientSessionId: currentClientSessionId(), presenceSessionIds: [currentClientSessionId()] }];
+        return [{
+          nick: me.nick,
+          isAdmin: me.isAdmin,
+          joinTs: myJoinTs || 0,
+          clientSessionId: currentClientSessionId(),
+          presenceSessionIds: [currentClientSessionId()],
+          catchBoardFrameId: catchSelectedBoardFrameId
+        }];
       },
       isHost: function () { return !netMode || amHost; },
       host: function () { return hostNick || me.nick; },
@@ -230,6 +237,8 @@
       openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
       openMenu: openMenu,
       openBoardFramePicker: openCatchBoardFramePicker,
+      getBoardFrameId: function () { return catchSelectedBoardFrameId; },
+      showBoardFrame: showCatchBoardFrame,
       openRules: function () { showRules(curRoomGame || curGame); },
       leaveRoom: requestLeaveRoom,
       roomChanged: broadcastRoomOpen,
@@ -394,7 +403,15 @@
     return window.Net && Net.clientSessionId ? String(Net.clientSessionId).slice(0, 96) : "local";
   }
   function myMetaObj(v) {
-    return { nick: me.nick, isAdmin: me.isAdmin, joinTs: myJoinTs, viewing: v, hostEligible: roomHostEligible, clientSessionId: currentClientSessionId() };
+    return {
+      nick: me.nick,
+      isAdmin: me.isAdmin,
+      joinTs: myJoinTs,
+      viewing: v,
+      hostEligible: roomHostEligible,
+      clientSessionId: currentClientSessionId(),
+      catchBoardFrameId: catchSelectedBoardFrameId
+    };
   }
   function appConnect() {
     joinedAt = Date.now();
@@ -421,6 +438,7 @@
       return;
     }
     if (!lobbyConnected) { lobbyConnected = true; appConnect(); startRoomKeeper(); }
+    loadCatchPersonalProfile(false);
     renderRoomList();
     updateOnlineCounts(); renderLobbyOnline();
     refreshFeedbackBadge();
@@ -1316,6 +1334,8 @@
       openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
       openMenu: openMenu,
       openBoardFramePicker: openCatchBoardFramePicker,
+      getBoardFrameId: function () { return catchSelectedBoardFrameId; },
+      showBoardFrame: showCatchBoardFrame,
       openRules: function () { showRules("catchmind"); },
       leaveRoom: exitCatchPreview,
       roomChanged: function () {},
@@ -4899,17 +4919,33 @@
       }));
     } catch (e) {}
   }
+  function showCatchBoardFrame(rewardId) {
+    var frames = catchBoardFrameCatalog();
+    var reward = catchBoardFrameById(rewardId) || frames[0] || null;
+    if (!reward) return false;
+    var image = $("catch-board-frame");
+    if (image && image.getAttribute("data-catch-frame-id") !== reward.id) {
+      image.src = localAssetUrl(reward.asset);
+      image.setAttribute("data-catch-frame-id", reward.id);
+    }
+    return true;
+  }
   function applyCatchBoardFrame(rewardId) {
     var frames = catchBoardFrameCatalog();
     var reward = catchBoardFrameById(rewardId) || frames[0] || null;
     if (!reward) return false;
     catchSelectedBoardFrameId = reward.id;
-    var image = $("catch-board-frame");
-    if (image) {
-      image.src = localAssetUrl(reward.asset);
-      image.setAttribute("data-catch-frame-id", reward.id);
+    return showCatchBoardFrame(reward.id);
+  }
+  function syncCatchBoardFrameTurn() {
+    if (window.CatchMind && CatchMind.boardFrameChanged) CatchMind.boardFrameChanged();
+  }
+  function publishCatchBoardFrameSelection() {
+    if (netMode && curRoomId && (curRoomGame === "catchmind" || curGame === "catchmind")
+        && window.Net && Net.track) {
+      Net.track(myMetaObj(null));
     }
-    return true;
+    syncCatchBoardFrameTurn();
   }
   function prepareCatchPersonalState() {
     if (catchPersonalProfileNick !== me.nick) {
@@ -4970,6 +5006,7 @@
         if (equippedId) {
           applyCatchBoardFrame(equippedId);
           storeCatchBoardFrame(equippedId);
+          publishCatchBoardFrameSelection();
         }
       }
       return result || { ok: false, reason: "invalid_response" };
@@ -5052,6 +5089,7 @@
     var previousId = catchSelectedBoardFrameId;
     applyCatchBoardFrame(reward.id);
     storeCatchBoardFrame(reward.id);
+    publishCatchBoardFrameSelection();
     renderCatchBoardFramePicker();
     renderCatchPersonalRewards();
     if (isCatchCosmeticsPreview()) {
@@ -5077,6 +5115,7 @@
       if (result && (result.reason === "locked_reward" || result.reason === "auth" || result.reason === "equip")) {
         applyCatchBoardFrame(previousId);
         storeCatchBoardFrame(catchSelectedBoardFrameId);
+        publishCatchBoardFrameSelection();
         renderCatchBoardFramePicker();
         toast("아직 획득하지 않은 스킨이에요.");
         return;
@@ -5088,6 +5127,7 @@
   }
   function openCatchBoardFramePicker() {
     prepareCatchPersonalState();
+    syncCatchBoardFrameTurn();
     renderCatchBoardFramePicker();
     openModal("catch-frame-picker-modal");
     loadCatchPersonalProfile(false).then(function () {

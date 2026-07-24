@@ -131,6 +131,7 @@ window.CatchMind = (function () {
       ready: [],
       roundIndex: 0,
       drawer: null,
+      boardFrameId: "",
       guessers: [],
       deadline: null,
       nextAt: null,
@@ -285,6 +286,7 @@ window.CatchMind = (function () {
       }
     }
 
+    next.boardFrameId = boardFrameForNick(next.drawer);
     previewPhaseKey = key;
     previewMvpSelection = "";
     previewDismissedOverlay = "";
@@ -415,6 +417,31 @@ window.CatchMind = (function () {
     }
     return out;
   }
+  function safeBoardFrameId(value) {
+    var id = safeText(value, 80).trim();
+    var Levels = window.CatchMindLevels;
+    var catalog = Levels && Array.isArray(Levels.REWARD_CATALOG) ? Levels.REWARD_CATALOG : [];
+    var frameKind = Levels && Levels.REWARD_KINDS ? Levels.REWARD_KINDS.BOARD_FRAME : "board_frame";
+    for (var i = 0; i < catalog.length; i++) {
+      if (catalog[i] && catalog[i].kind === frameKind && catalog[i].id === id) return id;
+    }
+    return "";
+  }
+  function boardFrameForNick(nick) {
+    nick = safeNick(nick);
+    if (!nick || !api) return "";
+    if (nick === safeNick(me().nick) && api.getBoardFrameId) {
+      var mine = safeBoardFrameId(api.getBoardFrameId());
+      if (mine) return mine;
+    }
+    var roster = people();
+    for (var i = 0; i < roster.length; i++) {
+      if (roster[i] && safeNick(roster[i].nick) === nick) {
+        return safeBoardFrameId(roster[i].catchBoardFrameId);
+      }
+    }
+    return "";
+  }
   function safeGalleryDrawerList(raw) {
     if (!Array.isArray(raw)) return [];
     var out = [], seen = Object.create(null);
@@ -520,6 +547,7 @@ window.CatchMind = (function () {
       ready: state.ready,
       roundIndex: state.roundIndex,
       drawer: state.drawer,
+      boardFrameId: state.boardFrameId,
       guessers: state.guessers,
       remainMs: state.deadline ? Math.max(0, state.deadline - Date.now()) : null,
       nextRemainMs: state.nextAt ? Math.max(0, state.nextAt - Date.now()) : null,
@@ -612,6 +640,7 @@ window.CatchMind = (function () {
       ready: ready,
       roundIndex: safeInteger(next.roundIndex, 0, Math.max(queue.length, 1), 0),
       drawer: drawer,
+      boardFrameId: safeBoardFrameId(next.boardFrameId),
       guessers: guessers,
       remainMs: safeDuration(next.remainMs, ROUND_MS + 5000),
       nextRemainMs: safeDuration(next.nextRemainMs, REVEAL_MS + 5000),
@@ -659,6 +688,7 @@ window.CatchMind = (function () {
       ready: clean.ready,
       roundIndex: clean.roundIndex,
       drawer: clean.drawer,
+      boardFrameId: clean.boardFrameId,
       guessers: clean.guessers,
       deadline: clean.remainMs != null ? Date.now() + clean.remainMs : null,
       nextAt: clean.nextRemainMs != null ? Date.now() + clean.nextRemainMs : null,
@@ -750,6 +780,7 @@ window.CatchMind = (function () {
     state.matchId = "practice-" + Date.now().toString(36);
     state.queue = [me().nick];
     state.drawer = me().nick;
+    state.boardFrameId = boardFrameForNick(me().nick);
     state.guessers = [];
     state.strokes = [];
     state.canvasBg = CANVAS_BG;
@@ -778,6 +809,7 @@ window.CatchMind = (function () {
     state.phase = "countdown";
     state.roundIndex = index;
     state.drawer = drawer;
+    state.boardFrameId = boardFrameForNick(drawer);
     state.guessers = guessers;
     state.correct = {};
     state.strokes = [];
@@ -806,6 +838,34 @@ window.CatchMind = (function () {
     broadcastState();
     sendSecretToDrawer();
     render();
+  }
+
+  function syncHostDrawerBoardFrame() {
+    if (!api || !api.isHost() || !state.drawer) return false;
+    var nextId = boardFrameForNick(state.drawer);
+    if (!nextId || nextId === state.boardFrameId) return false;
+    state.boardFrameId = nextId;
+    state.rev++;
+    return true;
+  }
+
+  function boardFrameChanged() {
+    if (!api) return false;
+    var mine = safeNick(me().nick);
+    var selectedId = boardFrameForNick(mine);
+    if (state.drawer === mine && selectedId) {
+      if (api.isHost() && state.boardFrameId !== selectedId) {
+        state.boardFrameId = selectedId;
+        commit();
+        return true;
+      }
+      if (!api.isHost() && api.showBoardFrame) {
+        api.showBoardFrame(selectedId);
+        return true;
+      }
+    }
+    render();
+    return true;
   }
 
   function sendSecretToDrawer() {
@@ -943,6 +1003,7 @@ window.CatchMind = (function () {
     if (!api || !api.isHost() || state.phase === "finished") return;
     state.phase = "finished";
     state.drawer = null;
+    state.boardFrameId = "";
     state.guessers = [];
     state.deadline = null;
     state.nextAt = null;
@@ -1739,6 +1800,7 @@ window.CatchMind = (function () {
     var isHost = api.isHost();
     var becameHost = options && options.becameHost;
     var lostHost = previousHost && !isHost;
+    if (isHost) syncHostDrawerBoardFrame();
     if (isHost) stateHost = me().nick;
     if (isHost && canChangeRole()) {
       var allowedReady = requiredReadyNicks();
@@ -2382,10 +2444,21 @@ window.CatchMind = (function () {
     hideLevelPreviewOverlays();
   }
 
+  function syncBoardFrame() {
+    if (!api || !api.showBoardFrame) return;
+    var mine = safeNick(me().nick);
+    var activeDrawer = safeNick(state.drawer);
+    var frameId = activeDrawer && activeDrawer !== mine
+      ? safeBoardFrameId(state.boardFrameId)
+      : safeBoardFrameId(api.getBoardFrameId ? api.getBoardFrameId() : "");
+    api.showBoardFrame(frameId);
+  }
+
   function render() {
     if (!api) return;
     syncAudio();
     syncReactionScope();
+    syncBoardFrame();
     renderHeader();
     renderScores();
     renderWord();
@@ -3229,6 +3302,7 @@ window.CatchMind = (function () {
     }
     if (tickId) { clearInterval(tickId); tickId = null; }
     if (pendingStrokeTimer) { clearTimeout(pendingStrokeTimer); pendingStrokeTimer = null; }
+    if (api && api.showBoardFrame && api.getBoardFrameId) api.showBoardFrame(api.getBoardFrameId());
     api = null;
     state = freshState();
     secretWord = null;
@@ -3351,6 +3425,7 @@ window.CatchMind = (function () {
     enterPreview: enterPreview,
     setPreviewPhase: setPreviewPhase,
     normalizePreviewPhase: normalizePreviewPhase,
+    boardFrameChanged: boardFrameChanged,
     leave: leave,
     onReady: onReady,
     onMessage: onMessage,
@@ -3374,6 +3449,11 @@ window.CatchMind = (function () {
       previewDrawing: previewDrawing,
       resetMatchState: resetMatchState,
       sanitizeSnapshot: sanitizeSnapshot,
+      safeBoardFrameId: safeBoardFrameId,
+      boardFrameForNick: boardFrameForNick,
+      syncHostDrawerBoardFrame: syncHostDrawerBoardFrame,
+      syncBoardFrame: syncBoardFrame,
+      boardFrameChanged: boardFrameChanged,
       sanitizeStrokes: sanitizeStrokes,
       applyState: applyState,
       applyStrokeDelta: applyStrokeDelta,
