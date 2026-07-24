@@ -6,6 +6,3 @@ verify_jwt = false
 
 [functions.room-lease]
 verify_jwt = false
-
-[functions.catchmind-progression]
-verify_jwt = false
