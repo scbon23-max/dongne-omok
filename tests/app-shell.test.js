@@ -142,6 +142,16 @@ test("CatchMind ships the per-second countdown sound asset", () => {
   assert.match(catchmind, /var count = clamp\(Math\.ceil\(\(state\.deadline - Date\.now\(\)\) \/ 1000\), 1, Math\.ceil\(ROUND_COUNTDOWN_MS \/ 1000\)\)/);
 });
 
+test("CatchMind uses only the requested six reactions in one row", () => {
+  const row = index.match(/<div id="catch-emoji-row"[\s\S]*?<\/div>/);
+  assert.ok(row);
+  const emojis = Array.from(row[0].matchAll(/data-catch-emoji="([^"]+)"/g), (match) => match[1]);
+
+  assert.deepEqual(emojis, ["❓", "‼️", "🤣", "👍🏻", "⌛", "❤️"]);
+  assert.match(catchmind, /var REACTION_EMOJIS = \["❓", "‼️", "🤣", "👍🏻", "⌛", "❤️"\];/);
+  assert.match(styles, /\.catch-emoji-row \{[\s\S]*?grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
+});
+
 test("CatchMind countdown ships its simple bright progress treatment", () => {
   assert.match(index, /id="catch-countdown-copy"/);
   assert.match(index, /id="catch-countdown-steps"/);
