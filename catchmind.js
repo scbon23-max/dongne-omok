@@ -2445,7 +2445,10 @@ window.CatchMind = (function () {
   }
 
   function syncBoardFrame() {
-    if (!api || !api.showBoardFrame) return;
+    var frameImage = $("catch-board-frame");
+    var isPractice = state.phase === "practice";
+    if (frameImage) frameImage.classList.toggle("hidden", isPractice);
+    if (isPractice || !api || !api.showBoardFrame) return;
     var mine = safeNick(me().nick);
     var activeDrawer = safeNick(state.drawer);
     var frameId = activeDrawer && activeDrawer !== mine

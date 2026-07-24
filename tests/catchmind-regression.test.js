@@ -229,6 +229,46 @@ test("players and spectators render the active drawer frame without replacing th
   assert.equal(api.boardFrameForNick("S"), "frame-c");
 });
 
+test("practice mode hides the board frame and restores it for regular rounds", () => {
+  const shown = [];
+  const frameImage = fakeElement();
+  const api = loadCatchMind({
+    window: { CatchMindLevels: BOARD_FRAME_LEVELS },
+    elements: { "catch-board-frame": frameImage }
+  });
+  api.setApi({
+    me() { return { nick: "A", isAdmin: false }; },
+    roster() {
+      return [
+        { nick: "A", catchBoardFrameId: "frame-a" },
+        { nick: "B", catchBoardFrameId: "frame-b" }
+      ];
+    },
+    getBoardFrameId() { return "frame-a"; },
+    showBoardFrame(frameId) { shown.push(frameId); }
+  });
+
+  api.setState(baseSnapshot({
+    phase: "practice",
+    queue: ["A"],
+    drawer: "A",
+    guessers: [],
+    boardFrameId: "frame-a"
+  }));
+  api.syncBoardFrame();
+  assert.equal(frameImage.classList.contains("hidden"), true);
+  assert.deepEqual(shown, []);
+
+  api.setState(baseSnapshot({
+    phase: "drawing",
+    drawer: "B",
+    boardFrameId: "frame-b"
+  }));
+  api.syncBoardFrame();
+  assert.equal(frameImage.classList.contains("hidden"), false);
+  assert.equal(shown[shown.length - 1], "frame-b");
+});
+
 test("the active drawer keeps the newly selected local frame while host state catches up", () => {
   const shown = [];
   let selected = "frame-a";
