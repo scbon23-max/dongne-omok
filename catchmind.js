@@ -209,7 +209,7 @@ window.CatchMind = (function () {
     var next = freshState();
     next.rev = state.rev + 1;
     next.matchId = "catchmind-ui-preview";
-    next.spectators = ["수빈"];
+    next.spectators = ["수빈", "소연"];
     next.ready = players.slice(1);
     next.recordStatus = "saved";
     next.feed = [
@@ -2204,7 +2204,7 @@ window.CatchMind = (function () {
     participantSource.forEach(function (nick) { participantSet[nick] = true; });
     var ordered = participantSource.filter(function (nick) { return has(shownNicks, nick); });
     shownPeople.forEach(function (person) { if (!has(ordered, person.nick)) ordered.push(person.nick); });
-    var previewLevels = [4, 12, 31, 56, 81, 94, 100, 25];
+    var previewLevels = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
     box.innerHTML = ordered.map(function (nick, index) {
       var person = peopleByNick[nick] || {};
       var isAway = !!person.away;
@@ -2237,10 +2237,20 @@ window.CatchMind = (function () {
           ? CatchMindLevels.tierForLevel(level)
           : { id: "sketch" };
         classes.push("tier-" + tier.id);
+        classes.push("milestone-" + level);
+        if (level >= 20) classes.push("effect-depth");
+        if (level >= 30) classes.push("effect-rain");
+        if (level >= 40) classes.push("effect-corners");
+        if (level >= 50) classes.push("effect-color");
+        if (level >= 60) classes.push("effect-aura");
+        if (level >= 70) classes.push("effect-double");
+        if (level >= 80) classes.push("effect-pulse");
+        if (level >= 90) classes.push("effect-gem");
+        if (level >= 100) classes.push("effect-legend");
         var correctMark = isCorrect ? '<i class="cm-level-correct" aria-label="정답">✓</i>' : "";
         return '<span class="' + classes.join(" ") + '"' + roleAttrs + '>'
           + '<span class="cm-level-name-row"><b>' + esc(nick) + '</b>' + correctMark + crown + awayBadge + '</span>'
-          + '<span class="cm-level-line">LV ' + level + '</span></span>';
+          + '<span class="cm-level-line"><strong><small>LV</small>' + level + '</strong></span></span>';
       }
       return '<span class="' + classes.join(" ") + '"' + roleAttrs + '><b>' + esc(nick) + '</b>' + crown + awayBadge + badge + score + '</span>';
     }).join("");

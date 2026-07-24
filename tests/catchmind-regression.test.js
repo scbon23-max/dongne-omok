@@ -1090,7 +1090,7 @@ test("admin preview builds every CatchMind screen from real controller state", (
 
   assert.equal(api.setPreviewPhase("waiting"), "waiting");
   assert.equal(api.getState().phase, "idle");
-  assert.deepEqual(Array.from(api.getState().spectators), ["수빈"]);
+  assert.deepEqual(Array.from(api.getState().spectators), ["수빈", "소연"]);
 
   api.setPreviewPhase("countdown");
   assert.equal(api.getState().phase, "countdown");

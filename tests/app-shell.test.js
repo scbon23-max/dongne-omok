@@ -12,6 +12,7 @@ const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
 const net = fs.readFileSync(path.join(root, "net.js"), "utf8");
 const alkkagi = fs.readFileSync(path.join(root, "alkkagi.js"), "utf8");
 const catchmind = fs.readFileSync(path.join(root, "catchmind.js"), "utf8");
+const catchmindLevelMockup = fs.readFileSync(path.join(root, "catchmind-level-system-mockup.html"), "utf8");
 const relayDrawing = fs.readFileSync(path.join(root, "relay-drawing.js"), "utf8");
 const territoryRush = fs.readFileSync(path.join(root, "territory-rush.js"), "utf8");
 const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
@@ -200,6 +201,25 @@ test("CatchMind exposes every live UI state only through the authenticated admin
   assert.match(index, /id="catch-level-xp-backdrop"/);
   assert.match(catchmind, /function syncLevelPreview/);
   assert.match(styles, /\.catch-score-strip\.level-preview/);
+  assert.match(catchmind, /class="cm-level-line"><strong><small>LV<\/small>/);
+  assert.doesNotMatch(catchmind, /class="cm-level-line"[\s\S]{0,120}tier\.label/);
+  assert.match(styles, /@keyframes cm-level-rail-glint/);
+});
+
+test("CatchMind A+ nameplates add one visible milestone effect every ten levels", () => {
+  assert.match(catchmindLevelMockup, /A\+ · 10레벨 성장안/);
+  assert.match(catchmindLevelMockup, /var growthLevels = \[10, 20, 30, 40, 50, 60, 70, 80, 90, 100\]/);
+  for (const state of ["방장", "정답", "그리는 중", "관전"]) {
+    assert.match(catchmindLevelMockup, new RegExp("<span>" + state + "<\\/span>"));
+  }
+  for (const effect of ["depth", "rain", "corners", "color", "aura", "double", "pulse", "gem", "legend"]) {
+    assert.match(catchmindLevelMockup, new RegExp('classes\\.push\\("effect-' + effect + '"\\)'));
+    assert.match(catchmind, new RegExp('classes\\.push\\("effect-' + effect + '"\\)'));
+  }
+  assert.match(catchmindLevelMockup, /plate-level-num/);
+  assert.match(catchmindLevelMockup, /justify-content: center/);
+  assert.match(catchmindLevelMockup, /@keyframes level-rail-glint/);
+  assert.match(catchmindLevelMockup, /prefers-reduced-motion: reduce/);
 });
 
 test("room host election skips members who switched to spectating", () => {

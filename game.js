@@ -1196,7 +1196,8 @@
       { nick: "하린", isAdmin: false, joinTs: 6 },
       { nick: "유진", isAdmin: false, joinTs: 7 },
       { nick: "현우", isAdmin: false, joinTs: 8 },
-      { nick: "수빈", isAdmin: false, joinTs: 9 }
+      { nick: "수빈", isAdmin: false, joinTs: 9 },
+      { nick: "소연", isAdmin: false, joinTs: 10 }
     ];
   }
   function requestedCatchPreviewPhase() {

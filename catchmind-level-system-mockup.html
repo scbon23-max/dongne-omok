@@ -648,148 +648,336 @@ button { cursor: pointer; }
   scrollbar-width: none;
 }
 .plate-scroll::-webkit-scrollbar { display: none; }
-.plate-list { padding: 4px 12px 12px; }
+.plate-state-head,
 .plate-list-row {
-  min-height: 48px;
-  display: flex;
+  display: grid;
+  grid-template-columns: 30px repeat(4, minmax(0, 1fr));
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 4px;
+}
+.plate-state-head {
+  min-height: 28px;
+  padding: 3px 12px 0;
+  color: #78909a;
+  font-size: 7px;
+  font-weight: 1000;
+  text-align: center;
+}
+.plate-state-head span:first-child { text-align: left; }
+.plate-list { padding: 0 12px 12px; }
+.plate-list-row {
+  min-height: 58px;
+  padding: 4px 0;
   border-bottom: 1px solid #e4e0d9;
 }
 .plate-list-row:last-child { border-bottom: 0; }
-.plate-status { flex: 0 0 auto; color: #82969f; font-size: 9px; font-weight: 900; }
+.plate-step {
+  color: #6f838d;
+  font-size: 8px;
+  line-height: 1.05;
+  font-weight: 1000;
+  text-align: left;
+}
+.plate-step strong,
+.plate-step small { display: block; }
+.plate-step small { margin-top: 3px; color: #a0afb5; font-size: 6px; }
+.plate-list-row .nameplate {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
 .nameplate {
-  --tier: #78909a;
-  --tier-alt: #78909a;
+  --tier: #6f828b;
+  --tier-alt: #52666f;
   --tier-soft: #edf1f2;
+  --tier-ink: #fff;
+  --skin-bg: #fff;
+  --skin-mark: #dfe7ea;
+  position: relative;
+  isolation: isolate;
   flex: 0 0 auto;
   min-width: 0;
   max-width: 180px;
   color: var(--ink);
 }
-.nameplate.tier-sketch { --tier: #71838b; --tier-alt: #71838b; --tier-soft: #edf0f1; }
-.nameplate.tier-sprout { --tier: #178c73; --tier-alt: #178c73; --tier-soft: #e2f5ef; }
-.nameplate.tier-color { --tier: #2474b5; --tier-alt: #2474b5; --tier-soft: #e3eff8; }
+.nameplate.tier-sketch { --tier: #6f828b; --tier-alt: #52666f; --tier-soft: #edf0f1; }
+.nameplate.tier-sprout { --tier: #178c73; --tier-alt: #29aa90; --tier-soft: #e2f5ef; }
+.nameplate.tier-color { --tier: #2474b5; --tier-alt: #45a0dd; --tier-soft: #e3eff8; }
 .nameplate.tier-artist { --tier: #df551f; --tier-alt: #e9a11b; --tier-soft: #fff0e8; }
-.nameplate.tier-master { --tier: #b02f48; --tier-alt: #ef6a2c; --tier-soft: #f9e7eb; }
-.nameplate.tier-grand { --tier: #7350a6; --tier-alt: #c23d84; --tier-soft: #eee8f5; }
-.nameplate.tier-legend { --tier: #17252f; --tier-alt: #a56b08; --tier-soft: #fff3c6; }
-.nameplate.drawer { box-shadow: 0 0 0 2px var(--orange); }
+.nameplate.tier-master { --tier: #a92b4b; --tier-alt: #ef612f; --tier-soft: #f9e7eb; }
+.nameplate.tier-grand { --tier: #6944a3; --tier-alt: #c23d84; --tier-soft: #eee8f5; }
+.nameplate.tier-legend { --tier: #1b252d; --tier-alt: #b68217; --tier-soft: #fff3c6; }
+.nameplate.drawer { outline: 2px solid var(--orange); outline-offset: -1px; }
 .nameplate .correct-mark {
-  display: inline-block;
+  flex: 0 0 auto;
   margin-left: 4px;
   color: var(--teal-dark);
   font-size: 10px;
   font-weight: 1000;
 }
 .nameplate.spectator { opacity: .45; filter: grayscale(.25); }
-.nameplate .crown { margin-left: 3px; font-size: 10px; }
+.nameplate .crown { flex: 0 0 auto; margin-left: 3px; font-size: 10px; }
+.plate-name {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.plate-nick {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plate-level-num small {
+  margin-right: 2px;
+  font-size: .72em;
+  font-weight: 1000;
+}
+.plate-tier-label {
+  overflow: hidden;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .nameplate.style-a {
-  min-height: 45px;
+  --motion-speed: 3.6s;
+  min-width: 56px;
+  min-height: 50px;
   display: inline-grid;
-  grid-template-rows: auto auto;
+  grid-template-rows: 31px 17px;
   align-content: stretch;
   overflow: hidden;
-  border: 1px solid #cbd6da;
+  border: 1px solid #c6d2d6;
   border-radius: 7px;
   background: #fff;
+  box-shadow: 0 2px 4px rgba(14,42,58,.08);
 }
 .nameplate.style-a .plate-level {
   grid-row: 2;
-  align-self: end;
-  min-width: 50px;
-  padding: 3px 9px;
+  position: relative;
+  min-width: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0 6px;
   background-color: var(--tier);
+  color: var(--tier-ink);
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 1000;
+}
+.nameplate.style-a .plate-level::after {
+  content: "";
+  position: absolute;
+  inset: -7px auto -7px -18px;
+  width: 10px;
+  background: rgba(255,255,255,.55);
+  opacity: 0;
+  transform: skewX(-18deg);
+  pointer-events: none;
+}
+.nameplate.style-a .plate-name {
+  grid-row: 1;
+  justify-content: center;
+  padding: 6px 6px 5px;
+  font-size: 11px;
+  line-height: 1.05;
+  font-weight: 1000;
+}
+.nameplate.style-a.drawer .plate-name {
+  background: var(--orange);
+  color: #fff;
+}
+.nameplate.style-a.drawer .plate-name .correct-mark { color: #fff; }
+.nameplate.style-a.milestone-40 { --motion-speed: 3.3s; }
+.nameplate.style-a.milestone-50 { --motion-speed: 3s; }
+.nameplate.style-a.milestone-60 { --motion-speed: 2.8s; }
+.nameplate.style-a.milestone-70 { --motion-speed: 2.6s; }
+.nameplate.style-a.milestone-80 { --motion-speed: 2.4s; }
+.nameplate.style-a.milestone-90 { --motion-speed: 2.2s; }
+.nameplate.style-a.milestone-100 { --motion-speed: 1.9s; }
+.nameplate.style-a.effect-depth {
+  box-shadow: inset 0 0 0 1px var(--tier-soft), 0 2px 5px rgba(14,42,58,.11);
+}
+.nameplate.style-a.effect-rain .plate-level::after {
+  animation: level-rail-glint var(--motion-speed) ease-in-out infinite;
+}
+.nameplate.style-a.effect-corners::before {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  top: 4px;
+  right: 5px;
+  width: 4px;
+  height: 4px;
+  border: 1px solid var(--tier);
+  transform: rotate(45deg);
+}
+.nameplate.style-a.effect-color .plate-level {
+  animation: level-rail-color var(--motion-speed) ease-in-out infinite;
+}
+.nameplate.style-a.effect-aura {
+  border-color: var(--tier);
+  box-shadow: inset 0 0 0 1px var(--tier-soft), 0 0 7px var(--tier-soft), 0 3px 7px rgba(14,42,58,.13);
+}
+.nameplate.style-a.effect-double {
+  box-shadow: inset 0 0 0 2px var(--tier-soft), 0 0 0 1px var(--tier), 0 3px 8px rgba(14,42,58,.15);
+}
+.nameplate.style-a.effect-pulse::after {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  inset: 2px;
+  border: 1px solid var(--tier);
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  animation: level-frame-pulse var(--motion-speed) ease-in-out infinite;
+}
+.nameplate.style-a.effect-gem::before {
+  top: 3px;
+  right: 4px;
+  width: 5px;
+  height: 5px;
+  border-color: var(--tier);
+  background: var(--tier-soft);
+  box-shadow: -5px 5px 0 -2px var(--tier);
+}
+.nameplate.style-a.effect-legend {
+  border-color: #c49a36;
+  background: #fffdf5;
+  box-shadow: inset 0 0 0 2px #f5e8bb, 0 0 0 1px rgba(196,154,54,.3), 0 3px 10px rgba(181,129,20,.22);
+}
+.nameplate.style-a.effect-legend::before {
+  background: #d5ad45;
+  box-shadow: -5px 5px 0 -2px #d5ad45;
+}
+@keyframes level-rail-color {
+  0%, 100% { background-color: var(--tier); }
+  52% { background-color: var(--tier-alt); }
+}
+@keyframes level-rail-glint {
+  0%, 18% { left: -18px; opacity: 0; }
+  38% { opacity: .72; }
+  58%, 100% { left: calc(100% + 12px); opacity: 0; }
+}
+@keyframes level-frame-pulse {
+  0%, 100% { opacity: .08; }
+  50% { opacity: .48; }
+}
+.plate-list-row .nameplate.style-a .plate-name { padding-right: 3px; padding-left: 3px; font-size: 9.5px; }
+.plate-list-row .nameplate.style-a .correct-mark { margin-left: 2px; font-size: 8px; }
+.plate-list-row .nameplate.style-a .crown { margin-left: 2px; font-size: 8px; }
+.nameplate.style-b {
+  min-width: 104px;
+  min-height: 50px;
+  display: inline-grid;
+  grid-template-columns: 43px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 4px 9px 4px 5px;
+  border: 1px solid #cbd6da;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: inset 3px 0 0 var(--tier-soft), 0 2px 5px rgba(14,42,58,.09);
+}
+.nameplate.style-b .plate-level {
+  grid-column: 1;
+  grid-row: 1;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-content: center;
+  border: 2px solid var(--tier);
+  border-radius: 50%;
+  background: var(--tier-soft);
+  color: var(--tier);
+  text-align: center;
+}
+.nameplate.style-b .plate-level-num {
+  display: block;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 1000;
+}
+.nameplate.style-b .plate-level-num small { display: block; margin: 0 0 1px; font-size: 6px; }
+.nameplate.style-b .plate-tier-label { display: block; margin-top: 2px; font-size: 6px; line-height: 1; font-weight: 1000; }
+.nameplate.style-b .plate-name {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 11px;
+  font-weight: 1000;
+}
+.nameplate.style-b.drawer .plate-name { color: var(--orange-dark); }
+.nameplate.style-b.tier-artist .plate-level,
+.nameplate.style-b.tier-master .plate-level,
+.nameplate.style-b.tier-grand .plate-level,
+.nameplate.style-b.tier-legend .plate-level {
+  animation: level-medal-pulse 2.8s ease-in-out infinite;
+}
+.nameplate.style-b.tier-master { border-color: #d3a0ac; }
+.nameplate.style-b.tier-grand { border-color: #a891c7; box-shadow: inset 3px 0 0 var(--tier-soft), 0 0 0 1px rgba(105,68,163,.18), 0 3px 8px rgba(105,68,163,.15); }
+.nameplate.style-b.tier-legend { border-color: #c49a36; background: #fffdf5; box-shadow: inset 3px 0 0 #fff3c6, 0 0 0 1px rgba(196,154,54,.26), 0 3px 9px rgba(181,129,20,.18); }
+@keyframes level-medal-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 0 rgba(255,255,255,0), 0 0 0 0 rgba(105,68,163,0); transform: scale(1); }
+  50% { box-shadow: inset 0 0 0 3px rgba(255,255,255,.7), 0 0 0 3px var(--tier-soft); transform: scale(1.04); }
+}
+.nameplate.style-c {
+  min-width: 86px;
+  min-height: 50px;
+  display: inline-grid;
+  grid-template-rows: 31px 17px;
+  overflow: hidden;
+  border: 1px solid #ccd6d9;
+  border-radius: 7px;
+  background: var(--skin-bg);
+  box-shadow: 0 2px 5px rgba(14,42,58,.1);
+}
+.nameplate.style-c::before,
+.nameplate.style-c::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 36px;
+  height: 7px;
+  border-radius: 5px;
+  background: var(--skin-mark);
+  opacity: .72;
+  transform: rotate(-18deg);
+}
+.nameplate.style-c::before { top: 5px; right: -9px; }
+.nameplate.style-c::after { top: 16px; right: -13px; width: 28px; opacity: .46; }
+.nameplate.style-c.skin-paper { --skin-bg: #fff; --skin-mark: #dce6e9; }
+.nameplate.style-c.skin-mint { --skin-bg: #effaf7; --skin-mark: #8fd9ca; }
+.nameplate.style-c.skin-sky { --skin-bg: #eef6fc; --skin-mark: #8ec3e8; }
+.nameplate.style-c.skin-coral { --skin-bg: #fff2ec; --skin-mark: #f4a07e; }
+.nameplate.style-c.skin-violet { --skin-bg: #f5f0fb; --skin-mark: #b8a0d8; }
+.nameplate.style-c.skin-night { --skin-bg: #202f38; --skin-mark: #bd8e2d; color: #fff; }
+.nameplate.style-c .plate-name {
+  grid-row: 1;
+  padding: 6px 9px 5px;
+  font-size: 11px;
+  font-weight: 1000;
+}
+.nameplate.style-c .plate-level {
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 0 8px;
+  background: var(--tier);
   color: #fff;
   font-size: 8px;
   line-height: 1;
   font-weight: 1000;
 }
-.nameplate.style-a .plate-name {
-  grid-row: 1;
-  min-width: 0;
-  overflow: hidden;
-  padding: 6px 9px 4px;
-  font-size: 11px;
-  line-height: 1.05;
-  font-weight: 1000;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.nameplate.style-a.tier-artist .plate-level,
-.nameplate.style-a.tier-master .plate-level,
-.nameplate.style-a.tier-grand .plate-level,
-.nameplate.style-a.tier-legend .plate-level {
-  animation: level-line-color 3s ease-in-out infinite;
-}
-.nameplate.style-a.tier-master .plate-level { animation-duration: 2.7s; }
-.nameplate.style-a.tier-grand .plate-level { animation-duration: 2.35s; }
-.nameplate.style-a.tier-legend .plate-level {
-  animation-duration: 1.9s;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.28);
-}
-@keyframes level-line-color {
-  0%, 100% { background-color: var(--tier); }
-  50% { background-color: var(--tier-alt); }
-}
-.nameplate.style-b {
-  min-height: 34px;
-  display: inline-grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 7px;
-  padding: 0 9px 0 7px;
-  border: 2px solid var(--tier);
-  border-radius: 7px;
-  background: #fff;
-  box-shadow: inset 4px 0 0 var(--tier-soft);
-}
-.nameplate.style-b .plate-level {
-  color: var(--tier);
-  font-size: 9px;
-  font-weight: 1000;
-}
-.nameplate.style-b .plate-name {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 11px;
-  font-weight: 1000;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.nameplate.style-c {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 10px 0 6px;
-  border: 1px solid #ccd6d9;
-  border-radius: 7px;
-  background: #fff;
-}
-.nameplate.style-c .plate-level {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 30px;
-  border-radius: 50%;
-  background: var(--tier);
+.nameplate.style-c.skin-night .plate-name .correct-mark { color: #78e3d1; }
+.nameplate.style-c.drawer .plate-name {
+  background: var(--orange);
   color: #fff;
-  font-size: 7px;
-  line-height: 1;
-  font-weight: 1000;
-  white-space: nowrap;
-  transform: rotate(-6deg);
-}
-.nameplate.style-c .plate-name {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 11px;
-  font-weight: 1000;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .reward-summary {
   display: grid;
@@ -1059,15 +1247,18 @@ button { cursor: pointer; }
 
   <section id="view-plates" class="view">
     <div class="section-head">
-      <h2>닉네임 박스 확정안</h2>
-      <p>닉네임은 위, 레벨은 아래에 두어 빠르게 읽히는 2줄 구조입니다.</p>
+      <h2>A+ · 10레벨 성장안</h2>
+      <p>10레벨마다 시각 효과가 하나씩 누적되어, 100레벨에서 가장 화려해집니다.</p>
     </div>
     <div class="plate-demo">
       <header class="plate-demo-head">
-        <strong id="plate-design-name">A형 · 2줄 레벨형</strong>
-        <span id="plate-design-note">아래 레벨 줄에 구간 색을 넣고, 50레벨부터 두 색이 천천히 교차합니다.</span>
+        <strong>레벨별 변화와 게임 상태</strong>
+        <span>레벨 줄은 숫자만 가운데 표시하고, 방장·정답·그리는 중·관전 상태는 성장 효과와 분리합니다.</span>
       </header>
       <div id="plate-strip" class="plate-scroll"></div>
+      <div class="plate-state-head" aria-hidden="true">
+        <span>레벨</span><span>방장</span><span>정답</span><span>그리는 중</span><span>관전</span>
+      </div>
       <div id="plate-list" class="plate-list"></div>
     </div>
   </section>
@@ -1189,7 +1380,6 @@ button { cursor: pointer; }
   var Levels = window.CatchMindLevels;
   var currentView = "result";
   var currentScenario = "normal";
-  var plateStyle = "a";
   var animationTimers = [];
   var selectedMvp = "";
   var mvpTimer = null;
@@ -1231,15 +1421,28 @@ button { cursor: pointer; }
   };
 
   var people = [
-    { nick: "구나", level: 4, host: true },
-    { nick: "민서", level: 12 },
-    { nick: "서준", level: 31, correct: true },
-    { nick: "지우", level: 56, drawer: true },
-    { nick: "도윤", level: 81 },
-    { nick: "하린", level: 94 },
-    { nick: "유진", level: 100 },
-    { nick: "수빈", level: 25, spectator: true }
+    { nick: "구나", level: 4, host: true, skin: "paper" },
+    { nick: "민서", level: 12, skin: "mint" },
+    { nick: "서준", level: 31, correct: true, skin: "sky" },
+    { nick: "지우", level: 56, drawer: true, skin: "coral" },
+    { nick: "도윤", level: 81, skin: "violet" },
+    { nick: "하린", level: 94, skin: "mint" },
+    { nick: "유진", level: 100, skin: "night" },
+    { nick: "수빈", level: 25, spectator: true, skin: "sky" }
   ];
+  var growthLevels = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+  var growthLabels = {
+    10: "기본",
+    20: "깊이",
+    30: "빗줄",
+    40: "모서리",
+    50: "컬러",
+    60: "광휘",
+    70: "이중",
+    80: "맥동",
+    90: "보석",
+    100: "레전드"
+  };
 
   var rewardIcons = {
     board_frame: "▣",
@@ -1262,15 +1465,26 @@ button { cursor: pointer; }
   }
   function plateHtml(person, style) {
     var tier = Levels.tierForLevel(person.level);
-    var classes = ["nameplate", "style-" + style, "tier-" + tier.id];
+    var milestone = Math.min(100, Math.max(10, Math.floor(person.level / 10) * 10));
+    var classes = ["nameplate", "style-" + style, "tier-" + tier.id, "skin-" + (person.skin || "paper")];
+    classes.push("milestone-" + milestone);
+    if (person.level >= 20) classes.push("effect-depth");
+    if (person.level >= 30) classes.push("effect-rain");
+    if (person.level >= 40) classes.push("effect-corners");
+    if (person.level >= 50) classes.push("effect-color");
+    if (person.level >= 60) classes.push("effect-aura");
+    if (person.level >= 70) classes.push("effect-double");
+    if (person.level >= 80) classes.push("effect-pulse");
+    if (person.level >= 90) classes.push("effect-gem");
+    if (person.level >= 100) classes.push("effect-legend");
     if (person.drawer) classes.push("drawer");
     if (person.correct) classes.push("correct");
     if (person.spectator) classes.push("spectator");
     return '<span class="' + classes.join(" ") + '">'
-      + '<span class="plate-name">' + person.nick
+      + '<span class="plate-name"><strong class="plate-nick">' + person.nick + '</strong>'
       + (person.correct ? '<span class="correct-mark" aria-label="정답">✓</span>' : "")
       + (person.host ? '<span class="crown">👑</span>' : "") + '</span>'
-      + '<span class="plate-level">LV ' + person.level + '</span>'
+      + '<span class="plate-level"><b class="plate-level-num"><small>LV</small>' + person.level + '</b></span>'
       + '</span>';
   }
   function renderWaitingStrip() {
@@ -1279,14 +1493,20 @@ button { cursor: pointer; }
     }).join("");
   }
   function renderPlates() {
-    $("plate-strip").innerHTML = people.map(function (person) {
-      return plateHtml(person, plateStyle);
+    $("plate-strip").innerHTML = growthLevels.map(function (level) {
+      return plateHtml({ nick: "구나", level: level }, "a");
     }).join("");
-    $("plate-list").innerHTML = people.map(function (person) {
-      var tier = Levels.tierForLevel(person.level);
-      var state = person.drawer ? "그리는 중" : person.correct ? "정답" : person.spectator ? "관전" : tier.label;
-      return '<div class="plate-list-row">' + plateHtml(person, plateStyle)
-        + '<span class="plate-status">' + state + '</span></div>';
+    $("plate-list").innerHTML = growthLevels.map(function (level) {
+      var states = [
+        { nick: "구나", level: level, host: true },
+        { nick: "민서", level: level, correct: true },
+        { nick: "지우", level: level, drawer: true },
+        { nick: "수빈", level: level, spectator: true }
+      ];
+      return '<div class="plate-list-row"><span class="plate-step"><strong>' + level
+        + '</strong><small>' + growthLabels[level] + '</small></span>'
+        + states.map(function (person) { return plateHtml(person, "a"); }).join("")
+        + '</div>';
     }).join("");
   }
   function renderRewards() {
