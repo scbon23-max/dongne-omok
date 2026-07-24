@@ -2,6 +2,8 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const Levels = require("../catchmind-levels.js");
 
 test("CatchMind uses a steep permanent one-to-one-hundred XP curve", () => {
@@ -24,7 +26,8 @@ test("XP progress crosses levels and stops cleanly at level one hundred", () => 
   assert.equal(gain.after.level, 25);
   assert.equal(gain.levelsGained, 1);
   assert.ok(gain.after.currentXp > 0);
-  assert.ok(gain.rewards.some((reward) => reward.id === "nameplate-color"));
+  assert.deepEqual(gain.rewards.map((reward) => reward.id), ["frame-bamboo-garden"]);
+  assert.ok(gain.rewards.every((reward) => reward.kind === Levels.REWARD_KINDS.BOARD_FRAME));
 
   const maxed = Levels.progression(Levels.MAX_TOTAL_XP - 10, 100);
   assert.equal(maxed.after.level, 100);
@@ -124,7 +127,48 @@ test("every level has a reward slot while undecided rewards remain planned", () 
   assert.equal(slots[0].level, 2);
   assert.equal(slots.at(-1).level, 100);
   assert.ok(slots.some((slot) => slot.planned));
-  assert.ok(Levels.rewardsAtLevel(100).some((reward) => reward.kind === Levels.REWARD_KINDS.BUNDLE));
+  assert.deepEqual(Levels.rewardsAtLevel(100).map((reward) => reward.id), ["frame-pastel-carnival"]);
+});
+
+test("board frame rewards preserve the preview order and split low from high levels", () => {
+  const expected = [
+    ["frame-color-pencil", 5, "assets/catchmind/board-frames/frame-color-pencil-v2.png", "low"],
+    ["frame-galaxy-stars", 10, "assets/catchmind/board-frames/frame-galaxy-stars.png", "low"],
+    ["frame-retro-pixel", 15, "assets/catchmind/board-frames/frame-retro-pixel.png", "low"],
+    ["frame-cherry-blossom", 20, "assets/catchmind/board-frames/frame-cherry-blossom.png", "low"],
+    ["frame-bamboo-garden", 25, "assets/catchmind/board-frames/frame-bamboo-garden.png", "low"],
+    ["frame-dancheong", 30, "assets/catchmind/board-frames/frame-dancheong.png", "low"],
+    ["frame-ice-crystal", 35, "assets/catchmind/board-frames/frame-ice-crystal.png", "low"],
+    ["frame-cookie-sprinkle", 40, "assets/catchmind/board-frames/frame-cookie-sprinkle.png", "low"],
+    ["frame-aurora-ribbon", 50, "assets/catchmind/board-frames/frame-aurora-ribbon.png", "high"],
+    ["frame-prism-glass", 55, "assets/catchmind/board-frames/frame-prism-glass.png", "high"],
+    ["frame-rainbow-hologram", 60, "assets/catchmind/board-frames/frame-rainbow-hologram.png", "high"],
+    ["frame-magic-palette", 65, "assets/catchmind/board-frames/frame-magic-palette.png", "high"],
+    ["frame-golden-doodle", 70, "assets/catchmind/board-frames/frame-golden-doodle.png", "high"],
+    ["frame-masterpiece", 75, "assets/catchmind/board-frames/frame-masterpiece.png", "high"],
+    ["frame-starlight-cloud", 80, "assets/catchmind/board-frames/frame-starlight-cloud.png", "high"],
+    ["frame-celebration-ribbon", 85, "assets/catchmind/board-frames/frame-celebration-ribbon.png", "high"],
+    ["frame-gem-candy", 90, "assets/catchmind/board-frames/frame-gem-candy.png", "high"],
+    ["frame-pastel-carnival", 100, "assets/catchmind/board-frames/frame-pastel-carnival.png", "high"]
+  ];
+  const frames = Levels.REWARD_CATALOG
+    .filter((reward) => reward.kind === Levels.REWARD_KINDS.BOARD_FRAME)
+    .sort((a, b) => a.order - b.order);
+
+  assert.deepEqual(Object.keys(Levels.REWARD_KINDS), ["BOARD_FRAME"]);
+  assert.equal(Levels.REWARD_CATALOG.length, 18);
+  assert.ok(Levels.REWARD_CATALOG.every((reward) => reward.kind === Levels.REWARD_KINDS.BOARD_FRAME));
+  assert.equal(frames.length, 18);
+  assert.deepEqual(
+    frames.map((reward) => [reward.id, reward.level, reward.asset, reward.tier]),
+    expected
+  );
+  assert.deepEqual(frames.map((reward) => reward.order), Array.from({ length: 18 }, (_, index) => index + 1));
+  assert.ok(frames.slice(0, 8).every((reward) => reward.tier === "low" && reward.level <= 40));
+  assert.ok(frames.slice(8).every((reward) => reward.tier === "high" && reward.level >= 50));
+  frames.forEach((reward) => {
+    assert.equal(fs.existsSync(path.join(__dirname, "..", reward.asset)), true, reward.asset);
+  });
 });
 
 test("nameplate tiers cover every level without gaps", () => {

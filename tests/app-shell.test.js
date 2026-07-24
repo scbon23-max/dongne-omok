@@ -237,6 +237,20 @@ test("CatchMind A+ nameplates add one visible milestone effect every ten levels"
   assert.match(catchmindLevelMockup, /prefers-reduced-motion: reduce/);
 });
 
+test("CatchMind level results stay readable and scroll on short mobile screens", () => {
+  assert.match(index, /class="cm-xp-scroll"/);
+  assert.match(styles, /\.cm-xp-dialog \{[^}]*grid-template-rows: auto minmax\(0, 1fr\) auto;/);
+  assert.match(styles, /\.cm-xp-scroll \{[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain;/);
+  assert.match(styles, /\.cm-xp-head h2 \{[^}]*font-size: 23px;/);
+  assert.match(styles, /\.cm-xp-reason strong \{[^}]*font-size: 13px;/);
+  assert.match(styles, /\.cm-xp-reason small \{[^}]*font-size: 11px;[^}]*white-space: normal;/);
+  assert.match(styles, /\.cm-mvp-candidates \{[^}]*overflow-y: auto;/);
+  assert.match(styles, /\.cm-mvp-plate-wrap > span \{[^}]*width: 100%;[^}]*max-width: none;/);
+  assert.match(catchmind, /catch-score-strip level-preview cm-mvp-plate-wrap/);
+  assert.match(catchmind, /function levelPreviewClasses\(level\)/);
+  assert.match(catchmindLevelMockup, /plateHtml\(\{ nick: person\.nick, level: person\.level, skin: person\.skin \}, "a"\)/);
+});
+
 test("room host election skips members who switched to spectating", () => {
   assert.match(game, /function memberCanHost\(member\)[\s\S]*member\.hostEligible === false[\s\S]*ctrl\.canHost\(member\.nick\)/);
   assert.match(game, /var eligible = list\.filter\(memberCanHost\)/);
@@ -517,4 +531,36 @@ test("room presence heals duplicate connections and active ghost speakers", () =
   assert.match(game, /function noteActiveRoomSpeaker\(nick\)/);
   assert.match(game, /noteActiveRoomSpeaker\(msg\.nick\);\s*addChatTo/);
   assert.match(game, /inferredFromActivity: true/);
+});
+
+test("CatchMind exposes a self-only reward menu and board-frame picker", () => {
+  for (const id of [
+    "menu-catch-rewards-btn",
+    "menu-catch-rewards",
+    "catch-personal-reward-list",
+    "catch-frame-picker-open",
+    "catch-frame-picker-modal",
+    "catch-frame-picker-grid"
+  ]) {
+    assert.match(index, new RegExp('id="' + id + '"'));
+  }
+
+  assert.match(index, /이 화면은 내 메뉴에서만 보여요/);
+  assert.match(index, /흰 그림 영역은 그대로 두고 테두리만 바뀌어요/);
+  assert.match(catchmind, /nick === me\(\)\.nick/);
+  assert.match(catchmind, /data-catch-personal-card="true"/);
+  assert.match(catchmind, /api && api\.openBoardFramePicker/);
+  assert.match(game, /openBoardFramePicker:\s*openCatchBoardFramePicker/);
+  assert.match(game, /function openCatchPersonalRewards\(\)/);
+  assert.match(game, /function openCatchBoardFramePicker\(\)/);
+  assert.match(game, /CATCH_BOARD_FRAME_STORAGE_PREFIX = "catchmind_board_frame_v1:"/);
+  assert.match(game, /Db\.equipCatchmindReward/);
+  assert.match(styles, /\.catch-frame-picker-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(3/);
+  assert.match(styles, /\.catch-score-strip > span\.catch-personal-card/);
+
+  const selectFrame = game.slice(
+    game.indexOf("function selectCatchBoardFrame"),
+    game.indexOf("function openCatchBoardFramePicker")
+  );
+  assert.doesNotMatch(selectFrame, /Net\.(send|track)/);
 });

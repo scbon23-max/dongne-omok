@@ -2183,6 +2183,25 @@ window.CatchMind = (function () {
     }
   }
 
+  function levelPreviewClasses(level) {
+    var normalized = Math.max(1, Math.min(100, Math.round(Number(level) || 1)));
+    var tier = window.CatchMindLevels && CatchMindLevels.tierForLevel
+      ? CatchMindLevels.tierForLevel(normalized)
+      : { id: "sketch" };
+    var milestone = normalized < 10 ? "start" : Math.min(100, Math.floor(normalized / 10) * 10);
+    var classes = ["tier-" + tier.id, "milestone-" + milestone];
+    if (normalized >= 20) classes.push("effect-depth");
+    if (normalized >= 30) classes.push("effect-rain");
+    if (normalized >= 40) classes.push("effect-corners");
+    if (normalized >= 50) classes.push("effect-color");
+    if (normalized >= 60) classes.push("effect-aura");
+    if (normalized >= 70) classes.push("effect-double");
+    if (normalized >= 80) classes.push("effect-pulse");
+    if (normalized >= 90) classes.push("effect-gem");
+    if (normalized >= 100) classes.push("effect-legend");
+    return { level: normalized, classes: classes };
+  }
+
   function renderScores() {
     var box = $("catch-score-strip"); if (!box) return;
     var shownPeople = orderedPeople();
@@ -2214,6 +2233,8 @@ window.CatchMind = (function () {
       var wasParticipant = !!participantSet[nick];
       var isCorrect = state.phase === "drawing" && !!state.correct[nick];
       var classes = [];
+      var mine = nick === me().nick;
+      if (mine) classes.push("mine", "catch-personal-card");
       if (nick === state.drawer) classes.push("drawer");
       if (isCorrect) classes.push("correct");
       if (!isParticipant) classes.push("spectator");
@@ -2230,29 +2251,21 @@ window.CatchMind = (function () {
       var roleAttrs = manageable
         ? ' role="button" tabindex="0" data-catch-role-nick="' + esc(nick) + '" aria-label="' + esc(nick) + '님 ' + (isParticipant ? '관전' : '참가') + '으로 전환" title="눌러서 ' + (isParticipant ? '관전' : '참가') + '으로 전환"'
         : "";
+      var personalAttrs = mine
+        ? ' role="button" tabindex="0" data-catch-personal-card="true" aria-label="내 그림판 스킨 선택" title="눌러서 내 그림판 스킨 선택"'
+        : "";
+      var interactionAttrs = personalAttrs || roleAttrs;
       if (manageable) classes.push("host-manageable");
       if (previewMode) {
-        var level = previewLevels[index % previewLevels.length];
-        var tier = window.CatchMindLevels && CatchMindLevels.tierForLevel
-          ? CatchMindLevels.tierForLevel(level)
-          : { id: "sketch" };
-        classes.push("tier-" + tier.id);
-        classes.push("milestone-" + level);
-        if (level >= 20) classes.push("effect-depth");
-        if (level >= 30) classes.push("effect-rain");
-        if (level >= 40) classes.push("effect-corners");
-        if (level >= 50) classes.push("effect-color");
-        if (level >= 60) classes.push("effect-aura");
-        if (level >= 70) classes.push("effect-double");
-        if (level >= 80) classes.push("effect-pulse");
-        if (level >= 90) classes.push("effect-gem");
-        if (level >= 100) classes.push("effect-legend");
+        var presentation = levelPreviewClasses(previewLevels[index % previewLevels.length]);
+        var level = presentation.level;
+        classes = classes.concat(presentation.classes);
         var correctMark = isCorrect ? '<i class="cm-level-correct" aria-label="정답">✓</i>' : "";
-        return '<span class="' + classes.join(" ") + '"' + roleAttrs + '>'
+        return '<span class="' + classes.join(" ") + '"' + interactionAttrs + '>'
           + '<span class="cm-level-name-row"><b>' + esc(nick) + '</b>' + correctMark + crown + awayBadge + '</span>'
           + '<span class="cm-level-line"><strong><small>LV</small>' + level + '</strong></span></span>';
       }
-      return '<span class="' + classes.join(" ") + '"' + roleAttrs + '><b>' + esc(nick) + '</b>' + crown + awayBadge + badge + score + '</span>';
+      return '<span class="' + classes.join(" ") + '"' + interactionAttrs + '><b>' + esc(nick) + '</b>' + crown + awayBadge + badge + score + '</span>';
     }).join("");
   }
 
@@ -2543,9 +2556,13 @@ window.CatchMind = (function () {
     });
     list.innerHTML = candidates.map(function (person, index) {
       var selected = person.nick === previewMvpSelection;
+      var presentation = levelPreviewClasses(person.level || levels[index % levels.length]);
       return '<button class="cm-mvp-candidate' + (selected ? ' selected' : '') + '" type="button" data-catch-mvp-nick="'
-        + esc(person.nick) + '"><span class="cm-mvp-avatar">' + esc(person.nick.slice(0, 1)) + '</span>'
-        + '<span><strong>' + esc(person.nick) + '</strong><small>LV ' + levels[index % levels.length] + '</small></span>'
+        + esc(person.nick) + '" aria-pressed="' + String(selected) + '" aria-label="' + esc(person.nick) + '님을 MVP로 선택">'
+        + '<span class="catch-score-strip level-preview cm-mvp-plate-wrap" aria-hidden="true"><span class="'
+        + presentation.classes.join(" ") + '"><span class="cm-level-name-row"><b>' + esc(person.nick)
+        + '</b></span><span class="cm-level-line"><strong><small>LV</small>' + presentation.level
+        + '</strong></span></span></span>'
         + '<i class="cm-mvp-check">✓</i></button>';
     }).join("");
     choice.textContent = previewMvpSelection
@@ -2618,8 +2635,10 @@ window.CatchMind = (function () {
     seal.classList.remove("celebrate");
     reward.classList.toggle("hidden", !levelup);
     if (levelup) {
-      var unlocked = summary.rewards.length ? summary.rewards[summary.rewards.length - 1] : null;
-      $("catch-level-reward-name").textContent = unlocked ? unlocked.name : "레벨 " + progress.level + " 보상";
+      var unlockedNames = summary.rewards.map(function (unlocked) { return unlocked.name; });
+      $("catch-level-reward-name").textContent = unlockedNames.length
+        ? unlockedNames.join(" · ")
+        : "레벨 " + progress.level + " 보상";
       void seal.offsetWidth;
       seal.classList.add("celebrate");
     }
@@ -3337,12 +3356,23 @@ window.CatchMind = (function () {
     bindHorizontalDrag(scoreStrip);
     if (scoreStrip) {
       scoreStrip.addEventListener("click", function (event) {
+        var personalCard = event.target.closest("[data-catch-personal-card]");
+        if (personalCard && scoreStrip.contains(personalCard)) {
+          if (api && api.openBoardFramePicker) api.openBoardFramePicker();
+          return;
+        }
         var target = event.target.closest("[data-catch-role-nick]");
         if (!target || !scoreStrip.contains(target)) return;
         hostTogglePlayerRole(target.getAttribute("data-catch-role-nick"));
       });
       scoreStrip.addEventListener("keydown", function (event) {
         if (event.key !== "Enter" && event.key !== " ") return;
+        var personalCard = event.target.closest("[data-catch-personal-card]");
+        if (personalCard && scoreStrip.contains(personalCard)) {
+          event.preventDefault();
+          if (api && api.openBoardFramePicker) api.openBoardFramePicker();
+          return;
+        }
         var target = event.target.closest("[data-catch-role-nick]");
         if (!target || !scoreStrip.contains(target)) return;
         event.preventDefault();

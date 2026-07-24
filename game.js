@@ -45,6 +45,11 @@
   var roomHostEligible = true;
   var activityLoginLogged = false, activityLogoutLogged = false, activityRoomLeaves = {};
   var sessionAuthHash = "";
+  var catchPersonalProfile = null;
+  var catchPersonalProfileNick = "";
+  var catchPersonalProfileRequest = null;
+  var catchSelectedBoardFrameId = "";
+  var CATCH_BOARD_FRAME_STORAGE_PREFIX = "catchmind_board_frame_v1:";
 
   var canvas, ctx, MARGIN = 28, GAP, RADIUS;
   var BOARD_SIZE = 450, boardPixelRatio = 1, boardResizeId = null, boardResizeBound = false;
@@ -224,6 +229,7 @@
       openRank: function () { openRank(curRoomGame || curGame); },
       openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
       openMenu: openMenu,
+      openBoardFramePicker: openCatchBoardFramePicker,
       openRules: function () { showRules(curRoomGame || curGame); },
       leaveRoom: requestLeaveRoom,
       roomChanged: broadcastRoomOpen,
@@ -417,6 +423,7 @@
     hideGameScreens();
     $("lobby").classList.remove("hidden");
     document.body.classList.toggle("is-admin", me.isAdmin);
+    prepareCatchPersonalState();
     if ($("lobby-feedback-label")) {
       $("lobby-feedback-label").textContent = me.isAdmin ? "버그·의견 접수함" : "버그·좋은 의견 보내기";
     }
@@ -1318,6 +1325,7 @@
       openRank: function () { openRank("catchmind"); },
       openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
       openMenu: openMenu,
+      openBoardFramePicker: openCatchBoardFramePicker,
       openRules: function () { showRules("catchmind"); },
       leaveRoom: exitCatchPreview,
       roomChanged: function () {},
@@ -4861,6 +4869,253 @@
 
   // ---------- 이벤트 ----------
   function openModal(id) { $(id).classList.remove("hidden"); }
+  function catchRewardCatalog() {
+    return window.CatchMindLevels && Array.isArray(CatchMindLevels.REWARD_CATALOG)
+      ? CatchMindLevels.REWARD_CATALOG.slice()
+      : [];
+  }
+  function catchBoardFrameCatalog() {
+    var kind = window.CatchMindLevels && CatchMindLevels.REWARD_KINDS
+      ? CatchMindLevels.REWARD_KINDS.BOARD_FRAME
+      : "board_frame";
+    return catchRewardCatalog().filter(function (reward) {
+      return reward && reward.kind === kind && reward.asset;
+    }).sort(function (a, b) {
+      return (Number(a.order) || 0) - (Number(b.order) || 0);
+    });
+  }
+  function catchBoardFrameById(rewardId) {
+    var frames = catchBoardFrameCatalog();
+    for (var i = 0; i < frames.length; i++) {
+      if (frames[i].id === rewardId) return frames[i];
+    }
+    return null;
+  }
+  function catchFrameStorageKey() {
+    return CATCH_BOARD_FRAME_STORAGE_PREFIX + encodeURIComponent(String(me.nick || "guest"));
+  }
+  function readStoredCatchBoardFrame() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(catchFrameStorageKey()) || "null");
+      return saved && saved.version === 1 && catchBoardFrameById(saved.boardFrameId)
+        ? saved.boardFrameId
+        : "";
+    } catch (e) {
+      return "";
+    }
+  }
+  function storeCatchBoardFrame(rewardId) {
+    try {
+      localStorage.setItem(catchFrameStorageKey(), JSON.stringify({
+        version: 1,
+        boardFrameId: rewardId
+      }));
+    } catch (e) {}
+  }
+  function applyCatchBoardFrame(rewardId) {
+    var frames = catchBoardFrameCatalog();
+    var reward = catchBoardFrameById(rewardId) || frames[0] || null;
+    if (!reward) return false;
+    catchSelectedBoardFrameId = reward.id;
+    var image = $("catch-board-frame");
+    if (image) {
+      image.src = localAssetUrl(reward.asset);
+      image.setAttribute("data-catch-frame-id", reward.id);
+    }
+    return true;
+  }
+  function prepareCatchPersonalState() {
+    if (catchPersonalProfileNick !== me.nick) {
+      catchPersonalProfile = null;
+      catchPersonalProfileRequest = null;
+      catchPersonalProfileNick = me.nick;
+    }
+    applyCatchBoardFrame(readStoredCatchBoardFrame());
+  }
+  function isCatchCosmeticsPreview() {
+    return document.body.classList.contains("catch-preview-mode");
+  }
+  function catchPersonalLevel() {
+    if (isCatchCosmeticsPreview()) return 100;
+    var value = catchPersonalProfile && catchPersonalProfile.profile
+      ? Number(catchPersonalProfile.profile.level)
+      : 1;
+    return Math.max(1, Math.min(100, Math.floor(value) || 1));
+  }
+  function catchRewardUnlocked(reward) {
+    return !!reward && Number(reward.level) <= catchPersonalLevel();
+  }
+  function catchEquippedFrameFromProfile(profileResult) {
+    var equipped = profileResult && profileResult.profile && profileResult.profile.equipped;
+    return equipped && catchBoardFrameById(equipped.boardFrame) ? equipped.boardFrame : "";
+  }
+  function loadCatchPersonalProfile(force) {
+    if (isCatchCosmeticsPreview()) {
+      catchPersonalProfileNick = me.nick;
+      catchPersonalProfile = {
+        ok: true,
+        profile: {
+          nickname: me.nick,
+          level: 100,
+          equipped: { boardFrame: catchSelectedBoardFrameId }
+        },
+        unlocks: catchRewardCatalog().map(function (reward) { return { reward_id: reward.id }; })
+      };
+      return Promise.resolve(catchPersonalProfile);
+    }
+    if (!force && catchPersonalProfile && catchPersonalProfileNick === me.nick) {
+      return Promise.resolve(catchPersonalProfile);
+    }
+    if (catchPersonalProfileRequest) return catchPersonalProfileRequest;
+    if (!window.Db || !Db.getCatchmindProfile || !me.nick || !sessionAuthHash) {
+      return Promise.resolve({ ok: false, reason: "unavailable" });
+    }
+    var requestedNick = me.nick;
+    catchPersonalProfileRequest = Promise.resolve(Db.getCatchmindProfile({
+      nick: requestedNick,
+      hash: sessionAuthHash
+    })).then(function (result) {
+      if (requestedNick !== me.nick) return { ok: false, reason: "account_changed" };
+      if (result && result.ok && result.profile) {
+        catchPersonalProfileNick = requestedNick;
+        catchPersonalProfile = result;
+        var equippedId = catchEquippedFrameFromProfile(result);
+        if (equippedId) {
+          applyCatchBoardFrame(equippedId);
+          storeCatchBoardFrame(equippedId);
+        }
+      }
+      return result || { ok: false, reason: "invalid_response" };
+    }).catch(function () {
+      return { ok: false, reason: "network" };
+    }).then(function (result) {
+      catchPersonalProfileRequest = null;
+      return result;
+    });
+    return catchPersonalProfileRequest;
+  }
+  function renderCatchPersonalRewards() {
+    var level = catchPersonalLevel();
+    if ($("catch-personal-level")) $("catch-personal-level").textContent = "LV " + level;
+    if ($("catch-personal-nick")) $("catch-personal-nick").textContent = (me.nick || "내") + "님의 보상";
+    var catalog = catchRewardCatalog();
+    var unlockedCount = catalog.filter(catchRewardUnlocked).length;
+    if ($("catch-personal-reward-count")) {
+      $("catch-personal-reward-count").textContent = unlockedCount + " / " + catalog.length + " 획득";
+    }
+    var box = $("catch-personal-reward-list");
+    if (!box) return;
+    if (!catalog.length) {
+      box.innerHTML = '<p class="activity-log-empty">보상 정보를 불러올 수 없어요.</p>';
+      return;
+    }
+    var grouped = Object.create(null);
+    var levels = [];
+    catalog.forEach(function (reward) {
+      var rewardLevel = Number(reward.level) || 1;
+      if (!grouped[rewardLevel]) {
+        grouped[rewardLevel] = [];
+        levels.push(rewardLevel);
+      }
+      grouped[rewardLevel].push(reward);
+    });
+    levels.sort(function (a, b) { return a - b; });
+    box.innerHTML = levels.map(function (rewardLevel) {
+      var rewards = grouped[rewardLevel];
+      var unlocked = rewardLevel <= level;
+      var items = rewards.map(function (reward) {
+        var icon = '<span class="catch-reward-item-icon frame"><img src="' + esc(localAssetUrl(reward.asset)) + '" alt=""></span>';
+        return '<div class="catch-reward-item">' + icon
+          + '<strong>' + esc(reward.name) + '</strong>'
+          + '<span class="catch-reward-state">' + (unlocked ? "획득" : "예정") + '</span></div>';
+      }).join("");
+      return '<section class="catch-reward-level-row' + (unlocked ? " unlocked" : "") + '">'
+        + '<span class="catch-reward-level-badge">LV ' + rewardLevel + '</span>'
+        + '<div class="catch-reward-level-items">' + items + '</div></section>';
+    }).join("");
+  }
+  function renderCatchBoardFramePicker() {
+    var frames = catchBoardFrameCatalog();
+    var level = catchPersonalLevel();
+    if ($("catch-frame-picker-level")) $("catch-frame-picker-level").textContent = "현재 LV " + level;
+    var box = $("catch-frame-picker-grid");
+    if (!box) return;
+    box.innerHTML = frames.map(function (reward) {
+      var unlocked = catchRewardUnlocked(reward);
+      var selected = reward.id === catchSelectedBoardFrameId;
+      var name = String(reward.name || "").replace(/\s*그림판 테두리$/, "");
+      var badge = selected ? "선택됨" : "LV " + reward.level;
+      return '<button class="catch-frame-card ' + (reward.tier === "high" ? "high " : "") + (selected ? "selected" : "") + '"'
+        + ' type="button" data-catch-frame-id="' + esc(reward.id) + '" aria-pressed="' + (selected ? "true" : "false") + '"'
+        + ' aria-label="' + esc(name) + ', 레벨 ' + reward.level + (unlocked ? ", 선택 가능" : ", 잠김") + '"'
+        + (unlocked ? "" : " disabled") + '>'
+        + '<span class="catch-frame-card-number">' + reward.order + '</span>'
+        + (unlocked ? "" : '<span class="catch-frame-card-lock">🔒 LV ' + reward.level + '</span>')
+        + '<span class="catch-frame-preview"><img src="' + esc(localAssetUrl(reward.asset)) + '" alt=""></span>'
+        + '<span class="catch-frame-card-copy"><strong>' + esc(name) + '</strong><small>' + badge + '</small></span>'
+        + '</button>';
+    }).join("");
+  }
+  function selectCatchBoardFrame(rewardId) {
+    var reward = catchBoardFrameById(rewardId);
+    if (!reward || !catchRewardUnlocked(reward)) {
+      toast("레벨 " + (reward ? reward.level : "") + "에 받을 수 있는 스킨이에요.");
+      return;
+    }
+    var previousId = catchSelectedBoardFrameId;
+    applyCatchBoardFrame(reward.id);
+    storeCatchBoardFrame(reward.id);
+    renderCatchBoardFramePicker();
+    renderCatchPersonalRewards();
+    if (isCatchCosmeticsPreview()) {
+      toast(reward.name.replace(/\s*그림판 테두리$/, "") + " 적용 완료");
+      return;
+    }
+    if (!window.Db || !Db.equipCatchmindReward || !sessionAuthHash) {
+      toast("이 기기에 임시로 적용했어요.");
+      return;
+    }
+    Promise.resolve(Db.equipCatchmindReward({
+      nick: me.nick,
+      hash: sessionAuthHash
+    }, "board_frame", reward.id)).then(function (result) {
+      if (result && result.ok) {
+        catchPersonalProfile = result;
+        catchPersonalProfileNick = me.nick;
+        renderCatchBoardFramePicker();
+        renderCatchPersonalRewards();
+        toast("그림판 배경을 바꿨어요.");
+        return;
+      }
+      if (result && (result.reason === "locked_reward" || result.reason === "auth" || result.reason === "equip")) {
+        applyCatchBoardFrame(previousId);
+        storeCatchBoardFrame(catchSelectedBoardFrameId);
+        renderCatchBoardFramePicker();
+        toast("아직 획득하지 않은 스킨이에요.");
+        return;
+      }
+      toast("서버 연결 전까지 이 기기에 임시 적용돼요.");
+    }).catch(function () {
+      toast("서버 연결 전까지 이 기기에 임시 적용돼요.");
+    });
+  }
+  function openCatchBoardFramePicker() {
+    prepareCatchPersonalState();
+    renderCatchBoardFramePicker();
+    openModal("catch-frame-picker-modal");
+    loadCatchPersonalProfile(false).then(function () {
+      renderCatchBoardFramePicker();
+      renderCatchPersonalRewards();
+    });
+  }
+  function openCatchPersonalRewards() {
+    if ($("menu-main")) $("menu-main").classList.add("hidden");
+    if ($("menu-rules")) $("menu-rules").classList.add("hidden");
+    if ($("menu-catch-rewards")) $("menu-catch-rewards").classList.remove("hidden");
+    if ($("menu-title")) $("menu-title").textContent = "내 레벨 보상";
+    renderCatchPersonalRewards();
+    loadCatchPersonalProfile(false).then(renderCatchPersonalRewards);
+  }
   function renderCreateGameOptions(selected) {
     var box = $("create-game"); if (!box) return selected || "omok";
     if (selected === "alk_terr") selected = "alk";
@@ -4908,6 +5163,7 @@
   function openMenu() {
     if ($("menu-main")) $("menu-main").classList.remove("hidden");
     if ($("menu-rules")) $("menu-rules").classList.add("hidden");
+    if ($("menu-catch-rewards")) $("menu-catch-rewards").classList.add("hidden");
     if ($("menu-title")) $("menu-title").textContent = "메뉴";
     openModal("menu-modal");
   }
@@ -5592,6 +5848,18 @@
     $("menu-btn").addEventListener("click", openMenu);
     $("menu-rules-btn").addEventListener("click", function () { $("menu-main").classList.add("hidden"); $("menu-rules").classList.remove("hidden"); if ($("menu-title")) $("menu-title").textContent = "규칙"; });
     $("menu-rules-back").addEventListener("click", function () { $("menu-rules").classList.add("hidden"); $("menu-main").classList.remove("hidden"); if ($("menu-title")) $("menu-title").textContent = "메뉴"; });
+    $("menu-catch-rewards-btn").addEventListener("click", openCatchPersonalRewards);
+    $("menu-catch-rewards-back").addEventListener("click", function () {
+      $("menu-catch-rewards").classList.add("hidden");
+      $("menu-main").classList.remove("hidden");
+      if ($("menu-title")) $("menu-title").textContent = "메뉴";
+    });
+    $("catch-frame-picker-open").addEventListener("click", openCatchBoardFramePicker);
+    $("catch-frame-picker-grid").addEventListener("click", function (event) {
+      var card = event.target.closest("[data-catch-frame-id]");
+      if (!card || !this.contains(card) || card.disabled) return;
+      selectCatchBoardFrame(card.getAttribute("data-catch-frame-id"));
+    });
     var rbtns = document.querySelectorAll("#menu-rules [data-rules]");
     for (var rb = 0; rb < rbtns.length; rb++) rbtns[rb].addEventListener("click", function () { $("menu-modal").classList.add("hidden"); showRules(this.getAttribute("data-rules")); });
     $("rank-btn").addEventListener("click", function () { openRank("omok"); });

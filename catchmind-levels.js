@@ -24,31 +24,30 @@
   ];
 
   var REWARD_KINDS = {
-    BOARD_FRAME: "board_frame",
-    STICKER: "sticker",
-    TEXT_EMOTE: "text_emote",
-    NAMEPLATE: "nameplate",
-    BUNDLE: "bundle"
+    BOARD_FRAME: "board_frame"
   };
 
-  // The catalog is intentionally sparse while art direction is undecided.
-  // Every level has a slot in the database; these milestones are starter content.
+  // Board backgrounds are the only current level reward.
+  // Their explicit order mirrors the visual skin preview.
   var REWARD_CATALOG = [
-    { id: "sticker-pencil", level: 2, kind: REWARD_KINDS.STICKER, name: "연필 반짝 스티커" },
-    { id: "emote-nice-drawing", level: 5, kind: REWARD_KINDS.TEXT_EMOTE, name: "그림 좋다! 이모티콘" },
-    { id: "nameplate-sprout", level: 10, kind: REWARD_KINDS.NAMEPLATE, name: "새싹 닉네임 박스" },
-    { id: "sticker-paint-drop", level: 15, kind: REWARD_KINDS.STICKER, name: "물감 방울 스티커" },
-    { id: "frame-blue-pencil", level: 20, kind: REWARD_KINDS.BOARD_FRAME, name: "파란 연필 그림판 테두리" },
-    { id: "nameplate-color", level: 25, kind: REWARD_KINDS.NAMEPLATE, name: "컬러 닉네임 박스" },
-    { id: "emote-got-it", level: 30, kind: REWARD_KINDS.TEXT_EMOTE, name: "알겠다! 이모티콘" },
-    { id: "frame-color-pencil", level: 40, kind: REWARD_KINDS.BOARD_FRAME, name: "색연필 그림판 테두리" },
-    { id: "nameplate-artist", level: 50, kind: REWARD_KINDS.NAMEPLATE, name: "작가 닉네임 박스" },
-    { id: "sticker-crown-brush", level: 60, kind: REWARD_KINDS.STICKER, name: "왕관 붓 스티커" },
-    { id: "nameplate-master", level: 75, kind: REWARD_KINDS.NAMEPLATE, name: "명장 닉네임 박스" },
-    { id: "frame-master", level: 80, kind: REWARD_KINDS.BOARD_FRAME, name: "명장 그림판 테두리" },
-    { id: "nameplate-grand", level: 90, kind: REWARD_KINDS.NAMEPLATE, name: "거장 닉네임 박스" },
-    { id: "sticker-firework", level: 95, kind: REWARD_KINDS.STICKER, name: "불꽃 스티커" },
-    { id: "legend-bundle", level: 100, kind: REWARD_KINDS.BUNDLE, name: "레전드 전용 꾸미기 세트" }
+    { id: "frame-color-pencil", level: 5, kind: REWARD_KINDS.BOARD_FRAME, name: "색연필 그림판 테두리", asset: "assets/catchmind/board-frames/frame-color-pencil-v2.png", order: 1, tier: "low" },
+    { id: "frame-galaxy-stars", level: 10, kind: REWARD_KINDS.BOARD_FRAME, name: "은하수 그림판 테두리", asset: "assets/catchmind/board-frames/frame-galaxy-stars.png", order: 2, tier: "low" },
+    { id: "frame-retro-pixel", level: 15, kind: REWARD_KINDS.BOARD_FRAME, name: "레트로 픽셀 그림판 테두리", asset: "assets/catchmind/board-frames/frame-retro-pixel.png", order: 3, tier: "low" },
+    { id: "frame-cherry-blossom", level: 20, kind: REWARD_KINDS.BOARD_FRAME, name: "벚꽃 그림판 테두리", asset: "assets/catchmind/board-frames/frame-cherry-blossom.png", order: 4, tier: "low" },
+    { id: "frame-bamboo-garden", level: 25, kind: REWARD_KINDS.BOARD_FRAME, name: "대나무 그림판 테두리", asset: "assets/catchmind/board-frames/frame-bamboo-garden.png", order: 5, tier: "low" },
+    { id: "frame-dancheong", level: 30, kind: REWARD_KINDS.BOARD_FRAME, name: "단청 그림판 테두리", asset: "assets/catchmind/board-frames/frame-dancheong.png", order: 6, tier: "low" },
+    { id: "frame-ice-crystal", level: 35, kind: REWARD_KINDS.BOARD_FRAME, name: "얼음 결정 그림판 테두리", asset: "assets/catchmind/board-frames/frame-ice-crystal.png", order: 7, tier: "low" },
+    { id: "frame-cookie-sprinkle", level: 40, kind: REWARD_KINDS.BOARD_FRAME, name: "쿠키 스프링클 그림판 테두리", asset: "assets/catchmind/board-frames/frame-cookie-sprinkle.png", order: 8, tier: "low" },
+    { id: "frame-aurora-ribbon", level: 50, kind: REWARD_KINDS.BOARD_FRAME, name: "오로라 리본 그림판 테두리", asset: "assets/catchmind/board-frames/frame-aurora-ribbon.png", order: 9, tier: "high" },
+    { id: "frame-prism-glass", level: 55, kind: REWARD_KINDS.BOARD_FRAME, name: "프리즘 글라스 그림판 테두리", asset: "assets/catchmind/board-frames/frame-prism-glass.png", order: 10, tier: "high" },
+    { id: "frame-rainbow-hologram", level: 60, kind: REWARD_KINDS.BOARD_FRAME, name: "레인보우 홀로그램 그림판 테두리", asset: "assets/catchmind/board-frames/frame-rainbow-hologram.png", order: 11, tier: "high" },
+    { id: "frame-magic-palette", level: 65, kind: REWARD_KINDS.BOARD_FRAME, name: "마법 팔레트 그림판 테두리", asset: "assets/catchmind/board-frames/frame-magic-palette.png", order: 12, tier: "high" },
+    { id: "frame-golden-doodle", level: 70, kind: REWARD_KINDS.BOARD_FRAME, name: "골든 두들 그림판 테두리", asset: "assets/catchmind/board-frames/frame-golden-doodle.png", order: 13, tier: "high" },
+    { id: "frame-masterpiece", level: 75, kind: REWARD_KINDS.BOARD_FRAME, name: "명작의 순간 그림판 테두리", asset: "assets/catchmind/board-frames/frame-masterpiece.png", order: 14, tier: "high" },
+    { id: "frame-starlight-cloud", level: 80, kind: REWARD_KINDS.BOARD_FRAME, name: "별빛 구름 그림판 테두리", asset: "assets/catchmind/board-frames/frame-starlight-cloud.png", order: 15, tier: "high" },
+    { id: "frame-celebration-ribbon", level: 85, kind: REWARD_KINDS.BOARD_FRAME, name: "축제 리본 그림판 테두리", asset: "assets/catchmind/board-frames/frame-celebration-ribbon.png", order: 16, tier: "high" },
+    { id: "frame-gem-candy", level: 90, kind: REWARD_KINDS.BOARD_FRAME, name: "캔디 보석 그림판 테두리", asset: "assets/catchmind/board-frames/frame-gem-candy.png", order: 17, tier: "high" },
+    { id: "frame-pastel-carnival", level: 100, kind: REWARD_KINDS.BOARD_FRAME, name: "파스텔 카니발 그림판 테두리", asset: "assets/catchmind/board-frames/frame-pastel-carnival.png", order: 18, tier: "high" }
   ];
 
   function clamp(value, min, max) {
