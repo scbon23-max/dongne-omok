@@ -232,6 +232,9 @@ button { cursor: pointer; }
 .mvp-backdrop { z-index: 21; }
 .mvp-dialog {
   width: min(388px, 100%);
+  max-height: min(700px, calc(100dvh - 24px));
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   overflow: hidden;
   border: 1px solid #31576a;
   border-radius: 8px;
@@ -250,12 +253,12 @@ button { cursor: pointer; }
 .mvp-head span {
   display: block;
   color: var(--orange-dark);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 1000;
 }
 .mvp-head h2 {
   margin: 3px 0 0;
-  font-size: 21px;
+  font-size: 23px;
   line-height: 1.15;
   font-weight: 1000;
 }
@@ -268,69 +271,72 @@ button { cursor: pointer; }
   color: #fff;
   text-align: center;
 }
-.mvp-timer strong { display: block; font-size: 16px; line-height: 1; font-weight: 1000; }
-.mvp-timer small { display: block; margin-top: 3px; color: #9fb3bd; font-size: 7px; font-weight: 900; }
+.mvp-timer strong { display: block; font-size: 18px; line-height: 1; font-weight: 1000; }
+.mvp-timer small { display: block; margin-top: 3px; color: #9fb3bd; font-size: 9px; font-weight: 900; }
 .mvp-copy {
   margin: 0;
-  padding: 12px 14px 9px;
+  padding: 13px 14px 10px;
   color: #607984;
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1.45;
   font-weight: 850;
 }
 .mvp-candidates {
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  align-content: start;
+  gap: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0 14px 13px;
+  scrollbar-width: thin;
+  scrollbar-color: #b7c4c9 transparent;
 }
 .mvp-candidate {
+  position: relative;
   min-width: 0;
   min-height: 58px;
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 18px;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid #d2dadc;
-  border-radius: 7px;
-  background: #fff;
+  display: block;
+  padding: 3px;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  background: transparent;
   color: var(--ink);
   text-align: left;
+  cursor: pointer;
 }
 .mvp-candidate.selected {
   border-color: var(--orange);
   background: #fff3ed;
-  box-shadow: inset 0 0 0 1px var(--orange);
+  box-shadow: 0 0 0 1px rgba(243,97,42,.12);
 }
-.mvp-avatar {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #dce8ec;
-  color: var(--navy);
-  font-size: 13px;
-  font-weight: 1000;
-}
-.mvp-candidate.selected .mvp-avatar { background: var(--orange); color: #fff; }
-.mvp-candidate strong,
-.mvp-candidate small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mvp-candidate strong { font-size: 11px; font-weight: 1000; }
-.mvp-candidate small { margin-top: 3px; color: var(--muted); font-size: 8px; font-weight: 900; }
+.mvp-candidate:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+.mvp-candidate > .nameplate { width: 100%; max-width: none; pointer-events: none; }
 .mvp-check {
+  position: absolute;
+  z-index: 5;
+  top: -4px;
+  right: -4px;
   width: 17px;
   height: 17px;
   display: grid;
   place-items: center;
-  border: 1px solid #bdc9cd;
+  border: 2px solid #fff;
   border-radius: 50%;
-  color: transparent;
-  font-size: 10px;
+  background: var(--orange);
+  color: #fff;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  line-height: 1;
   font-style: normal;
   font-weight: 1000;
+  opacity: 0;
+  box-shadow: 0 1px 4px rgba(14,42,58,.2);
+  transform: scale(.72);
+  transition: opacity .15s ease, transform .15s ease;
 }
-.mvp-candidate.selected .mvp-check { border-color: var(--orange); background: var(--orange); color: #fff; }
+.mvp-candidate.selected .mvp-check { opacity: 1; transform: scale(1); }
 .mvp-foot {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 112px;
@@ -343,25 +349,27 @@ button { cursor: pointer; }
   min-width: 0;
   overflow: hidden;
   color: #718892;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .mvp-confirm {
-  height: 40px;
+  height: 42px;
   border: 0;
   border-radius: 7px;
   background: var(--orange);
   color: #fff;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 1000;
 }
 .mvp-confirm:disabled { background: #d8dedf; color: #99a8ae; }
 .xp-dialog {
   position: relative;
   width: min(388px, 100%);
-  max-height: calc(100dvh - 24px);
+  max-height: min(700px, calc(100dvh - 24px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
   border: 1px solid #31576a;
   border-radius: 8px;
@@ -378,8 +386,8 @@ button { cursor: pointer; }
   border-bottom: 1px solid #31576a;
   background: var(--navy);
 }
-.xp-head span { display: block; color: var(--teal); font-size: 9px; font-weight: 900; }
-.xp-head h2 { margin: 3px 0 0; color: #fff; font-size: 20px; line-height: 1.1; font-weight: 1000; }
+.xp-head span { display: block; color: var(--teal); font-size: 11px; font-weight: 900; }
+.xp-head h2 { margin: 3px 0 0; color: #fff; font-size: 23px; line-height: 1.1; font-weight: 1000; }
 .xp-close {
   width: 34px;
   height: 34px;
@@ -388,6 +396,14 @@ button { cursor: pointer; }
   background: var(--navy-2);
   color: #cfe0e7;
   font-size: 17px;
+}
+.xp-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #b7c4c9 transparent;
 }
 .xp-summary {
   display: grid;
@@ -408,8 +424,8 @@ button { cursor: pointer; }
   background: #fff;
   color: var(--orange-dark);
 }
-.level-seal small { display: block; font-size: 8px; line-height: 1; font-weight: 900; }
-.level-seal strong { display: block; margin-top: 2px; font-size: 20px; line-height: 1; font-weight: 1000; }
+.level-seal small { display: block; font-size: 9px; line-height: 1; font-weight: 900; }
+.level-seal strong { display: block; margin-top: 2px; font-size: 22px; line-height: 1; font-weight: 1000; }
 .level-seal-stage {
   position: relative;
   width: 62px;
@@ -510,14 +526,14 @@ button { cursor: pointer; }
 .xp-person strong {
   display: block;
   overflow: hidden;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 1000;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.xp-person span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; font-weight: 900; }
-.xp-earned { color: var(--orange); text-align: right; font-size: 22px; line-height: 1; font-weight: 1000; }
-.xp-earned span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 9px; }
+.xp-person span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; font-weight: 900; }
+.xp-earned { color: var(--orange); text-align: right; font-size: 24px; line-height: 1; font-weight: 1000; }
+.xp-earned span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 11px; }
 .xp-meter-block { padding: 0 14px 15px; }
 .xp-meter-head {
   min-height: 18px;
@@ -527,15 +543,15 @@ button { cursor: pointer; }
   gap: 8px;
   margin-bottom: 6px;
   color: #607984;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 900;
 }
 .xp-meter {
   position: relative;
-  height: 13px;
+  height: 15px;
   overflow: hidden;
   border: 1px solid #cfd8dc;
-  border-radius: 7px;
+  border-radius: 8px;
   background: #e6ecee;
 }
 .xp-meter-fill {
@@ -553,13 +569,13 @@ button { cursor: pointer; }
   list-style: none;
 }
 .xp-breakdown li {
-  min-height: 46px;
+  min-height: 58px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   color: #647b85;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 800;
 }
 .xp-breakdown li + li { border-top: 1px solid #e8e4dd; }
@@ -569,42 +585,43 @@ button { cursor: pointer; }
   display: block;
   overflow: hidden;
   color: var(--ink);
-  font-size: 10.5px;
+  font-size: 13px;
   font-weight: 1000;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .xp-reason small {
   display: block;
-  margin-top: 3px;
+  margin-top: 4px;
   color: var(--muted);
-  font-size: 8.5px;
+  font-size: 11px;
+  line-height: 1.35;
   font-weight: 800;
 }
-.xp-breakdown .xp-value { flex: 0 0 auto; color: var(--ink); font-size: 11px; font-weight: 1000; }
+.xp-breakdown .xp-value { flex: 0 0 auto; color: var(--ink); font-size: 13px; font-weight: 1000; }
 .xp-breakdown .cap-row .xp-value { color: var(--orange-dark); }
 .reward-unlock {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-columns: 42px minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
-  margin: 11px 14px 0;
-  padding: 9px 10px;
+  gap: 11px;
+  margin: 12px 14px 14px;
+  padding: 11px;
   border: 1px solid #efc0ac;
   border-radius: 7px;
   background: #fff2eb;
 }
 .reward-unlock .reward-icon {
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
   border-radius: 7px;
   background: var(--orange);
-  font-size: 20px;
+  font-size: 22px;
 }
-.reward-unlock span { display: block; color: var(--orange-dark); font-size: 9px; font-weight: 900; }
-.reward-unlock strong { display: block; margin-top: 2px; font-size: 12px; font-weight: 1000; }
+.reward-unlock span { display: block; color: var(--orange-dark); font-size: 11px; font-weight: 900; }
+.reward-unlock strong { display: block; margin-top: 3px; font-size: 14px; font-weight: 1000; }
 .xp-foot {
   display: grid;
   grid-template-columns: .8fr 1.2fr;
@@ -613,10 +630,10 @@ button { cursor: pointer; }
 }
 .xp-foot button {
   min-width: 0;
-  height: 42px;
+  height: 44px;
   border: 0;
   border-radius: 7px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 1000;
 }
 .xp-replay { background: #e1e7e9; color: #526b77; }
@@ -1142,53 +1159,11 @@ button { cursor: pointer; }
   .waiting-main h2 { font-size: 23px; }
   .mvp-candidates { gap: 5px; padding-left: 10px; padding-right: 10px; }
   .mvp-head, .mvp-copy, .mvp-foot { padding-left: 10px; padding-right: 10px; }
-  .mvp-candidate { grid-template-columns: 29px minmax(0, 1fr) 16px; gap: 6px; padding: 6px; }
-  .mvp-avatar { width: 29px; height: 29px; }
+  .mvp-candidate { padding: 2px; }
 }
 @media (max-height: 760px) {
   .xp-backdrop, .mvp-backdrop { padding: 8px; }
-  .xp-dialog { max-height: calc(100dvh - 16px); }
-  .xp-head { min-height: 50px; padding: 8px 11px; }
-  .xp-head h2 { font-size: 17px; }
-  .xp-close { width: 30px; height: 30px; }
-  .xp-summary { gap: 8px; padding: 8px 12px 7px; }
-  .level-seal-stage { width: 54px; height: 54px; }
-  .level-seal { width: 48px; height: 48px; }
-  .level-seal strong { font-size: 18px; }
-  .xp-person strong { font-size: 14px; }
-  .xp-earned { font-size: 19px; }
-  .xp-meter-block { padding: 0 12px 9px; }
-  .xp-meter-head { margin-bottom: 4px; }
-  .xp-breakdown { padding: 0 12px; }
-  .xp-breakdown li { min-height: 36px; }
-  .xp-reason strong { font-size: 9.5px; }
-  .xp-reason small { margin-top: 2px; font-size: 7.5px; }
-  .xp-breakdown .xp-value { font-size: 10px; }
-  .reward-unlock {
-    grid-template-columns: 32px minmax(0, 1fr);
-    gap: 8px;
-    margin: 6px 12px 0;
-    padding: 5px 8px;
-  }
-  .reward-unlock .reward-icon { width: 32px; height: 32px; font-size: 17px; }
-  .reward-unlock strong { font-size: 10.5px; }
-  .xp-foot { gap: 6px; padding: 8px 12px 10px; }
-  .xp-foot button { height: 36px; font-size: 11px; }
-}
-@media (max-height: 600px) {
-  .xp-head { min-height: 46px; padding-top: 6px; padding-bottom: 6px; }
-  .xp-summary { padding-top: 5px; padding-bottom: 4px; }
-  .xp-breakdown li { min-height: 31px; }
-  .xp-reason strong { font-size: 8.7px; }
-  .xp-reason small {
-    max-width: 210px;
-    overflow: hidden;
-    font-size: 7px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .reward-unlock { margin-top: 4px; padding-top: 4px; padding-bottom: 4px; }
-  .xp-foot { padding-top: 6px; padding-bottom: 7px; }
+  .xp-dialog, .mvp-dialog { max-height: calc(100dvh - 16px); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
@@ -1343,6 +1318,7 @@ button { cursor: pointer; }
       </div>
       <button id="xp-close" class="xp-close" type="button" aria-label="경험치 화면 닫기">✕</button>
     </header>
+    <div class="xp-scroll">
     <div class="xp-summary">
       <div id="level-seal-stage" class="level-seal-stage">
         <div class="level-particles" aria-hidden="true">
@@ -1372,6 +1348,7 @@ button { cursor: pointer; }
     <div id="reward-unlock" class="reward-unlock hidden">
       <div id="reward-icon" class="reward-icon">🎨</div>
       <div><span>새 보상 획득</span><strong id="reward-name">컬러 닉네임 박스</strong></div>
+    </div>
     </div>
     <footer class="xp-foot">
       <button id="xp-replay" class="xp-replay" type="button">다시 보기</button>
@@ -1554,16 +1531,18 @@ button { cursor: pointer; }
       return person.nick !== "구나" && !person.spectator;
     });
     $("mvp-candidates").innerHTML = candidates.map(function (person) {
-      return '<button class="mvp-candidate" type="button" data-mvp-nick="' + person.nick + '">'
-        + '<span class="mvp-avatar">' + person.nick.slice(0, 1) + '</span>'
-        + '<span><strong>' + person.nick + '</strong><small>LV ' + person.level + '</small></span>'
+      return '<button class="mvp-candidate" type="button" data-mvp-nick="' + person.nick
+        + '" aria-pressed="false" aria-label="' + person.nick + '님을 MVP로 선택">'
+        + plateHtml({ nick: person.nick, level: person.level, skin: person.skin }, "a")
         + '<i class="mvp-check">✓</i></button>';
     }).join("");
     document.querySelectorAll("[data-mvp-nick]").forEach(function (button) {
       button.addEventListener("click", function () {
         selectedMvp = this.getAttribute("data-mvp-nick");
         document.querySelectorAll("[data-mvp-nick]").forEach(function (item) {
-          item.classList.toggle("selected", item.getAttribute("data-mvp-nick") === selectedMvp);
+          var selected = item.getAttribute("data-mvp-nick") === selectedMvp;
+          item.classList.toggle("selected", selected);
+          item.setAttribute("aria-pressed", String(selected));
         });
         $("mvp-choice").textContent = selectedMvp + "님을 선택했어요";
         $("mvp-confirm").disabled = false;
