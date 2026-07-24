@@ -484,13 +484,14 @@ body:has(.cm-level-backdrop:not(.hidden)) { overflow: hidden; }
 .catch-score-strip.level-preview .cm-level-line strong { display: inline-flex; align-items: baseline; font-size: 8px; }
 .catch-score-strip.level-preview .cm-level-line small { margin-right: 2px; font-size: 6px; }
 .catch-score-strip.level-preview .cm-level-line::after { content: ""; position: absolute; inset: -7px auto -7px -18px; width: 10px; background: rgba(255,255,255,.55); opacity: 0; transform: skewX(-18deg); pointer-events: none; }
-.catch-score-strip.level-preview > span.drawer { border-color: var(--level-tier); outline: 2px solid var(--level-soft); outline-offset: 1px; }
 .catch-score-strip.level-preview > span.drawer .cm-level-name-row,
 .catch-score-strip.level-preview > span.drawer .cm-level-line { background-color: var(--level-tier); color: #fff; }
 .catch-score-strip.level-preview > span.drawer .cm-level-name-row b { color: #fff; }
-.catch-score-strip.level-preview > span.drawer .cm-level-line { box-shadow: inset 0 1px 0 rgba(255,255,255,.28); }
+.catch-score-strip.level-preview > span.drawer .cm-level-line { border-top: 1px solid rgba(0,0,0,.12); box-shadow: none; }
+.catch-score-strip.level-preview > span.drawer .cm-level-line::after { animation: none; opacity: 0; }
 .catch-score-strip.level-preview > span.spectator { opacity: .45; filter: grayscale(.25); }
-.catch-score-strip.level-preview .cm-level-correct { flex: 0 0 15px; width: 15px; height: 15px; display: inline-grid; place-items: center; margin-left: 4px; border-radius: 50%; background: #178c73; color: #fff; font-size: 10px; line-height: 1; font-style: normal; font-weight: 1000; box-shadow: 0 0 0 1px #fff, 0 0 0 2px rgba(23,140,115,.28); }
+.catch-score-strip.level-preview .cm-level-correct { flex: 0 0 13px; width: 13px; height: 13px; display: inline-grid; place-items: center; margin-left: 3px; border: 0; border-radius: 50%; background: #178c73; color: #fff; font-size: 0; line-height: 1; font-style: normal; box-shadow: none; }
+.catch-score-strip.level-preview .cm-level-correct::before { content: "\2714"; color: #fff; font-family: Arial, sans-serif; font-size: 8px; line-height: 1; font-weight: 900; }
 .catch-score-strip.level-preview .catch-host-crown { flex: 0 0 auto; margin-left: 3px; }
 .catch-score-strip.level-preview > span.milestone-40 { --level-speed: 3.3s; }
 .catch-score-strip.level-preview > span.milestone-50 { --level-speed: 3s; }
@@ -508,7 +509,10 @@ body:has(.cm-level-backdrop:not(.hidden)) { overflow: hidden; }
 .catch-score-strip.level-preview > span.effect-pulse::after { content: ""; position: absolute; z-index: 4; inset: 2px; border: 1px solid var(--level-tier); border-radius: 4px; opacity: 0; pointer-events: none; animation: cm-level-frame-pulse var(--level-speed) ease-in-out infinite; }
 .catch-score-strip.level-preview > span.effect-gem { box-shadow: inset 0 0 0 2px var(--level-soft), 0 0 6px var(--level-soft), 0 3px 8px rgba(14,42,58,.16); }
 .catch-score-strip.level-preview > span.effect-legend { border-color: #c49a36; background: #fffdf5; box-shadow: inset 0 0 0 2px #f5e8bb, 0 0 0 1px rgba(196,154,54,.3), 0 3px 10px rgba(181,129,20,.22); }
-.catch-score-strip.level-preview > span.drawer.effect-color .cm-level-name-row { animation: cm-level-rail-color var(--level-speed) ease-in-out infinite; }
+.catch-score-strip.level-preview > span.drawer { border-color: rgba(0,0,0,.16); outline: 0; background-color: var(--level-tier); box-shadow: 0 2px 4px rgba(14,42,58,.12); }
+.catch-score-strip.level-preview > span.drawer.effect-color .cm-level-name-row,
+.catch-score-strip.level-preview > span.drawer.effect-color .cm-level-line { animation: none; background-color: var(--level-tier); }
+.catch-score-strip.level-preview > span.drawer.effect-pulse::after { animation: none; opacity: 0; }
 @keyframes cm-level-rail-color { 0%, 100% { background-color: var(--level-tier); } 52% { background-color: var(--level-alt); } }
 @keyframes cm-level-rail-glint { 0%, 18% { left: -18px; opacity: 0; } 38% { opacity: .72; } 58%, 100% { left: calc(100% + 12px); opacity: 0; } }
 @keyframes cm-level-frame-pulse { 0%, 100% { opacity: .04; } 50% { opacity: .24; } }

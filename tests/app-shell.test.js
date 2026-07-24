@@ -218,8 +218,11 @@ test("CatchMind A+ nameplates add one visible milestone effect every ten levels"
     milestoneColors.push(match[1].toLowerCase());
   }
   assert.equal(new Set(milestoneColors).size, 11);
-  assert.match(styles, /\.cm-level-correct \{[^}]*width: 15px;[^}]*border-radius: 50%;[^}]*background: #178c73;/);
+  assert.match(styles, /\.cm-level-correct \{[^}]*width: 13px;[^}]*border-radius: 50%;[^}]*background: #178c73;[^}]*box-shadow: none;/);
+  assert.match(styles, /\.cm-level-correct::before \{[^}]*content: "\\2714";[^}]*font-weight: 900;/);
   assert.match(styles, /span\.drawer \.cm-level-name-row,\s*\.catch-score-strip\.level-preview > span\.drawer \.cm-level-line \{ background-color: var\(--level-tier\); color: #fff; \}/);
+  assert.match(styles, /span\.drawer \.cm-level-line \{ border-top: 1px solid rgba\(0,0,0,.12\); box-shadow: none; \}/);
+  assert.match(styles, /span\.drawer\.effect-color \.cm-level-name-row,\s*\.catch-score-strip\.level-preview > span\.drawer\.effect-color \.cm-level-line \{ animation: none; background-color: var\(--level-tier\); \}/);
   assert.match(catchmindLevelMockup, /\.nameplate\.style-a\.drawer \.plate-name,\s*\.nameplate\.style-a\.drawer \.plate-level \{ background-color: var\(--tier\); color: #fff; \}/);
   for (const state of ["방장", "정답", "그리는 중", "관전"]) {
     assert.match(catchmindLevelMockup, new RegExp("<span>" + state + "<\\/span>"));
