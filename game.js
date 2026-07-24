@@ -7,7 +7,7 @@
   // Keep unfinished modes hidden until they are ready.
   var ENABLE_ALK_TERRITORY = false;
   var ENABLE_RELAY = false;
-  var ENABLE_CATCHMIND_ROOMS = false;
+  var ENABLE_CATCHMIND_ROOMS = true;
 
   var G = {
     board: Renju.emptyBoard(),

@@ -316,7 +316,7 @@ test("Alkkagi has a synchronized five-choice turn timer with short-game warnings
   assert.match(game, /A\.started && window\.Alkkagi && Alkkagi\.isMoving\(\) \? "…" : "∞"/);
 });
 
-test("room creation hides disabled modes and allows public Territory Rush rooms", () => {
+test("room creation keeps CatchMind and Territory Rush public while unfinished modes stay hidden", () => {
   const catalog = fs.readFileSync(path.join(root, "game-catalog.js"), "utf8");
 
   assert.match(index, /id="create-game-step"/);
@@ -327,7 +327,7 @@ test("room creation hides disabled modes and allows public Territory Rush rooms"
   assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay", "territory"\]\)/);
   assert.match(game, /var ENABLE_ALK_TERRITORY = false/);
   assert.match(game, /var ENABLE_RELAY = false/);
-  assert.match(game, /var ENABLE_CATCHMIND_ROOMS = false/);
+  assert.match(game, /var ENABLE_CATCHMIND_ROOMS = true/);
   assert.match(game, /if \(id === "alk_terr" && !ENABLE_ALK_TERRITORY\) return false/);
   assert.match(game, /if \(id === "relay" && !ENABLE_RELAY\) return false/);
   assert.match(game, /function canEnterGame\(id\)[\s\S]*id !== "catchmind" \|\| ENABLE_CATCHMIND_ROOMS/);
