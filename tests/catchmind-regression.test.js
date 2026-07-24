@@ -14,6 +14,7 @@ const BOARD_FRAME_LEVELS = {
     { id: "frame-c", kind: "board_frame" }
   ]
 };
+const LEVELS = require("../catchmind-levels.js");
 
 function loadCatchMind(options) {
   options = options || {};
@@ -47,8 +48,10 @@ function fakeElement() {
   return {
     innerHTML: "",
     textContent: "",
+    style: {},
     setAttribute(name, value) { attributes.set(name, String(value)); },
     getAttribute(name) { return attributes.has(name) ? attributes.get(name) : null; },
+    removeAttribute(name) { attributes.delete(name); },
     classList: {
       add(name) { classes.add(name); },
       remove(name) { classes.delete(name); },
@@ -139,7 +142,14 @@ test("state sanitizing blocks markup and malformed values", () => {
   assert.equal(clean.scores.A, 0);
   assert.equal(clean.scores.B, 0);
   assert.equal(clean.scores.C, 12);
-  assert.deepEqual(Object.assign({}, clean.stats.A), { points: 0, maxPoints: 0, correct: 0, drawCorrect: 0, fastestMs: null });
+  assert.deepEqual(JSON.parse(JSON.stringify(clean.stats.A)), {
+    points: 0,
+    maxPoints: 0,
+    correct: 0,
+    drawCorrect: 0,
+    fastestMs: null,
+    answerTimesMs: []
+  });
   assert.equal(clean.feed[0].kind, "guess");
   assert.equal(clean.resultRatings.length, 1);
   assert.equal(clean.resultRatings[0].rankText, "<img>");
@@ -1209,6 +1219,145 @@ test("the player strip follows game order before spectators", () => {
   assert.ok(strip.innerHTML.indexOf("<b>B</b>") < strip.innerHTML.indexOf("<b>S</b>"));
 });
 
+test("live player nameplates use each account level instead of preview-only cards", () => {
+  const strip = fakeElement();
+  const api = loadCatchMind({
+    elements: { "catch-score-strip": strip },
+    window: { CatchMindLevels: LEVELS }
+  });
+  api.setApi({
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false, catchLevel: 9 }; },
+    roster() {
+      return [
+        { nick: "A", joinTs: 1, catchLevel: 9 },
+        { nick: "B", joinTs: 2, catchLevel: 50 }
+      ];
+    }
+  });
+  api.setState(api.sanitizeSnapshot(baseSnapshot({
+    queue: ["A", "B"],
+    drawer: "A",
+    guessers: ["B"],
+    scores: { A: 30, B: 20 }
+  })));
+
+  api.renderScores();
+
+  assert.equal(strip.classList.contains("level-preview"), true);
+  assert.match(strip.innerHTML, /milestone-start[\s\S]*<small>LV<\/small>9/);
+  assert.match(strip.innerHTML, /milestone-50[\s\S]*effect-color[\s\S]*<small>LV<\/small>50/);
+  assert.doesNotMatch(strip.innerHTML, />30점<|>20점</);
+});
+
+test("a completed live match awards XP once, accepts MVP, and opens the XP result", async () => {
+  const elements = {};
+  [
+    "catch-level-mvp-backdrop", "catch-level-mvp-candidates", "catch-level-mvp-choice",
+    "catch-level-mvp-confirm", "catch-level-mvp-time", "catch-level-xp-backdrop",
+    "catch-level-xp-level", "catch-level-xp-name", "catch-level-xp-tier",
+    "catch-level-xp-earned", "catch-level-xp-current", "catch-level-xp-next",
+    "catch-level-xp-meter", "catch-level-xp-fill", "catch-level-xp-breakdown",
+    "catch-level-reward", "catch-level-seal-stage", "catch-level-reward-name"
+  ].forEach((id) => { elements[id] = fakeElement(); });
+  elements["catch-level-mvp-backdrop"].classList.add("hidden");
+  elements["catch-level-xp-backdrop"].classList.add("hidden");
+  const calls = [];
+  const api = loadCatchMind({
+    elements,
+    window: { CatchMindLevels: LEVELS }
+  });
+  api.setApi({
+    isHost() { return false; },
+    host() { return "A"; },
+    me() { return { nick: "A", isAdmin: false, catchLevel: 12 }; },
+    roster() {
+      return [
+        { nick: "A", joinTs: 1, catchLevel: 12 },
+        { nick: "B", joinTs: 2, catchLevel: 31 }
+      ];
+    },
+    awardCatchmindXp(matchId, result, context) {
+      calls.push({ type: "award", matchId, result, context });
+      return Promise.resolve({
+        ok: true,
+        award: {
+          beforeXp: 100,
+          afterXp: 127,
+          appliedXp: 27,
+          breakdown: { completion: 15, answers: 12, mvp: 0 },
+          metrics: {
+            eligibleRounds: 2,
+            answerTimesMs: [12000],
+            answerXp: [12],
+            correctCount: 1,
+            mvp: false
+          }
+        }
+      });
+    },
+    voteCatchmindMvp(matchId, nominee) {
+      calls.push({ type: "vote", matchId, nominee });
+      return Promise.resolve({ ok: true, vote: { ok: true, nominee } });
+    },
+    getCatchmindMvpResult(matchId) {
+      calls.push({ type: "result", matchId });
+      return Promise.resolve({
+        ok: true,
+        result: { status: "finalized", winner: "A", votes: 1, bonusXp: 15, appliedXp: 15 }
+      });
+    },
+    loadCatchProfile() { return Promise.resolve({ ok: true }); },
+    toast() {}
+  });
+  const finished = api.freshState();
+  finished.phase = "finished";
+  finished.matchId = "match-level-live";
+  finished.queue = ["A", "B"];
+  finished.completedRounds = 2;
+  finished.stats.A = {
+    points: 10,
+    maxPoints: 10,
+    correct: 1,
+    drawCorrect: 0,
+    fastestMs: 12000,
+    answerTimesMs: [12000]
+  };
+  finished.stats.B = {
+    points: 0,
+    maxPoints: 10,
+    correct: 0,
+    drawCorrect: 0,
+    fastestMs: null,
+    answerTimesMs: []
+  };
+  api.setState(finished);
+
+  api.syncLiveProgression();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(api.getLiveProgression().stage, "voting");
+  assert.equal(calls.filter((call) => call.type === "award").length, 1);
+  assert.deepEqual(calls[0].result.answerTimesMs, [12000]);
+  assert.match(elements["catch-level-mvp-candidates"].innerHTML, /<b>B<\/b>/);
+  assert.match(elements["catch-level-mvp-candidates"].innerHTML, /<small>LV<\/small>31/);
+
+  api.getLiveProgression().selection = "B";
+  api.getLiveProgression().stage = "submitting";
+  api.requestLiveMvpVote();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(api.getLiveProgression().stage, "waiting");
+
+  api.pollLiveMvp();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(api.getLiveProgression().stage, "result");
+  assert.equal(elements["catch-level-xp-earned"].textContent, "+42 XP");
+  assert.equal(elements["catch-level-xp-backdrop"].classList.contains("hidden"), false);
+
+  api.syncLiveProgression();
+  assert.equal(calls.filter((call) => call.type === "award").length, 1);
+});
+
 test("countdown stage uses the simple CatchMind progress design", () => {
   const stage = fakeElement();
   const kicker = fakeElement();
@@ -1612,9 +1761,12 @@ test("a correct guess records the player's fastest real answer time", () => {
   assert.equal(api.getState().stats.B.correct, 1);
   assert.ok(api.getState().stats.B.fastestMs >= 5000);
   assert.ok(api.getState().stats.B.fastestMs < 5200);
+  assert.equal(api.getState().stats.B.answerTimesMs.length, 1);
+  assert.equal(api.getState().stats.B.answerTimesMs[0], api.getState().stats.B.fastestMs);
   assert.equal(api.formatHighlightSeconds(api.getState().stats.B.fastestMs), "5초");
   assert.equal(api.getState().phase, "reveal");
   assert.equal(api.getState().revealOutcome, "all-correct");
+  assert.equal(api.getState().completedRounds, 1);
 });
 
 test("a timed-out round stores a synchronized timeout reveal outcome", () => {
@@ -1635,6 +1787,7 @@ test("a timed-out round stores a synchronized timeout reveal outcome", () => {
 
   assert.equal(api.getState().phase, "reveal");
   assert.equal(api.getState().revealOutcome, "timeout");
+  assert.equal(api.getState().completedRounds, 1);
   assert.equal(api.snapshot().revealOutcome, "timeout");
   assert.equal(api.sanitizeSnapshot(api.snapshot()).revealOutcome, "timeout");
 });

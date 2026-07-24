@@ -571,7 +571,7 @@ test("CatchMind exposes a self-only reward menu and board-frame picker", () => {
     game.indexOf("function openCatchBoardFramePicker")
   );
   const publishFrame = game.slice(
-    game.indexOf("function publishCatchBoardFrameSelection"),
+    game.indexOf("function publishCatchPersonalState"),
     game.indexOf("function prepareCatchPersonalState")
   );
   const showFrame = game.slice(
@@ -580,10 +580,12 @@ test("CatchMind exposes a self-only reward menu and board-frame picker", () => {
   );
 
   assert.match(game, /catchBoardFrameId:\s*catchSelectedBoardFrameId/);
+  assert.match(game, /catchLevel:\s*catchPersonalLevel\(\)/);
   assert.match(game, /getBoardFrameId:\s*function \(\) \{ return catchSelectedBoardFrameId; \}/);
   assert.match(game, /showBoardFrame:\s*showCatchBoardFrame/);
   assert.match(game, /function showLobby\(\)[\s\S]*loadCatchPersonalProfile\(false\)/);
   assert.match(selectFrame, /publishCatchBoardFrameSelection\(\)/);
   assert.match(publishFrame, /Net\.track\(myMetaObj\(null\)\)/);
+  assert.match(publishFrame, /Net\.trackLobby\(myMetaObj\(curRoomId \|\| null\)\)/);
   assert.doesNotMatch(showFrame, /catchSelectedBoardFrameId\s*=/);
 });

@@ -11,6 +11,8 @@ window.CatchMind = (function () {
   var DRAWER_RANK_POINTS = 3;
   var SECRET_RECOVERY_MS = 3000;
   var REVEAL_MS = 3000;
+  var MVP_VOTE_MS = 15000;
+  var MVP_POLL_MS = 750;
   var DRAW_SEND_MS = 60;
   var CANVAS_BG = "#ffffff";
   var PEN_COLORS = ["#17252f", "#d23b3b"];
@@ -89,6 +91,8 @@ window.CatchMind = (function () {
   var previewPhaseKey = "";
   var previewMvpSelection = "";
   var previewDismissedOverlay = "";
+  var liveProgression = freshProgressionState();
+  var progressionRequestToken = 0;
   var bgmEl = null;
   var bgmPlayPending = false;
   var startSfxEl = null;
@@ -148,8 +152,26 @@ window.CatchMind = (function () {
       revealWord: null,
       revealOutcome: null,
       wordLength: 0,
+      completedRounds: 0,
       recordStatus: "idle",
       resultRatings: []
+    };
+  }
+
+  function freshProgressionState() {
+    return {
+      matchId: "",
+      stage: "idle",
+      award: null,
+      mvpResult: null,
+      selection: "",
+      submitted: false,
+      requestPending: false,
+      retryAt: 0,
+      attempts: 0,
+      deadline: 0,
+      nextPollAt: 0,
+      errorNotified: false
     };
   }
 
@@ -474,7 +496,12 @@ window.CatchMind = (function () {
         maxPoints: safeInteger(row.maxPoints, 0, MAX_SCORE, 0),
         correct: safeInteger(row.correct, 0, MAX_SCORE, 0),
         drawCorrect: safeInteger(row.drawCorrect, 0, MAX_SCORE, 0),
-        fastestMs: row.fastestMs == null ? null : safeInteger(row.fastestMs, 0, ROUND_MS, null)
+        fastestMs: row.fastestMs == null ? null : safeInteger(row.fastestMs, 0, ROUND_MS, null),
+        answerTimesMs: Array.isArray(row.answerTimesMs)
+          ? row.answerTimesMs.slice(0, MAX_PLAYERS).map(function (value) {
+              return safeInteger(value, 0, ROUND_MS, null);
+            }).filter(function (value) { return value != null; })
+          : []
       };
     });
     return out;
@@ -521,7 +548,17 @@ window.CatchMind = (function () {
 
   function initStats(nick) {
     if (state.scores[nick] == null) state.scores[nick] = 0;
-    if (!state.stats[nick]) state.stats[nick] = { points: 0, maxPoints: 0, correct: 0, drawCorrect: 0, fastestMs: null };
+    if (!state.stats[nick]) {
+      state.stats[nick] = {
+        points: 0,
+        maxPoints: 0,
+        correct: 0,
+        drawCorrect: 0,
+        fastestMs: null,
+        answerTimesMs: []
+      };
+    }
+    if (!Array.isArray(state.stats[nick].answerTimesMs)) state.stats[nick].answerTimesMs = [];
     return state.stats[nick];
   }
 
@@ -564,6 +601,7 @@ window.CatchMind = (function () {
       revealWord: state.revealWord,
       revealOutcome: state.revealOutcome,
       wordLength: state.wordLength,
+      completedRounds: state.completedRounds,
       recordStatus: state.recordStatus,
       resultRatings: state.resultRatings,
       recorded: state.recordStatus === "saved"
@@ -659,6 +697,7 @@ window.CatchMind = (function () {
         ? next.revealOutcome
         : null,
       wordLength: safeInteger(next.wordLength, 0, 10, 0),
+      completedRounds: safeInteger(next.completedRounds, 0, Math.max(queue.length, 1), 0),
       recordStatus: recordStatus,
       resultRatings: safeResultRatings(next.resultRatings, queue)
     };
@@ -705,6 +744,7 @@ window.CatchMind = (function () {
       revealWord: clean.revealWord,
       revealOutcome: clean.revealOutcome,
       wordLength: clean.wordLength,
+      completedRounds: clean.completedRounds,
       recordStatus: clean.recordStatus,
       resultRatings: clean.resultRatings
     };
@@ -985,6 +1025,7 @@ window.CatchMind = (function () {
   function hostEndRound(reason, outcome) {
     if (!api || !api.isHost() || (state.phase !== "countdown" && state.phase !== "drawing")) return;
     var galleryDraft = galleryDraftFromRound();
+    if (state.phase === "drawing") state.completedRounds++;
     state.phase = "reveal";
     state.deadline = null;
     state.nextAt = Date.now() + REVEAL_MS;
@@ -1046,6 +1087,7 @@ window.CatchMind = (function () {
       // Season performance stays success-based so old and new match records remain comparable.
       guesserStats.points += GUESS_RANK_POINTS;
       guesserStats.correct++;
+      guesserStats.answerTimesMs.push(Math.round(elapsedMs));
       if (guesserStats.fastestMs == null || elapsedMs < guesserStats.fastestMs) guesserStats.fastestMs = elapsedMs;
       if (state.stats[state.drawer]) {
         state.scores[state.drawer] = (state.scores[state.drawer] || 0) + drawerScore;
@@ -1850,9 +1892,10 @@ window.CatchMind = (function () {
     syncAudio();
     renderTimer();
     renderStage();
+    var now = Date.now();
+    tickLiveProgression(now);
     if (previewMode) return;
     if (!api.isHost()) return;
-    var now = Date.now();
     if (state.pauseKind === "drawer") {
       if (has(activeNicks(), state.drawer)) {
         if (state.phase === "drawing" && !secretWord) hostRequestSecretRecovery();
@@ -1963,8 +2006,8 @@ window.CatchMind = (function () {
 
   function levelPreviewClasses(level) {
     var normalized = Math.max(1, Math.min(100, Math.round(Number(level) || 1)));
-    var tier = window.CatchMindLevels && CatchMindLevels.tierForLevel
-      ? CatchMindLevels.tierForLevel(normalized)
+    var tier = window.CatchMindLevels && window.CatchMindLevels.tierForLevel
+      ? window.CatchMindLevels.tierForLevel(normalized)
       : { id: "sketch" };
     var milestone = normalized < 10 ? "start" : Math.min(100, Math.floor(normalized / 10) * 10);
     var classes = ["tier-" + tier.id, "milestone-" + milestone];
@@ -1980,6 +2023,13 @@ window.CatchMind = (function () {
     return { level: normalized, classes: classes };
   }
 
+  function catchLevelForPerson(person, previewLevel) {
+    if (previewMode && previewLevel != null) return levelPreviewClasses(previewLevel).level;
+    var value = person && (person.catchLevel != null ? person.catchLevel : person.level);
+    if (person && person.nick === me().nick && me().catchLevel != null) value = me().catchLevel;
+    return safeInteger(value, 1, 100, 1);
+  }
+
   function renderScores() {
     var box = $("catch-score-strip"); if (!box) return;
     var shownPeople = orderedPeople();
@@ -1990,7 +2040,7 @@ window.CatchMind = (function () {
       return;
     }
     box.classList.remove("hidden");
-    box.classList.toggle("level-preview", previewMode);
+    box.classList.add("level-preview");
     var shownNicks = shownPeople.map(function (person) { return person.nick; });
     var peopleByNick = Object.create(null);
     shownPeople.forEach(function (person) { peopleByNick[person.nick] = person; });
@@ -2008,7 +2058,6 @@ window.CatchMind = (function () {
       var isParticipant = canChangeRole()
         ? !has(state.spectators || [], nick) && !isAway
         : !!participantSet[nick];
-      var wasParticipant = !!participantSet[nick];
       var isCorrect = state.phase === "drawing" && !!state.correct[nick];
       var classes = [];
       var mine = nick === me().nick;
@@ -2017,10 +2066,6 @@ window.CatchMind = (function () {
       if (isCorrect) classes.push("correct");
       if (!isParticipant) classes.push("spectator");
       if (isAway) classes.push("away");
-      var score = wasParticipant && state.queue.length
-        ? '<span class="catch-inline-score">' + (state.scores[nick] || 0) + '점</span>'
-        : "";
-      var badge = isCorrect ? ' <em>정답</em>' : "";
       var crown = api && !isAway && nick === api.host()
         ? ' <span class="catch-host-crown" title="방장" aria-label="방장">👑</span>'
         : "";
@@ -2034,16 +2079,13 @@ window.CatchMind = (function () {
         : "";
       var interactionAttrs = personalAttrs || roleAttrs;
       if (manageable) classes.push("host-manageable");
-      if (previewMode) {
-        var presentation = levelPreviewClasses(previewLevels[index % previewLevels.length]);
-        var level = presentation.level;
-        classes = classes.concat(presentation.classes);
-        var correctMark = isCorrect ? '<i class="cm-level-correct" aria-label="정답">✓</i>' : "";
-        return '<span class="' + classes.join(" ") + '"' + interactionAttrs + '>'
-          + '<span class="cm-level-name-row"><b>' + esc(nick) + '</b>' + correctMark + crown + awayBadge + '</span>'
-          + '<span class="cm-level-line"><strong><small>LV</small>' + level + '</strong></span></span>';
-      }
-      return '<span class="' + classes.join(" ") + '"' + interactionAttrs + '><b>' + esc(nick) + '</b>' + crown + awayBadge + badge + score + '</span>';
+      var level = catchLevelForPerson(person, previewMode ? previewLevels[index % previewLevels.length] : null);
+      var presentation = levelPreviewClasses(level);
+      classes = classes.concat(presentation.classes);
+      var correctMark = isCorrect ? '<i class="cm-level-correct" aria-label="정답">✓</i>' : "";
+      return '<span class="' + classes.join(" ") + '"' + interactionAttrs + '>'
+        + '<span class="cm-level-name-row"><b>' + esc(nick) + '</b>' + correctMark + crown + awayBadge + '</span>'
+        + '<span class="cm-level-line"><strong><small>LV</small>' + presentation.level + '</strong></span></span>';
     }).join("");
   }
 
@@ -2319,6 +2361,258 @@ window.CatchMind = (function () {
     setLevelPreviewBackdrop("catch-level-xp-backdrop", false);
   }
 
+  function progressionSeenKey(matchId) {
+    return "catchmind.progressionSeen.v1:" + encodeURIComponent(me().nick || "") + ":" + encodeURIComponent(matchId || "");
+  }
+
+  function progressionWasSeen(matchId) {
+    try { return sessionStorage.getItem(progressionSeenKey(matchId)) === "1"; }
+    catch (error) { return false; }
+  }
+
+  function markProgressionSeen(matchId) {
+    try { sessionStorage.setItem(progressionSeenKey(matchId), "1"); }
+    catch (error) {}
+  }
+
+  function resetLiveProgression() {
+    progressionRequestToken++;
+    liveProgression = freshProgressionState();
+    hideLevelPreviewOverlays();
+  }
+
+  function progressionPerson(nick) {
+    var roster = people();
+    for (var i = 0; i < roster.length; i++) {
+      if (roster[i] && roster[i].nick === nick) return roster[i];
+    }
+    return { nick: nick, catchLevel: 1 };
+  }
+
+  function liveMvpCandidates() {
+    return state.queue.filter(function (nick) {
+      return nick && nick !== me().nick;
+    }).map(progressionPerson);
+  }
+
+  function levelPlateMarkup(person) {
+    var presentation = levelPreviewClasses(catchLevelForPerson(person));
+    return '<span class="catch-score-strip level-preview cm-mvp-plate-wrap" aria-hidden="true"><span class="'
+      + presentation.classes.join(" ") + '"><span class="cm-level-name-row"><b>' + esc(person.nick)
+      + '</b></span><span class="cm-level-line"><strong><small>LV</small>' + presentation.level
+      + '</strong></span></span></span>';
+  }
+
+  function setMvpTimer(milliseconds) {
+    var timer = $("catch-level-mvp-time");
+    if (!timer) return;
+    timer.textContent = Math.max(0, Math.ceil(Math.max(0, milliseconds) / 1000));
+  }
+
+  function renderLiveMvp() {
+    var backdrop = $("catch-level-mvp-backdrop");
+    var list = $("catch-level-mvp-candidates");
+    var choice = $("catch-level-mvp-choice");
+    var confirm = $("catch-level-mvp-confirm");
+    if (!backdrop || !list || !choice || !confirm) return;
+    var candidates = liveMvpCandidates();
+    list.innerHTML = candidates.map(function (person) {
+      var selected = person.nick === liveProgression.selection;
+      return '<button class="cm-mvp-candidate' + (selected ? ' selected' : '') + '" type="button" data-catch-mvp-nick="'
+        + esc(person.nick) + '" aria-pressed="' + String(selected) + '" aria-label="' + esc(person.nick) + '님을 MVP로 선택">'
+        + levelPlateMarkup(person) + '<i class="cm-mvp-check">✓</i></button>';
+    }).join("");
+    if (liveProgression.stage === "submitting") choice.textContent = "투표를 확인하고 있어요";
+    else if (liveProgression.submitted) choice.textContent = "투표 완료 · 결과를 모으고 있어요";
+    else if (liveProgression.selection) choice.textContent = liveProgression.selection + "님을 선택했어요";
+    else choice.textContent = candidates.length ? "아직 선택하지 않았어요" : "선택할 참가자가 없어요";
+    confirm.textContent = liveProgression.submitted ? "투표 완료" : "선택 완료";
+    confirm.disabled = liveProgression.submitted || liveProgression.stage === "submitting" || !liveProgression.selection;
+    setMvpTimer(liveProgression.deadline - Date.now());
+    setLevelPreviewBackdrop("catch-level-xp-backdrop", false);
+    backdrop.setAttribute("data-preview-phase", "live-" + liveProgression.matchId);
+    setLevelPreviewBackdrop("catch-level-mvp-backdrop", true);
+  }
+
+  function notifyProgressionFailure() {
+    if (liveProgression.errorNotified) return;
+    liveProgression.errorNotified = true;
+    if (api && api.toast) api.toast("경험치 연결이 늦어지고 있어요. 다음 접속 때 다시 확인할게요");
+  }
+
+  function requestLiveAward() {
+    if (!api || !api.awardCatchmindXp || liveProgression.requestPending
+        || liveProgression.stage !== "awarding") return;
+    var token = progressionRequestToken;
+    var matchId = liveProgression.matchId;
+    var stats = state.stats[me().nick] || {};
+    var result = {
+      eligibleRounds: state.completedRounds,
+      answerTimesMs: Array.isArray(stats.answerTimesMs) ? stats.answerTimesMs.slice() : []
+    };
+    var context = {
+      humanPlayers: state.queue.length,
+      roundsPlayed: state.completedRounds,
+      completed: true,
+      practice: false,
+      preview: false
+    };
+    liveProgression.requestPending = true;
+    liveProgression.attempts++;
+    Promise.resolve(api.awardCatchmindXp(matchId, result, context)).then(function (response) {
+      if (token !== progressionRequestToken || liveProgression.matchId !== matchId) return;
+      liveProgression.requestPending = false;
+      if (response && response.ok && response.award) {
+        liveProgression.award = response.award;
+        liveProgression.stage = "voting";
+        liveProgression.deadline = Date.now() + MVP_VOTE_MS;
+        liveProgression.nextPollAt = liveProgression.deadline;
+        if (api.loadCatchProfile) api.loadCatchProfile(true);
+        renderLiveMvp();
+        return;
+      }
+      if (response && response.reason === "ineligible") {
+        liveProgression.stage = "done";
+        hideLevelPreviewOverlays();
+        return;
+      }
+      if (liveProgression.attempts < 3) {
+        liveProgression.retryAt = Date.now() + liveProgression.attempts * 900;
+        return;
+      }
+      liveProgression.stage = "error";
+      notifyProgressionFailure();
+      hideLevelPreviewOverlays();
+    }).catch(function () {
+      if (token !== progressionRequestToken || liveProgression.matchId !== matchId) return;
+      liveProgression.requestPending = false;
+      if (liveProgression.attempts < 3) {
+        liveProgression.retryAt = Date.now() + liveProgression.attempts * 900;
+      } else {
+        liveProgression.stage = "error";
+        notifyProgressionFailure();
+        hideLevelPreviewOverlays();
+      }
+    });
+  }
+
+  function requestLiveMvpVote() {
+    if (!api || !api.voteCatchmindMvp || liveProgression.requestPending
+        || liveProgression.stage !== "submitting" || !liveProgression.selection) return;
+    var token = progressionRequestToken;
+    var matchId = liveProgression.matchId;
+    var nominee = liveProgression.selection;
+    liveProgression.requestPending = true;
+    Promise.resolve(api.voteCatchmindMvp(matchId, nominee)).then(function (response) {
+      if (token !== progressionRequestToken || liveProgression.matchId !== matchId) return;
+      liveProgression.requestPending = false;
+      if (response && response.ok && response.vote && response.vote.ok !== false) {
+        liveProgression.submitted = true;
+        liveProgression.stage = "waiting";
+        liveProgression.nextPollAt = Date.now();
+        renderLiveMvp();
+        return;
+      }
+      if (response && response.vote && response.vote.reason === "closed") {
+        liveProgression.stage = "waiting";
+        liveProgression.nextPollAt = Date.now();
+        return;
+      }
+      if (Date.now() < liveProgression.deadline) {
+        liveProgression.retryAt = Date.now() + 600;
+        return;
+      }
+      liveProgression.stage = "waiting";
+      liveProgression.nextPollAt = Date.now();
+    }).catch(function () {
+      if (token !== progressionRequestToken || liveProgression.matchId !== matchId) return;
+      liveProgression.requestPending = false;
+      if (Date.now() < liveProgression.deadline) liveProgression.retryAt = Date.now() + 600;
+      else {
+        liveProgression.stage = "waiting";
+        liveProgression.nextPollAt = Date.now();
+      }
+    });
+  }
+
+  function finishLiveProgression(result) {
+    liveProgression.mvpResult = result || { status: "no_votes", bonusXp: 0, appliedXp: 0 };
+    liveProgression.stage = "result";
+    liveProgression.requestPending = false;
+    if (api && api.loadCatchProfile) {
+      Promise.resolve(api.loadCatchProfile(true)).then(function () {
+        renderScores();
+      });
+    }
+    renderLiveXp();
+  }
+
+  function pollLiveMvp() {
+    if (!api || !api.getCatchmindMvpResult || liveProgression.requestPending
+        || liveProgression.stage !== "waiting") return;
+    var token = progressionRequestToken;
+    var matchId = liveProgression.matchId;
+    liveProgression.requestPending = true;
+    liveProgression.nextPollAt = Date.now() + MVP_POLL_MS;
+    Promise.resolve(api.getCatchmindMvpResult(matchId)).then(function (response) {
+      if (token !== progressionRequestToken || liveProgression.matchId !== matchId) return;
+      liveProgression.requestPending = false;
+      var result = response && response.ok ? response.result : null;
+      if (result && (result.status === "finalized" || result.status === "no_votes")) {
+        finishLiveProgression(result);
+        return;
+      }
+      if (result && result.status === "pending") {
+        liveProgression.deadline = Date.now() + safeInteger(result.remainingMs, 0, MVP_VOTE_MS, 0);
+      }
+      if (Date.now() > liveProgression.deadline + 5000) {
+        notifyProgressionFailure();
+        finishLiveProgression({ status: "no_votes", bonusXp: 0, appliedXp: 0 });
+      }
+    }).catch(function () {
+      if (token !== progressionRequestToken || liveProgression.matchId !== matchId) return;
+      liveProgression.requestPending = false;
+      if (Date.now() > liveProgression.deadline + 5000) {
+        notifyProgressionFailure();
+        finishLiveProgression({ status: "no_votes", bonusXp: 0, appliedXp: 0 });
+      }
+    });
+  }
+
+  function beginLiveProgression() {
+    resetLiveProgression();
+    liveProgression.matchId = state.matchId;
+    if (progressionWasSeen(state.matchId)) {
+      liveProgression.stage = "done";
+      return;
+    }
+    liveProgression.stage = "awarding";
+    requestLiveAward();
+  }
+
+  function tickLiveProgression(now) {
+    if (previewMode || !liveProgression.matchId) return;
+    if (liveProgression.stage === "awarding" && !liveProgression.requestPending
+        && liveProgression.retryAt && now >= liveProgression.retryAt) {
+      liveProgression.retryAt = 0;
+      requestLiveAward();
+    } else if (liveProgression.stage === "submitting" && !liveProgression.requestPending
+        && liveProgression.retryAt && now >= liveProgression.retryAt) {
+      liveProgression.retryAt = 0;
+      requestLiveMvpVote();
+    } else if (liveProgression.stage === "voting" && now >= liveProgression.deadline) {
+      liveProgression.stage = "waiting";
+      liveProgression.nextPollAt = now;
+      renderLiveMvp();
+    }
+    if ((liveProgression.stage === "voting" || liveProgression.stage === "submitting"
+        || liveProgression.stage === "waiting")) {
+      setMvpTimer(liveProgression.deadline - now);
+    }
+    if (liveProgression.stage === "waiting" && !liveProgression.requestPending
+        && now >= liveProgression.nextPollAt) pollLiveMvp();
+  }
+
   function renderMvpPreview() {
     var backdrop = $("catch-level-mvp-backdrop");
     var list = $("catch-level-mvp-candidates");
@@ -2368,26 +2662,23 @@ window.CatchMind = (function () {
     }).join("");
   }
 
-  function renderXpPreview() {
+  function renderXpDialog(award, beforeXp, earnedXp, phaseKey) {
     var Levels = window.CatchMindLevels;
     var backdrop = $("catch-level-xp-backdrop");
     if (!Levels || !backdrop) return;
-    var wonMvp = previewPhaseKey === "xp-mvp" || previewPhaseKey === "xp-levelup";
-    var award = Levels.matchXp({
-      eligibleRounds: 6,
-      answerTimesMs: [12000, 27000, 48000]
-    }, {
-      humanPlayers: 6,
-      completed: true
-    });
-    award = Levels.applyMvpBonus(award, wonMvp);
-    var beforeXp = previewPhaseKey === "xp-levelup"
-      ? Levels.totalXpForLevel(25) - 34
-      : Levels.totalXpForLevel(18) + Math.round(Levels.xpToNext(18) * .42);
-    var summary = Levels.progression(beforeXp, award.total);
+    award = award && typeof award === "object" ? award : {};
+    award.breakdown = Object.assign({ completion: 0, answers: 0, mvp: 0 }, award.breakdown);
+    award.metrics = Object.assign({
+      eligibleRounds: 0,
+      answerTimesMs: [],
+      answerXp: [],
+      correctCount: 0,
+      mvp: false
+    }, award.metrics);
+    var summary = Levels.progression(beforeXp, earnedXp);
     var progress = summary.after;
     $("catch-level-xp-level").textContent = progress.level;
-    $("catch-level-xp-name").textContent = me().nick || "구나";
+    $("catch-level-xp-name").textContent = me().nick || "나";
     $("catch-level-xp-tier").textContent = progress.tier.label + " 등급";
     $("catch-level-xp-earned").textContent = "+" + summary.appliedXp + " XP";
     $("catch-level-xp-current").textContent = progress.isMax
@@ -2404,7 +2695,7 @@ window.CatchMind = (function () {
     meter.setAttribute("aria-valuemin", "0");
     meter.setAttribute("aria-valuemax", "100");
     $("catch-level-xp-breakdown").innerHTML = levelXpRows(award);
-    var levelup = previewPhaseKey === "xp-levelup";
+    var levelup = summary.levelsGained > 0;
     var seal = $("catch-level-seal-stage");
     var reward = $("catch-level-reward");
     seal.classList.remove("celebrate");
@@ -2413,13 +2704,53 @@ window.CatchMind = (function () {
       var unlockedNames = summary.rewards.map(function (unlocked) { return unlocked.name; });
       $("catch-level-reward-name").textContent = unlockedNames.length
         ? unlockedNames.join(" · ")
-        : "레벨 " + progress.level + " 보상";
+        : "레벨 " + progress.level + " 달성";
       void seal.offsetWidth;
       seal.classList.add("celebrate");
     }
     setLevelPreviewBackdrop("catch-level-mvp-backdrop", false);
-    backdrop.setAttribute("data-preview-phase", previewPhaseKey);
+    backdrop.setAttribute("data-preview-phase", phaseKey);
     setLevelPreviewBackdrop("catch-level-xp-backdrop", true);
+  }
+
+  function renderXpPreview() {
+    var Levels = window.CatchMindLevels;
+    if (!Levels) return;
+    var wonMvp = previewPhaseKey === "xp-mvp" || previewPhaseKey === "xp-levelup";
+    var award = Levels.matchXp({
+      eligibleRounds: 6,
+      answerTimesMs: [12000, 27000, 48000]
+    }, {
+      humanPlayers: 6,
+      completed: true
+    });
+    award = Levels.applyMvpBonus(award, wonMvp);
+    var beforeXp = previewPhaseKey === "xp-levelup"
+      ? Levels.totalXpForLevel(25) - 34
+      : Levels.totalXpForLevel(18) + Math.round(Levels.xpToNext(18) * .42);
+    renderXpDialog(award, beforeXp, award.total, previewPhaseKey);
+  }
+
+  function renderLiveXp() {
+    var Levels = window.CatchMindLevels;
+    var award = liveProgression.award;
+    if (!Levels || !award) return;
+    var result = liveProgression.mvpResult || {};
+    var wonMvp = safeNick(result.winner) === me().nick;
+    var displayAward = Levels.applyMvpBonus({
+      breakdown: award.breakdown,
+      metrics: award.metrics,
+      total: safeInteger(award.appliedXp, 0, 100, 0)
+    }, wonMvp);
+    var mvpApplied = wonMvp ? safeInteger(result.appliedXp, 0, Levels.MVP_XP, 0) : 0;
+    var baseApplied = safeInteger(award.appliedXp, 0, 100, 0);
+    var beforeXp = safeInteger(award.beforeXp, 0, Levels.MAX_TOTAL_XP, 0);
+    renderXpDialog(
+      displayAward,
+      beforeXp,
+      Math.min(100, baseApplied + mvpApplied),
+      "live-" + liveProgression.matchId
+    );
   }
 
   function syncLevelPreview() {
@@ -2442,6 +2773,23 @@ window.CatchMind = (function () {
       return;
     }
     hideLevelPreviewOverlays();
+  }
+
+  function syncLiveProgression() {
+    if (previewMode) return;
+    var eligible = state.phase === "finished" && !!state.matchId
+      && has(state.queue, me().nick) && state.queue.length >= 2
+      && state.completedRounds >= 2;
+    if (!eligible) {
+      if (liveProgression.matchId && liveProgression.matchId !== state.matchId) resetLiveProgression();
+      else hideLevelPreviewOverlays();
+      return;
+    }
+    if (liveProgression.matchId !== state.matchId) beginLiveProgression();
+    if (liveProgression.stage === "voting" || liveProgression.stage === "submitting"
+        || liveProgression.stage === "waiting") renderLiveMvp();
+    else if (liveProgression.stage === "result") renderLiveXp();
+    else if (liveProgression.stage === "done" || liveProgression.stage === "error") hideLevelPreviewOverlays();
   }
 
   function syncBoardFrame() {
@@ -2471,7 +2819,8 @@ window.CatchMind = (function () {
     renderControls();
     renderRoleButton();
     renderChatOverlayPosition();
-    syncLevelPreview();
+    if (previewMode) syncLevelPreview();
+    else syncLiveProgression();
     redraw();
   }
 
@@ -3180,17 +3529,36 @@ window.CatchMind = (function () {
     if (mvpCandidates) mvpCandidates.addEventListener("click", function (event) {
       var target = event.target.closest("[data-catch-mvp-nick]");
       if (!target || !mvpCandidates.contains(target)) return;
-      previewMvpSelection = target.getAttribute("data-catch-mvp-nick") || "";
-      renderMvpPreview();
+      var selectedNick = safeNick(target.getAttribute("data-catch-mvp-nick"));
+      if (previewMode) {
+        previewMvpSelection = selectedNick;
+        renderMvpPreview();
+      } else if (liveProgression.stage === "voting"
+          && liveMvpCandidates().some(function (person) { return person.nick === selectedNick; })) {
+        liveProgression.selection = selectedNick;
+        renderLiveMvp();
+      }
     });
     if (mvpConfirm) mvpConfirm.addEventListener("click", function () {
-      if (!previewMvpSelection) return;
-      $("catch-level-mvp-choice").textContent = previewMvpSelection + "님에게 투표했어요";
-      mvpConfirm.textContent = "투표 완료";
-      mvpConfirm.disabled = true;
+      if (previewMode) {
+        if (!previewMvpSelection) return;
+        $("catch-level-mvp-choice").textContent = previewMvpSelection + "님에게 투표했어요";
+        mvpConfirm.textContent = "투표 완료";
+        mvpConfirm.disabled = true;
+        return;
+      }
+      if (liveProgression.stage !== "voting" || !liveProgression.selection) return;
+      liveProgression.stage = "submitting";
+      liveProgression.retryAt = 0;
+      renderLiveMvp();
+      requestLiveMvpVote();
     });
     function dismissLevelPreview() {
-      previewDismissedOverlay = previewPhaseKey;
+      if (previewMode) previewDismissedOverlay = previewPhaseKey;
+      else if (liveProgression.stage === "result") {
+        markProgressionSeen(liveProgression.matchId);
+        liveProgression.stage = "done";
+      }
       hideLevelPreviewOverlays();
     }
     var xpClose = $("catch-level-xp-close");
@@ -3199,10 +3567,12 @@ window.CatchMind = (function () {
     if (xpClose) xpClose.addEventListener("click", dismissLevelPreview);
     if (xpConfirm) xpConfirm.addEventListener("click", dismissLevelPreview);
     if (xpReplay) xpReplay.addEventListener("click", function () {
-      previewDismissedOverlay = "";
       var backdrop = $("catch-level-xp-backdrop");
       if (backdrop) backdrop.removeAttribute("data-preview-phase");
-      renderXpPreview();
+      if (previewMode) {
+        previewDismissedOverlay = "";
+        renderXpPreview();
+      } else if (liveProgression.stage === "result") renderLiveXp();
     });
     $("catch-chat-input").addEventListener("keydown", function (event) {
       if (event.key === "Enter" && !event.isComposing) sendInput();
@@ -3254,7 +3624,7 @@ window.CatchMind = (function () {
     previewPhaseKey = "";
     previewMvpSelection = "";
     previewDismissedOverlay = "";
-    hideLevelPreviewOverlays();
+    resetLiveProgression();
     api = nextApi;
     state = freshState();
     secretWord = null;
@@ -3322,7 +3692,7 @@ window.CatchMind = (function () {
     previewPhaseKey = "";
     previewMvpSelection = "";
     previewDismissedOverlay = "";
-    hideLevelPreviewOverlays();
+    resetLiveProgression();
   }
 
   function onReady() {
@@ -3503,6 +3873,11 @@ window.CatchMind = (function () {
       galleryDraftFromRound: galleryDraftFromRound,
       galleryTime: galleryTime,
       renderScores: renderScores,
+      catchLevelForPerson: catchLevelForPerson,
+      syncLiveProgression: syncLiveProgression,
+      tickLiveProgression: tickLiveProgression,
+      requestLiveMvpVote: requestLiveMvpVote,
+      pollLiveMvp: pollLiveMvp,
       renderLobbyRoles: renderLobbyRoles,
       renderStage: renderStage,
       renderWord: renderWord,
@@ -3529,6 +3904,7 @@ window.CatchMind = (function () {
       getState: function () { return state; },
       setState: function (next) { state = next; },
       setApi: function (next) { api = next; },
+      getLiveProgression: function () { return liveProgression; },
       limits: {
         strokes: MAX_STROKES,
         pointsPerStroke: MAX_POINTS_PER_STROKE,

@@ -139,6 +139,46 @@ test("catchmind reward equip forwards one sanitized reward selection and returns
   });
 });
 
+test("catchmind progression wrappers forward match XP and MVP actions", async () => {
+  const loaded = loadDbWithInvoke({ data: { ok: true }, error: null });
+  const auth = { nick: "A", hash: "abc123", ignored: true };
+
+  await loaded.db.awardCatchmindXp(auth, "match-1", {
+    eligibleRounds: 3,
+    answerTimesMs: [12000, 48000]
+  }, {
+    humanPlayers: 3,
+    roundsPlayed: 3,
+    completed: true
+  });
+  await loaded.db.voteCatchmindMvp(auth, "match-1", "B");
+  await loaded.db.getCatchmindMvpResult(auth, "match-1");
+
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(loaded.invocations.map((entry) => entry.options.body))),
+    [
+      {
+        matchId: "match-1",
+        result: { eligibleRounds: 3, answerTimesMs: [12000, 48000] },
+        context: { humanPlayers: 3, roundsPlayed: 3, completed: true },
+        action: "award",
+        auth: { nick: "A", hash: "abc123" }
+      },
+      {
+        matchId: "match-1",
+        nominee: "B",
+        action: "mvp_vote",
+        auth: { nick: "A", hash: "abc123" }
+      },
+      {
+        matchId: "match-1",
+        action: "mvp_result",
+        auth: { nick: "A", hash: "abc123" }
+      }
+    ]
+  );
+});
+
 test("catchmind progression wrappers reject missing auth before invoking the function", async () => {
   const loaded = loadDbWithInvoke({ data: { ok: true }, error: null });
 
@@ -148,6 +188,18 @@ test("catchmind progression wrappers reject missing auth before invoking the fun
   );
   assert.deepEqual(
     JSON.parse(JSON.stringify(await loaded.db.equipCatchmindReward({}, "board_frame", "frame-color-pencil"))),
+    { ok: false, reason: "auth" }
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(await loaded.db.awardCatchmindXp({}, "match-1", {}, {}))),
+    { ok: false, reason: "auth" }
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(await loaded.db.voteCatchmindMvp({}, "match-1", "B"))),
+    { ok: false, reason: "auth" }
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(await loaded.db.getCatchmindMvpResult({}, "match-1"))),
     { ok: false, reason: "auth" }
   );
   assert.equal(loaded.invocations.length, 0);

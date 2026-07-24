@@ -169,6 +169,24 @@ window.Db = (function () {
   async function getCatchmindProfile(auth) {
     return catchmindProgressionInvoke("profile", auth);
   }
+  async function awardCatchmindXp(auth, matchId, result, context) {
+    return catchmindProgressionInvoke("award", auth, {
+      matchId: String(matchId || "").slice(0, 80),
+      result: result && typeof result === "object" ? result : {},
+      context: context && typeof context === "object" ? context : {}
+    });
+  }
+  async function voteCatchmindMvp(auth, matchId, nominee) {
+    return catchmindProgressionInvoke("mvp_vote", auth, {
+      matchId: String(matchId || "").slice(0, 80),
+      nominee: String(nominee || "").slice(0, 40)
+    });
+  }
+  async function getCatchmindMvpResult(auth, matchId) {
+    return catchmindProgressionInvoke("mvp_result", auth, {
+      matchId: String(matchId || "").slice(0, 80)
+    });
+  }
   async function equipCatchmindReward(auth, kind, rewardId) {
     return catchmindProgressionInvoke("equip", auth, {
       kind: String(kind || "").slice(0, 20),
@@ -419,7 +437,9 @@ window.Db = (function () {
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
     recordGame: recordGame, recordAlkGame: recordAlkGame, recordCatchmindMatch: recordCatchmindMatch,
     saveCatchmindDrawing: saveCatchmindDrawing, getCatchmindGallery: getCatchmindGallery, toggleCatchmindFavorite: toggleCatchmindFavorite,
-    getCatchmindProfile: getCatchmindProfile, equipCatchmindReward: equipCatchmindReward,
+    getCatchmindProfile: getCatchmindProfile, awardCatchmindXp: awardCatchmindXp,
+    voteCatchmindMvp: voteCatchmindMvp, getCatchmindMvpResult: getCatchmindMvpResult,
+    equipCatchmindReward: equipCatchmindReward,
     saveRelayAlbum: saveRelayAlbum, getRelayAlbums: getRelayAlbums, getRelayAlbum: getRelayAlbum,
     claimRoomLease: claimRoomLease, renewRoomLease: renewRoomLease, releaseRoomLease: releaseRoomLease,
     getGames: getGames, getGamesByType: getGamesByType,

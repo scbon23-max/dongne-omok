@@ -164,7 +164,14 @@
   }
   function controllerApi() {
     return {
-      me: function () { return { nick: me.nick, isAdmin: me.isAdmin, clientSessionId: currentClientSessionId() }; },
+      me: function () {
+        return {
+          nick: me.nick,
+          isAdmin: me.isAdmin,
+          clientSessionId: currentClientSessionId(),
+          catchLevel: catchPersonalLevel()
+        };
+      },
       roster: function () {
         if (netMode && displayRoster.length) return displayRoster.slice();
         return [{
@@ -173,7 +180,8 @@
           joinTs: myJoinTs || 0,
           clientSessionId: currentClientSessionId(),
           presenceSessionIds: [currentClientSessionId()],
-          catchBoardFrameId: catchSelectedBoardFrameId
+          catchBoardFrameId: catchSelectedBoardFrameId,
+          catchLevel: catchPersonalLevel()
         }];
       },
       isHost: function () { return !netMode || amHost; },
@@ -243,6 +251,33 @@
       leaveRoom: requestLeaveRoom,
       roomChanged: broadcastRoomOpen,
       galleryAuth: function () { return { nick: me.nick, hash: sessionAuthHash }; },
+      loadCatchProfile: function (force) {
+        return loadCatchPersonalProfile(!!force);
+      },
+      awardCatchmindXp: function (matchId, result, context) {
+        if (!window.Db || !Db.awardCatchmindXp) return Promise.resolve({ ok: false, reason: "unavailable" });
+        return Promise.resolve(Db.awardCatchmindXp(
+          { nick: me.nick, hash: sessionAuthHash },
+          matchId,
+          result,
+          context
+        ));
+      },
+      voteCatchmindMvp: function (matchId, nominee) {
+        if (!window.Db || !Db.voteCatchmindMvp) return Promise.resolve({ ok: false, reason: "unavailable" });
+        return Promise.resolve(Db.voteCatchmindMvp(
+          { nick: me.nick, hash: sessionAuthHash },
+          matchId,
+          nominee
+        ));
+      },
+      getCatchmindMvpResult: function (matchId) {
+        if (!window.Db || !Db.getCatchmindMvpResult) return Promise.resolve({ ok: false, reason: "unavailable" });
+        return Promise.resolve(Db.getCatchmindMvpResult(
+          { nick: me.nick, hash: sessionAuthHash },
+          matchId
+        ));
+      },
       saveDrawing: function (drawing) {
         if (!window.Db || !Db.saveCatchmindDrawing) return Promise.resolve({ ok: false, reason: "unavailable" });
         return Promise.resolve(Db.saveCatchmindDrawing({ nick: me.nick, hash: sessionAuthHash }, drawing));
@@ -410,7 +445,8 @@
       viewing: v,
       hostEligible: roomHostEligible,
       clientSessionId: currentClientSessionId(),
-      catchBoardFrameId: catchSelectedBoardFrameId
+      catchBoardFrameId: catchSelectedBoardFrameId,
+      catchLevel: catchPersonalLevel()
     };
   }
   function appConnect() {
@@ -857,6 +893,12 @@
       if (!netMode) { amHost = true; document.body.classList.add("is-host"); setConn("local"); }
       var ctrl = target.controller;
       if (ctrl && ctrl.enter) ctrl.enter(controllerApi());
+      if (game === "catchmind") {
+        loadCatchPersonalProfile(false).then(function () {
+          if (curRoomId !== roomId || curRoomGame !== "catchmind") return;
+          publishCatchPersonalState();
+        });
+      }
       renderPresenceUI(); renderRoomStrip();
       if (isOmokFamily(curGame)) { updateTurnUI(); render(); }
       else if (isAlkFamily(curGame)) renderAlkUI();
@@ -4877,13 +4919,13 @@
   // ---------- 이벤트 ----------
   function openModal(id) { $(id).classList.remove("hidden"); }
   function catchRewardCatalog() {
-    return window.CatchMindLevels && Array.isArray(CatchMindLevels.REWARD_CATALOG)
-      ? CatchMindLevels.REWARD_CATALOG.slice()
+    return window.CatchMindLevels && Array.isArray(window.CatchMindLevels.REWARD_CATALOG)
+      ? window.CatchMindLevels.REWARD_CATALOG.slice()
       : [];
   }
   function catchBoardFrameCatalog() {
-    var kind = window.CatchMindLevels && CatchMindLevels.REWARD_KINDS
-      ? CatchMindLevels.REWARD_KINDS.BOARD_FRAME
+    var kind = window.CatchMindLevels && window.CatchMindLevels.REWARD_KINDS
+      ? window.CatchMindLevels.REWARD_KINDS.BOARD_FRAME
       : "board_frame";
     return catchRewardCatalog().filter(function (reward) {
       return reward && reward.kind === kind && reward.asset;
@@ -4940,12 +4982,16 @@
   function syncCatchBoardFrameTurn() {
     if (window.CatchMind && CatchMind.boardFrameChanged) CatchMind.boardFrameChanged();
   }
-  function publishCatchBoardFrameSelection() {
+  function publishCatchPersonalState() {
     if (netMode && curRoomId && (curRoomGame === "catchmind" || curGame === "catchmind")
         && window.Net && Net.track) {
       Net.track(myMetaObj(null));
     }
+    if (lobbyMode && window.Net && Net.trackLobby) Net.trackLobby(myMetaObj(curRoomId || null));
     syncCatchBoardFrameTurn();
+  }
+  function publishCatchBoardFrameSelection() {
+    publishCatchPersonalState();
   }
   function prepareCatchPersonalState() {
     if (catchPersonalProfileNick !== me.nick) {
@@ -4989,7 +5035,12 @@
     if (!force && catchPersonalProfile && catchPersonalProfileNick === me.nick) {
       return Promise.resolve(catchPersonalProfile);
     }
-    if (catchPersonalProfileRequest) return catchPersonalProfileRequest;
+    if (catchPersonalProfileRequest) {
+      if (!force) return catchPersonalProfileRequest;
+      return catchPersonalProfileRequest.then(function () {
+        return loadCatchPersonalProfile(true);
+      });
+    }
     if (!window.Db || !Db.getCatchmindProfile || !me.nick || !sessionAuthHash) {
       return Promise.resolve({ ok: false, reason: "unavailable" });
     }
@@ -5006,8 +5057,8 @@
         if (equippedId) {
           applyCatchBoardFrame(equippedId);
           storeCatchBoardFrame(equippedId);
-          publishCatchBoardFrameSelection();
         }
+        publishCatchPersonalState();
       }
       return result || { ok: false, reason: "invalid_response" };
     }).catch(function () {
