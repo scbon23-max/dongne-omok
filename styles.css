@@ -491,7 +491,7 @@ body:has(.cm-level-backdrop:not(.hidden)) { overflow: hidden; }
 .catch-score-strip.level-preview > span.drawer .cm-level-line::after { animation: none; opacity: 0; }
 .catch-score-strip.level-preview > span.spectator { opacity: .45; filter: grayscale(.25); }
 .catch-score-strip.level-preview .cm-level-correct { flex: 0 0 13px; width: 13px; height: 13px; display: inline-grid; place-items: center; margin-left: 3px; border: 0; border-radius: 50%; background: #178c73; color: #fff; font-size: 0; line-height: 1; font-style: normal; box-shadow: none; }
-.catch-score-strip.level-preview .cm-level-correct::before { content: "\2714"; color: #fff; font-family: Arial, sans-serif; font-size: 8px; line-height: 1; font-weight: 900; }
+.catch-score-strip.level-preview .cm-level-correct::before { content: "\2714\FE0E"; color: #fff; -webkit-text-fill-color: #fff; font-family: Arial, sans-serif; font-size: 8px; line-height: 1; font-weight: 900; }
 .catch-score-strip.level-preview .catch-host-crown { flex: 0 0 auto; margin-left: 3px; }
 .catch-score-strip.level-preview > span.milestone-40 { --level-speed: 3.3s; }
 .catch-score-strip.level-preview > span.milestone-50 { --level-speed: 3s; }

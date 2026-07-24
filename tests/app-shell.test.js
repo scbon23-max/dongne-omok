@@ -219,7 +219,7 @@ test("CatchMind A+ nameplates add one visible milestone effect every ten levels"
   }
   assert.equal(new Set(milestoneColors).size, 11);
   assert.match(styles, /\.cm-level-correct \{[^}]*width: 13px;[^}]*border-radius: 50%;[^}]*background: #178c73;[^}]*box-shadow: none;/);
-  assert.match(styles, /\.cm-level-correct::before \{[^}]*content: "\\2714";[^}]*font-weight: 900;/);
+  assert.match(styles, /\.cm-level-correct::before \{[^}]*content: "\\2714\\FE0E";[^}]*color: #fff;[^}]*-webkit-text-fill-color: #fff;[^}]*font-weight: 900;/);
   assert.match(styles, /span\.drawer \.cm-level-name-row,\s*\.catch-score-strip\.level-preview > span\.drawer \.cm-level-line \{ background-color: var\(--level-tier\); color: #fff; \}/);
   assert.match(styles, /span\.drawer \.cm-level-line \{ border-top: 1px solid rgba\(0,0,0,.12\); box-shadow: none; \}/);
   assert.match(styles, /span\.drawer\.effect-color \.cm-level-name-row,\s*\.catch-score-strip\.level-preview > span\.drawer\.effect-color \.cm-level-line \{ animation: none; background-color: var\(--level-tier\); \}/);
