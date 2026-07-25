@@ -81,37 +81,6 @@ window.Db = (function () {
     return r;
   }
   async function recordAlkGame(black, white, winner, gameType) { if (sb) return sb.from("games").insert({ black: black, white: white, winner: winner, game: gameType || "alk" }); }
-  async function recordCatchmindMatch(matchId, results) {
-    if (!sb || !results || !results.length) return;
-    var safeId = String(matchId || Date.now().toString(36)).replace(/[^a-zA-Z0-9_-]/g, "") || Date.now().toString(36);
-    var rows = results.map(function (r) {
-      var points = Math.max(0, Math.round(Number(r.points) || 0));
-      var maxPoints = Math.max(1, Math.round(Number(r.maxPoints) || 1));
-      var correct = Math.max(0, Math.round(Number(r.correct) || 0));
-      var drawCorrect = Math.max(0, Math.round(Number(r.drawCorrect) || 0));
-      var rawScore = Number(r.score);
-      var score = isFinite(rawScore) ? Math.max(0, Math.round(rawScore)) : points;
-      return {
-        black: String(r.nick || "").slice(0, 40),
-        white: ["cm", safeId, points, maxPoints, correct, drawCorrect, score].join(":"),
-        winner: "draw",
-        game: "catchmind"
-      };
-    }).filter(function (row) { return !!row.black; });
-    if (!rows.length) return;
-    var prefix = "cm:" + safeId + ":";
-    var existing = await sb.from("games").select("black,white").eq("game", "catchmind").like("white", prefix + "%");
-    if (existing.error) return existing;
-    if (!existing.error && existing.data && existing.data.length) {
-      var saved = Object.create(null);
-      existing.data.forEach(function (row) {
-        if (row && String(row.white || "").indexOf(prefix) === 0) saved[row.black] = true;
-      });
-      rows = rows.filter(function (row) { return !saved[row.black]; });
-    }
-    if (!rows.length) return { data: [], error: null };
-    return sb.from("games").insert(rows);
-  }
   async function galleryInvoke(action, auth, payload) {
     if (!sb || !sb.functions || !sb.functions.invoke) return { ok: false, reason: "unavailable" };
     auth = auth || {};
@@ -435,7 +404,7 @@ window.Db = (function () {
   return {
     ADMIN: ADMIN, ensureAdmin: ensureAdmin, login: login, loginHash: loginHash, hashPw: sha256,
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
-    recordGame: recordGame, recordAlkGame: recordAlkGame, recordCatchmindMatch: recordCatchmindMatch,
+    recordGame: recordGame, recordAlkGame: recordAlkGame,
     saveCatchmindDrawing: saveCatchmindDrawing, getCatchmindGallery: getCatchmindGallery, toggleCatchmindFavorite: toggleCatchmindFavorite,
     getCatchmindProfile: getCatchmindProfile, awardCatchmindXp: awardCatchmindXp,
     voteCatchmindMvp: voteCatchmindMvp, getCatchmindMvpResult: getCatchmindMvpResult,

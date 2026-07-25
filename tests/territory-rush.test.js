@@ -312,6 +312,9 @@ test("turning along every arena edge does not collide with the attached trail", 
       engine.advancePlayer(player, engine.constants.stepMs / 1000, 2000 + step);
     }
     assert.equal(player.deadUntil, 0);
+    assert.ok(player.trail.every((key) =>
+      engine.isPlayableCell(key % engine.constants.width, Math.floor(key / engine.constants.width))
+    ));
   });
 });
 
@@ -506,6 +509,29 @@ test("a backgrounded visual player can safely catch up across the full path", ()
 
   assert.equal(visible.at(-1).x, 5);
   assert.ok(visible.every((point) => point.x <= 5));
+});
+
+test("a corrected visual endpoint cannot rewind onto an older nearby trail segment", () => {
+  const settled = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 10, y: 10 },
+    { x: 0, y: 10 },
+    { x: 0, y: 1 }
+  ];
+
+  const forward = engine.visibleTrailSlice(settled, { x: 5, y: 10 }, 0);
+  const unconstrained = engine.visibleTrailSlice(settled, { x: 5, y: 0.1 }, 0);
+  const corrected = engine.visibleTrailSlice(
+    settled,
+    { x: 5, y: 0.1 },
+    forward.segmentIndex
+  );
+
+  assert.equal(forward.segmentIndex, 2);
+  assert.equal(unconstrained.segmentIndex, 0);
+  assert.ok(corrected.segmentIndex >= forward.segmentIndex);
+  assert.deepEqual(corrected.points.slice(0, 4), settled.slice(0, 4));
 });
 
 test("short reconstructed trails keep collision-cell corners", () => {
@@ -993,7 +1019,18 @@ test("runtime constants keep realtime traffic below the room broadcast cap", () 
   assert.doesNotMatch(source, /setInterval\([^,]+,\s*(?:1\d\d|[1-9]\d)\)/);
 });
 
-test("Territory Rush loops its match BGM and derives the CatchMind death cue from synced state", async () => {
+test("the start countdown uses CatchMind's cue while the final warning stays separate", () => {
+  const countdownSource = source.match(/function renderCountdown\(now\) \{([\s\S]*?)\n  \}\n\n  function renderPlayerStatus/)[1];
+  const hudSource = source.match(/function renderHud\(\) \{([\s\S]*?)\n  \}\n\n  function canChat/)[1];
+
+  assert.equal(engine.constants.countdownSfxSrc, "assets/catchmind-countdown.wav");
+  assert.equal(engine.constants.countdownSfxVolume, 1);
+  assert.match(countdownSource, /playCountdownSfx\(\)/);
+  assert.doesNotMatch(countdownSource, /playWarning/);
+  assert.match(hudSource, /remaining <= 5000[\s\S]*api\.playWarning\(\)/);
+});
+
+test("Territory Rush keeps BGM, countdown, and synced death playback independent", async () => {
   const audio = [];
   class FakeAudio {
     constructor(src) {
@@ -1034,9 +1071,50 @@ test("Territory Rush loops its match BGM and derives the CatchMind death cue fro
   engine.syncAudio();
   assert.equal(bgm.playCount, 1);
 
+  const classNames = new Set();
+  const countdownShell = {
+    offsetWidth: 24,
+    setAttribute() {},
+    classList: {
+      add(name) { classNames.add(name); },
+      remove(name) { classNames.delete(name); },
+      toggle(name, force) {
+        if (force) classNames.add(name);
+        else classNames.delete(name);
+      }
+    }
+  };
+  const countdownValue = { textContent: "" };
+  context.document = {
+    getElementById(id) {
+      if (id === "territory-countdown") return countdownShell;
+      if (id === "territory-countdown-value") return countdownValue;
+      return null;
+    }
+  };
+  state.startAt = 10000;
+  engine.renderCountdown(7000);
+  engine.renderCountdown(7500);
+  engine.renderCountdown(8000);
+  engine.renderCountdown(8500);
+  engine.renderCountdown(9000);
+  await Promise.resolve();
+  const countdown = audio.find((item) => item.src === engine.constants.countdownSfxSrc);
+  assert.ok(countdown);
+  assert.equal(countdown.volume, engine.constants.countdownSfxVolume);
+  assert.equal(countdown.playCount, 3);
+  assert.equal(countdownValue.textContent, "1");
+  engine.renderCountdown(10000);
+
+  context.localStorage = { getItem() { return "1"; } };
+  assert.equal(engine.playCountdownSfx(), false);
+  assert.equal(countdown.playCount, 3);
+  context.localStorage = { getItem() { return null; } };
+
   engine.eliminate(player, null, Date.now());
-  const death = audio.find((item) => item.src === engine.constants.deathSfxSrc);
+  const death = audio.find((item) => item.src === engine.constants.deathSfxSrc && item !== countdown);
   assert.ok(death);
+  assert.notEqual(death, countdown);
   assert.equal(death.volume, 1);
   assert.equal(death.playCount, 1);
   assert.equal(fake.sent.some((message) => message.t === "tr_death"), false);
@@ -1063,6 +1141,12 @@ test("Territory Rush loops its match BGM and derives the CatchMind death cue fro
   engine.syncAudio();
   assert.equal(bgm.paused, true);
   assert.equal(bgm.currentTime, 0);
+  assert.equal(countdown.paused, true);
+  assert.equal(countdown.currentTime, 0);
+  controller.leave();
+  assert.equal(death.paused, true);
+  assert.equal(death.currentTime, 0);
+  delete context.document;
 });
 
 test("territories and trails render as bright flat colors without outlines", () => {

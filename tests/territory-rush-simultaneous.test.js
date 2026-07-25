@@ -131,6 +131,16 @@ function runSimultaneousCapture(reverse) {
 
   engine.advancePlayers(state.players, engine.constants.stepMs / 1000, 1000);
 
+  let nestedNeutral = 0;
+  let nestedOuterOwner = 0;
+  for (let y = 8; y <= 16; y++) {
+    for (let x = 8; x <= 16; x++) {
+      const id = engine.getOwner()[y * width + x];
+      if (id < 0) nestedNeutral++;
+      if (id === b.id) nestedOuterOwner++;
+    }
+  }
+
   return {
     aDead: a.deadUntil > 1000,
     bDead: b.deadUntil > 1000,
@@ -139,7 +149,9 @@ function runSimultaneousCapture(reverse) {
     aKills: a.kills,
     bKills: b.kills,
     aLand: territoryCount(engine, a.id),
-    bLand: territoryCount(engine, b.id)
+    bLand: territoryCount(engine, b.id),
+    nestedNeutral,
+    nestedOuterOwner
   };
 }
 
@@ -152,6 +164,8 @@ test("simultaneous captures merge independently of the player array order", () =
   assert.equal(forward.bDead, false);
   assert.equal(forward.aReason, "territory");
   assert.equal(forward.bKills, 1);
+  assert.equal(forward.nestedNeutral, 0);
+  assert.equal(forward.nestedOuterOwner, 81);
 });
 
 for (const waitingReason of ["limit", "waiting"]) {

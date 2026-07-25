@@ -269,6 +269,73 @@ test("a tail window recovers one lost frame while an out-of-window gap requests 
   assert.equal(sent.filter(({ message }) => message.t === "tr_sync_req").length, 1);
 });
 
+test("movement-halo trail cells normalize at the wall instead of causing endless sync gaps", () => {
+  const { engine } = loadTerritory();
+  const state = makePlayingState(engine, 1, "wall-trail-normalization");
+  engine.setState(state);
+  const arena = engine.activeArena();
+  const width = engine.constants.width;
+  const y = arena.minY + 8;
+  const current = [y * width + arena.minX];
+  const authoritative = current.concat((y + 1) * width + arena.minX - 1);
+
+  const merged = engine.mergeFrameTrail(
+    current,
+    authoritative.length,
+    authoritative,
+    state.arena
+  );
+
+  assert.equal(merged.gap, false);
+  assert.deepEqual(Array.from(merged.trail), [
+    y * width + arena.minX,
+    (y + 1) * width + arena.minX
+  ]);
+
+  state.players[0].trail = authoritative;
+  const sanitized = engine.sanitizeState(engine.snapshot(true), true);
+  assert.ok(sanitized);
+  assert.deepEqual(Array.from(sanitized.state.players[0].trail), [
+    y * width + arena.minX,
+    (y + 1) * width + arena.minX
+  ]);
+});
+
+test("same-match owner snapshots preserve a continuous visual trail cache", () => {
+  const { engine } = loadTerritory();
+  const sent = [];
+  engine.setApi(guestApi(sent));
+  engine.setAuthoritativeHost("host");
+  const state = makePlayingState(engine, 1, "stable-full-trail");
+  const player = state.players[0];
+  engine.setState(state);
+  const arena = engine.activeArena();
+  const startX = arena.minX + 2;
+  const startY = arena.minY + 2;
+  const endX = startX + 5;
+  player.x = endX;
+  player.y = startY;
+  player.trail = trailKeys(engine, 3);
+  player.path = engine.encodeVisualTrail([{ x: startX, y: startY }, { x: endX, y: startY }]);
+  engine.resetGrid();
+
+  const cache = engine.syncVisualTrail(player);
+  assert.deepEqual(plain(cache.points), [{ x: startX, y: startY }, { x: endX, y: startY }]);
+
+  const full = engine.snapshot(true);
+  full.frameSeq = state.frameSeq + 1;
+  full.players[0].path = engine.encodeVisualTrail([
+    { x: startX, y: startY },
+    { x: startX, y: startY + 5 },
+    { x: endX, y: startY }
+  ]);
+
+  assert.equal(engine.applyFull(full, "host"), true);
+  const after = engine.syncVisualTrail(engine.getState().players[0]);
+  assert.equal(after, cache);
+  assert.deepEqual(plain(after.points), [{ x: startX, y: startY }, { x: endX, y: startY }]);
+});
+
 test("a newer-revision stale full snapshot merges owner data without rewinding player pose", () => {
   const { engine } = loadTerritory();
   const sent = [];
@@ -428,6 +495,15 @@ test("the lightweight applyFrame path never invokes full-screen render work", ()
   assert.doesNotMatch(body[1], /\brenderRoles\(\)/);
   assert.doesNotMatch(body[1], /\brenderFinished\(\)/);
   assert.match(body[1], /lightFrame[\s\S]*sanitizeFrameSnapshot/);
+});
+
+test("same-match owner snapshots defer playing-screen DOM work to the render loop", () => {
+  const body = source.match(
+    /function applyFull\(raw, sourceHost\) \{([\s\S]*?)\n  \}\n\n  function applyFrame/
+  );
+  assert.ok(body, "applyFull source found");
+  assert.match(body[1], /sameMatchPlayingUpdate/);
+  assert.match(body[1], /if \(!sameMatchPlayingUpdate\) render\(\);/);
 });
 
 test("slow frame delivery coalesces intermediate poses and keeps the newest one", async () => {

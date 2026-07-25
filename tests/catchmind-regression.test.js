@@ -80,9 +80,9 @@ function baseSnapshot(overrides) {
     nextRemainMs: null,
     scores: { A: 0, B: 0, C: 0 },
     stats: {
-      A: { points: 0, maxPoints: 6, correct: 0, drawCorrect: 0 },
-      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 },
-      C: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+      A: { correct: 0, drawCorrect: 0 },
+      B: { correct: 0, drawCorrect: 0 },
+      C: { correct: 0, drawCorrect: 0 }
     },
     correct: {},
     strokes: [],
@@ -90,8 +90,7 @@ function baseSnapshot(overrides) {
     feed: [],
     revealWord: null,
     revealOutcome: null,
-    wordLength: 2,
-    recordStatus: "idle"
+    wordLength: 2
   }, overrides || {});
 }
 
@@ -132,27 +131,19 @@ test("state sanitizing blocks markup and malformed values", () => {
   const clean = api.sanitizeSnapshot(baseSnapshot({
     scores: { A: '<img src=x onerror="alert(1)">', B: -5, C: 12 },
     stats: { A: null },
-    feed: [{ who: "A", text: "hello", kind: 'x\" onmouseover=\"alert(1)' }],
-    resultRatings: [
-      { nick: "A", beforeRating: 1000, rating: 1012, delta: 12, games: 5, rankText: "<img>", rankMove: 1 },
-      { nick: "constructor", beforeRating: 1000, rating: 2000 }
-    ]
+    feed: [{ who: "A", text: "hello", kind: 'x\" onmouseover=\"alert(1)' }]
   }));
 
   assert.equal(clean.scores.A, 0);
   assert.equal(clean.scores.B, 0);
   assert.equal(clean.scores.C, 12);
   assert.deepEqual(JSON.parse(JSON.stringify(clean.stats.A)), {
-    points: 0,
-    maxPoints: 0,
     correct: 0,
     drawCorrect: 0,
     fastestMs: null,
     answerTimesMs: []
   });
   assert.equal(clean.feed[0].kind, "guess");
-  assert.equal(clean.resultRatings.length, 1);
-  assert.equal(clean.resultRatings[0].rankText, "<img>");
 });
 
 test("board frame ids are allowlisted in authoritative snapshots", () => {
@@ -756,7 +747,7 @@ test("canvas snapshots remain below the free broadcast payload limit", () => {
   const stats = {};
   queue.forEach(nick => {
     scores[nick] = 999999;
-    stats[nick] = { points: 999999, maxPoints: 999999, correct: 9999, drawCorrect: 9999 };
+    stats[nick] = { correct: 9999, drawCorrect: 9999 };
   });
   const strokes = Array.from({ length: api.limits.strokes }, (_, strokeIndex) => ({
     id: "stroke-" + strokeIndex,
@@ -1071,9 +1062,9 @@ test("participant count excludes active spectators during a match", () => {
     guessers: ["B", "C"],
     scores: { A: 0, B: 0, C: 0 },
     stats: {
-      A: { points: 0, maxPoints: 6, correct: 0, drawCorrect: 0 },
-      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 },
-      C: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+      A: { correct: 0, drawCorrect: 0 },
+      B: { correct: 0, drawCorrect: 0 },
+      C: { correct: 0, drawCorrect: 0 }
     }
   })));
   api.setApi({
@@ -1123,8 +1114,8 @@ test("away members remain visible while active participant counts exclude them",
     guessers: ["B"],
     scores: { A: 0, B: 0 },
     stats: {
-      A: { points: 0, maxPoints: 3, correct: 0, drawCorrect: 0 },
-      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+      A: { correct: 0, drawCorrect: 0 },
+      B: { correct: 0, drawCorrect: 0 }
     }
   })));
 
@@ -1206,9 +1197,9 @@ test("the player strip follows game order before spectators", () => {
     guessers: ["A", "B"],
     scores: { C: 0, A: 99, B: 50 },
     stats: {
-      C: { points: 0, maxPoints: 6, correct: 0, drawCorrect: 0 },
-      A: { points: 99, maxPoints: 10, correct: 0, drawCorrect: 0 },
-      B: { points: 50, maxPoints: 10, correct: 0, drawCorrect: 0 }
+      C: { correct: 0, drawCorrect: 0 },
+      A: { correct: 0, drawCorrect: 0 },
+      B: { correct: 0, drawCorrect: 0 }
     }
   })));
 
@@ -1316,16 +1307,12 @@ test("a completed live match awards XP once, accepts MVP, and opens the XP resul
   finished.queue = ["A", "B"];
   finished.completedRounds = 2;
   finished.stats.A = {
-    points: 10,
-    maxPoints: 10,
     correct: 1,
     drawCorrect: 0,
     fastestMs: 12000,
     answerTimesMs: [12000]
   };
   finished.stats.B = {
-    points: 0,
-    maxPoints: 10,
     correct: 0,
     drawCorrect: 0,
     fastestMs: null,
@@ -1517,7 +1504,7 @@ test("admin preview builds every CatchMind screen from real controller state", (
 
   api.setPreviewPhase("finished");
   assert.equal(api.getState().phase, "finished");
-  assert.equal(api.getState().resultRatings.length, 8);
+  assert.equal(Object.keys(api.getState().stats).length, 8);
 
   assert.equal(api.normalizePreviewPhase("result"), "waiting");
 
@@ -1645,10 +1632,9 @@ test("waiting and finished stages share the light CatchMind status hierarchy", (
     remainMs: null,
     scores: { A: 42, B: 25 },
     stats: {
-      A: { points: 42, maxPoints: 50, correct: 3, drawCorrect: 4, fastestMs: 4200 },
-      B: { points: 25, maxPoints: 50, correct: 2, drawCorrect: 1, fastestMs: 6800 }
-    },
-    recordStatus: "saved"
+      A: { correct: 3, drawCorrect: 4, fastestMs: 4200 },
+      B: { correct: 2, drawCorrect: 1, fastestMs: 6800 }
+    }
   })));
   api.renderStage();
   assert.equal(stage.classList.contains("idle"), false);
@@ -1715,8 +1701,8 @@ test("finished stage keeps the next participant and spectator lists visible", ()
     remainMs: null,
     scores: { A: 10, B: 0 },
     stats: {
-      A: { points: 10, maxPoints: 10, correct: 1, drawCorrect: 0 },
-      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+      A: { correct: 1, drawCorrect: 0 },
+      B: { correct: 0, drawCorrect: 0 }
     }
   })));
 
@@ -1742,8 +1728,8 @@ test("a correct guess records the player's fastest real answer time", () => {
   state.deadline = now + api.limits.roundMs - 5000;
   state.scores.A = 0;
   state.scores.B = 0;
-  state.stats.A = { points: 0, maxPoints: 3, correct: 0, drawCorrect: 0, fastestMs: null };
-  state.stats.B = { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0, fastestMs: null };
+  state.stats.A = { correct: 0, drawCorrect: 0, fastestMs: null };
+  state.stats.B = { correct: 0, drawCorrect: 0, fastestMs: null };
   api.setState(state);
   api.setApi({
     isHost() { return true; },
@@ -1835,9 +1821,9 @@ test("speed affects match score while retaining contribution stats", () => {
   state.deadline = now + api.limits.roundMs - 50000;
   state.scores = { A: 0, B: 0, C: 0 };
   state.stats = {
-    A: { points: 0, maxPoints: 6, correct: 0, drawCorrect: 0, fastestMs: null },
-    B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0, fastestMs: null },
-    C: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0, fastestMs: null }
+    A: { correct: 0, drawCorrect: 0, fastestMs: null },
+    B: { correct: 0, drawCorrect: 0, fastestMs: null },
+    C: { correct: 0, drawCorrect: 0, fastestMs: null }
   };
   api.setState(state);
   api.setApi({
@@ -1856,38 +1842,9 @@ test("speed affects match score while retaining contribution stats", () => {
   const scored = api.getState();
   assert.equal(scored.scores.B, 7);
   assert.equal(scored.scores.A, 2);
-  assert.equal(scored.stats.B.points, 10);
-  assert.equal(scored.stats.A.points, 3);
   assert.equal(scored.stats.B.correct, 1);
   assert.equal(scored.stats.A.drawCorrect, 1);
   assert.match(scored.feed.find(item => item.kind === "correct").text, /\+7$/);
-});
-
-test("finished CatchMind games skip the retired ranking save", () => {
-  const api = loadCatchMind();
-  api.setState(api.sanitizeSnapshot(baseSnapshot({
-    phase: "drawing",
-    matchId: "match-a",
-    drawer: "A",
-    guessers: ["B"],
-    remainMs: 1000,
-    recordStatus: "idle"
-  })));
-  api.setApi({
-    isHost() { return true; },
-    host() { return "A"; },
-    me() { return { nick: "A", isAdmin: false }; },
-    roster() { return [{ nick: "A" }, { nick: "B" }]; },
-    send() {},
-    roomChanged() {},
-    toast() {}
-  });
-
-  api.hostFinishMatch();
-
-  assert.equal(api.getState().phase, "finished");
-  assert.equal(api.getState().recordStatus, "skipped");
-  assert.deepEqual(Array.from(api.getState().resultRatings), []);
 });
 
 test("only the elected host can replace game state", () => {
@@ -1972,8 +1929,8 @@ test("prototype-like nicknames do not count as already correct", () => {
     guessers: ["toString"],
     scores: { A: 0, toString: 0 },
     stats: {
-      A: { points: 0, maxPoints: 3, correct: 0, drawCorrect: 0 },
-      toString: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+      A: { correct: 0, drawCorrect: 0 },
+      toString: { correct: 0, drawCorrect: 0 }
     },
     correct: {}
   }));
@@ -2230,8 +2187,8 @@ test("spectators can say the exact answer inside the hidden lounge chat", () => 
     guessers: ["B"],
     scores: { A: 0, B: 0 },
     stats: {
-      A: { points: 0, maxPoints: 3, correct: 0, drawCorrect: 0 },
-      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+      A: { correct: 0, drawCorrect: 0 },
+      B: { correct: 0, drawCorrect: 0 }
     }
   }));
   api.setSecretWord("사과");
@@ -2257,8 +2214,8 @@ test("spectators can say the exact answer inside the hidden lounge chat", () => 
     correct: { B: true },
     scores: { A: 3, B: 10 },
     stats: {
-      A: { points: 3, maxPoints: 3, correct: 0, drawCorrect: 1 },
-      B: { points: 10, maxPoints: 10, correct: 1, drawCorrect: 0 }
+      A: { correct: 0, drawCorrect: 1 },
+      B: { correct: 1, drawCorrect: 0 }
     }
   })));
   api.hostMatchChatInput({ nick: "B", text: "관전자랑 대화", matchId: "match-a", roundIndex: 0 });
@@ -2288,9 +2245,9 @@ test("spectators and solved players see lounge chat while active players do not"
     correct: { B: true },
     scores: { A: 0, B: 0, C: 0 },
     stats: {
-      A: { points: 0, maxPoints: 6, correct: 0, drawCorrect: 0 },
-      B: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 },
-      C: { points: 0, maxPoints: 10, correct: 0, drawCorrect: 0 }
+      A: { correct: 0, drawCorrect: 0 },
+      B: { correct: 0, drawCorrect: 0 },
+      C: { correct: 0, drawCorrect: 0 }
     }
   }));
 
@@ -2406,7 +2363,7 @@ test("a returning guesser keeps the same game role without disturbing others", (
   assert.equal(api.getState().phase, "drawing");
   assert.equal(api.getState().correct.C, true);
   assert.equal(api.getState().scores.C, 8);
-  assert.equal(api.getState().stats.C.points, 10);
+  assert.equal(api.getState().stats.C.correct, 1);
 });
 
 test("spectator preferences produce the exact participant queue at match start", () => {

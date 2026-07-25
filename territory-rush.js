@@ -65,6 +65,8 @@ window.TerritoryRush = (function () {
   var RESPAWN_PLAYER_DISTANCE = 14;
   var GAME_BGM_SRC = "assets/territory-rush-bgm.mp3";
   var GAME_BGM_VOLUME = .05;
+  var COUNTDOWN_SFX_SRC = "assets/catchmind-countdown.wav";
+  var COUNTDOWN_SFX_VOLUME = 1;
   var DEATH_SFX_SRC = "assets/catchmind-countdown.wav";
   var DEATH_SFX_VOLUME = 1;
   var COLORS = ["#ff756d", "#43c7a0", "#ffc857", "#7f8cff", "#ef72b3", "#42b8d5", "#9bc95b", "#f49b52"];
@@ -141,6 +143,7 @@ window.TerritoryRush = (function () {
   var gameBgmEl = null;
   var gameBgmPlayPending = false;
   var lastGameBgmMatchId = "";
+  var countdownSfxEl = null;
   var deathSfxEl = null;
   var playedDeathCues = Object.create(null);
   var roomOverflowNotified = Object.create(null);
@@ -290,6 +293,20 @@ window.TerritoryRush = (function () {
   function isPlayableCell(x, y, arena) {
     arena = arena || activeArena();
     return x >= arena.minX && x < arena.maxX && y >= arena.minY && y < arena.maxY;
+  }
+  function normalizeTrailCellKey(rawKey, arena) {
+    arena = arena || activeArena();
+    var key = Math.floor(Number(rawKey));
+    if (!Number.isFinite(key) || key < 0 || key >= CELL_COUNT) return -1;
+    var x = key % WORLD_W;
+    var y = Math.floor(key / WORLD_W);
+    if (isPlayableCell(x, y, arena)) return key;
+    if (x < arena.minX - 1 || x > arena.maxX
+        || y < arena.minY - 1 || y > arena.maxY) return -1;
+    return cellIndex(
+      clamp(x, arena.minX, arena.maxX - 1),
+      clamp(y, arena.minY, arena.maxY - 1)
+    );
   }
   function clearBoundaryOwnerCells(map, arena) {
     if (!map || map.length !== CELL_COUNT) return 0;
@@ -458,10 +475,8 @@ window.TerritoryRush = (function () {
       seen[id] = true;
       var nick = safeNick(raw.nick) || ("플레이어 " + (id + 1));
       var trail = Array.isArray(raw.trail) ? raw.trail.slice(0, MAX_TRAIL).map(function (key) {
-        return clamp(Math.floor(Number(key) || 0), 0, CELL_COUNT - 1);
-      }).filter(function (key) {
-        return isPlayableCell(key % WORLD_W, Math.floor(key / WORLD_W), arena);
-      }) : [];
+        return normalizeTrailCellKey(key, arena);
+      }).filter(function (key) { return key >= 0; }) : [];
       var dir = DIRECTIONS[raw.dir] ? raw.dir : "right";
       var angle = validAngle(raw.angle) ? normalizeAngle(raw.angle) : directionAngle(dir);
       return {
@@ -569,11 +584,8 @@ window.TerritoryRush = (function () {
     }
     var tail = [];
     for (var tailIndex = 0; tailIndex < rawTail.length; tailIndex++) {
-      var key = Math.floor(Number(rawTail[tailIndex]));
-      if (!Number.isFinite(key) || key < 0 || key >= CELL_COUNT
-          || !isPlayableCell(key % WORLD_W, Math.floor(key / WORLD_W), arena)) {
-        return { trail: currentTrail, changed: false, gap: true, reset: false };
-      }
+      var key = normalizeTrailCellKey(rawTail[tailIndex], arena);
+      if (key < 0) return { trail: currentTrail, changed: false, gap: true, reset: false };
       tail.push(key);
     }
     if (!length) {
@@ -686,8 +698,8 @@ window.TerritoryRush = (function () {
     trailOwner.fill(-1);
     state.players.forEach(function (player) {
       (player.trail || []).forEach(function (key) {
-        if (key >= 0 && key < CELL_COUNT
-            && isPlayableCell(key % WORLD_W, Math.floor(key / WORLD_W))) trailOwner[key] = player.id;
+        key = normalizeTrailCellKey(key);
+        if (key >= 0) trailOwner[key] = player.id;
       });
     });
   }
@@ -766,9 +778,8 @@ window.TerritoryRush = (function () {
       } else if (map[i] === playerId) blocked[i] = 1;
     }
     for (i = 0; i < trail.length; i++) {
-      var trailKey = trail[i];
-      if (trailKey >= 0 && trailKey < map.length
-          && isPlayableCell(trailKey % WORLD_W, Math.floor(trailKey / WORLD_W), arena)) blocked[trailKey] = 1;
+      var trailKey = normalizeTrailCellKey(trail[i], arena);
+      if (trailKey >= 0 && trailKey < map.length) blocked[trailKey] = 1;
     }
     var head = 0;
     var tail = 0;
@@ -1448,9 +1459,7 @@ window.TerritoryRush = (function () {
     if (owner[key] === player.id) {
       if (player.trail.length) capturePlayer(player);
     } else {
-      if (player.trail.length >= MAX_TRAIL) { recallPlayer(player, now); return false; }
-      player.trail.push(key);
-      if (trailOwner[key] < 0) trailOwner[key] = player.id;
+      if (!appendTrailCell(player, key, now)) return false;
     }
     return !player.deadUntil;
   }
@@ -1535,14 +1544,15 @@ window.TerritoryRush = (function () {
           trailOpen = false;
         }
       } else {
-        if (plannedTrail.length >= MAX_TRAIL) {
+        var trailKey = normalizeTrailCellKey(event.key);
+        if (trailKey < 0 || plannedTrail.length >= MAX_TRAIL) {
           proposal.limitIndex = i;
           proposal.closeIndex = -1;
           proposal.closeAt = null;
           proposal.captureTrail = null;
           break;
         }
-        plannedTrail.push(event.key);
+        plannedTrail.push(trailKey);
         trailOpen = true;
       }
     }
@@ -1778,26 +1788,44 @@ window.TerritoryRush = (function () {
     if (!closures.length) return false;
 
     var ownerBeforeCapture = owner.slice();
-    var claimCount = new Uint8Array(CELL_COUNT);
-    var claimOwner = new Int8Array(CELL_COUNT);
-    claimOwner.fill(-1);
+    var claimMask = new Uint8Array(CELL_COUNT);
+    var claimSizes = new Uint16Array(MAX_PLAYERS);
     closures.forEach(function (proposal) {
       var candidate = ownerAtStart.slice();
       captureInto(candidate, proposal.captureTrail || [], proposal.player.id);
+      var playerBit = 1 << proposal.player.id;
       for (var key = 0; key < CELL_COUNT; key++) {
         if (candidate[key] !== proposal.player.id || ownerAtStart[key] === proposal.player.id) continue;
-        if (!claimCount[key]) claimOwner[key] = proposal.player.id;
-        claimCount[key]++;
+        claimMask[key] |= playerBit;
+        claimSizes[proposal.player.id]++;
       }
       clearTrail(proposal.player);
       proposal.didClose = true;
     });
 
+    // Disputed cells must not stay hollow: the larger closed claim wins,
+    // then the earlier closure and stable player id break exact ties.
+    var claimPriority = closures.slice().sort(function (first, second) {
+      var sizeDifference = claimSizes[second.player.id] - claimSizes[first.player.id];
+      if (sizeDifference) return sizeDifference;
+      var closeDifference = Number(first.closeAt) - Number(second.closeAt);
+      if (Math.abs(closeDifference) > 1e-9) return closeDifference;
+      return first.player.id - second.player.id;
+    });
     var nextOwner = ownerBeforeCapture.slice();
     var contributions = Object.create(null);
     for (var key = 0; key < CELL_COUNT; key++) {
-      if (claimCount[key] !== 1) continue;
-      var nextId = claimOwner[key];
+      var mask = claimMask[key];
+      if (!mask) continue;
+      var nextId = -1;
+      for (var priorityIndex = 0; priorityIndex < claimPriority.length; priorityIndex++) {
+        var candidateId = claimPriority[priorityIndex].player.id;
+        if (mask & (1 << candidateId)) {
+          nextId = candidateId;
+          break;
+        }
+      }
+      if (nextId < 0) continue;
       var previousId = ownerAtStart[key];
       nextOwner[key] = nextId;
       if (previousId >= 0 && previousId !== nextId) {
@@ -1844,7 +1872,8 @@ window.TerritoryRush = (function () {
   }
 
   function appendTrailCell(player, key, now) {
-    if (player.trail.length >= MAX_TRAIL) {
+    key = normalizeTrailCellKey(key);
+    if (key < 0 || player.trail.length >= MAX_TRAIL) {
       recallPlayer(player, now);
       return false;
     }
@@ -2043,6 +2072,8 @@ window.TerritoryRush = (function () {
     sourceHost = safeNick(sourceHost);
     var hostChanged = !!sourceHost && sourceHost !== authoritativeHost;
     var matchChanged = parsed.state.matchId !== state.matchId;
+    var sameMatchPlayingUpdate = !matchChanged
+      && state.phase === "playing" && parsed.state.phase === "playing";
     if (state.matchId && !matchChanged) {
       var lockedArena = copyArena(activeArena());
       if (!sameArena(parsed.state.arena, lockedArena)) parsed.state.players = sanitizePlayers(raw && raw.players, lockedArena);
@@ -2118,7 +2149,7 @@ window.TerritoryRush = (function () {
     acknowledgeLocalInput();
     syncHostEligibility();
     if (hostChanged && !matchChanged) queueDesiredInputForNewHost();
-    render();
+    if (!sameMatchPlayingUpdate) render();
     return true;
   }
 
@@ -2807,7 +2838,7 @@ window.TerritoryRush = (function () {
       shell.classList.remove("is-ticking");
       void shell.offsetWidth;
       shell.classList.add("is-ticking");
-      if (api && api.playWarning) api.playWarning();
+      playCountdownSfx();
     }
   }
 
@@ -2873,10 +2904,8 @@ window.TerritoryRush = (function () {
     var counts = territoryCounts();
     var spectator = isLocalSpectator();
     var focused = spectator ? cameraFocusPlayer() : null;
-    var areaShell = $("territory-area-shell");
     var focusShell = $("territory-focus-hud");
     var focusVisible = state.phase === "playing" && spectator && !!focused;
-    setHidden(areaShell, state.phase !== "playing" || spectator);
     setHidden(focusShell, !focusVisible);
     if (focusShell) focusShell.setAttribute("aria-hidden", focusVisible ? "false" : "true");
     if (focusVisible) {
@@ -2887,10 +2916,6 @@ window.TerritoryRush = (function () {
       if (focusName) focusName.textContent = focused.nick;
       if (focusArea) focusArea.textContent = ((counts[focused.id] || 0) / playableCellCount() * 100).toFixed(1) + "%";
     }
-    var myDot = $("territory-my-dot");
-    if (myDot && mine) myDot.style.background = COLORS[mine.id];
-    var area = $("territory-area");
-    if (area) area.textContent = mine ? ((counts[mine.id] || 0) / playableCellCount() * 100).toFixed(1) + "%" : "0.0%";
     var count = $("territory-people-count");
     if (count) count.textContent = String(activePeople().length);
     renderCountdown(now);
@@ -3318,7 +3343,7 @@ window.TerritoryRush = (function () {
     if (!trail.length) { delete visualTrails[player.nick]; return null; }
     var cache = visualTrails[player.nick];
     var networkPath = Array.isArray(player.path) && player.path.length ? player.path : null;
-    if (networkPath && api && !api.isHost() && (!cache || cache.networkPath !== networkPath)) {
+    if (networkPath && api && !api.isHost() && !visualTrailContinues(cache, trail)) {
       var networkPoints = decodeVisualTrail(networkPath);
       if (networkPoints.length) {
         cache = visualTrails[player.nick] = {
@@ -3352,14 +3377,20 @@ window.TerritoryRush = (function () {
     return cache;
   }
 
-  function visibleTrailPoints(points, endpoint) {
-    if (!points || !points.length) return [];
-    if (!endpoint || !isFinite(endpoint.x) || !isFinite(endpoint.y) || points.length === 1) return points.slice();
+  function visibleTrailSlice(points, endpoint, minimumIndex) {
+    if (!points || !points.length) return { points: [], segmentIndex: 0 };
+    if (!endpoint || !isFinite(endpoint.x) || !isFinite(endpoint.y) || points.length === 1) {
+      return { points: points.slice(), segmentIndex: Math.max(0, points.length - 2) };
+    }
     var tail = points[points.length - 1];
-    if (Math.abs(tail.x - endpoint.x) <= .001 && Math.abs(tail.y - endpoint.y) <= .001) return points.slice();
-    var bestIndex = points.length - 2;
+    if (Math.abs(tail.x - endpoint.x) <= .001 && Math.abs(tail.y - endpoint.y) <= .001) {
+      return { points: points.slice(), segmentIndex: Math.max(0, points.length - 2) };
+    }
+    var lastIndex = points.length - 2;
+    minimumIndex = clamp(Math.floor(Number(minimumIndex) || 0), 0, lastIndex);
+    var bestIndex = lastIndex;
     var bestDistance = Infinity;
-    for (var i = points.length - 2; i >= 0; i--) {
+    for (var i = lastIndex; i >= minimumIndex; i--) {
       var distance = pointDistanceToSegmentSquared(endpoint, points[i], points[i + 1]);
       if (distance < bestDistance) {
         bestDistance = distance;
@@ -3368,12 +3399,19 @@ window.TerritoryRush = (function () {
     }
     var visible = points.slice(0, bestIndex + 1);
     appendVisualTrailPoint(visible, endpoint.x, endpoint.y);
-    return visible;
+    return { points: visible, segmentIndex: bestIndex };
+  }
+
+  function visibleTrailPoints(points, endpoint) {
+    return visibleTrailSlice(points, endpoint, 0).points;
   }
 
   function trailPoints(player, endpoint) {
     var cache = syncVisualTrail(player);
-    return cache ? visibleTrailPoints(cache.points, endpoint) : [];
+    if (!cache) return [];
+    var visible = visibleTrailSlice(cache.points, endpoint, cache.visibleSegmentIndex);
+    cache.visibleSegmentIndex = visible.segmentIndex;
+    return visible.points;
   }
 
   function drawTrail(player, view) {
@@ -4095,6 +4133,45 @@ window.TerritoryRush = (function () {
     }
   }
 
+  function ensureCountdownSfx() {
+    if (countdownSfxEl) return countdownSfxEl;
+    if (typeof Audio === "undefined") return null;
+    try {
+      countdownSfxEl = new Audio(COUNTDOWN_SFX_SRC);
+      countdownSfxEl.preload = "auto";
+      countdownSfxEl.volume = COUNTDOWN_SFX_VOLUME;
+      countdownSfxEl.setAttribute("playsinline", "");
+      countdownSfxEl.setAttribute("webkit-playsinline", "");
+      return countdownSfxEl;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function stopCountdownSfx() {
+    if (!countdownSfxEl) return;
+    try {
+      countdownSfxEl.pause();
+      countdownSfxEl.currentTime = 0;
+    } catch (error) {}
+  }
+
+  function playCountdownSfx() {
+    if (isSoundMuted()) return false;
+    var el = ensureCountdownSfx();
+    if (!el) return false;
+    try {
+      el.pause();
+      el.currentTime = 0;
+      el.volume = COUNTDOWN_SFX_VOLUME;
+      var play = el.play();
+      if (play && play.catch) play.catch(function () {});
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   function ensureDeathSfx() {
     if (deathSfxEl) return deathSfxEl;
     if (typeof Audio === "undefined") return null;
@@ -4152,10 +4229,12 @@ window.TerritoryRush = (function () {
   function syncAudio() {
     if (!api || state.phase !== "playing") {
       stopGameBgm(true);
+      stopCountdownSfx();
       return;
     }
     if (isSoundMuted()) {
       stopGameBgm(false);
+      stopCountdownSfx();
       if (deathSfxEl) {
         try { deathSfxEl.pause(); deathSfxEl.currentTime = 0; } catch (error) {}
       }
@@ -4206,6 +4285,7 @@ window.TerritoryRush = (function () {
     hasAuthorityClock = false;
     lastStatusAnnouncementKey = "";
     ensureGameBgm();
+    ensureCountdownSfx();
     ensureDeathSfx();
     if (!bindDom()) throw new Error("땅따먹기 화면을 찾을 수 없습니다.");
     resizeCanvases();
@@ -4221,6 +4301,7 @@ window.TerritoryRush = (function () {
     resetHostStepClock();
     desiredInputAngle = null;
     stopGameBgm(true);
+    stopCountdownSfx();
     if (deathSfxEl) {
       try { deathSfxEl.pause(); deathSfxEl.currentTime = 0; } catch (error) {}
     }
@@ -4291,6 +4372,7 @@ window.TerritoryRush = (function () {
       arenaMovementBounds: arenaMovementBounds,
       playableCellCount: playableCellCount,
       isPlayableCell: isPlayableCell,
+      normalizeTrailCellKey: normalizeTrailCellKey,
       clearBoundaryOwnerCells: clearBoundaryOwnerCells,
       fillArenaOutside: fillArenaOutside,
       rankRows: rankRows,
@@ -4331,6 +4413,7 @@ window.TerritoryRush = (function () {
       syncCollisionTrail: syncCollisionTrail,
       collisionTrailPoints: collisionTrailPoints,
       rebuiltVisualTrailPoints: rebuiltVisualTrailPoints,
+      visibleTrailSlice: visibleTrailSlice,
       visibleTrailPoints: visibleTrailPoints,
       sanitizeVisualTrail: sanitizeVisualTrail,
       encodeVisualTrail: encodeVisualTrail,
@@ -4355,7 +4438,9 @@ window.TerritoryRush = (function () {
       cameraFocusPlayer: cameraFocusPlayer,
       selectSpectatorFocus: selectSpectatorFocus,
       eliminate: eliminate,
+      renderCountdown: renderCountdown,
       syncAudio: syncAudio,
+      playCountdownSfx: playCountdownSfx,
       playDeathSfx: playDeathSfx,
       broadcastFull: broadcastFull,
       broadcastFrame: broadcastFrame,
@@ -4438,6 +4523,8 @@ window.TerritoryRush = (function () {
         respawnPlayerDistance: RESPAWN_PLAYER_DISTANCE,
         gameBgmSrc: GAME_BGM_SRC,
         gameBgmVolume: GAME_BGM_VOLUME,
+        countdownSfxSrc: COUNTDOWN_SFX_SRC,
+        countdownSfxVolume: COUNTDOWN_SFX_VOLUME,
         deathSfxSrc: DEATH_SFX_SRC,
         deathSfxVolume: DEATH_SFX_VOLUME
       }

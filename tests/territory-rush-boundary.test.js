@@ -57,6 +57,35 @@ test("capture permanently reserves every cell outside the arena boundary", () =>
   }
 });
 
+test("a loop using the solid arena wall still fills its enclosed interior", () => {
+  const engine = loadEngine();
+  const width = engine.constants.width;
+  const state = engine.freshState();
+  state.arena = engine.arenaForPlayerCount(2);
+  engine.setState(state);
+  engine.resetGrid();
+
+  const arena = engine.activeArena();
+  const map = engine.getOwner();
+  const wallX = arena.minX - 1;
+  const homeX = arena.minX + 5;
+  const y0 = arena.minY + 8;
+  const y1 = y0 + 6;
+
+  for (let y = y0; y <= y1; y++) map[key(width, homeX, y)] = 0;
+
+  const trail = [];
+  for (let x = homeX - 1; x >= wallX; x--) trail.push(key(width, x, y0));
+  for (let y = y0 + 1; y < y1; y++) trail.push(key(width, wallX, y));
+  for (let x = wallX; x < homeX; x++) trail.push(key(width, x, y1));
+
+  engine.captureInto(map, trail, 0);
+
+  assert.equal(map[key(width, arena.minX + 2, y0 + 3)], 0);
+  assert.equal(map[key(width, arena.minX, y0 + 3)], 0);
+  assert.equal(map[key(width, arena.minX - 1, y0 + 3)], -1);
+});
+
 test("base creation cannot paint the reserved boundary ring", () => {
   const engine = loadEngine();
   const width = engine.constants.width;
@@ -101,7 +130,7 @@ test("playable land is the percentage denominator so a full arena reaches one hu
 
   assert.equal(engine.constants.playableCells, 70 * 106);
   assert.equal(engine.rankRows()[0].area, 100);
-  assert.equal((source.match(/\/ playableCellCount\(\) \* 100/g) || []).length, 3);
+  assert.equal((source.match(/\/ playableCellCount\(\) \* 100/g) || []).length, 2);
 });
 
 test("the arena exterior is filled with the exact boundary-line color", () => {

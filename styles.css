@@ -331,9 +331,6 @@ body {
 .role-draw { background: var(--orange); color: #fff; }
 .role-correct { background: var(--teal); color: var(--navy); }
 .role-catch { background: #e4eef2; color: #4a7180; }
-.cm-detail-row { flex-wrap: wrap; }
-.cm-rank-detail { flex: 1 1 130px; min-width: 0; color: #a8bbc4; font-size: 12px; line-height: 1.4; font-weight: 700; overflow-wrap: anywhere; }
-.cm-rank-perf { flex: 0 0 auto; min-width: 68px; padding: 3px 7px; border-radius: 7px; background: var(--teal); color: var(--navy); text-align: center; font-size: 12px; font-weight: 900; }
 
 body:has(.cm-level-backdrop:not(.hidden)) { overflow: hidden; }
 .cm-level-backdrop { position: fixed; inset: 0; z-index: 76; display: grid; place-items: center; padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); background: rgba(3,12,17,.8); }
@@ -639,7 +636,6 @@ body:has(.cm-gallery-backdrop:not(.hidden)) { overflow: hidden; }
   .catch-tool { padding: 0 7px; }
   .catch-color, .catch-tool-icon { width: 35px; min-width: 35px; }
   .catch-palette { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 5px; }
-  .cm-detail-row .d-date { flex-basis: 100%; text-align: right; }
 }
 .win-flag { position: absolute; inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; background: rgba(14,42,58,.72); border-radius: 10px; padding: 16px; }
 .win-flag.hidden { display: none; }
@@ -2535,7 +2531,6 @@ body.is-admin .feedback-user-compose { display: none; }
 .territory-time,
 .territory-scoreboard,
 .territory-minimap-shell,
-.territory-area,
 .territory-focus-hud,
 .territory-utility,
 .territory-swipe-hint,
@@ -2545,7 +2540,6 @@ body.is-admin .feedback-user-compose { display: none; }
   z-index: 4;
 }
 .territory-scoreboard,
-.territory-area,
 .territory-focus-hud,
 .territory-utility button,
 .territory-swipe-hint {
@@ -2632,7 +2626,6 @@ body.is-admin .feedback-user-compose { display: none; }
 .territory-rank-focus { width: 100%; border: 0; outline: 0; padding: 0; background: transparent; color: inherit; font-family: inherit; font-size: inherit; font-weight: 900; text-align: left; cursor: pointer; }
 .territory-rank-focus:focus-visible { border-radius: 4px; box-shadow: 0 0 0 2px rgba(120,244,218,.75); }
 .territory-rank strong { color: inherit; font-size: 15px; font-weight: 1000; font-variant-numeric: tabular-nums; }
-.territory-my-dot { width: 9px; height: 9px; display: block; flex: 0 0 auto; border-radius: 50%; background: #ff776f; box-shadow: none; }
 .territory-minimap-shell {
   top: calc(max(8px, env(safe-area-inset-top)) + 44px);
   right: max(8px, env(safe-area-inset-right));
@@ -2646,20 +2639,6 @@ body.is-admin .feedback-user-compose { display: none; }
   backdrop-filter: none;
 }
 #territory-minimap { width: 100%; height: auto; aspect-ratio: 2 / 3; display: block; border-radius: 0; background: transparent; opacity: .68; }
-.territory-area {
-  bottom: max(8px, env(safe-area-inset-bottom));
-  min-height: 36px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 11px;
-  border-radius: 8px;
-  color: var(--territory-ui-text);
-  font-size: 11.5px;
-  font-weight: 850;
-}
-.territory-area { left: max(8px, env(safe-area-inset-left)); }
-.territory-area strong { color: #fff; font-size: 13px; font-weight: 1000; font-variant-numeric: tabular-nums; }
 .territory-focus-hud {
   left: max(8px, env(safe-area-inset-left));
   bottom: max(8px, env(safe-area-inset-bottom));
@@ -2901,9 +2880,6 @@ body.is-admin .feedback-user-compose { display: none; }
 .territory-chat-row #territory-chat-send:disabled { opacity: .45; cursor: default; transform: none; }
 .territory-screen:not(.is-playing) .territory-panel {
   padding-bottom: calc(max(76px, env(safe-area-inset-bottom) + 68px));
-}
-.territory-screen.is-playing.chat-enabled .territory-area {
-  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 62px);
 }
 .territory-screen.is-playing.chat-enabled .territory-focus-hud { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 62px); }
 .territory-screen.is-playing.is-spectating .territory-swipe-hint { display: none; }

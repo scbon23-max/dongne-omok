@@ -7,8 +7,6 @@ window.CatchMind = (function () {
   var GUESS_SCORE_MAX = 10;
   var GUESS_SCORE_MIN = 5;
   var GUESS_SCORE_STEP_MS = 15000;
-  var GUESS_RANK_POINTS = 10;
-  var DRAWER_RANK_POINTS = 3;
   var SECRET_RECOVERY_MS = 3000;
   var REVEAL_MS = 3000;
   var MVP_VOTE_MS = 15000;
@@ -54,7 +52,6 @@ window.CatchMind = (function () {
   var CLEAR_SFX_VOLUME = 1;
   var FINISH_SFX_SRC = "assets/catchmind-finish.wav";
   var FINISH_SFX_VOLUME = 0.38;
-  var RECORD_STATUSES = ["idle", "pending", "saved", "failed", "skipped"];
   var REVEAL_OUTCOMES = ["all-correct", "timeout", "skipped"];
   var FALLBACK_WORDS = [
     "가방", "가위", "강아지", "거북이", "고양이", "공룡", "기차", "나무", "냉장고", "눈사람",
@@ -152,9 +149,7 @@ window.CatchMind = (function () {
       revealWord: null,
       revealOutcome: null,
       wordLength: 0,
-      completedRounds: 0,
-      recordStatus: "idle",
-      resultRatings: []
+      completedRounds: 0
     };
   }
 
@@ -226,7 +221,6 @@ window.CatchMind = (function () {
     next.matchId = "catchmind-ui-preview";
     next.spectators = ["수빈", "소연"];
     next.ready = players.slice(1);
-    next.recordStatus = "saved";
     next.feed = [
       { who: "지우", text: "귀가 있는 것 같아", kind: "guess", channel: "players" },
       { who: "", text: "서준님 정답! +9", kind: "correct", channel: "all" },
@@ -235,21 +229,10 @@ window.CatchMind = (function () {
     players.forEach(function (nick, index) {
       next.scores[nick] = sampleScores[index];
       next.stats[nick] = {
-        points: Math.max(3, sampleScores[index]),
-        maxPoints: 50,
         correct: Math.max(0, 5 - Math.floor(index / 2)),
         drawCorrect: Math.max(0, 6 - index),
         fastestMs: 6200 + index * 2400
       };
-      next.resultRatings.push({
-        nick: nick,
-        beforeRating: 1000 + (players.length - index) * 18,
-        rating: 1000 + (players.length - index) * 18 + (index < 3 ? 12 - index * 4 : -index),
-        delta: index < 3 ? 12 - index * 4 : -index,
-        games: 7 + index,
-        rankText: (index + 1) + "위",
-        rankMove: index < 2 ? 1 : 0
-      });
     });
 
     secretWord = "고양이";
@@ -492,8 +475,6 @@ window.CatchMind = (function () {
       var row = raw && raw[nick];
       if (!row || typeof row !== "object") row = {};
       out[nick] = {
-        points: safeInteger(row.points, 0, MAX_SCORE, 0),
-        maxPoints: safeInteger(row.maxPoints, 0, MAX_SCORE, 0),
         correct: safeInteger(row.correct, 0, MAX_SCORE, 0),
         drawCorrect: safeInteger(row.drawCorrect, 0, MAX_SCORE, 0),
         fastestMs: row.fastestMs == null ? null : safeInteger(row.fastestMs, 0, ROUND_MS, null),
@@ -504,29 +485,6 @@ window.CatchMind = (function () {
           : []
       };
     });
-    return out;
-  }
-  function safeResultRatings(raw, queue) {
-    if (!Array.isArray(raw)) return [];
-    var out = [], seen = Object.create(null);
-    for (var i = 0; i < raw.length && out.length < MAX_PLAYERS; i++) {
-      var row = raw[i] && typeof raw[i] === "object" ? raw[i] : {};
-      var nick = safeNick(row.nick);
-      if (!nick || !has(queue, nick) || seen[nick]) continue;
-      var beforeRating = safeInteger(row.beforeRating, 0, MAX_SCORE, null);
-      var rating = safeInteger(row.rating, 0, MAX_SCORE, null);
-      if (beforeRating == null || rating == null) continue;
-      seen[nick] = true;
-      out.push({
-        nick: nick,
-        beforeRating: beforeRating,
-        rating: rating,
-        delta: safeInteger(row.delta, -MAX_SCORE, MAX_SCORE, rating - beforeRating),
-        games: safeInteger(row.games, 0, MAX_SCORE, 0),
-        rankText: safeText(row.rankText, 20),
-        rankMove: safeInteger(row.rankMove, -MAX_SCORE, MAX_SCORE, 0)
-      });
-    }
     return out;
   }
   function safeCorrect(raw, guessers) {
@@ -550,8 +508,6 @@ window.CatchMind = (function () {
     if (state.scores[nick] == null) state.scores[nick] = 0;
     if (!state.stats[nick]) {
       state.stats[nick] = {
-        points: 0,
-        maxPoints: 0,
         correct: 0,
         drawCorrect: 0,
         fastestMs: null,
@@ -601,10 +557,7 @@ window.CatchMind = (function () {
       revealWord: state.revealWord,
       revealOutcome: state.revealOutcome,
       wordLength: state.wordLength,
-      completedRounds: state.completedRounds,
-      recordStatus: state.recordStatus,
-      resultRatings: state.resultRatings,
-      recorded: state.recordStatus === "saved"
+      completedRounds: state.completedRounds
     };
   }
 
@@ -664,9 +617,6 @@ window.CatchMind = (function () {
     var guessers = safeNickList(next.guessers).filter(function (nick) {
       return nick !== drawer && has(queue, nick);
     });
-    var recordStatus = RECORD_STATUSES.indexOf(next.recordStatus) >= 0
-      ? next.recordStatus
-      : (next.recorded ? "saved" : "idle");
     var pauseKind = next.pauseKind === "drawer" || next.pauseKind === "sync" ? next.pauseKind : null;
     if (phase !== "countdown" && phase !== "drawing") pauseKind = null;
     return {
@@ -697,9 +647,7 @@ window.CatchMind = (function () {
         ? next.revealOutcome
         : null,
       wordLength: safeInteger(next.wordLength, 0, 10, 0),
-      completedRounds: safeInteger(next.completedRounds, 0, Math.max(queue.length, 1), 0),
-      recordStatus: recordStatus,
-      resultRatings: safeResultRatings(next.resultRatings, queue)
+      completedRounds: safeInteger(next.completedRounds, 0, Math.max(queue.length, 1), 0)
     };
   }
 
@@ -744,9 +692,7 @@ window.CatchMind = (function () {
       revealWord: clean.revealWord,
       revealOutcome: clean.revealOutcome,
       wordLength: clean.wordLength,
-      completedRounds: clean.completedRounds,
-      recordStatus: clean.recordStatus,
-      resultRatings: clean.resultRatings
+      completedRounds: clean.completedRounds
     };
     if (!sameRound) secretWord = null;
     if (clean.phase === "finished" && previousPhase !== "finished" && previousMatchId === clean.matchId) playFinishSfx();
@@ -826,7 +772,6 @@ window.CatchMind = (function () {
     state.canvasBg = CANVAS_BG;
     state.drawSeq = 0;
     state.feed = [{ who: "", text: "혼자 그림을 연습하는 중이에요", kind: "system" }];
-    state.recordStatus = "idle";
     secretWord = null;
     drawing = false;
     currentStroke = null;
@@ -863,7 +808,6 @@ window.CatchMind = (function () {
     state.pauseKind = null;
     state.pauseUntil = null;
     state.pausedRemainMs = null;
-    state.recordStatus = "idle";
     lastCanvasRequestAt = 0;
     drawing = false;
     currentStroke = null;
@@ -932,8 +876,6 @@ window.CatchMind = (function () {
     state.phase = "drawing";
     state.deadline = Date.now() + ROUND_MS;
     state.wordLength = Array.from(secretWord).length;
-    state.guessers.forEach(function (nick) { initStats(nick).maxPoints += GUESS_RANK_POINTS; });
-    initStats(state.drawer).maxPoints += state.guessers.length * DRAWER_RANK_POINTS;
     addFeed("", state.drawer + "님이 그림을 시작했어요", "system");
     state.rev++;
     broadcastState();
@@ -1055,8 +997,6 @@ window.CatchMind = (function () {
     state.revealOutcome = null;
     secretWord = null;
 
-    state.recordStatus = "skipped";
-    state.resultRatings = [];
     addFeed("", "게임이 끝났어요. 이번 판 기록을 확인해 보세요", "system");
     playFinishSfx();
     commit();
@@ -1084,14 +1024,11 @@ window.CatchMind = (function () {
       var drawerScore = drawerScoreForGuess(guessScore);
       state.correct[nick] = true;
       state.scores[nick] = (state.scores[nick] || 0) + guessScore;
-      // Season performance stays success-based so old and new match records remain comparable.
-      guesserStats.points += GUESS_RANK_POINTS;
       guesserStats.correct++;
       guesserStats.answerTimesMs.push(Math.round(elapsedMs));
       if (guesserStats.fastestMs == null || elapsedMs < guesserStats.fastestMs) guesserStats.fastestMs = elapsedMs;
       if (state.stats[state.drawer]) {
         state.scores[state.drawer] = (state.scores[state.drawer] || 0) + drawerScore;
-        state.stats[state.drawer].points += DRAWER_RANK_POINTS;
         state.stats[state.drawer].drawCorrect++;
       }
       addFeed("", nick + "님 정답! +" + guessScore, "correct");

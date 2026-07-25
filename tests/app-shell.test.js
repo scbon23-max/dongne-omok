@@ -8,6 +8,8 @@ const vm = require("node:vm");
 
 const root = path.join(__dirname, "..");
 const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const db = fs.readFileSync(path.join(root, "db.js"), "utf8");
+const gameCatalog = fs.readFileSync(path.join(root, "game-catalog.js"), "utf8");
 const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
 const net = fs.readFileSync(path.join(root, "net.js"), "utf8");
 const alkkagi = fs.readFileSync(path.join(root, "alkkagi.js"), "utf8");
@@ -110,6 +112,12 @@ test("late-loaded game code still binds the interface", () => {
 });
 
 test("CatchMind keeps its level flow while the retired ranking UI stays removed", () => {
+  const catalogContext = { window: {} };
+  vm.createContext(catalogContext);
+  vm.runInContext(gameCatalog, catalogContext, { filename: "game-catalog.js" });
+
+  assert.deepEqual(Array.from(catalogContext.window.GameCatalog.rankableIds()), ["omok", "alk", "alk_terr"]);
+  assert.doesNotMatch(gameCatalog, /캐치마인드 랭킹/);
   assert.doesNotMatch(index, /id="catch-rank-btn"/);
   assert.doesNotMatch(index, /id="catch-result-backdrop"/);
   assert.doesNotMatch(index, /id="catch-result-open-btn"/);
@@ -121,7 +129,10 @@ test("CatchMind keeps its level flow while the retired ranking UI stays removed"
   assert.match(index, /id="catch-level-mvp-backdrop"/);
   assert.match(index, /id="catch-level-xp-backdrop"/);
   assert.match(index, /\{ src: "catchmind-levels\.js" \}/);
+  assert.doesNotMatch(db, /recordCatchmindMatch/);
+  assert.doesNotMatch(game, /parseCatchmindRecord|catchmindRatingDeltas|aggregateCatchmind|buildCatchmindResultSummary|showCatchmindDetail/);
   assert.doesNotMatch(catchmind, /api\.recordMatch|api\.resultSummary|syncResultPopup/);
+  assert.doesNotMatch(catchmind, /recordStatus|resultRatings|GUESS_RANK_POINTS|DRAWER_RANK_POINTS/);
   assert.match(catchmind, /<h3>3\. 경험치와 레벨<\/h3>/);
   assert.doesNotMatch(catchmind, /<h3>3\. 시즌 랭킹 점수<\/h3>/);
 });

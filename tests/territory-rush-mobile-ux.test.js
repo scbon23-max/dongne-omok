@@ -22,11 +22,10 @@ function cssRule(selectorPattern) {
   return match[1];
 }
 
-test("the complete local-area pill has a stable shell that spectator mode can hide", () => {
-  assert.match(
-    index,
-    /id="territory-area-shell" class="territory-area">[\s\S]*?id="territory-my-dot"[\s\S]*?id="territory-area-label"[\s\S]*?id="territory-area"[\s\S]*?<\/div>/
-  );
+test("the local-area pill is not rendered during play", () => {
+  ["territory-area-shell", "territory-my-dot", "territory-area-label", "territory-area"].forEach((id) => {
+    assert.doesNotMatch(index, new RegExp(`id=["']${id}["']`));
+  });
 });
 
 test("the focus HUD starts hidden and is not a frequently updating live region", () => {
@@ -64,19 +63,16 @@ test("spectator mode removes the irrelevant swipe hint, including reduced-motion
 test("mobile chat keeps a 44px send target and 62px clearance for every lower HUD", () => {
   const sendButton = cssRule("\\.territory-chat-row #territory-chat-send");
   const chatOverlay = cssRule("\\.territory-chat-overlay");
-  const localArea = cssRule("\\.territory-screen\\.is-playing\\.chat-enabled \\.territory-area");
   const focusHud = cssRule("\\.territory-screen\\.is-playing\\.chat-enabled \\.territory-focus-hud");
 
   assert.match(sendButton, /min-height:\s*44px;/);
-  [chatOverlay, localArea, focusHud].forEach((rule) => {
+  [chatOverlay, focusHud].forEach((rule) => {
     assert.match(rule, /bottom:\s*calc\(max\(8px, env\(safe-area-inset-bottom\)\) \+ 62px\);/);
   });
 });
 
-test("spectator HUD state is connected to the complete shell and only exposed during play", () => {
-  assert.match(script, /var areaShell = \$\("territory-area-shell"\);/);
+test("spectator HUD state is only exposed during play", () => {
   assert.match(script, /var focusVisible = state\.phase === "playing" && spectator && !!focused;/);
-  assert.match(script, /setHidden\(areaShell, state\.phase !== "playing" \|\| spectator\);/);
   assert.match(script, /setHidden\(focusShell, !focusVisible\);/);
   assert.match(script, /root\.classList\.toggle\("is-spectating", state\.phase === "playing" && isLocalSpectator\(\)\);/);
 });

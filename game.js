@@ -1372,7 +1372,6 @@
       relayChat: function () {},
       showChat: function () {},
       toast: toast,
-      openRank: function () { openRank("catchmind"); },
       openPlayers: function () { renderPlayersList(); openModal("players-modal"); },
       openMenu: openMenu,
       openBoardFramePicker: openCatchBoardFramePicker,
@@ -3192,7 +3191,10 @@
   function seatName(which) { return G.seats[which] || null; }
   var scoresRefreshT = null, scoresPend = {};
   function scheduleScoresRefresh(game) {
-    if (game) scoresPend[game] = 1;
+    if (game) {
+      if (rankableGames().indexOf(game) < 0) return;
+      scoresPend[game] = 1;
+    }
     else {
       scoresPend = {};
       rankableGames().forEach(function (id) { scoresPend[id] = 1; });
@@ -3207,10 +3209,11 @@
   function refreshScores(only) {
     if (!window.Db) return;
     var s = currentSeason();
-    (only ? [only] : rankableGames()).forEach(function (game) {
+    var rankedGames = rankableGames();
+    (only && rankedGames.indexOf(only) >= 0 ? [only] : (only ? [] : rankedGames)).forEach(function (game) {
       Db.getGamesByType(game).then(function (games) {
         var sg = games.filter(function (g) { return gameInSeason(g, s); });
-        var m = {}; aggregateForGame(game, sg).forEach(function (st) { m[st.nick] = st.score; });
+        var m = {}; aggregate(sg).forEach(function (st) { m[st.nick] = st.score; });
         scoreMap[game] = m;
         if (isOmokFamily(game)) updateTurnUI();
         else if (isAlkFamily(game)) renderAlkUI();
@@ -3681,15 +3684,6 @@
   function rankTitle() { return rankGame === "all" ? "전체 랭킹" : (window.GameCatalog ? GameCatalog.rankName(rankGame) : (rankGame === "alk" ? "알까기 랭킹" : rankGame === "alk_terr" ? "점령전 랭킹" : "오목 랭킹")); }
   function renderRankInfo() {
     var list = $("rank-info-list"); if (!list) return;
-    if (shownRankGame() === "catchmind") {
-      list.innerHTML = '<li>모두 <b>1000점</b>에서 시작해요.</li>'
-        + '<li>경기 점수는 정답 속도에 따라 <b>10점부터 5점</b>, 출제자는 정답자 한 명당 <b>3점부터 1점</b>을 받아요.</li>'
-        + '<li>시즌 랭킹은 속도 점수와 분리해 <b>정답·그림 성공점수 ÷ 가능한 최대점수</b>인 활약도로 한 판의 성과를 계산해요.</li>'
-        + '<li>같이 플레이한 사람들의 활약도를 서로 비교해 레이팅이 오르거나 내려가요. 높은 점수의 상대보다 잘하면 더 많이 올라요.</li>'
-        + '<li>이번 시즌에 <b>5회 이상</b> 참여하면 정식 순위에 올라가요. 5회가 안 되면 "배치 중"으로 표시돼요.</li>'
-        + '<li>시즌은 <b>3개월마다</b> 새로 시작되고, 레이팅도 다시 1000점부터 시작해요.</li>';
-      return;
-    }
     list.innerHTML = '<li>모두 <b>1000점</b>에서 시작해요.</li>'
       + '<li>이기면 오르고 지면 내려가요. 무승부는 아주 조금만 움직여요.</li>'
       + '<li><b>나보다 센 사람을 이기면 점수가 많이 올라요.</b> 나보다 약한 사람을 이기면 조금만 올라요.</li>'
@@ -3739,9 +3733,9 @@
       new Promise(function (_res, rej) { setTimeout(function () { rej(new Error("timeout")); }, ms); })
     ]);
   }
-  function computeSeasonRank(game, games, s) {
+  function computeSeasonRank(games, s) {
     var sg = (games || []).filter(function (g) { return gameInSeason(g, s); });
-    var stats = aggregateForGame(game, sg).filter(function (st) { return window.__accSet && window.__accSet[st.nick]; });
+    var stats = aggregate(sg).filter(function (st) { return window.__accSet && window.__accSet[st.nick]; });
     var ranked = stats.filter(function (st) { return st.games >= RANK_MIN_GAMES; })
       .sort(function (a, b) { return b.score - a.score || b.rate - a.rate; });
     var provisional = stats.filter(function (st) { return st.games < RANK_MIN_GAMES; })
@@ -3774,12 +3768,12 @@
         var tbtns = tabs.querySelectorAll(".rtab");
         for (var i = 0; i < tbtns.length; i++) tbtns[i].classList.toggle("active", tbtns[i].getAttribute("data-g") === rankTab);
       }
-      var r = computeSeasonRank(rankTab, (window.__gamesAll || {})[rankTab], s);
-      renderRank(rankTab, r.ranked, r.provisional);
+      var r = computeSeasonRank((window.__gamesAll || {})[rankTab], s);
+      renderRank(r.ranked, r.provisional);
     } else {
       if (tabs) tabs.classList.add("hidden");
-      var r2 = computeSeasonRank(rankGame, window.__games, s);
-      renderRank(rankGame, r2.ranked, r2.provisional);
+      var r2 = computeSeasonRank(window.__games, s);
+      renderRank(r2.ranked, r2.provisional);
     }
   }
   function renderSeasonBar(s, isCur) {
@@ -3831,220 +3825,32 @@
       return s;
     });
   }
-  function parseCatchmindRecord(g) {
-    if (!g || !g.black) return null;
-    var parts = String(g.white || "").split(":");
-    if (parts[0] !== "cm" || parts.length < 6) return null;
-    var points = Number(parts[2]), maxPoints = Number(parts[3]);
-    if (!isFinite(points) || !isFinite(maxPoints) || maxPoints <= 0) return null;
-    var score = Number(parts[6]);
-    if (!isFinite(score)) score = points;
-    return {
-      id: g.id,
-      nick: g.black,
-      matchId: parts[1],
-      score: Math.max(0, score),
-      points: Math.max(0, points),
-      maxPoints: maxPoints,
-      correct: Math.max(0, Number(parts[4]) || 0),
-      drawCorrect: Math.max(0, Number(parts[5]) || 0),
-      createdAt: g.created_at
-    };
-  }
-  function catchmindRatingDeltas(players, kFactor) {
-    var deltas = Object.create(null);
-    if (!Array.isArray(players) || players.length < 2) return deltas;
-    kFactor = Number(kFactor);
-    if (!isFinite(kFactor) || kFactor <= 0) kFactor = 32;
-    players.forEach(function (player) {
-      var actual = 0, expected = 0;
-      players.forEach(function (opponent) {
-        if (opponent === player) return;
-        actual += player.row.score === opponent.row.score ? 0.5 : (player.row.score > opponent.row.score ? 1 : 0);
-        expected += 1 / (1 + Math.pow(10, (opponent.elo - player.elo) / 400));
-      });
-      deltas[player.row.nick] = Math.round(kFactor * ((actual - expected) / (players.length - 1)));
-    });
-
-    var topScore = Math.max.apply(null, players.map(function (player) { return player.row.score; }));
-    var winners = players.filter(function (player) { return player.row.score === topScore; });
-    if (winners.length === 1 && deltas[winners[0].row.nick] < 1) {
-      var winnerNick = winners[0].row.nick;
-      var shift = 1 - deltas[winnerNick];
-      deltas[winnerNick] = 1;
-      var last = players.filter(function (player) { return player.row.nick !== winnerNick; })
-        .sort(function (a, b) { return a.row.score - b.row.score || a.elo - b.elo; })[0];
-      if (last) deltas[last.row.nick] = (deltas[last.row.nick] || 0) - shift;
-    }
-    return deltas;
-  }
-  function aggregateCatchmind(games) {
-    var grouped = {};
-    (games || []).forEach(function (g) {
-      var row = parseCatchmindRecord(g); if (!row || !row.matchId) return;
-      if (!grouped[row.matchId]) grouped[row.matchId] = { at: row.createdAt, players: {} };
-      grouped[row.matchId].players[row.nick] = row;
-      if (new Date(row.createdAt) < new Date(grouped[row.matchId].at)) grouped[row.matchId].at = row.createdAt;
-    });
-    var matches = Object.keys(grouped).map(function (id) { return grouped[id]; })
-      .sort(function (a, b) { return new Date(a.at) - new Date(b.at); });
-    var map = {};
-    function ent(nick) {
-      if (!map[nick]) map[nick] = { nick: nick, w: 0, l: 0, d: 0, elo: ELO_START, games: 0, points: 0, maxPoints: 0, correct: 0, drawCorrect: 0 };
-      return map[nick];
-    }
-    matches.forEach(function (match) {
-      var rows = Object.keys(match.players).map(function (nick) { return match.players[nick]; });
-      if (rows.length < 2) return;
-      var before = rows.map(function (row) {
-        var stat = ent(row.nick);
-        return { row: row, elo: stat.elo };
-      });
-      var deltas = catchmindRatingDeltas(before, ELO_K);
-      rows.forEach(function (row) {
-        var stat = ent(row.nick);
-        stat.elo += deltas[row.nick];
-        stat.games++;
-        stat.points += row.points;
-        stat.maxPoints += row.maxPoints;
-        stat.correct += row.correct;
-        stat.drawCorrect += row.drawCorrect;
-      });
-    });
-    return Object.keys(map).map(function (nick) {
-      var stat = map[nick];
-      stat.rate = stat.maxPoints ? Math.min(100, Math.round(stat.points / stat.maxPoints * 100)) : 0;
-      stat.score = stat.elo;
-      return stat;
-    });
-  }
-  async function buildCatchmindResultSummary(matchId, results) {
-    if (!window.Db || !Db.getGamesByType) return null;
-    var safeId = String(matchId || "").replace(/[^a-zA-Z0-9_-]/g, "");
-    if (!safeId || !Array.isArray(results)) return null;
-    var seen = {};
-    var clean = results.map(function (row) {
-      row = row && typeof row === "object" ? row : {};
-      var nick = String(row.nick || "").trim().slice(0, 40);
-      if (!nick || seen[nick]) return null;
-      seen[nick] = true;
-      return {
-        nick: nick,
-        score: Math.max(0, Math.round(Number(row.score) || Number(row.points) || 0)),
-        points: Math.max(0, Math.round(Number(row.points) || 0)),
-        maxPoints: Math.max(1, Math.round(Number(row.maxPoints) || 1)),
-        correct: Math.max(0, Math.round(Number(row.correct) || 0)),
-        drawCorrect: Math.max(0, Math.round(Number(row.drawCorrect) || 0))
-      };
-    }).filter(Boolean);
-    if (!clean.length) return null;
-
-    var allGames = await Db.getGamesByType("catchmind");
-    var accounts = null;
-    if (Db.listAccounts) {
-      try { accounts = await Db.listAccounts(); } catch (e) {}
-    }
-    var accountSet = null;
-    if (Array.isArray(accounts) && accounts.length) {
-      accountSet = {};
-      accounts.forEach(function (account) {
-        if (account && account.nickname) accountSet[account.nickname] = true;
-      });
-    }
-
-    var currentRecords = (allGames || []).map(parseCatchmindRecord).filter(function (row) {
-      return row && row.matchId === safeId;
-    });
-    var resultAt = Date.now();
-    currentRecords.forEach(function (row) {
-      var time = new Date(row.createdAt).getTime();
-      if (isFinite(time)) resultAt = Math.min(resultAt, time);
-    });
-    var resultIso = new Date(resultAt).toISOString();
-    var season = seasonOf(resultIso);
-    var priorGames = (allGames || []).filter(function (game) {
-      if (!gameInSeason(game, season)) return false;
-      var row = parseCatchmindRecord(game);
-      if (!row || row.matchId === safeId) return false;
-      var time = new Date(game.created_at).getTime();
-      return isFinite(time) && time <= resultAt;
-    });
-    var virtualRows = clean.map(function (row) {
-      return {
-        black: row.nick,
-        white: ["cm", safeId, row.points, row.maxPoints, row.correct, row.drawCorrect, row.score].join(":"),
-        winner: "draw",
-        game: "catchmind",
-        created_at: resultIso
-      };
-    });
-    var beforeStats = aggregateCatchmind(priorGames);
-    var afterStats = aggregateCatchmind(priorGames.concat(virtualRows));
-    function eligible(stats) {
-      return accountSet ? stats.filter(function (stat) { return accountSet[stat.nick]; }) : stats;
-    }
-    var beforeRank = rankLookup(eligible(beforeStats));
-    var afterRank = rankLookup(eligible(afterStats));
-    function statOf(stats, nick) {
-      for (var i = 0; i < stats.length; i++) if (stats[i].nick === nick) return stats[i];
-      return { nick: nick, score: ELO_START, games: 0, rate: 0 };
-    }
-
-    return {
-      matchId: safeId,
-      players: clean.map(function (row) {
-        var before = statOf(beforeStats, row.nick);
-        var after = statOf(afterStats, row.nick);
-        var beforePlace = beforeRank[row.nick] || null;
-        var afterPlace = afterRank[row.nick] || null;
-        var rankMove = 0;
-        if (afterPlace && !beforePlace) rankMove = 1;
-        else if (afterPlace && beforePlace && afterPlace !== beforePlace) rankMove = beforePlace - afterPlace;
-        return {
-          nick: row.nick,
-          score: row.score,
-          performance: Math.min(100, Math.round(row.points / row.maxPoints * 100)),
-          beforeRating: before.score,
-          rating: after.score,
-          delta: after.score - before.score,
-          games: after.games,
-          rankText: afterPlace ? afterPlace + "등" : "배치 " + Math.min(after.games, RANK_MIN_GAMES) + "/" + RANK_MIN_GAMES,
-          rankMove: rankMove
-        };
-      })
-    };
-  }
-  function aggregateForGame(game, games) {
-    return game === "catchmind" ? aggregateCatchmind(games) : aggregate(games);
-  }
-  function rankRowHtml(game, s, mark, prov) {
+  function rankRowHtml(s, mark, prov) {
     var meMark = (s.nick === me.nick) ? '<span class="rk-me">나</span>' : '';
-    var rec = game === "catchmind"
-      ? s.games + '회 참여 · 활약도 ' + s.rate + '%'
-      : s.w + '승 ' + s.l + '패' + (s.d ? ' ' + s.d + '무' : '') + ' · 승률 ' + s.rate + '%';
+    var rec = s.w + '승 ' + s.l + '패' + (s.d ? ' ' + s.d + '무' : '') + ' · 승률 ' + s.rate + '%';
     return '<div class="rrow' + (prov ? ' prov' : '') + '" data-nick="' + esc(s.nick) + '">'
       + '<span class="rk-rank">' + mark + '</span>'
       + '<span class="rk-name"><span class="rk-nick">' + esc(s.nick) + meMark + '</span><span class="rk-rec">' + rec + '</span></span>'
       + '<span class="rk-score' + (prov ? ' prov' : '') + '">' + s.score + '</span>'
       + '</div>';
   }
-  function rankListHtml(game, ranked, provisional) {
-    if (!ranked.length && !provisional.length) return '<p class="players-hint">' + (game === "catchmind" ? '아직 완료된 캐치마인드 기록이 없어요.' : '아직 기록된 대국이 없어요. 한 판 두면 여기 올라옵니다!') + '</p>';
+  function rankListHtml(ranked, provisional) {
+    if (!ranked.length && !provisional.length) return '<p class="players-hint">아직 기록된 대국이 없어요. 한 판 두면 여기 올라옵니다!</p>';
     var medals = ["gold", "silver", "bronze"];
-    var unit = game === "catchmind" ? "회" : "판";
+    var unit = "판";
     var html = "";
     if (ranked.length) {
       ranked.forEach(function (s, i) {
         var mark = i < 3 ? '<span class="rk-medal ' + medals[i] + '">' + (i + 1) + '</span>' : '<span class="rk-num">' + (i + 1) + '</span>';
-        html += rankRowHtml(game, s, mark, false);
+        html += rankRowHtml(s, mark, false);
       });
     } else {
-      html += '<p class="players-hint">아직 ' + RANK_MIN_GAMES + unit + ' 이상 ' + (game === "catchmind" ? '참여한 사람이 없어요.' : '둔 사람이 없어요.') + ' ' + RANK_MIN_GAMES + unit + ' 채우면 순위에 올라옵니다!</p>';
+      html += '<p class="players-hint">아직 ' + RANK_MIN_GAMES + unit + ' 이상 둔 사람이 없어요. ' + RANK_MIN_GAMES + unit + ' 채우면 순위에 올라옵니다!</p>';
     }
     if (provisional.length) {
       html += '<div class="prov-divider"><span class="prov-title">배치 중</span><span class="prov-note">' + RANK_MIN_GAMES + unit + ' 채우면 순위 등록</span></div>';
       provisional.forEach(function (s) {
-        html += rankRowHtml(game, s, '<span class="rk-prov">' + s.games + '/' + RANK_MIN_GAMES + '</span>', true);
+        html += rankRowHtml(s, '<span class="rk-prov">' + s.games + '/' + RANK_MIN_GAMES + '</span>', true);
       });
     }
     return html;
@@ -4053,8 +3859,8 @@
     var rows = $("rank-list").querySelectorAll(".rrow");
     for (var i = 0; i < rows.length; i++) rows[i].addEventListener("click", function () { showPlayerDetail(this.getAttribute("data-nick")); });
   }
-  function renderRank(game, ranked, provisional) {
-    $("rank-list").innerHTML = rankListHtml(game, ranked, provisional);
+  function renderRank(ranked, provisional) {
+    $("rank-list").innerHTML = rankListHtml(ranked, provisional);
     bindRankRows();
   }
   function fmtDate(iso) {
@@ -4074,48 +3880,10 @@
     have.forEach(function (id) { set[id] = 1; });
     return set;
   }
-  function showCatchmindDetail(nick, src, season, tok) {
-    var seasonGames = (src || []).filter(function (g) { return !season || gameInSeason(g, season); });
-    var seen = {}, records = [];
-    seasonGames.forEach(function (g) {
-      var row = parseCatchmindRecord(g);
-      if (!row || row.nick !== nick || seen[row.matchId]) return;
-      seen[row.matchId] = 1;
-      records.push(row);
-    });
-    records.sort(function (a, b) { return new Date(b.createdAt) - new Date(a.createdAt); });
-    var stat = aggregateCatchmind(seasonGames).filter(function (item) { return item.nick === nick; })[0];
-    if (tok !== detailToken) return;
-    $("rank-list").classList.add("hidden");
-    if ($("rank-tabs")) $("rank-tabs").classList.add("hidden");
-    if ($("rank-season")) $("rank-season").style.display = "none";
-    var box = $("rank-detail");
-    box.classList.remove("hidden");
-    $("rank-title").textContent = nick + " 캐치마인드" + (season ? " · " + season.label : "");
-    var html = '<button class="btn-flat rank-back">← 목록</button>';
-    if (stat) html += '<p class="players-hint">레이팅 <b>' + stat.score + '</b> · ' + stat.games + '회 참여 · 평균 활약도 <b>' + stat.rate + '%</b></p>';
-    if (!records.length) html += '<p class="players-hint">기록이 없어요.</p>';
-    else {
-      html += '<div class="detail-list">';
-      records.forEach(function (row) {
-        var performance = Math.min(100, Math.round(row.points / row.maxPoints * 100));
-        html += '<div class="drow cm-detail-row"><span class="cm-rank-perf">활약도 ' + performance + '%</span>'
-          + '<span class="cm-rank-detail">' + row.score + '점 · 정답 ' + row.correct + ' · 그림 성공 ' + row.drawCorrect + '</span>'
-          + '<span class="d-date">' + fmtDate(row.createdAt) + '</span></div>';
-      });
-      html += '</div>';
-    }
-    box.innerHTML = html;
-    box.querySelector(".rank-back").addEventListener("click", function () {
-      box.classList.add("hidden");
-      renderSeason();
-    });
-  }
   async function showPlayerDetail(nick) {
     var tok = ++detailToken;
     var s = rankSeasons[rankSeasonIdx];
     var src = (rankGame === "all") ? ((window.__gamesAll || {})[rankTab] || []) : (window.__games || []);
-    if (shownRankGame() === "catchmind") { showCatchmindDetail(nick, src, s, tok); return; }
     var games = src.filter(function (g) { return (g.black === nick || g.white === nick) && (!s || gameInSeason(g, s)); });
     $("rank-list").classList.add("hidden");
     if ($("rank-tabs")) $("rank-tabs").classList.add("hidden");

@@ -23,7 +23,6 @@ test("Territory Rush exposes one accessible element for every live UX state", ()
     "territory-status-detail",
     "territory-respawn-time",
     "territory-status-announcement",
-    "territory-area-shell",
     "territory-focus-hud",
     "territory-focus-name",
     "territory-focus-area"
