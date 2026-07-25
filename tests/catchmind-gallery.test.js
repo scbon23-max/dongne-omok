@@ -34,9 +34,13 @@ test("the main lobby opens CatchMind gallery before ranking", () => {
 test("gallery can show drawings from only the selected person", () => {
   assert.match(catchmind, /var galleryDrawer = ""/);
   assert.match(catchmind, /function setGalleryDrawer\(drawer\)/);
+  assert.match(catchmind, /function mergeGalleryDrawers\(remoteDrawers, rows\)/);
+  assert.match(catchmind, /var includeDrawers = !!reset/);
+  assert.match(catchmind, /mergeGalleryDrawers\(result\.drawers, rows\)/);
   assert.match(catchmind, /api\.loadGallery\(galleryMode, galleryOffset, GALLERY_PAGE_SIZE, galleryDrawer, includeDrawers\)/);
   assert.match(catchmind, /galleryPerson\.addEventListener\("change"/);
   assert.match(edgeFunction, /async function galleryDrawers\(/);
+  assert.match(edgeFunction, /\.select\("drawer,created_at"\)/);
   assert.match(edgeFunction, /body\.includeDrawers === true/);
   assert.match(edgeFunction, /query = query\.eq\("drawer", drawer\)/);
   assert.match(edgeFunction, /!drawer \|\| row\.drawer === drawer/);

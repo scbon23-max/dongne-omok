@@ -2893,6 +2893,16 @@ window.CatchMind = (function () {
     return (time.getMonth() + 1) + "." + time.getDate();
   }
 
+  function mergeGalleryDrawers(remoteDrawers, rows) {
+    var names = galleryDrawers.slice();
+    if (Array.isArray(remoteDrawers)) names = names.concat(remoteDrawers);
+    (Array.isArray(rows) ? rows : []).forEach(function (row) {
+      if (row && row.drawer) names.push(row.drawer);
+    });
+    if (galleryDrawer) names.push(galleryDrawer);
+    galleryDrawers = safeGalleryDrawerList(names).sort(function (a, b) { return a.localeCompare(b); });
+  }
+
   function renderGallery() {
     var grid = $("catch-gallery-grid");
     var status = $("catch-gallery-status");
@@ -2969,19 +2979,16 @@ window.CatchMind = (function () {
     var token = ++galleryRequestToken;
     renderGallery();
     try {
-      var includeDrawers = reset && !galleryDrawers.length;
+      var includeDrawers = !!reset;
       var result = await api.loadGallery(galleryMode, galleryOffset, GALLERY_PAGE_SIZE, galleryDrawer, includeDrawers);
       if (token !== galleryRequestToken) return;
       if (!result || !result.ok) throw new Error(result && (result.msg || result.reason) || "load failed");
       var rows = Array.isArray(result.rows) ? result.rows : [];
+      mergeGalleryDrawers(result.drawers, rows);
       galleryRows = reset ? rows : galleryRows.concat(rows);
       galleryOffset = galleryRows.length;
       galleryHasMore = !!result.hasMore;
       galleryFavoriteCount = safeInteger(result.favoriteCount, 0, GALLERY_FAVORITE_LIMIT, 0);
-      if (Array.isArray(result.drawers)) {
-        galleryDrawers = safeGalleryDrawerList(result.drawers).sort(function (a, b) { return a.localeCompare(b); });
-        if (galleryDrawer && !has(galleryDrawers, galleryDrawer)) galleryDrawers.unshift(galleryDrawer);
-      }
     } catch (error) {
       if (token === galleryRequestToken) {
         galleryRows = [];

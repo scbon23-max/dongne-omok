@@ -87,7 +87,7 @@ async function favoriteCount(client: ReturnType<typeof createClient>, nick: stri
 async function galleryDrawers(client: ReturnType<typeof createClient>) {
   const { data, error } = await client
     .from("catchmind_drawings")
-    .select("drawer")
+    .select("drawer,created_at")
     .order("created_at", { ascending: false })
     .limit(RECENT_LIMIT);
   if (error) return [];
