@@ -92,6 +92,8 @@ window.TexasHoldem = (function () {
   var autoNextTimer = null;
   var autoNextKey = "";
   var autoNextDueAt = 0;
+  var autoReadyTimer = null;
+  var autoReadyKey = "";
 
   var boundRoot = null;
   var demoState = null;
@@ -1040,6 +1042,43 @@ window.TexasHoldem = (function () {
     autoNextDueAt = 0;
   }
 
+  function clearAutoReadyForNextHand() {
+    if (autoReadyTimer) {
+      clearTimeout(autoReadyTimer);
+      autoReadyTimer = null;
+    }
+    autoReadyKey = "";
+  }
+
+  function autoReadyForNextHand(key) {
+    autoReadyTimer = null;
+    if (!active || state.phase !== "complete" || state.heroSeat < 0) return;
+    if (state.heroReady || !state.canReady || autoReadyKey !== key || requests.ready) return;
+    invoke("ready", {
+      ready: true,
+      expectedVersion: state.version
+    }, {
+      key: "ready",
+      label: "auto_ready",
+      broadcast: true,
+      silent: true,
+      ui: false,
+      requestId: requestId("autoready", key)
+    });
+  }
+
+  function scheduleAutoReadyForNextHand() {
+    if (state.phase !== "complete" || state.heroSeat < 0 || state.heroReady || !state.canReady || requests.ready) {
+      clearAutoReadyForNextHand();
+      return;
+    }
+    var key = String(state.handId || state.handNumber || state.version) + ":" + String(state.version) + ":ready";
+    if (autoReadyKey === key && autoReadyTimer) return;
+    clearAutoReadyForNextHand();
+    autoReadyKey = key;
+    autoReadyTimer = setTimeout(function () { autoReadyForNextHand(key); }, 500);
+  }
+
   function autoStartHand(key) {
     autoNextTimer = null;
     if (!active || state.phase !== "complete" || !state.canStart || autoNextKey !== key) return;
@@ -1705,6 +1744,7 @@ window.TexasHoldem = (function () {
     renderControls();
     renderTimer();
     scheduleBotStep();
+    scheduleAutoReadyForNextHand();
     scheduleAutoNextHand();
   }
 
@@ -1835,6 +1875,7 @@ window.TexasHoldem = (function () {
     if (clockId) { clearInterval(clockId); clockId = null; }
     if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
     clearAutoNextHand();
+    clearAutoReadyForNextHand();
     clearBotTimer();
   }
 

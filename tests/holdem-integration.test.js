@@ -137,6 +137,8 @@ test("hand results replace the lobby and advance automatically", () => {
   assert.match(controller, /function renderHandResult\(\)[\s\S]*holdem-result-title[\s\S]*holdem-result-board[\s\S]*holdem-result-showdown/);
   assert.match(controller, /show\("holdem-lobby", waiting\)/);
   assert.match(controller, /show\("holdem-ready-btn", waiting && state\.heroSeat >= 0 && state\.canReady\)/);
+  assert.match(controller, /function scheduleAutoReadyForNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*invoke\("ready"/);
+  assert.match(controller, /scheduleAutoReadyForNextHand\(\)[\s\S]*scheduleAutoNextHand\(\)/);
   assert.match(controller, /function scheduleAutoNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*setTimeout\(function \(\) \{ autoStartHand\(key\); \}, AUTO_NEXT_HAND_MS\)/);
   assert.match(styles, /\.holdem-result-panel\s*\{/);
   assert.match(index, /id="holdem-result"/);
