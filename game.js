@@ -102,7 +102,7 @@
   function canCreateGame(id) {
     if (!canEnterGame(id)) return false;
     var def = gameDef(id);
-    return !(def && def.createAdminOnly && !isGunaAdmin());
+    return !(def && def.createAdminOnly && !me.isAdmin);
   }
   function roomIsDiscoverable(id) {
     var def = gameDef(id);

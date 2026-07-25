@@ -32,6 +32,8 @@ test("Hold'em is an available six-player controller game", () => {
   assert.equal(definition.screenId, "holdemgame");
   assert.match(game, /GameCatalog\.order\.filter\(function \(id\) \{ return id !== "alk_terr"; \}\)/);
   assert.match(game, /visibleGameIds\(createIds\)\.filter\(canCreateGame\)/);
+  assert.match(game, /def && def\.createAdminOnly && !me\.isAdmin/);
+  assert.doesNotMatch(game, /createAdminOnly && !isGunaAdmin\(\)/);
   assert.match(game, /id === "holdem" \? "최대 6명 · 비공개 테스트 방"/);
 });
 
