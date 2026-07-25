@@ -340,6 +340,41 @@ test("initial spawns and every respawn mode keep the complete base inside the ac
   }
 });
 
+test("emergency respawn carves a neutral buffer out of enemy territory", () => {
+  const { engine } = loadTerritory(() => 0.5);
+  const state = arenaFixture(engine, 2);
+  const attacker = state.players[0];
+  const respawning = state.players[1];
+  const owner = engine.getOwner();
+  const radius = engine.constants.baseRadius + engine.constants.spawnClearance;
+  const width = engine.constants.width;
+  const arena = engine.activeArena();
+
+  for (let y = arena.minY; y < arena.maxY; y++) {
+    for (let x = arena.minX; x < arena.maxX; x++) {
+      if (engine.isPlayableCell(x, y)) owner[y * width + x] = attacker.id;
+    }
+  }
+  respawning.deadUntil = 1000;
+  respawning.respawnGiveUpAt = 1000;
+  respawning.deathReason = "waiting";
+
+  engine.respawn(respawning, 1000);
+
+  assert.equal(respawning.deadUntil, 0);
+  assert.equal(owner[Math.floor(respawning.y) * width + Math.floor(respawning.x)], respawning.id);
+  for (let y = Math.floor(respawning.y) - radius; y <= Math.floor(respawning.y) + radius; y++) {
+    for (let x = Math.floor(respawning.x) - radius; x <= Math.floor(respawning.x) + radius; x++) {
+      if (!engine.isPlayableCell(x, y) || (x - Math.floor(respawning.x)) ** 2 + (y - Math.floor(respawning.y)) ** 2 > radius ** 2) continue;
+      assert.notEqual(owner[y * width + x], attacker.id, `enemy territory remains at ${x},${y}`);
+    }
+  }
+
+  respawning.targetAngle = respawning.angle;
+  engine.advancePlayers([respawning], engine.constants.stepMs / 1000, 1050);
+  assert.equal(respawning.deadUntil, 0);
+});
+
 test("authoritative and predicted movement clamp and slide on the dynamic wall", () => {
   const { engine } = loadTerritory(() => 0.99);
   const state = arenaFixture(engine, 2);

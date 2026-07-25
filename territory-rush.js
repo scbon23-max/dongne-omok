@@ -1111,6 +1111,27 @@ window.TerritoryRush = (function () {
     });
   }
 
+  function clearRespawnSafetyBuffer(player, spawn) {
+    if (!player || !spawn) return false;
+    var cx = Math.floor(spawn.x);
+    var cy = Math.floor(spawn.y);
+    var radius = BASE_RADIUS + SPAWN_CLEARANCE;
+    var radiusSquared = radius * radius;
+    var changed = false;
+    for (var y = cy - radius; y <= cy + radius; y++) {
+      for (var x = cx - radius; x <= cx + radius; x++) {
+        if (!isPlayableCell(x, y) || (x - cx) * (x - cx) + (y - cy) * (y - cy) > radiusSquared) continue;
+        var key = cellIndex(x, y);
+        if (owner[key] >= 0 && owner[key] !== player.id) {
+          owner[key] = -1;
+          changed = true;
+        }
+      }
+    }
+    if (changed) ownerLayerDirty = true;
+    return changed;
+  }
+
   function hasPlayerTerritory(playerId) {
     for (var i = 0; i < owner.length; i++) if (owner[i] === playerId) return true;
     return false;
@@ -1310,7 +1331,10 @@ window.TerritoryRush = (function () {
     applyPlayerSpawn(player, placement.spawn);
     player.turnBackAt = 12 + Math.floor(Math.random() * 16);
     var previousOwner = placement.emergency ? owner.slice() : null;
-    if (!placement.preserveTerritory && createBase(player, placement.emergency)) {
+    var bufferChanged = placement.emergency ? clearRespawnSafetyBuffer(player, placement.spawn) : false;
+    var baseChanged = !placement.preserveTerritory && createBase(player, placement.emergency);
+    if (placement.emergency && bufferChanged) pruneDisconnectedTerritories(owner);
+    if (bufferChanged || baseChanged) {
       state.ownerRev++;
       countsRev = -1;
       fullPending = true;
@@ -1335,7 +1359,10 @@ window.TerritoryRush = (function () {
     applyPlayerSpawn(player, placement.spawn);
     inputAtByNick[player.nick] = 0;
     var previousOwner = placement.emergency ? owner.slice() : null;
-    if (!placement.preserveTerritory && createBase(player, placement.emergency)) {
+    var bufferChanged = placement.emergency ? clearRespawnSafetyBuffer(player, placement.spawn) : false;
+    var baseChanged = !placement.preserveTerritory && createBase(player, placement.emergency);
+    if (placement.emergency && bufferChanged) pruneDisconnectedTerritories(owner);
+    if (bufferChanged || baseChanged) {
       state.ownerRev++;
       countsRev = -1;
       if (previousOwner) eliminateDisplacedPlayers(previousOwner, player, now);
