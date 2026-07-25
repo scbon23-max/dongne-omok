@@ -104,6 +104,13 @@
     var def = gameDef(id);
     return !(def && def.createAdminOnly && !isGunaAdmin());
   }
+  function roomIsDiscoverable(id) {
+    var def = gameDef(id);
+    return !(def && def.discoverable === false);
+  }
+  function lobbyViewingValue(roomId, game) {
+    return roomId && !roomIsDiscoverable(game) ? "private" : roomId;
+  }
   function roomMemberLimit(id) {
     var def = gameDef(id);
     var limit = def && Math.floor(Number(def.maxRoomMembers));
@@ -188,6 +195,8 @@
       host: function () { return hostNick || me.nick; },
       hostSessionId: function () { return hostSessionId || currentClientSessionId(); },
       clientSessionId: function () { return currentClientSessionId(); },
+      roomId: function () { return curRoomId || ""; },
+      roomName: function () { return curRoomTitle || curRoomId || ""; },
       isNet: function () { return netMode; },
       isConnected: function () { return !netMode || connected; },
       setHostEligible: function (eligible) {
@@ -196,7 +205,9 @@
         if (!eligible && amHost) myJoinTs = Math.max(Date.now(), myJoinTs + 1);
         roomHostEligible = eligible;
         if (netMode) Net.track(myMetaObj(null));
-        if (lobbyMode && curRoomId) Net.trackLobby(myMetaObj(curRoomId));
+        if (lobbyMode && curRoomId) {
+          Net.trackLobby(myMetaObj(lobbyViewingValue(curRoomId, curRoomGame)));
+        }
       },
       send: function (msg) {
         if (netMode) Net.send(msg);
@@ -654,7 +665,21 @@
       return;
     }
     if (msg.t === "lobby_hello") { if (curRoomId && amHost) broadcastRoomOpen(); return; }
-    if (msg.t === "room_open") { if (msg.room && msg.room.id) { msg.room.seen = Date.now(); rooms[msg.room.id] = msg.room; renderRoomList(); } return; }
+    if (msg.t === "room_open") {
+      if (msg.room && msg.room.id) {
+        if (!roomIsDiscoverable(msg.room.game)) {
+          if (rooms[msg.room.id]) {
+            delete rooms[msg.room.id];
+            renderRoomList();
+          }
+          return;
+        }
+        msg.room.seen = Date.now();
+        rooms[msg.room.id] = msg.room;
+        renderRoomList();
+      }
+      return;
+    }
     if (msg.t === "room_close") { if (rooms[msg.id]) { delete rooms[msg.id]; renderRoomList(); } return; }
   }
   function startRoomKeeper() {
@@ -690,11 +715,23 @@
     var shownWhite = (white === AI_NICK && aiLevel) ? aiLevelName(aiLevel) : white;
     return { id: curRoomId, game: curRoomGame, name: curRoomTitle, host: me.nick, status: st, summary: summary, black: shownBlack || null, white: shownWhite || null, aiLevel: aiLevel, count: (netMode ? Math.max(displayRoster.length, roster.length, 1) : 1), ts: roomCreatedTs };
   }
-  function broadcastRoomOpen() { if (lobbyMode) Net.sendLobby({ t: "room_open", room: roomMetaObj() }); }
+  function broadcastRoomOpen() {
+    if (lobbyMode && roomIsDiscoverable(curRoomGame)) {
+      Net.sendLobby({ t: "room_open", room: roomMetaObj() });
+    }
+  }
+  function broadcastRoomClose(roomId, game) {
+    if (lobbyMode && roomId && roomIsDiscoverable(game)) {
+      Net.sendLobby({ t: "room_close", id: roomId });
+    }
+  }
   function renderRoomList() {
     var box = $("room-list"); if (!box) return;
     var list = Object.keys(rooms).map(function (k) { return rooms[k]; })
-      .filter(function (r) { return canEnterGame(r.game) && (roomFilter === "all" || r.game === roomFilter); })
+      .filter(function (r) {
+        return roomIsDiscoverable(r.game) && canEnterGame(r.game) &&
+          (roomFilter === "all" || r.game === roomFilter);
+      })
       .sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); });
     if (!list.length) { box.innerHTML = '<div class="room-empty">아직 열린 방이 없어요. 방을 만들어 보세요!</div>'; return; }
     box.innerHTML = list.map(function (r) {
@@ -725,7 +762,9 @@
   function renderRoomStrip() {
     var strip = $(gameUi(activeFamily()).roomStripId);
     if (!strip || !curRoomId) return;
-    var list = Object.keys(rooms).map(function (k) { return rooms[k]; }).filter(function (r) { return canEnterGame(r.game); });
+    var list = Object.keys(rooms).map(function (k) { return rooms[k]; }).filter(function (r) {
+      return roomIsDiscoverable(r.game) && canEnterGame(r.game);
+    });
     if (!list.some(function (r) { return r.id === curRoomId; })) {
       list.push({ id: curRoomId, game: curRoomGame, name: curRoomTitle, ts: roomCreatedTs });
     }
@@ -750,9 +789,9 @@
     var r = rooms[id]; if (!r) return;
     if (!roomHasSpace(r.id, r.game, true)) return;
     if (inActiveGame()) { toast("게임 중엔 다른 방으로 이동할 수 없어요"); return; }
-    var wasAlone = !netMode || roster.length <= 1, wasHostHere = amHost, leavingId = curRoomId;
+    var wasAlone = !netMode || roster.length <= 1, wasHostHere = amHost, leavingId = curRoomId, leavingGame = curRoomGame;
     var leavingActivity = currentRoomActivity();
-    if (wasHostHere && wasAlone && lobbyMode && leavingId) Net.sendLobby({ t: "room_close", id: leavingId });
+    if (wasHostHere && wasAlone) broadcastRoomClose(leavingId, leavingGame);
     if (enterRoom(r.id, r.game, r.name)) {
       releaseOwnedRoomLease(leavingId);
       logRoomLeave(leavingActivity);
@@ -878,7 +917,7 @@
       myJoinTs = Date.now();
       netMode = Net.init(roomId, myMetaObj(null),
         { onReady: onNetReady, onMessage: onMessage, onPresence: onPresence, onStatus: onStatus });
-      if (lobbyMode) Net.trackLobby(myMetaObj(roomId));
+      if (lobbyMode) Net.trackLobby(myMetaObj(lobbyViewingValue(roomId, game)));
       $("lobby").classList.add("hidden");
       hideGameScreens();
       if (isOmokFamily(curGame)) {
@@ -971,13 +1010,13 @@
     var leavingController = activeController();
     if (leavingController && leavingController.leave) leavingController.leave();
     var forfeited = vacateSeatIfActive();
-    var wasAlone = !netMode || roster.length <= 1, wasHostHere = amHost, leavingId = curRoomId;
+    var wasAlone = !netMode || roster.length <= 1, wasHostHere = amHost, leavingId = curRoomId, leavingGame = curRoomGame;
     releaseOwnedRoomLease(leavingId);
     var delay = forfeited ? 220 : 0;
     setTimeout(function () {
       if (netMode && leavingId) Net.send({ t: "room_leave", nick: me.nick });
       setTimeout(function () {
-        if (wasHostHere && wasAlone && lobbyMode && leavingId) Net.sendLobby({ t: "room_close", id: leavingId });
+        if (wasHostHere && wasAlone) broadcastRoomClose(leavingId, leavingGame);
         Net.leaveRoom(); netMode = false; hostNick = null; hostSessionId = ""; amHost = false; wasHost = false;
         roomHostEligible = true;
         document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
@@ -4824,7 +4863,9 @@
         && window.Net && Net.track) {
       Net.track(myMetaObj(null));
     }
-    if (lobbyMode && window.Net && Net.trackLobby) Net.trackLobby(myMetaObj(curRoomId || null));
+    if (lobbyMode && window.Net && Net.trackLobby) {
+      Net.trackLobby(myMetaObj(lobbyViewingValue(curRoomId || null, curRoomGame)));
+    }
     syncCatchBoardFrameTurn();
   }
   function publishCatchBoardFrameSelection() {
@@ -5040,7 +5081,10 @@
   function renderCreateGameOptions(selected) {
     var box = $("create-game"); if (!box) return selected || "omok";
     if (selected === "alk_terr") selected = "alk";
-    var ids = visibleGameIds(["omok", "alk", "catchmind", "relay", "territory"]).filter(canCreateGame);
+    var createIds = window.GameCatalog
+      ? GameCatalog.order.filter(function (id) { return id !== "alk_terr"; })
+      : ["omok", "alk", "catchmind", "relay", "territory", "holdem"];
+    var ids = visibleGameIds(createIds).filter(canCreateGame);
     if (ids.indexOf(selected) < 0) selected = ids[0] || "omok";
     box.innerHTML = ids.map(function (id) {
       var label = gameName(id);
@@ -5048,6 +5092,7 @@
         : id === "alk" ? "돌을 튕겨 겨루는 실시간 대결"
         : id === "catchmind" ? "그리고 맞히는 단체 그림 퀴즈"
         : id === "relay" ? "문장과 그림을 번갈아 이어가기"
+        : id === "holdem" ? "최대 6명 · 비공개 테스트 방"
         : "선을 이어 내 땅을 차지하는 실시간 대결";
       var iconSrc = id === "alk" ? "assets/game-icon-alkkagi.svg"
         : id === "catchmind" ? "assets/game-icon-catchmind.svg"
@@ -5055,6 +5100,8 @@
         : "assets/game-icon-territory.svg";
       var icon = id === "omok"
         ? '<span class="create-game-icon omok" aria-hidden="true"></span>'
+        : id === "holdem"
+          ? '<span class="create-game-icon holdem" aria-hidden="true"><i>♠</i><b>♥</b></span>'
         : '<img class="create-game-icon" src="' + localAssetUrl(iconSrc) + '" alt="">';
       return '<button class="create-game-option' + (id === selected ? ' active' : '') + '" data-game="' + esc(id) + '" type="button" aria-pressed="' + (id === selected ? 'true' : 'false') + '">'
         + icon + '<span class="create-game-copy"><span class="create-game-name">' + esc(label) + '</span><span class="create-game-desc">' + esc(desc) + '</span></span></button>';

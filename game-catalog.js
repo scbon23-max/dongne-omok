@@ -97,10 +97,30 @@ window.GameCatalog = (function () {
       onlineListId: null,
       onlineNumId: "territory-people-count",
       onlineTotalId: null
+    },
+    holdem: {
+      id: "holdem",
+      family: "holdem",
+      name: "텍사스 홀덤",
+      rankName: "텍사스 홀덤",
+      rankable: false,
+      createAdminOnly: true,
+      discoverable: false,
+      maxRoomMembers: 6,
+      maxPlayers: 6,
+      controller: "TexasHoldem",
+      screenId: "holdemgame",
+      roomStripId: "room-strip-holdem",
+      chatLogId: null,
+      chatInputId: "holdem-chat-input",
+      chatOverlayId: "holdem-chat-overlay",
+      onlineListId: null,
+      onlineNumId: "holdem-people-count",
+      onlineTotalId: null
     }
   };
 
-  var order = ["omok", "alk", "alk_terr", "catchmind", "relay", "territory"];
+  var order = ["omok", "alk", "alk_terr", "catchmind", "relay", "territory", "holdem"];
 
   function get(id) {
     return defs[id] || null;

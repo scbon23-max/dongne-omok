@@ -34,11 +34,11 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260725-territory-1min-v1">
+<meta name="app-build" content="20260725-holdem-ai-v6">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
-<meta property="og:description" content="닉네임 넣고 바로 한 판! 실시간 오목·알까기·캐치마인드·이어그리기·랭킹·채팅">
+<meta property="og:description" content="닉네임 넣고 바로 한 판! 오목·알까기·캐치마인드·이어그리기·땅따먹기·6인 텍사스 홀덤">
 <meta property="og:image" content="https://scbon23-max.github.io/dongne-omok/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -719,6 +719,122 @@
   <div class="room-strip" id="room-strip-territory"></div>
 </section>
 
+<!-- 텍사스 홀덤 게임 화면 -->
+<section id="holdemgame" class="screen game-screen holdem-screen hidden">
+  <div id="holdem-stage" class="holdem-stage">
+    <header class="holdem-topbar">
+      <div class="holdem-brand" aria-label="텍사스 홀덤">
+        <span class="holdem-brand-cards" aria-hidden="true"><i>♠</i><b>♥</b></span>
+        <span><strong>텍사스 홀덤</strong><small id="holdem-status">테이블 연결 중</small></span>
+      </div>
+      <nav class="holdem-utility" aria-label="홀덤 방 메뉴">
+        <button id="holdem-people-btn" type="button"><span id="holdem-people-count">0</span>명</button>
+        <button id="holdem-rules-btn" type="button">규칙</button>
+        <button id="holdem-menu-btn" type="button" aria-label="메뉴">☰</button>
+        <button id="holdem-leave-btn" type="button">나가기</button>
+      </nav>
+    </header>
+
+    <div id="holdem-connection" class="holdem-connection" role="status" aria-live="polite">
+      안전한 테이블에 연결하고 있어요
+    </div>
+
+    <main id="holdem-table-wrap" class="holdem-table-wrap">
+      <div id="holdem-table" class="holdem-table" aria-label="6인 텍사스 홀덤 테이블">
+        <div class="holdem-felt-shine" aria-hidden="true"></div>
+
+        <div class="holdem-table-info">
+          <strong id="holdem-phase">대기 중</strong>
+          <span id="holdem-blinds">SB 50 · BB 100</span>
+          <span id="holdem-hand-number">HAND 0</span>
+        </div>
+
+        <div id="holdem-pot" class="holdem-pot" aria-live="polite">
+          <span>POT</span>
+          <strong id="holdem-pot-amount">0</strong>
+          <small id="holdem-side-pots"></small>
+        </div>
+
+        <div id="holdem-board" class="holdem-board" aria-label="커뮤니티 카드"></div>
+        <div id="holdem-seats" class="holdem-seats" aria-label="플레이어 좌석"></div>
+      </div>
+
+      <div id="holdem-announcer" class="holdem-announcer" role="status" aria-live="polite">
+        참가자가 준비되면 게임을 시작할 수 있어요
+      </div>
+
+      <section id="holdem-lobby" class="holdem-lobby-panel" aria-labelledby="holdem-lobby-title">
+        <div class="holdem-lobby-head">
+          <div>
+            <span>6-MAX · NO LIMIT</span>
+            <h2 id="holdem-lobby-title">심야 카드마당</h2>
+          </div>
+          <span class="holdem-play-chip">PLAY CHIP</span>
+        </div>
+        <p>실제 가치가 없는 플레이 칩으로 진행합니다. 2명부터 최대 6명까지 함께할 수 있어요.</p>
+        <div id="holdem-bot-controls" class="holdem-bot-controls hidden" aria-label="AI 플레이어 관리">
+          <span class="holdem-bot-title">AI 상대</span>
+          <button id="holdem-bot-remove-btn" type="button" aria-label="마지막 AI 한 명 제거">−</button>
+          <output id="holdem-bot-count" aria-live="polite">AI 0명</output>
+          <button id="holdem-bot-add-btn" type="button" aria-label="빈 자리에 AI 한 명 추가">＋</button>
+        </div>
+        <p id="holdem-bot-note" class="holdem-bot-note hidden">모든 AI는 같은 단일 전략 엔진을 사용합니다. 추가될 때 타이트 패시브·타이트 어그레시브·루즈 패시브·루즈 어그레시브 중 하나가 무작위로 정해져 유지됩니다. 첫 핸드 전에만 구성할 수 있어요.</p>
+        <div id="holdem-lobby-roster" class="holdem-lobby-roster" aria-live="polite"></div>
+        <div class="holdem-lobby-actions">
+          <button id="holdem-ready-btn" class="holdem-secondary" type="button" aria-pressed="false">준비</button>
+          <button id="holdem-start-btn" class="holdem-primary hidden" type="button">첫 핸드 시작</button>
+          <button id="holdem-next-btn" class="holdem-primary hidden" type="button">다음 핸드</button>
+        </div>
+      </section>
+    </main>
+
+    <section id="holdem-action-panel" class="holdem-action-panel hidden" aria-label="베팅 액션">
+      <div class="holdem-action-summary">
+        <div>
+          <span id="holdem-action-label">내 차례</span>
+          <strong id="holdem-hand-name">패를 확인하세요</strong>
+        </div>
+        <div class="holdem-turn-clock" aria-label="남은 행동 시간">
+          <span id="holdem-timer-ring" aria-hidden="true"></span>
+          <strong id="holdem-timer">20</strong>
+        </div>
+      </div>
+
+      <div id="holdem-raise-panel" class="holdem-raise-panel hidden">
+        <div class="holdem-raise-top">
+          <label for="holdem-raise-slider">베팅 금액</label>
+          <output id="holdem-raise-amount" for="holdem-raise-slider">100</output>
+        </div>
+        <input id="holdem-raise-slider" type="range" min="100" max="10000" step="50" value="100">
+        <div class="holdem-quick-bets" aria-label="빠른 베팅 금액">
+          <button type="button" data-holdem-bet="half">½ 팟</button>
+          <button type="button" data-holdem-bet="three-quarter">¾ 팟</button>
+          <button type="button" data-holdem-bet="pot">팟</button>
+          <button type="button" data-holdem-bet="allin">올인</button>
+        </div>
+      </div>
+
+      <div id="holdem-action-buttons" class="holdem-action-buttons">
+        <button id="holdem-fold-btn" class="holdem-action fold" type="button">폴드</button>
+        <button id="holdem-check-btn" class="holdem-action call hidden" type="button">체크</button>
+        <button id="holdem-call-btn" class="holdem-action call hidden" type="button">콜 <span id="holdem-call-amount"></span></button>
+        <button id="holdem-bet-btn" class="holdem-action raise hidden" type="button">벳</button>
+        <button id="holdem-raise-btn" class="holdem-action raise hidden" type="button">레이즈</button>
+        <button id="holdem-allin-btn" class="holdem-action allin hidden" type="button">올인</button>
+      </div>
+    </section>
+
+    <div id="holdem-chat-overlay" class="chat-overlay holdem-chat-overlay"></div>
+    <div id="holdem-chat-row" class="holdem-chat-row">
+      <label for="holdem-chat-input">채팅</label>
+      <input id="holdem-chat-input" class="chat-input" type="text" maxlength="80" placeholder="채팅 입력" autocomplete="off" enterkeyhint="send">
+      <button id="holdem-chat-send" type="button">보내기</button>
+    </div>
+  </div>
+
+  <div class="room-strip" id="room-strip-holdem"></div>
+</section>
+
 <!-- 캐치마인드 MVP 선택 -->
 <div id="catch-level-mvp-backdrop" class="cm-level-backdrop hidden" aria-hidden="true">
   <section class="cm-mvp-dialog" role="dialog" aria-modal="true" aria-labelledby="catch-level-mvp-title">
@@ -933,6 +1049,7 @@
       <button class="menu-item" data-rules="catchmind">캐치마인드 규칙</button>
       <button class="menu-item hidden" data-rules="relay">이어그리기 규칙</button>
       <button class="menu-item admin-only" data-rules="territory">땅따먹기 규칙</button>
+      <button class="menu-item" data-rules="holdem">텍사스 홀덤 규칙</button>
     </div>
     <div class="modal-body menu-body hidden" id="menu-catch-rewards">
       <button id="menu-catch-rewards-back" class="menu-item menu-back" type="button">← 뒤로</button>
@@ -1269,6 +1386,9 @@
     { src: "alkkagi-maps.js" },
     { src: "alkkagi.js" },
     { src: "game-catalog.js" },
+    { src: "holdem-engine.js" },
+    { src: "holdem-ai.js" },
+    { src: "holdem.js" },
     { src: "catchmind-words.js" },
     { src: "catchmind-levels.js" },
     { src: "catchmind.js" },

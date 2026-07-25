@@ -221,6 +221,35 @@ window.Db = (function () {
   async function claimRoomLease(auth, lease) { return roomLeaseInvoke("claim", auth, lease); }
   async function renewRoomLease(auth, lease) { return roomLeaseInvoke("renew", auth, lease); }
   async function releaseRoomLease(auth, lease) { return roomLeaseInvoke("release", auth, lease); }
+  async function holdemInvoke(auth, action, payload) {
+    if (!sb || !sb.functions || !sb.functions.invoke) return { ok: false, reason: "unavailable" };
+    auth = auth || {};
+    payload = payload && typeof payload === "object" ? payload : {};
+    var body = Object.assign({}, payload);
+    body.action = String(action || "").trim().slice(0, 24);
+    body.auth = {
+      nick: String(auth.nick || "").trim().slice(0, 40),
+      hash: String(auth.hash || "").trim().slice(0, 128)
+    };
+    if (body.roomId != null) body.roomId = String(body.roomId).trim().slice(0, 80);
+    if (body.requestId != null) body.requestId = String(body.requestId).trim().slice(0, 100);
+    if (!body.auth.nick || !body.auth.hash || !body.action || !body.roomId) {
+      return { ok: false, reason: "auth" };
+    }
+    var result = await sb.functions.invoke("holdem-table", { body: body });
+    if (result.error) {
+      if (result.data && typeof result.data === "object") {
+        return Object.assign({
+          ok: false,
+          msg: result.error.message || String(result.error)
+        }, result.data);
+      }
+      return { ok: false, reason: "network", msg: result.error.message || String(result.error) };
+    }
+    return result.data && typeof result.data === "object"
+      ? result.data
+      : { ok: false, reason: "invalid_response" };
+  }
   var GAME_COLS = "id,black,white,winner,game,created_at";
   async function getGames() {
     if (!sb) return [];
@@ -475,6 +504,7 @@ window.Db = (function () {
     equipCatchmindReward: equipCatchmindReward,
     saveRelayAlbum: saveRelayAlbum, getRelayAlbums: getRelayAlbums, getRelayAlbum: getRelayAlbum,
     claimRoomLease: claimRoomLease, renewRoomLease: renewRoomLease, releaseRoomLease: releaseRoomLease,
+    holdemInvoke: holdemInvoke,
     getGames: getGames, getGamesByType: getGamesByType,
     getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves, deleteGame: deleteGame,
     addChatMsg: addChatMsg, getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,

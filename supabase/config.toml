@@ -9,3 +9,6 @@ verify_jwt = false
 
 [functions.catchmind-progression]
 verify_jwt = false
+
+[functions.holdem-table]
+verify_jwt = false
