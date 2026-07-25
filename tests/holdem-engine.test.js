@@ -552,6 +552,8 @@ test("botView reveals only that bot's cards and internal bot actions remain auth
   }
 
   const finishedBot = state.seats.find((player) => player && player.isBot);
+  const finishedOwner = state.seats.find((player) => player && player.nick === "owner");
+  assert.equal(finishedOwner.ready, finishedOwner.stack > 0);
   assert.equal(finishedBot.ready, finishedBot.stack > 0);
   assert.equal(
     state.seats.reduce((sum, player) => sum + (player ? player.stack : 0), 0),

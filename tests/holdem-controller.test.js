@@ -177,7 +177,7 @@ test("the completed UI receives an AI winner's cards even without a showdown", (
   assert.equal(normalized.revealedCards[bot.seat].length, 2);
 });
 
-test("completed AI tables keep the server canNext flag after the human readies", () => {
+test("completed AI tables are immediately eligible for automatic next hand", () => {
   const controller = loadController();
   const ctx = { now: 1_800_000_000_000, randomInt: () => 0 };
   let state = Engine.createTable({
@@ -202,13 +202,9 @@ test("completed AI tables keep the server canNext flag after the human readies",
     nick: actor.nick,
     action: "fold",
   }, ctx).state;
-  state = Engine.command(state, {
-    type: "ready",
-    nick: "alice",
-    ready: true,
-  }, ctx).state;
 
   const snapshot = Engine.view(state, "alice");
+  assert.equal(snapshot.canStart, true);
   assert.equal(snapshot.canNext, true);
   const normalized = controller._test.normalizeSnapshot(snapshot, 15);
   assert.equal(normalized.phase, "complete");

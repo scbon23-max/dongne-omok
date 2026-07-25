@@ -3177,23 +3177,23 @@ body.is-admin .feedback-user-compose { display: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(2px, .8vw, 5px);
+  gap: clamp(1px, .35vw, 3px);
   min-height: 62px;
   transform: translateX(-50%);
 }
 .holdem-card {
   position: relative;
   width: clamp(38px, 10.8vw, 57px);
-  aspect-ratio: 5 / 7;
+  aspect-ratio: 11 / 15;
   flex: 0 0 auto;
   overflow: hidden;
-  border: 1px solid #c9cdcd;
-  border-radius: clamp(3px, 1vw, 5px);
-  background: linear-gradient(180deg, #fff 0%, #f8f8f3 100%);
+  border: 1px solid #d6d9d7;
+  border-radius: clamp(2px, .8vw, 4px);
+  background: #fff;
   color: #0b1012;
   font-family: Arial, Helvetica, sans-serif;
   font-variant-numeric: tabular-nums;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.74), 0 2px 5px rgba(0,0,0,.28);
+  box-shadow: inset -1px 0 0 rgba(0,0,0,.08), 0 1px 4px rgba(0,0,0,.24);
 }
 .holdem-card.red,
 .holdem-card[data-suit="h"],
@@ -3205,11 +3205,11 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-card > .rank {
   position: absolute;
   z-index: 2;
-  top: 3px;
-  left: 4px;
-  font-size: clamp(16px, 4.8vw, 25px);
+  top: 4px;
+  left: 5px;
+  font-size: clamp(17px, 4.9vw, 26px);
   font-weight: 1000;
-  line-height: .82;
+  line-height: .86;
   letter-spacing: 0;
 }
 .holdem-card-suit,
@@ -3220,15 +3220,16 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-card > .mark {
   position: absolute;
   left: 50%;
-  bottom: -2%;
-  transform: translateX(-50%);
-  font-size: clamp(35px, 10.8vw, 58px);
+  top: 55%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(33px, 9.6vw, 51px);
   font-weight: 900;
-  line-height: .88;
+  line-height: 1;
   letter-spacing: 0;
 }
 .holdem-card.back {
   border-color: #c9d5d6;
+  border-radius: clamp(2px, .8vw, 4px);
   background:
     radial-gradient(circle, rgba(255,255,255,.16) 0 1px, transparent 1.5px) 0 0 / 8px 8px,
     repeating-linear-gradient(45deg, rgba(255,255,255,.04) 0 4px, transparent 4px 8px),
@@ -3551,6 +3552,142 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-secondary:active { transform: scale(.98); }
 .holdem-primary:disabled,
 .holdem-secondary:disabled { opacity: .45; cursor: default; }
+.holdem-result-panel {
+  position: absolute;
+  z-index: 32;
+  top: 50%;
+  left: 50%;
+  width: min(86vw, 380px);
+  max-height: min(58vh, 460px);
+  padding: 15px;
+  overflow-y: auto;
+  border: 1px solid rgba(163,224,214,.22);
+  border-radius: 18px;
+  transform: translate(-50%, -50%);
+  background: rgba(5,24,30,.95);
+  box-shadow: 0 18px 50px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: blur(10px);
+}
+.holdem-result-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.holdem-result-head span {
+  color: #75d7c6;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 1.2px;
+}
+.holdem-result-head strong {
+  color: #fff;
+  font-size: 24px;
+  font-weight: 1000;
+  letter-spacing: -.2px;
+}
+.holdem-result-potline {
+  min-height: 46px;
+  margin: 12px 0;
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 12px;
+  background: rgba(255,255,255,.055);
+}
+.holdem-result-potline span {
+  color: #9ac9c5;
+  font-size: 10px;
+  font-weight: 850;
+}
+.holdem-result-potline strong {
+  color: #f2c77d;
+  font-size: 22px;
+  font-weight: 1000;
+}
+.holdem-result-board {
+  min-height: 54px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.holdem-result-board .holdem-card,
+.holdem-result-cards .holdem-card {
+  width: 34px;
+  height: 46px;
+  font-size: 13px;
+}
+.holdem-result-board .holdem-card-rank,
+.holdem-result-board .holdem-card > .rank,
+.holdem-result-cards .holdem-card-rank,
+.holdem-result-cards .holdem-card > .rank {
+  top: 3px;
+  left: 4px;
+  font-size: 16px;
+}
+.holdem-result-board .holdem-card-mark,
+.holdem-result-board .holdem-card > .mark,
+.holdem-result-cards .holdem-card-mark,
+.holdem-result-cards .holdem-card > .mark {
+  top: 56%;
+  font-size: 30px;
+}
+.holdem-result-empty {
+  color: #84aaa9;
+  font-size: 11px;
+  font-weight: 800;
+}
+.holdem-result-showdown {
+  display: grid;
+  gap: 7px;
+}
+.holdem-result-player {
+  min-height: 48px;
+  padding: 7px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 11px;
+  background: rgba(255,255,255,.052);
+}
+.holdem-result-player.winner {
+  background: rgba(47,184,158,.16);
+  box-shadow: inset 0 0 0 1px rgba(117,215,198,.18);
+}
+.holdem-result-player span:first-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.holdem-result-player strong {
+  overflow: hidden;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.holdem-result-player small {
+  margin-top: 2px;
+  color: #8ecbc4;
+  font-size: 10px;
+  font-weight: 800;
+}
+.holdem-result-cards {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 3px;
+}
+.holdem-result-countdown {
+  margin-top: 11px;
+  color: #b9d7d4;
+  font-size: 11px;
+  font-weight: 850;
+  text-align: center;
+}
 #holdemgame button:focus-visible,
 #holdemgame select:focus-visible,
 #holdemgame input:focus-visible {

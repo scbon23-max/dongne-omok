@@ -612,7 +612,7 @@
     state.seats.forEach(function (player, seat) {
       if (!player) return;
       if (player.stack <= 0) player.ready = false;
-      else if (player.isBot && !player.leaving) player.ready = true;
+      else if (!player.leaving) player.ready = true;
       player.waiting = true;
       if (player.leaving) state.seats[seat] = null;
     });

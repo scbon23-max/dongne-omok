@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260726-holdem-card-v1">
+<meta name="app-build" content="20260726-holdem-auto-next-card-v2">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -787,6 +787,20 @@
         </div>
       </section>
     </main>
+
+    <section id="holdem-result" class="holdem-result-panel hidden" aria-labelledby="holdem-result-title">
+      <div class="holdem-result-head">
+        <span>HAND RESULT</span>
+        <strong id="holdem-result-title">핸드 종료</strong>
+      </div>
+      <div class="holdem-result-potline">
+        <span>획득 팟</span>
+        <strong id="holdem-result-pot">0</strong>
+      </div>
+      <div id="holdem-result-board" class="holdem-result-board" aria-label="공개 카드"></div>
+      <div id="holdem-result-showdown" class="holdem-result-showdown" aria-live="polite"></div>
+      <p id="holdem-result-countdown" class="holdem-result-countdown">잠시 후 다음 핸드가 시작됩니다.</p>
+    </section>
 
     <section id="holdem-action-panel" class="holdem-action-panel hidden" aria-label="베팅 액션">
       <div class="holdem-action-summary">

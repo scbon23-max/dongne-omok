@@ -90,6 +90,12 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-seats",
     "holdem-pot",
     "holdem-lobby",
+    "holdem-result",
+    "holdem-result-title",
+    "holdem-result-pot",
+    "holdem-result-board",
+    "holdem-result-showdown",
+    "holdem-result-countdown",
     "holdem-ready-btn",
     "holdem-start-btn",
     "holdem-next-btn",
@@ -124,6 +130,16 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-action-summary \{ display: none; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel \{[\s\S]*position: absolute[\s\S]*bottom: calc\(100% \+ 9px\)/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-chat-row \{[\s\S]*opacity: 0/);
+});
+
+test("hand results replace the lobby and advance automatically", () => {
+  assert.match(controller, /var AUTO_NEXT_HAND_MS = 5000/);
+  assert.match(controller, /function renderHandResult\(\)[\s\S]*holdem-result-title[\s\S]*holdem-result-board[\s\S]*holdem-result-showdown/);
+  assert.match(controller, /show\("holdem-lobby", waiting\)/);
+  assert.match(controller, /show\("holdem-ready-btn", waiting && state\.heroSeat >= 0 && state\.canReady\)/);
+  assert.match(controller, /function scheduleAutoNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*setTimeout\(function \(\) \{ autoStartHand\(key\); \}, AUTO_NEXT_HAND_MS\)/);
+  assert.match(styles, /\.holdem-result-panel\s*\{/);
+  assert.match(index, /id="holdem-result"/);
 });
 
 test("the browser sends only server commands and public refresh hints", () => {

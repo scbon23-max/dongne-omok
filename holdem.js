@@ -50,6 +50,7 @@ window.TexasHoldem = (function () {
   var POLL_MS = 5000;
   var CLOCK_MS = 250;
   var REFRESH_DEBOUNCE_MS = 90;
+  var AUTO_NEXT_HAND_MS = 5000;
   var BOT_PERSONALITY_LABELS = {
     tight_passive: "타이트 패시브",
     tight_aggressive: "타이트 어그레시브",
@@ -88,6 +89,9 @@ window.TexasHoldem = (function () {
   var raiseRangeKey = "";
   var raiseMenuOpen = false;
   var actionMenuKey = "";
+  var autoNextTimer = null;
+  var autoNextKey = "";
+  var autoNextDueAt = 0;
 
   var boundRoot = null;
   var demoState = null;
@@ -1019,6 +1023,50 @@ window.TexasHoldem = (function () {
     if (move) performMove(move, amount);
   }
 
+  function autoStartNick() {
+    for (var i = 0; i < state.seats.length; i++) {
+      var seat = state.seats[i];
+      if (seat && !seat.isBot && seat.stack > 0 && !seat.away) return seat.nick;
+    }
+    return "";
+  }
+
+  function clearAutoNextHand() {
+    if (autoNextTimer) {
+      clearTimeout(autoNextTimer);
+      autoNextTimer = null;
+    }
+    autoNextKey = "";
+    autoNextDueAt = 0;
+  }
+
+  function autoStartHand(key) {
+    autoNextTimer = null;
+    if (!active || state.phase !== "complete" || !state.canStart || autoNextKey !== key) return;
+    if (text(me().nick, 40) !== autoStartNick()) return;
+    invoke("start", {
+      expectedVersion: state.version
+    }, {
+      key: "start",
+      label: "auto_start",
+      broadcast: true,
+      requestId: requestId("autostart", key)
+    });
+  }
+
+  function scheduleAutoNextHand() {
+    if (state.phase !== "complete" || !state.canStart || text(me().nick, 40) !== autoStartNick()) {
+      clearAutoNextHand();
+      return;
+    }
+    var key = String(state.handId || state.handNumber || state.version) + ":" + String(state.version);
+    if (autoNextKey === key && autoNextTimer) return;
+    clearAutoNextHand();
+    autoNextKey = key;
+    autoNextDueAt = Date.now() + AUTO_NEXT_HAND_MS;
+    autoNextTimer = setTimeout(function () { autoStartHand(key); }, AUTO_NEXT_HAND_MS);
+  }
+
   function setReady() {
     invoke("ready", {
       ready: !state.heroReady,
@@ -1304,6 +1352,65 @@ window.TexasHoldem = (function () {
     box.innerHTML = html.join("");
   }
 
+  function resultWinnerText() {
+    if (!state.winners.length) return "핸드 종료";
+    if (state.winners.length === 1) return state.winners[0] + " 승리";
+    return state.winners.join(", ") + " 승리";
+  }
+
+  function resultSeatCards() {
+    var rows = [];
+    for (var i = 0; i < state.revealedCards.length; i++) {
+      var cards = state.revealedCards[i];
+      var seat = state.seats[i];
+      if (!seat || !cards || !cards.length) continue;
+      rows.push({
+        nick: seat.displayName || seat.nick,
+        stack: seat.stack,
+        winner: state.winners.indexOf(seat.nick) >= 0,
+        cards: cards
+      });
+    }
+    return rows;
+  }
+
+  function renderHandResult() {
+    var panel = $("holdem-result");
+    if (!panel) return;
+    var completed = state.phase === "complete";
+    panel.classList.toggle("hidden", !completed);
+    if (!completed) return;
+    setText("holdem-result-title", resultWinnerText());
+    setText("holdem-result-pot", formatChips(state.pot));
+
+    var board = $("holdem-result-board");
+    if (board) {
+      board.innerHTML = state.board.length
+        ? state.board.map(function (card) { return cardHtml(card); }).join("")
+        : '<span class="holdem-result-empty">공개 카드 없음</span>';
+    }
+
+    var showdown = $("holdem-result-showdown");
+    if (showdown) {
+      var rows = resultSeatCards();
+      if (rows.length) {
+        showdown.innerHTML = rows.map(function (row) {
+          return '<div class="holdem-result-player' + (row.winner ? " winner" : "") + '">' +
+            '<span><strong>' + esc(row.nick) + '</strong><small>' + formatChips(row.stack) + '</small></span>' +
+            '<span class="holdem-result-cards">' +
+              row.cards.map(function (card) { return cardHtml(card); }).join("") +
+            '</span>' +
+          '</div>';
+        }).join("");
+      } else {
+        showdown.innerHTML = '<div class="holdem-result-player winner"><span><strong>' +
+          esc(state.winners.join(", ") || "승자") +
+          '</strong><small>상대가 폴드했습니다</small></span></div>';
+      }
+    }
+    renderAutoNextCountdown();
+  }
+
   function renderHeader() {
     setText("holdem-phase", phaseLabel(state.phase));
     setText("holdem-blinds",
@@ -1463,15 +1570,15 @@ window.TexasHoldem = (function () {
     }
     if (!hasMove || !canSize) raiseMenuOpen = false;
 
-    show("holdem-lobby", waiting || completed);
+    show("holdem-lobby", waiting);
     show("holdem-bot-controls", canManageBots);
     show("holdem-bot-note", canManageBots);
     setText("holdem-bot-count", "AI " + state.botCount + "명");
     disable("holdem-bot-add-btn", busy || !canManageBots || occupiedSeats >= MAX_SEATS);
     disable("holdem-bot-remove-btn", busy || !canManageBots || state.botCount <= 0);
-    show("holdem-ready-btn", (waiting || completed) && state.heroSeat >= 0 && state.canReady);
+    show("holdem-ready-btn", waiting && state.heroSeat >= 0 && state.canReady);
     show("holdem-start-btn", waiting && state.canStart);
-    show("holdem-next-btn", completed && state.canNext);
+    show("holdem-next-btn", false);
     var readyButton = $("holdem-ready-btn");
     if (readyButton) {
       readyButton.setAttribute("aria-pressed", state.heroReady ? "true" : "false");
@@ -1511,6 +1618,7 @@ window.TexasHoldem = (function () {
   }
 
   function renderTimer() {
+    renderAutoNextCountdown();
     var timer = $("holdem-timer");
     if (!timer) return;
     if (!state.deadlineAt) {
@@ -1527,6 +1635,22 @@ window.TexasHoldem = (function () {
     var ring = $("holdem-timer-ring");
     if (ring) ring.style.setProperty("--holdem-timer-ratio", String(ratio));
     if (remaining <= 0) requestDeadlineTick();
+  }
+
+  function renderAutoNextCountdown() {
+    var countdown = $("holdem-result-countdown");
+    if (!countdown) return;
+    if (state.phase !== "complete") {
+      countdown.textContent = "";
+      return;
+    }
+    if (!state.canStart) {
+      countdown.textContent = "다음 핸드를 준비하고 있어요.";
+      return;
+    }
+    var remaining = autoNextDueAt ? Math.max(0, autoNextDueAt - Date.now()) : AUTO_NEXT_HAND_MS;
+    var seconds = Math.max(1, Math.ceil(remaining / 1000));
+    countdown.textContent = seconds + "초 후 다음 핸드가 자동으로 시작됩니다.";
   }
 
   function renderPlayers(box, hint) {
@@ -1576,10 +1700,12 @@ window.TexasHoldem = (function () {
     renderBoard();
     renderSeats();
     renderLobbyRoster();
+    renderHandResult();
     renderAnnouncer();
     renderControls();
     renderTimer();
     scheduleBotStep();
+    scheduleAutoNextHand();
   }
 
   function quickBet(kind) {
@@ -1708,6 +1834,7 @@ window.TexasHoldem = (function () {
     if (pollId) { clearInterval(pollId); pollId = null; }
     if (clockId) { clearInterval(clockId); clockId = null; }
     if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+    clearAutoNextHand();
     clearBotTimer();
   }
 
