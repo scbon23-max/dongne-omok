@@ -116,6 +116,16 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
+test("the betting UI keeps raise choices collapsed until requested", () => {
+  assert.match(controller, /var raiseMenuOpen = false/);
+  assert.match(controller, /show\("holdem-raise-panel", hasMove && canSize && raiseMenuOpen\)/);
+  assert.match(controller, /id === "holdem-raise-btn"[\s\S]*raiseMenuOpen = true[\s\S]*renderControls\(\)/);
+  assert.match(controller, /function quickBet\(kind\)[\s\S]*performSizedMove\(raiseValue\)/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-action-summary \{ display: none; \}/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel \{[\s\S]*position: absolute[\s\S]*bottom: calc\(100% \+ 9px\)/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-chat-row \{[\s\S]*opacity: 0/);
+});
+
 test("the browser sends only server commands and public refresh hints", () => {
   assert.match(db, /async function holdemInvoke\(auth, action, payload\)/);
   assert.match(db, /sb\.functions\.invoke\("holdem-table"/);

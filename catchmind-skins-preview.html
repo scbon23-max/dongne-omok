@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>캐치마인드 그림판 스킨 미리보기</title>
+<title>캐치마인드 그림판 스킨 테스트</title>
 <style>
   :root {
     color-scheme: dark;
@@ -16,30 +16,41 @@
     --muted: #9db2bc;
     --orange: #f3612a;
     --teal: #31c9b5;
+    --board-bg: #ffffff;
+    --stage-bg: #081820;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     min-width: 320px;
-    background: #081820;
+    background: var(--stage-bg);
     color: #eef6f8;
     font-family: Pretendard, "Noto Sans KR", system-ui, sans-serif;
+    transition: background-color .18s ease;
   }
-  button { font: inherit; }
+  button, select { font: inherit; }
   .page {
-    width: min(1120px, calc(100% - 28px));
+    width: min(1180px, calc(100% - 28px));
     margin: 0 auto;
-    padding: 28px 0 48px;
+    padding: 24px 0 46px;
   }
   .top {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
   }
-  h1 { margin: 0 0 5px; font-size: clamp(22px, 4vw, 34px); }
-  .top p { margin: 0; color: var(--muted); font-size: 14px; }
+  h1 {
+    margin: 0 0 5px;
+    font-size: clamp(22px, 4vw, 34px);
+    letter-spacing: 0;
+  }
+  .top p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
   .count {
     flex: 0 0 auto;
     padding: 7px 11px;
@@ -52,13 +63,16 @@
   }
   .layout {
     display: grid;
-    grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+    grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
     align-items: start;
-    gap: 24px;
+    gap: 22px;
   }
-  .sticky { position: sticky; top: 18px; }
+  .sticky {
+    position: sticky;
+    top: 16px;
+  }
   .selected-head {
-    min-height: 38px;
+    min-height: 42px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -85,32 +99,47 @@
     color: #73808a;
     font-size: 13px;
   }
-  .wordbar strong { margin-left: 8px; color: var(--ink); font-size: 17px; }
-  .wordbar em { color: #cf4a1c; font-style: normal; font-weight: 900; }
+  .wordbar strong {
+    margin-left: 8px;
+    color: var(--ink);
+    font-size: 17px;
+  }
+  .wordbar em {
+    color: #cf4a1c;
+    font-style: normal;
+    font-weight: 900;
+  }
   .board {
     position: relative;
     width: 100%;
     aspect-ratio: 1;
     overflow: hidden;
-    background: var(--paper);
+    background: var(--board-bg);
+    transition: background-color .18s ease;
   }
   .board svg,
-  .board .skin {
+  .board .skin,
+  .board .pattern {
     position: absolute;
     inset: 0;
     display: block;
     width: 100%;
     height: 100%;
   }
-  .board .skin { z-index: 2; pointer-events: none; object-fit: fill; }
-  .nav {
+  .board .pattern { z-index: 1; pointer-events: none; object-fit: fill; }
+  .board .pattern[hidden] { display: none; }
+  .board .sample-drawing { z-index: 2; }
+  .board .skin { z-index: 3; pointer-events: none; object-fit: fill; }
+  .quick-nav {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
     margin-top: 10px;
   }
-  .nav button {
-    min-height: 42px;
+  .quick-nav button,
+  .mode-tabs button,
+  .select-row button {
+    min-height: 40px;
     border: 1px solid var(--navy-3);
     border-radius: 9px;
     background: var(--navy-2);
@@ -118,7 +147,90 @@
     font-weight: 800;
     cursor: pointer;
   }
-  .nav button:hover { border-color: var(--teal); }
+  .quick-nav button:hover,
+  .mode-tabs button:hover,
+  .select-row button:hover { border-color: var(--teal); }
+  .controls {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .control-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+  .control-box {
+    min-width: 0;
+    padding: 10px 11px;
+    border: 1px solid var(--navy-3);
+    border-radius: 10px;
+    background: rgba(22,56,74,.92);
+  }
+  .control-box strong {
+    display: block;
+    margin-bottom: 8px;
+    color: #dcebf0;
+    font-size: 12px;
+    font-weight: 850;
+  }
+  .swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .swatch {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 2px solid rgba(255,255,255,.24);
+    border-radius: 50%;
+    background: var(--swatch);
+    cursor: pointer;
+  }
+  .swatch[aria-pressed="true"] {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 2px rgba(243,97,42,.25);
+  }
+  .select-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .select-row select {
+    min-width: 0;
+    min-height: 40px;
+    padding: 0 10px;
+    border: 1px solid var(--navy-3);
+    border-radius: 9px;
+    background: #0d2735;
+    color: #eef6f8;
+    font-weight: 700;
+  }
+  .mode-tabs {
+    display: inline-grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    width: min(100%, 560px);
+    padding: 4px;
+    border: 1px solid var(--navy-3);
+    border-radius: 11px;
+    background: #0d2735;
+  }
+  .mode-tabs button {
+    min-height: 36px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .mode-tabs button[aria-pressed="true"] {
+    background: var(--orange);
+    color: #fff;
+    box-shadow: 0 3px 9px rgba(243,97,42,.24);
+  }
   .grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -153,7 +265,7 @@
     width: 100%;
     aspect-ratio: 1;
     overflow: hidden;
-    background: var(--paper);
+    background: var(--board-bg);
   }
   .thumb svg,
   .thumb img {
@@ -163,7 +275,10 @@
     width: 100%;
     height: 100%;
   }
-  .thumb img { z-index: 2; object-fit: fill; pointer-events: none; }
+  .thumb .pattern-preview { z-index: 1; object-fit: fill; pointer-events: none; }
+  .thumb .pattern-preview[hidden] { display: none; }
+  .thumb svg { z-index: 2; }
+  .thumb .skin-preview { z-index: 3; object-fit: fill; pointer-events: none; }
   .label {
     display: flex;
     align-items: center;
@@ -178,16 +293,29 @@
     white-space: nowrap;
     font-size: 12px;
   }
-  .label small { flex: 0 0 auto; color: var(--muted); font-size: 10px; }
-  @media (max-width: 860px) {
+  .label small {
+    flex: 0 0 auto;
+    color: var(--muted);
+    font-size: 10px;
+  }
+  @media (max-width: 900px) {
     .layout { grid-template-columns: 1fr; }
-    .sticky { position: static; width: min(420px, 100%); margin: 0 auto; }
+    .sticky {
+      position: static;
+      width: min(440px, 100%);
+      margin: 0 auto;
+    }
     .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
-  @media (max-width: 520px) {
-    .page { width: min(100% - 24px, 420px); padding-top: 18px; }
-    .top { align-items: flex-start; }
-    .top p { max-width: 250px; }
+  @media (max-width: 620px) {
+    .page { width: min(100% - 24px, 440px); padding-top: 18px; }
+    .top {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .control-panel { grid-template-columns: 1fr; }
+    .mode-tabs { grid-template-columns: 1fr; }
     .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 </style>
@@ -196,25 +324,26 @@
 <main class="page">
   <header class="top">
     <div>
-      <h1>그림판 스킨 미리보기</h1>
-      <p>유지 8종과 고레벨 보상 10종을 같은 그림·같은 크기로 비교합니다.</p>
+      <h1>그림판 스킨 테스트</h1>
+      <p>테두리 18종, 내부 패턴 10종, 배경색 조합을 실제 그림판처럼 바로 바꿔봅니다.</p>
     </div>
-    <span id="skin-count" class="count">18종</span>
+    <span id="skin-count" class="count">테두리 18 · 패턴 10</span>
   </header>
 
   <div class="layout">
-    <section class="sticky" aria-label="선택한 스킨 확대 미리보기">
+    <section class="sticky" aria-label="선택한 조합 미리보기">
       <div class="selected-head">
-        <strong id="selected-name">색연필</strong>
+        <strong id="selected-name">색연필 + 패턴 없음</strong>
         <span id="selected-index">1 / 18</span>
       </div>
       <div class="board-shell">
         <div class="wordbar">
           <span>제시어 <strong>고양이</strong></span>
-          <em>41초&nbsp; 8명</em>
+          <em>41초 · 8명</em>
         </div>
         <div class="board">
-          <svg class="sample-drawing" viewBox="0 0 720 720" aria-label="모든 스킨에 공통으로 표시되는 고양이 그림">
+          <img id="selected-pattern" class="pattern" alt="" hidden>
+          <svg class="sample-drawing" viewBox="0 0 720 720" aria-label="스킨 비교용 고양이 그림">
             <g fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path d="M236 277L264 167L337 236M483 277L456 167L383 236" stroke="#dd7d24" stroke-width="11"/>
               <path d="M250 265C205 309 197 404 239 458C294 530 426 531 481 458C523 403 515 310 470 265C410 205 309 205 250 265Z" stroke="#dd7d24" stroke-width="11"/>
@@ -228,19 +357,70 @@
           <img id="selected-skin" class="skin" src="assets/catchmind/board-frames/frame-color-pencil-v2.png" alt="">
         </div>
       </div>
-      <div class="nav">
-        <button id="prev-skin" type="button">이전 스킨</button>
-        <button id="next-skin" type="button">다음 스킨</button>
+      <div class="quick-nav">
+        <button id="prev-item" type="button">이전 이미지</button>
+        <button id="next-item" type="button">다음 이미지</button>
       </div>
     </section>
 
-    <section id="skin-grid" class="grid" aria-label="전체 그림판 스킨 목록"></section>
+    <section aria-label="테스트 컨트롤과 이미지 목록">
+      <div class="controls">
+        <div class="control-panel">
+          <div class="control-box">
+            <strong>그림판 바탕</strong>
+            <div class="swatches" aria-label="그림판 바탕색">
+              <button class="swatch" type="button" style="--swatch:#ffffff" data-board-bg="#ffffff" aria-label="흰색 바탕" aria-pressed="true"></button>
+              <button class="swatch" type="button" style="--swatch:#fff8df" data-board-bg="#fff8df" aria-label="따뜻한 종이 바탕" aria-pressed="false"></button>
+              <button class="swatch" type="button" style="--swatch:#e8fbff" data-board-bg="#e8fbff" aria-label="하늘빛 바탕" aria-pressed="false"></button>
+              <button class="swatch" type="button" style="--swatch:#f3edff" data-board-bg="#f3edff" aria-label="연보라 바탕" aria-pressed="false"></button>
+              <button class="swatch" type="button" style="--swatch:#354b60" data-board-bg="#354b60" aria-label="어두운 바탕" aria-pressed="false"></button>
+            </div>
+          </div>
+          <div class="control-box">
+            <strong>주변 게임 배경</strong>
+            <div class="swatches" aria-label="화면 배경색">
+              <button class="swatch" type="button" style="--swatch:#081820" data-stage-bg="#081820" aria-label="기본 남색 배경" aria-pressed="true"></button>
+              <button class="swatch" type="button" style="--swatch:#173746" data-stage-bg="#173746" aria-label="청록 배경" aria-pressed="false"></button>
+              <button class="swatch" type="button" style="--swatch:#2f4350" data-stage-bg="#2f4350" aria-label="회청 배경" aria-pressed="false"></button>
+              <button class="swatch" type="button" style="--swatch:#0f2f2d" data-stage-bg="#0f2f2d" aria-label="초록빛 배경" aria-pressed="false"></button>
+              <button class="swatch" type="button" style="--swatch:#2f243a" data-stage-bg="#2f243a" aria-label="보랏빛 배경" aria-pressed="false"></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-panel">
+          <div class="control-box">
+            <strong>테두리 직접 선택</strong>
+            <div class="select-row">
+              <select id="frame-select" aria-label="테두리 직접 선택"></select>
+              <button id="clear-frame" type="button">기본</button>
+            </div>
+          </div>
+          <div class="control-box">
+            <strong>내부 패턴 직접 선택</strong>
+            <div class="select-row">
+              <select id="pattern-select" aria-label="내부 패턴 직접 선택"></select>
+              <button id="clear-pattern" type="button">없음</button>
+            </div>
+          </div>
+        </div>
+
+        <nav class="mode-tabs" aria-label="이미지 목록 종류">
+          <button type="button" data-preview-mode="frames" aria-pressed="true">테두리 전체</button>
+          <button type="button" data-preview-mode="patterns" aria-pressed="false">패턴 전체</button>
+          <button type="button" data-preview-mode="combos" aria-pressed="false">추천 조합</button>
+        </nav>
+      </div>
+
+      <section id="skin-grid" class="grid" aria-label="전체 테스트 이미지 목록"></section>
+    </section>
   </div>
 </main>
 
 <template id="skin-card-template">
   <button class="skin-card" type="button" aria-pressed="false">
     <span class="thumb">
+      <img class="pattern-preview" alt="" hidden>
       <svg viewBox="0 0 720 720" aria-hidden="true">
         <g fill="none" stroke-linecap="round" stroke-linejoin="round">
           <path d="M236 277L264 167L337 236M483 277L456 167L383 236" stroke="#dd7d24" stroke-width="13"/>
@@ -250,76 +430,280 @@
           <path d="M334 403L360 429L386 403" stroke="#173746" stroke-width="10"/>
         </g>
       </svg>
-      <img alt="">
+      <img class="skin-preview" alt="">
     </span>
     <span class="label"><strong></strong><small></small></span>
   </button>
 </template>
 
 <script>
-  const skins = [
-    { name: "색연필", group: "유지", src: "assets/catchmind/board-frames/frame-color-pencil-v2.png" },
-    { name: "은하수", group: "유지", src: "assets/catchmind/board-frames/frame-galaxy-stars.png" },
-    { name: "레트로 픽셀", group: "유지", src: "assets/catchmind/board-frames/frame-retro-pixel.png" },
-    { name: "벚꽃", group: "유지", src: "assets/catchmind/board-frames/frame-cherry-blossom.png" },
-    { name: "대나무", group: "유지", src: "assets/catchmind/board-frames/frame-bamboo-garden.png" },
-    { name: "단청", group: "유지", src: "assets/catchmind/board-frames/frame-dancheong.png" },
-    { name: "얼음 결정", group: "유지", src: "assets/catchmind/board-frames/frame-ice-crystal.png" },
-    { name: "쿠키 스프링클", group: "유지", src: "assets/catchmind/board-frames/frame-cookie-sprinkle.png" },
-    { name: "오로라 리본", group: "고레벨", src: "assets/catchmind/board-frames/frame-aurora-ribbon.png" },
-    { name: "프리즘 글라스", group: "고레벨", src: "assets/catchmind/board-frames/frame-prism-glass.png" },
-    { name: "레인보우 홀로그램", group: "고레벨", src: "assets/catchmind/board-frames/frame-rainbow-hologram.png" },
-    { name: "마법 팔레트", group: "고레벨", src: "assets/catchmind/board-frames/frame-magic-palette.png" },
-    { name: "골든 두들", group: "고레벨", src: "assets/catchmind/board-frames/frame-golden-doodle.png" },
-    { name: "명작의 순간", group: "고레벨", src: "assets/catchmind/board-frames/frame-masterpiece.png" },
-    { name: "별빛 구름", group: "고레벨", src: "assets/catchmind/board-frames/frame-starlight-cloud.png" },
-    { name: "축제 리본", group: "고레벨", src: "assets/catchmind/board-frames/frame-celebration-ribbon.png" },
-    { name: "캔디 보석", group: "고레벨", src: "assets/catchmind/board-frames/frame-gem-candy.png" },
-    { name: "파스텔 카니발", group: "고레벨", src: "assets/catchmind/board-frames/frame-pastel-carnival.png" }
+  const frames = [
+    { id: "color-pencil", name: "색연필", group: "낮은 레벨", src: "assets/catchmind/board-frames/frame-color-pencil-v2.png" },
+    { id: "galaxy-stars", name: "은하수", group: "낮은 레벨", src: "assets/catchmind/board-frames/frame-galaxy-stars.png" },
+    { id: "retro-pixel", name: "레트로 픽셀", group: "낮은 레벨", src: "assets/catchmind/board-frames/frame-retro-pixel.png" },
+    { id: "cherry-blossom", name: "벚꽃", group: "낮은 레벨", src: "assets/catchmind/board-frames/frame-cherry-blossom.png" },
+    { id: "bamboo-garden", name: "대나무", group: "낮은 레벨", src: "assets/catchmind/board-frames/frame-bamboo-garden.png" },
+    { id: "dancheong", name: "단청", group: "낮은 레벨", src: "assets/catchmind/board-frames/frame-dancheong.png" },
+    { id: "ice-crystal", name: "얼음 결정", group: "낮은 레벨", src: "assets/catchmind/board-frames/frame-ice-crystal.png" },
+    { id: "cookie-sprinkle", name: "쿠키 스프링클", group: "낮은 레벨", src: "assets/catchmind/board-frames/frame-cookie-sprinkle.png" },
+    { id: "aurora-ribbon", name: "오로라 리본", group: "높은 레벨", src: "assets/catchmind/board-frames/frame-aurora-ribbon.png" },
+    { id: "prism-glass", name: "프리즘 글라스", group: "높은 레벨", src: "assets/catchmind/board-frames/frame-prism-glass.png" },
+    { id: "rainbow-hologram", name: "레인보우 홀로그램", group: "높은 레벨", src: "assets/catchmind/board-frames/frame-rainbow-hologram.png" },
+    { id: "magic-palette", name: "마법 팔레트", group: "높은 레벨", src: "assets/catchmind/board-frames/frame-magic-palette.png" },
+    { id: "golden-doodle", name: "골든 두들", group: "높은 레벨", src: "assets/catchmind/board-frames/frame-golden-doodle.png" },
+    { id: "masterpiece", name: "명작의 순간", group: "높은 레벨", src: "assets/catchmind/board-frames/frame-masterpiece.png" },
+    { id: "starlight-cloud", name: "별빛 구름", group: "높은 레벨", src: "assets/catchmind/board-frames/frame-starlight-cloud.png" },
+    { id: "celebration-ribbon", name: "축제 리본", group: "높은 레벨", src: "assets/catchmind/board-frames/frame-celebration-ribbon.png" },
+    { id: "gem-candy", name: "캔디 보석", group: "높은 레벨", src: "assets/catchmind/board-frames/frame-gem-candy.png" },
+    { id: "pastel-carnival", name: "파스텔 카니발", group: "높은 레벨", src: "assets/catchmind/board-frames/frame-pastel-carnival.png" }
   ];
+
+  const patterns = [
+    { id: "none", name: "패턴 없음", src: "", frameId: "color-pencil" },
+    { id: "doodle-grid", name: "낙서 모눈", src: "assets/catchmind/board-patterns/pattern-even-doodle-grid.png", frameId: "color-pencil" },
+    { id: "stardust", name: "별빛 점묘", src: "assets/catchmind/board-patterns/pattern-even-stardust.png", frameId: "galaxy-stars" },
+    { id: "pixel-grid", name: "픽셀 모눈", src: "assets/catchmind/board-patterns/pattern-even-pixel-grid.png", frameId: "retro-pixel" },
+    { id: "blossom-field", name: "벚꽃 잔무늬", src: "assets/catchmind/board-patterns/pattern-even-blossom-field.png", frameId: "cherry-blossom" },
+    { id: "bamboo-leaf", name: "대나무 잎결", src: "assets/catchmind/board-patterns/pattern-even-bamboo-leaf.png", frameId: "bamboo-garden" },
+    { id: "dancheong-sparks", name: "단청 점무늬", src: "assets/catchmind/board-patterns/pattern-even-dancheong-sparks.png", frameId: "dancheong" },
+    { id: "ice-flake", name: "얼음 결정", src: "assets/catchmind/board-patterns/pattern-even-ice-flake.png", frameId: "ice-crystal" },
+    { id: "cookie-sprinkle", name: "쿠키 스프링클", src: "assets/catchmind/board-patterns/pattern-even-cookie-sprinkle.png", frameId: "cookie-sprinkle" },
+    { id: "aurora-ripple", name: "오로라 잔물결", src: "assets/catchmind/board-patterns/pattern-even-aurora-ripple.png", frameId: "aurora-ribbon" },
+    { id: "prism-shards", name: "프리즘 조각", src: "assets/catchmind/board-patterns/pattern-even-prism-shards.png", frameId: "prism-glass" }
+  ];
+
+  const recommendedCombos = patterns
+    .filter((pattern) => pattern.id !== "none")
+    .map((pattern) => ({
+      id: pattern.id,
+      name: pattern.name,
+      pattern,
+      frame: frames.find((frame) => frame.id === pattern.frameId) || frames[0]
+    }));
 
   const grid = document.getElementById("skin-grid");
   const template = document.getElementById("skin-card-template");
-  const selectedImage = document.getElementById("selected-skin");
+  const selectedFrameImage = document.getElementById("selected-skin");
+  const selectedPatternImage = document.getElementById("selected-pattern");
   const selectedName = document.getElementById("selected-name");
   const selectedIndex = document.getElementById("selected-index");
-  let current = 0;
+  const frameSelect = document.getElementById("frame-select");
+  const patternSelect = document.getElementById("pattern-select");
+  const modeButtons = Array.from(document.querySelectorAll("[data-preview-mode]"));
 
-  function selectSkin(index) {
-    current = (index + skins.length) % skins.length;
-    const skin = skins[current];
-    selectedImage.src = skin.src;
-    selectedImage.alt = skin.name + " 그림판 스킨";
-    selectedName.textContent = skin.name;
-    selectedIndex.textContent = (current + 1) + " / " + skins.length;
-    grid.querySelectorAll(".skin-card").forEach((card, cardIndex) => {
-      card.setAttribute("aria-pressed", String(cardIndex === current));
+  let mode = "frames";
+  let frameIndex = 0;
+  let patternIndex = 0;
+  let selectedListIndex = 0;
+
+  function makeOption(value, text) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = text;
+    return option;
+  }
+
+  function fillSelects() {
+    frames.forEach((frame, index) => frameSelect.appendChild(makeOption(String(index), frame.name)));
+    patterns.forEach((pattern, index) => patternSelect.appendChild(makeOption(String(index), pattern.name)));
+  }
+
+  function activeFrame() {
+    return frames[frameIndex] || frames[0];
+  }
+
+  function activePattern() {
+    return patterns[patternIndex] || patterns[0];
+  }
+
+  function applySelected() {
+    const frame = activeFrame();
+    const pattern = activePattern();
+    selectedFrameImage.src = frame.src;
+    selectedFrameImage.alt = frame.name + " 테두리 스킨";
+    selectedPatternImage.hidden = !pattern.src;
+    selectedPatternImage.src = pattern.src || "";
+    selectedPatternImage.alt = pattern.src ? pattern.name + " 내부 패턴" : "";
+    frameSelect.value = String(frameIndex);
+    patternSelect.value = String(patternIndex);
+    const label = pattern.id === "none" ? frame.name + " + 패턴 없음" : frame.name + " + " + pattern.name;
+    selectedName.textContent = label;
+    selectedIndex.textContent = currentPositionText();
+    markSelectedCards();
+  }
+
+  function currentPositionText() {
+    if (mode === "frames") return (frameIndex + 1) + " / " + frames.length;
+    if (mode === "patterns") return (Math.max(patternIndex, 1)) + " / " + (patterns.length - 1);
+    return (selectedListIndex + 1) + " / " + recommendedCombos.length;
+  }
+
+  function setBoardBackground(color) {
+    document.documentElement.style.setProperty("--board-bg", color);
+    document.querySelectorAll("[data-board-bg]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.boardBg === color));
     });
   }
 
-  skins.forEach((skin, index) => {
-    if (index === 0 || skins[index - 1].group !== skin.group) {
-      const heading = document.createElement("h2");
-      heading.className = "group-title";
-      heading.textContent = skin.group === "유지" ? "유지 8종" : "고레벨 10종";
-      grid.appendChild(heading);
-    }
+  function setStageBackground(color) {
+    document.documentElement.style.setProperty("--stage-bg", color);
+    document.querySelectorAll("[data-stage-bg]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.stageBg === color));
+    });
+  }
+
+  function setFrame(index) {
+    frameIndex = (index + frames.length) % frames.length;
+    if (mode === "frames") selectedListIndex = frameIndex;
+    applySelected();
+  }
+
+  function setPattern(index) {
+    patternIndex = (index + patterns.length) % patterns.length;
+    if (mode === "patterns") selectedListIndex = Math.max(patternIndex - 1, 0);
+    applySelected();
+  }
+
+  function setCombo(index) {
+    selectedListIndex = (index + recommendedCombos.length) % recommendedCombos.length;
+    const combo = recommendedCombos[selectedListIndex];
+    frameIndex = frames.indexOf(combo.frame);
+    patternIndex = patterns.indexOf(combo.pattern);
+    applySelected();
+  }
+
+  function renderCard(item, index, onClick) {
     const fragment = template.content.cloneNode(true);
     const card = fragment.querySelector(".skin-card");
-    const image = fragment.querySelector("img");
-    image.src = skin.src;
-    image.alt = skin.name + " 그림판 스킨";
-    fragment.querySelector("strong").textContent = skin.name;
-    fragment.querySelector("small").textContent = skin.group;
-    card.setAttribute("aria-label", skin.name + " 스킨 확대 보기");
-    card.addEventListener("click", () => selectSkin(index));
-    grid.appendChild(fragment);
-  });
+    const patternImage = fragment.querySelector(".pattern-preview");
+    const frameImage = fragment.querySelector(".skin-preview");
+    const title = fragment.querySelector("strong");
+    const meta = fragment.querySelector("small");
 
-  document.getElementById("prev-skin").addEventListener("click", () => selectSkin(current - 1));
-  document.getElementById("next-skin").addEventListener("click", () => selectSkin(current + 1));
-  document.getElementById("skin-count").textContent = skins.length + "종";
-  selectSkin(current);
+    if (item.pattern && item.pattern.src) {
+      patternImage.hidden = false;
+      patternImage.src = item.pattern.src;
+      patternImage.alt = item.pattern.name + " 내부 패턴";
+    }
+    frameImage.src = item.frame.src;
+    frameImage.alt = item.frame.name + " 테두리";
+    title.textContent = item.name;
+    meta.textContent = item.meta;
+    card.dataset.cardIndex = String(index);
+    card.setAttribute("aria-label", item.name + " 테스트하기");
+    card.addEventListener("click", () => onClick(index));
+    grid.appendChild(fragment);
+  }
+
+  function renderFrames() {
+    grid.replaceChildren();
+    frames.forEach((frame, index) => {
+      if (index === 0 || frames[index - 1].group !== frame.group) {
+        const heading = document.createElement("h2");
+        heading.className = "group-title";
+        heading.textContent = frame.group + (frame.group === "낮은 레벨" ? " 8종" : " 10종");
+        grid.appendChild(heading);
+      }
+      renderCard({ name: frame.name, meta: frame.group, frame, pattern: null }, index, (nextIndex) => {
+        mode = "frames";
+        selectedListIndex = nextIndex;
+        setFrame(nextIndex);
+      });
+    });
+  }
+
+  function renderPatterns() {
+    grid.replaceChildren();
+    const heading = document.createElement("h2");
+    heading.className = "group-title";
+    heading.textContent = "그리는 영역 내부 패턴 " + (patterns.length - 1) + "종";
+    grid.appendChild(heading);
+    patterns.slice(1).forEach((pattern, offset) => {
+      const frame = frames.find((item) => item.id === pattern.frameId) || activeFrame();
+      renderCard({ name: pattern.name, meta: "내부 패턴", frame, pattern }, offset, (nextIndex) => {
+        mode = "patterns";
+        selectedListIndex = nextIndex;
+        frameIndex = frames.indexOf(frame);
+        setPattern(nextIndex + 1);
+      });
+    });
+  }
+
+  function renderCombos() {
+    grid.replaceChildren();
+    const heading = document.createElement("h2");
+    heading.className = "group-title";
+    heading.textContent = "추천 조합 " + recommendedCombos.length + "종";
+    grid.appendChild(heading);
+    recommendedCombos.forEach((combo, index) => {
+      renderCard(
+        { name: combo.frame.name + " + " + combo.pattern.name, meta: "추천", frame: combo.frame, pattern: combo.pattern },
+        index,
+        setCombo
+      );
+    });
+  }
+
+  function markSelectedCards() {
+    grid.querySelectorAll(".skin-card").forEach((card) => {
+      const cardIndex = Number(card.dataset.cardIndex || 0);
+      let isSelected = false;
+      if (mode === "frames") isSelected = cardIndex === frameIndex;
+      if (mode === "patterns") isSelected = cardIndex === patternIndex - 1;
+      if (mode === "combos") isSelected = cardIndex === selectedListIndex;
+      card.setAttribute("aria-pressed", String(isSelected));
+    });
+  }
+
+  function setMode(nextMode) {
+    mode = ["frames", "patterns", "combos"].includes(nextMode) ? nextMode : "frames";
+    modeButtons.forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.previewMode === mode));
+    });
+    if (mode === "frames") {
+      selectedListIndex = frameIndex;
+      renderFrames();
+    } else if (mode === "patterns") {
+      if (patternIndex === 0) {
+        patternIndex = 1;
+        const pairedFrame = frames.find((frame) => frame.id === activePattern().frameId);
+        if (pairedFrame) frameIndex = frames.indexOf(pairedFrame);
+      }
+      selectedListIndex = Math.max(patternIndex - 1, 0);
+      renderPatterns();
+    } else {
+      const found = recommendedCombos.findIndex((combo) => combo.frame === activeFrame() && combo.pattern === activePattern());
+      selectedListIndex = found >= 0 ? found : 0;
+      renderCombos();
+      if (found < 0) setCombo(selectedListIndex);
+    }
+    applySelected();
+  }
+
+  function step(delta) {
+    if (mode === "frames") setFrame(frameIndex + delta);
+    else if (mode === "patterns") setPattern(patternIndex <= 0 ? 1 : patternIndex + delta);
+    else setCombo(selectedListIndex + delta);
+  }
+
+  fillSelects();
+  frameSelect.addEventListener("change", () => setFrame(Number(frameSelect.value)));
+  patternSelect.addEventListener("change", () => setPattern(Number(patternSelect.value)));
+  document.getElementById("clear-frame").addEventListener("click", () => setFrame(0));
+  document.getElementById("clear-pattern").addEventListener("click", () => setPattern(0));
+  document.querySelectorAll("[data-board-bg]").forEach((button) => {
+    button.addEventListener("click", () => setBoardBackground(button.dataset.boardBg));
+  });
+  document.querySelectorAll("[data-stage-bg]").forEach((button) => {
+    button.addEventListener("click", () => setStageBackground(button.dataset.stageBg));
+  });
+  modeButtons.forEach((button) => {
+    button.addEventListener("click", () => setMode(button.dataset.previewMode));
+  });
+  document.getElementById("prev-item").addEventListener("click", () => step(-1));
+  document.getElementById("next-item").addEventListener("click", () => step(1));
+  document.getElementById("skin-count").textContent = "테두리 " + frames.length + " · 패턴 " + (patterns.length - 1);
+  setMode("frames");
 </script>
 </body>
 </html>

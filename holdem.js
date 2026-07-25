@@ -86,6 +86,8 @@ window.TexasHoldem = (function () {
   var lastAnnouncementKey = "";
   var raiseValue = 0;
   var raiseRangeKey = "";
+  var raiseMenuOpen = false;
+  var actionMenuKey = "";
 
   var boundRoot = null;
   var demoState = null;
@@ -563,7 +565,14 @@ window.TexasHoldem = (function () {
     }
     var canReadyValue = firstDefined(viewer.canReady, raw.canReady, table.canReady);
     var canStartValue = firstDefined(viewer.canStart, raw.canStart, table.canStart);
-    var canNextValue = firstDefined(viewer.canNext, viewer.canNextHand, raw.canNextHand, table.canNextHand);
+    var canNextValue = firstDefined(
+      viewer.canNext,
+      viewer.canNextHand,
+      raw.canNext,
+      raw.canNextHand,
+      table.canNext,
+      table.canNextHand
+    );
     var canManageBotsValue = firstDefined(
       viewer.canManageBots,
       raw.canManageBots,
@@ -999,6 +1008,17 @@ window.TexasHoldem = (function () {
     });
   }
 
+  function sizedMove() {
+    if (state.legal.bet) return "bet";
+    if (state.legal.raise) return "raise";
+    return "";
+  }
+
+  function performSizedMove(amount) {
+    var move = sizedMove();
+    if (move) performMove(move, amount);
+  }
+
   function setReady() {
     invoke("ready", {
       ready: !state.heroReady,
@@ -1392,6 +1412,39 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function quickBetTarget(kind) {
+    var bounds = raiseBounds();
+    var target = bounds.min;
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    var raising = !!state.legal.raise;
+    var matchedBet = raising ? nonnegative(hero && hero.bet, 0) + state.toCall : 0;
+    var potAfterCall = state.pot + (raising ? state.toCall : 0);
+    if (kind === "half") target = matchedBet + Math.round(potAfterCall * 0.5);
+    else if (kind === "three-quarter") target = matchedBet + Math.round(potAfterCall * 0.75);
+    else if (kind === "pot") target = matchedBet + Math.round(potAfterCall);
+    else if (kind === "allin") target = bounds.max;
+    return clamp(target, bounds.min, bounds.max);
+  }
+
+  function quickBetLabel(kind) {
+    return {
+      half: "1/2 팟",
+      "three-quarter": "3/4 팟",
+      pot: "팟",
+      allin: "올인"
+    }[kind] || "레이즈";
+  }
+
+  function syncQuickBetButtons() {
+    var buttons = root() ? root().querySelectorAll("[data-holdem-bet]") : [];
+    for (var i = 0; i < buttons.length; i++) {
+      var kind = buttons[i].getAttribute("data-holdem-bet");
+      var amount = kind === "allin" && state.legal.allin ? "" : formatChips(quickBetTarget(kind));
+      buttons[i].innerHTML = (amount ? '<span>' + esc(amount) + '</span>' : "") +
+        '<strong>' + esc(quickBetLabel(kind)) + '</strong>';
+    }
+  }
+
   function renderControls() {
     var waiting = state.phase === "waiting";
     var completed = state.phase === "complete";
@@ -1401,6 +1454,14 @@ window.TexasHoldem = (function () {
     var isOwner = !!(text(me().nick, 40) && text(me().nick, 40) === state.ownerNick);
     var canManageBots = isOwner && state.canManageBots;
     var occupiedSeats = state.seats.filter(Boolean).length;
+    var canSize = !!(state.legal.bet || state.legal.raise);
+    var menuKey = state.handId + ":" + state.version + ":" + state.actionSeq + ":" +
+      state.actingSeat + ":" + (canSize ? sizedMove() : "none");
+    if (menuKey !== actionMenuKey) {
+      actionMenuKey = menuKey;
+      raiseMenuOpen = false;
+    }
+    if (!hasMove || !canSize) raiseMenuOpen = false;
 
     show("holdem-lobby", waiting || completed);
     show("holdem-bot-controls", canManageBots);
@@ -1423,23 +1484,29 @@ window.TexasHoldem = (function () {
     show("holdem-action-panel", hasMove);
     moves.forEach(function (move) {
       var id = move === "allin" ? "holdem-allin-btn" : "holdem-" + move + "-btn";
-      show(id, hasMove && !!state.legal[move]);
+      var visible = hasMove && !!state.legal[move];
+      if (move === "allin" && canSize) visible = false;
+      show(id, visible);
       disable(id, busy || !state.legal[move]);
     });
     setText("holdem-call-amount", state.toCall ? formatChips(state.toCall) : "");
     setText("holdem-action-label", state.actingSeat === state.heroSeat ? "내 차례" : "행동 선택");
     setText("holdem-hand-name", state.handName || "패를 확인하세요");
 
-    var canSize = !!(state.legal.bet || state.legal.raise);
-    show("holdem-raise-panel", hasMove && canSize);
+    show("holdem-raise-panel", hasMove && canSize && raiseMenuOpen);
     if (canSize) syncRaiseControls();
+    if (canSize) syncQuickBetButtons();
     var slider = $("holdem-raise-slider");
     if (slider) slider.disabled = busy;
     var quick = root() ? root().querySelectorAll("[data-holdem-bet]") : [];
     for (var i = 0; i < quick.length; i++) quick[i].disabled = busy;
 
     var screen = root();
-    if (screen) screen.classList.toggle("is-requesting", busy);
+    if (screen) {
+      screen.classList.toggle("is-requesting", busy);
+      screen.classList.toggle("is-actioning", hasMove);
+      screen.classList.toggle("is-raise-menu-open", hasMove && canSize && raiseMenuOpen);
+    }
     renderConnection();
   }
 
@@ -1516,17 +1583,12 @@ window.TexasHoldem = (function () {
   }
 
   function quickBet(kind) {
-    var bounds = raiseBounds();
-    var target = bounds.min;
-    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
-    var raising = !!state.legal.raise;
-    var matchedBet = raising ? nonnegative(hero && hero.bet, 0) + state.toCall : 0;
-    var potAfterCall = state.pot + (raising ? state.toCall : 0);
-    if (kind === "half") target = matchedBet + Math.round(potAfterCall * 0.5);
-    else if (kind === "three-quarter") target = matchedBet + Math.round(potAfterCall * 0.75);
-    else if (kind === "pot") target = matchedBet + Math.round(potAfterCall);
-    else if (kind === "allin") target = bounds.max;
-    setRaiseValue(clamp(target, bounds.min, bounds.max));
+    if (kind === "allin" && state.legal.allin) {
+      performMove("allin");
+      return;
+    }
+    setRaiseValue(quickBetTarget(kind));
+    performSizedMove(raiseValue);
   }
 
   function sendChat() {
@@ -1582,9 +1644,19 @@ window.TexasHoldem = (function () {
     } else if (id === "holdem-call-btn") {
       performMove("call");
     } else if (id === "holdem-bet-btn") {
-      performMove("bet", raiseValue);
+      if (!raiseMenuOpen && state.legal.bet) {
+        raiseMenuOpen = true;
+        renderControls();
+      } else {
+        performMove("bet", raiseValue);
+      }
     } else if (id === "holdem-raise-btn") {
-      performMove("raise", raiseValue);
+      if (!raiseMenuOpen && state.legal.raise) {
+        raiseMenuOpen = true;
+        renderControls();
+      } else {
+        performMove("raise", raiseValue);
+      }
     } else if (id === "holdem-allin-btn") {
       performMove("allin");
     } else if (button.hasAttribute("data-holdem-bet")) {

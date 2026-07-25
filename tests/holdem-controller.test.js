@@ -177,6 +177,45 @@ test("the completed UI receives an AI winner's cards even without a showdown", (
   assert.equal(normalized.revealedCards[bot.seat].length, 2);
 });
 
+test("completed AI tables keep the server canNext flag after the human readies", () => {
+  const controller = loadController();
+  const ctx = { now: 1_800_000_000_000, randomInt: () => 0 };
+  let state = Engine.createTable({
+    roomId: "room-controller",
+    ownerNick: "alice",
+  });
+  for (const command of [
+    { type: "join", nick: "alice" },
+    { type: "add_bot", nick: "alice" },
+    { type: "ready", nick: "alice", ready: true },
+    { type: "start", nick: "alice" },
+  ]) {
+    const result = Engine.command(state, command, ctx);
+    assert.equal(result.ok, true, result.reason);
+    state = result.state;
+  }
+
+  const actor = state.seats[state.actorSeat];
+  assert.equal(actor.nick, "alice");
+  state = Engine.command(state, {
+    type: "act",
+    nick: actor.nick,
+    action: "fold",
+  }, ctx).state;
+  state = Engine.command(state, {
+    type: "ready",
+    nick: "alice",
+    ready: true,
+  }, ctx).state;
+
+  const snapshot = Engine.view(state, "alice");
+  assert.equal(snapshot.canNext, true);
+  const normalized = controller._test.normalizeSnapshot(snapshot, 15);
+  assert.equal(normalized.phase, "complete");
+  assert.equal(normalized.heroReady, true);
+  assert.equal(normalized.canNext, true);
+});
+
 test("public refresh messages are treated only as invalidation hints", () => {
   const controller = loadController();
   controller._test.setActive(false);

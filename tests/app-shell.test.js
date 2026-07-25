@@ -40,6 +40,9 @@ test("the app shell versions every local runtime asset from one build", () => {
     "alkkagi-maps.js",
     "alkkagi.js",
     "game-catalog.js",
+    "holdem-engine.js",
+    "holdem-ai.js",
+    "holdem.js",
     "catchmind-words.js",
     "catchmind-levels.js",
     "catchmind.js",
@@ -92,13 +95,16 @@ test("the app shell loads local scripts sequentially with the same revision", ()
   assert.equal(styles[0].href, "styles.css?v=" + encodeURIComponent(version));
   assert.equal(scripts[0].src, "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2");
 
-  while (scripts.length < 18) scripts[scripts.length - 1].onload();
+  while (scripts.length < 21) scripts[scripts.length - 1].onload();
   assert.equal(scripts[1].src, "config.js?v=" + encodeURIComponent(version));
   assert.equal(scripts[5].src, "pro-hint-explain.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[13].src, "catchmind-levels.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[15].src, "relay-drawing.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[16].src, "territory-rush.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[17].src, "game.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[12].src, "holdem-engine.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[13].src, "holdem-ai.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[14].src, "holdem.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[16].src, "catchmind-levels.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[18].src, "relay-drawing.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[19].src, "territory-rush.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[20].src, "game.js?v=" + encodeURIComponent(version));
 });
 
 test("room entry is not blocked by an HTML and JavaScript build label mismatch", () => {
@@ -327,7 +333,7 @@ test("Alkkagi has a synchronized five-choice turn timer with short-game warnings
   assert.match(game, /A\.started && window\.Alkkagi && Alkkagi\.isMoving\(\) \? "…" : "∞"/);
 });
 
-test("room creation keeps CatchMind and Territory Rush public while unfinished modes stay hidden", () => {
+test("room creation keeps CatchMind, Territory Rush, and private-test Hold'em available while unfinished modes stay hidden", () => {
   const catalog = fs.readFileSync(path.join(root, "game-catalog.js"), "utf8");
 
   assert.match(index, /id="create-game-step"/);
@@ -335,7 +341,7 @@ test("room creation keeps CatchMind and Territory Rush public while unfinished m
   assert.match(index, /id="create-step-back"/);
   assert.match(index, /id="create-mode-confirm"/);
   assert.match(index, /data-game="alk"[\s\S]*data-game="alk_terr"/);
-  assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay", "territory"\]\)/);
+  assert.match(game, /GameCatalog\.order\.filter\(function \(id\) \{ return id !== "alk_terr"; \}\)/);
   assert.match(game, /var ENABLE_ALK_TERRITORY = false/);
   assert.match(game, /var ENABLE_RELAY = false/);
   assert.match(game, /var ENABLE_CATCHMIND_ROOMS = true/);
@@ -343,11 +349,12 @@ test("room creation keeps CatchMind and Territory Rush public while unfinished m
   assert.match(game, /if \(id === "relay" && !ENABLE_RELAY\) return false/);
   assert.match(game, /function canEnterGame\(id\)[\s\S]*id !== "catchmind" \|\| ENABLE_CATCHMIND_ROOMS/);
   assert.doesNotMatch(game, /if \(id === "territory"[^\n]+return false/);
-  assert.match(game, /function canCreateGame\(id\)[\s\S]*if \(!canEnterGame\(id\)\) return false[\s\S]*def\.createAdminOnly && !isGunaAdmin\(\)/);
-  assert.match(game, /visibleGameIds\(\["omok", "alk", "catchmind", "relay", "territory"\]\)\.filter\(canCreateGame\)/);
+  assert.match(game, /function canCreateGame\(id\)[\s\S]*if \(!canEnterGame\(id\)\) return false[\s\S]*def\.createAdminOnly && !me\.isAdmin/);
+  assert.match(game, /visibleGameIds\(createIds\)\.filter\(canCreateGame\)/);
   assert.match(catalog, /territory:\s*\{[\s\S]*createAdminOnly:\s*false/);
+  assert.match(catalog, /holdem:\s*\{[\s\S]*createAdminOnly:\s*true[\s\S]*discoverable:\s*false/);
   assert.match(game, /if \(!canEnterGame\(game\)\) \{[\s\S]*game === "catchmind" \? "캐치마인드는 점검 중이라 이용할 수 없어요"/);
-  assert.match(game, /filter\(function \(r\) \{ return canEnterGame\(r\.game\)/);
+  assert.match(game, /function renderRoomList\(\)[\s\S]*roomIsDiscoverable\(r\.game\)[\s\S]*canEnterGame\(r\.game\)/);
   assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);
   assert.match(game, /if \(createGame === "alk" && ENABLE_ALK_TERRITORY\)[\s\S]*showCreateRoomStep\("alk-mode"\)/);
   assert.match(game, /createRoom\(createGame === "alk" \? "alk" : createGame, nm\)/);
@@ -604,6 +611,6 @@ test("CatchMind exposes a self-only reward menu and board-frame picker", () => {
   assert.match(game, /function showLobby\(\)[\s\S]*loadCatchPersonalProfile\(false\)/);
   assert.match(selectFrame, /publishCatchBoardFrameSelection\(\)/);
   assert.match(publishFrame, /Net\.track\(myMetaObj\(null\)\)/);
-  assert.match(publishFrame, /Net\.trackLobby\(myMetaObj\(curRoomId \|\| null\)\)/);
+  assert.match(publishFrame, /Net\.trackLobby\(myMetaObj\(lobbyViewingValue\(curRoomId \|\| null, curRoomGame\)\)\)/);
   assert.doesNotMatch(showFrame, /catchSelectedBoardFrameId\s*=/);
 });
