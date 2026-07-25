@@ -818,7 +818,7 @@ test("creating a base never paints over another player's existing territory", ()
   engine.resetGrid();
 });
 
-test("a solo host starts a 90-second match with three local bots", () => {
+test("a solo host starts a 1-minute match with three local bots", () => {
   const fake = fakeApi(["구나"]);
   engine.setApi(fake.api);
   engine.setState(engine.freshState());
@@ -830,7 +830,7 @@ test("a solo host starts a 90-second match with three local bots", () => {
   assert.equal(state.phase, "playing");
   assert.equal(state.players.length, 4);
   assert.equal(state.players.filter((player) => player.bot).length, 3);
-  assert.ok(state.deadline > Date.now() + 85000);
+  assert.ok(state.deadline > Date.now() + 55000);
   for (let i = 0; i < state.players.length; i++) {
     for (let j = i + 1; j < state.players.length; j++) {
       assert.ok(Math.hypot(

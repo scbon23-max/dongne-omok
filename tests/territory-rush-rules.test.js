@@ -82,7 +82,7 @@ test("rules teach the goal, capture loop, and movement-line danger in plain lang
   assert.match(text, /이동선/);
   assert.match(text, /캐릭터 뒤에 (?:생기는|이어지는) (?:색 )?선/);
   assert.match(text, /(?:이동선|색 선)[^.。]*상대가[^.。]*(?:닿|건드|밟)/);
-  assert.match(text, /90초/);
+  assert.match(text, /1분/);
   assert.match(text, /(?:땅|영역)[^.。]*(?:가장|제일)[^.。]*(?:넓|높)[^.。]*(?:이깁|승리)/);
 
   // The arena edge is now a solid wall, so the old explanation that leaving it

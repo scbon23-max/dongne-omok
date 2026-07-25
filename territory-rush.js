@@ -4,7 +4,7 @@ window.TerritoryRush = (function () {
   var WORLD_W = 72;
   var WORLD_H = 108;
   var CELL_COUNT = WORLD_W * WORLD_H;
-  var MATCH_MS = 90000;
+  var MATCH_MS = 60000;
   var STEP_MS = 50;
   var FRAME_MS = 400;
   var FULL_MIN_MS = 400;
@@ -4288,7 +4288,7 @@ window.TerritoryRush = (function () {
     return {
       title: "땅따먹기 규칙",
       html: '<div class="territory-rules">'
-        + '<p class="rule-intro">내 색의 땅에서 출발해 바깥을 돌고 돌아오세요. <b>90초 동안 땅을 가장 넓게 만든 사람</b>이 이깁니다.</p>'
+        + '<p class="rule-intro">내 색의 땅에서 출발해 바깥을 돌고 돌아오세요. <b>1분 동안 땅을 가장 넓게 만든 사람</b>이 이깁니다.</p>'
         + '<div class="territory-rule-cards">'
         + '<section class="territory-rule-card">'
         + '<svg viewBox="0 0 150 104" aria-hidden="true" focusable="false">'
@@ -4328,7 +4328,7 @@ window.TerritoryRush = (function () {
         + '<svg viewBox="0 0 150 104" aria-hidden="true" focusable="false">'
         + '<circle cx="35" cy="50" r="27" fill="#fff" stroke="#dce7eb" stroke-width="7"/>'
         + '<path d="M35 50 L35 29 M35 50 L49 59" fill="none" stroke="#173747" stroke-width="5" stroke-linecap="round"/>'
-        + '<text x="23" y="91" fill="#173747" font-size="11" font-weight="900">90초</text>'
+        + '<text x="23" y="91" fill="#173747" font-size="11" font-weight="900">1분</text>'
         + '<rect x="75" y="58" width="17" height="30" rx="4" fill="#69a1f2"/>'
         + '<rect x="98" y="40" width="17" height="48" rx="4" fill="#ff876f"/>'
         + '<rect x="121" y="18" width="17" height="70" rx="4" fill="#43cbae"/>'

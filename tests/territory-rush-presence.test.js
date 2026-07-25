@@ -60,7 +60,7 @@ function loadGuest(startAt = 100000) {
   state.phase = "playing";
   state.matchId = "presence-heartbeat-match";
   state.ownerRev = 3;
-  state.deadline = now + 90000;
+  state.deadline = now + engine.constants.matchMs;
   state.players = [
     engine.makePlayer(0, "host", false, 2),
     engine.makePlayer(1, "guest", false, 2)
