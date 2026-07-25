@@ -102,6 +102,27 @@ test("feedback history marks only administrator completion events", async () => 
   assert.equal(posts[1].completed, true);
 });
 
+test("feedback completion notifications include the original request for the requester", async () => {
+  const rows = [
+    { nick: "구나", text: '@feedback:{"v":1,"type":"done","id":"feedback-03","requester":"산본","title":"닫기 오류","body":"팝업 닫기가 눌리지 않아요"}', created_at: "2026-07-24T05:06:00Z" },
+    { nick: "구나", text: '@feedback:{"v":1,"type":"done","id":"feedback-02","requester":"베니","title":"다른 의견","body":"다른 사람 글"}', created_at: "2026-07-24T05:05:00Z" },
+    { nick: "구나", text: '@feedback:{"v":1,"type":"done","id":"feedback-01"}', created_at: "2026-07-24T05:04:00Z" },
+    { nick: "산본", text: '@feedback:{"v":1,"type":"post","id":"feedback-01","title":"버그","body":"화면이 멈췄어요"}', created_at: "2026-07-24T05:01:00Z" }
+  ];
+  const { Db } = createDb(rows);
+
+  const notices = await Db.getFeedbackNotifications("산본", 9999);
+
+  assert.equal(notices.length, 2);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(notices.map((notice) => ({ id: notice.id, title: notice.title, body: notice.body })))),
+    [
+      { id: "feedback-03", title: "닫기 오류", body: "팝업 닫기가 눌리지 않아요" },
+      { id: "feedback-01", title: "버그", body: "화면이 멈췄어요" }
+    ]
+  );
+});
+
 test("the lobby exposes feedback composition while the admin gets an expandable inbox", () => {
   assert.match(indexSource, /class="lobby-page-title">로비화면<\/h1>/);
   assert.doesNotMatch(indexSource, /오류·이상이 생기면/);
@@ -117,12 +138,17 @@ test("the lobby exposes feedback composition while the admin gets an expandable 
   assert.match(indexSource, /id="feedback-admin-section" class="feedback-admin-section admin-only"/);
   assert.match(indexSource, /id="feedback-list"/);
 
-  assert.match(gameSource, /refreshFeedbackBadge\(\);\s*logLoginOnce\(\)/);
+  assert.match(gameSource, /refreshFeedbackBadge\(\);\s*checkFeedbackCompletionNotices\(\);\s*logLoginOnce\(\)/);
   assert.match(gameSource, /msg\.t === "feedback_new" \|\| msg\.t === "feedback_updated"/);
   assert.match(gameSource, /<details class="feedback-item /);
   assert.match(gameSource, /<summary class="feedback-item-summary">/);
   assert.match(gameSource, /async function submitFeedbackForm\(\)/);
   assert.match(gameSource, /async function completeFeedbackPost\(id, button\) \{\s*if \(!me\.isAdmin/);
+  assert.match(gameSource, /Db\.completeFeedback\(me\.nick, id, post\)/);
+  assert.match(gameSource, /async function checkFeedbackCompletionNotices\(\)/);
+  assert.match(indexSource, /id="feedback-complete-modal"/);
+  assert.match(indexSource, /id="feedback-complete-list"/);
+  assert.match(stylesSource, /\.feedback-complete-modal \{/);
   assert.match(gameSource, /\$\("lobby-feedback-btn"\)\.addEventListener\("click", openFeedbackModal\)/);
   assert.match(gameSource, /\$\("feedback-send-btn"\)\.addEventListener\("click", submitFeedbackForm\)/);
   assert.match(stylesSource, /body\.is-admin \.feedback-user-compose \{ display: none; \}/);

@@ -2409,6 +2409,64 @@ body.is-admin .feedback-user-compose { display: none; }
 .feedback-status { min-height: 18px; margin: 7px 0 5px; color: #718087; font-size: 12px; font-weight: 700; }
 .feedback-status.error { color: var(--red); }
 .feedback-compose .btn-primary { height: 45px; border-radius: 8px; background: var(--orange); }
+.feedback-complete-modal {
+  max-width: 390px;
+  background: var(--navy);
+  color: #eaf2f6;
+  box-shadow: 0 18px 44px rgba(0,0,0,.52);
+}
+.feedback-complete-modal .modal-head h2 { color: #f8fbfc; }
+.feedback-complete-modal .modal-close { color: #8da8b5; }
+.feedback-complete-lead {
+  margin: 0 0 12px;
+  color: #b8cad2;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 800;
+}
+.feedback-complete-list { display: grid; gap: 10px; }
+.feedback-complete-card {
+  padding: 12px;
+  border-radius: 8px;
+  background: #173949;
+}
+.feedback-complete-state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--navy);
+  font-size: 11px;
+  font-weight: 1000;
+}
+.feedback-complete-title {
+  margin: 9px 0 6px;
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 1000;
+  overflow-wrap: anywhere;
+}
+.feedback-complete-body {
+  margin: 0;
+  color: #d5e3e8;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.feedback-complete-meta {
+  margin: 8px 0 0;
+  color: #87a0ab;
+  font-size: 11px;
+  font-weight: 800;
+}
+.feedback-complete-modal .modal-ok {
+  background: var(--teal);
+  color: var(--navy);
+}
 
 .btn-flat.resign { color: var(--red); }
 .btn-flat.resign:active { background: var(--red); color: #fff; }

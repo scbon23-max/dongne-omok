@@ -478,6 +478,7 @@
     renderRoomList();
     updateOnlineCounts(); renderLobbyOnline();
     refreshFeedbackBadge();
+    checkFeedbackCompletionNotices();
     logLoginOnce();
     restoreOwnedRoomLease();
   }
@@ -3647,7 +3648,8 @@
     button.disabled = true;
     button.textContent = "처리 중…";
     try {
-      var result = await withTimeout(Db.completeFeedback(me.nick, id), 8000);
+      var post = feedbackPosts.find(function (item) { return item.id === id; }) || null;
+      var result = await withTimeout(Db.completeFeedback(me.nick, id, post), 8000);
       if (!result || !result.ok) throw new Error(result && result.reason || "complete_failed");
       toast("완료로 표시했어요");
       if (lobbyMode) Net.sendLobby({ t: "feedback_updated", id: id });
@@ -3657,6 +3659,62 @@
       button.disabled = false;
       button.textContent = "완료 표시";
     }
+  }
+  var FEEDBACK_COMPLETE_SEEN_KEY = "dongne_feedback_complete_seen_v1:";
+  function feedbackCompleteSeenKey() {
+    return FEEDBACK_COMPLETE_SEEN_KEY + String(me.nick || "");
+  }
+  function feedbackIdForClient(value) {
+    value = String(value || "");
+    return /^[a-zA-Z0-9_-]{8,80}$/.test(value) ? value : "";
+  }
+  function readFeedbackCompleteSeen() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(feedbackCompleteSeenKey()) || "[]");
+      return Array.isArray(raw) ? raw.filter(function (id) { return feedbackIdForClient(id); }) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function markFeedbackCompleteSeen(ids) {
+    if (!ids || !ids.length) return;
+    var map = Object.create(null), merged = readFeedbackCompleteSeen();
+    merged.forEach(function (id) { map[id] = true; });
+    ids.forEach(function (id) {
+      id = feedbackIdForClient(id);
+      if (id && !map[id]) { map[id] = true; merged.push(id); }
+    });
+    try { localStorage.setItem(feedbackCompleteSeenKey(), JSON.stringify(merged.slice(-300))); } catch (e) {}
+  }
+  function renderFeedbackCompleteNotice(items) {
+    var list = $("feedback-complete-list");
+    if (!list || !items || !items.length) return;
+    list.innerHTML = items.map(function (item) {
+      var doneDate = item.completedAt ? feedbackDate(item.completedAt) : "";
+      return '<article class="feedback-complete-card">'
+        + '<span class="feedback-complete-state">완료</span>'
+        + '<h3 class="feedback-complete-title">' + esc(item.title) + '</h3>'
+        + '<p class="feedback-complete-body">' + esc(item.body) + '</p>'
+        + (doneDate ? '<p class="feedback-complete-meta">처리일 · ' + esc(doneDate) + '</p>' : "")
+        + '</article>';
+    }).join("");
+    openModal("feedback-complete-modal");
+  }
+  async function checkFeedbackCompletionNotices() {
+    if (me.isAdmin || !window.Db || !Db.getFeedbackNotifications || !me.nick) return;
+    try {
+      var seen = readFeedbackCompleteSeen(), seenMap = Object.create(null);
+      seen.forEach(function (id) { seenMap[id] = true; });
+      var notices = await withTimeout(Db.getFeedbackNotifications(me.nick, 500), 8000);
+      notices = (notices || []).filter(function (item) {
+        return item && feedbackIdForClient(item.id) && !seenMap[item.id];
+      }).sort(function (a, b) {
+        return new Date(a.completedAt || 0).getTime() - new Date(b.completedAt || 0).getTime();
+      });
+      if (!notices.length) return;
+      markFeedbackCompleteSeen(notices.map(function (item) { return item.id; }));
+      renderFeedbackCompleteNotice(notices);
+    } catch (e) {}
   }
 
   // ---------- 랭킹 ----------

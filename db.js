@@ -325,18 +325,82 @@ window.Db = (function () {
       ? { ok: false, reason: "database", error: result.error }
       : { ok: true, id: id };
   }
-  async function completeFeedback(nick, id) {
+  async function completeFeedback(nick, id, post) {
     nick = activityText(nick, 40);
     id = feedbackId(id);
     if (!sb || nick !== ADMIN || !id) return { ok: false, reason: "forbidden" };
+    post = post && typeof post === "object" ? post : {};
+    var payload = { v: 1, type: "done", id: id };
+    var requester = activityText(post.nick || post.requester, 40);
+    var title = activityText(post.title, 80);
+    var body = activityText(post.body, 1500);
+    if (requester) payload.requester = requester;
+    if (title) payload.title = title;
+    if (body) payload.body = body;
     var result = await sb.from("chat").insert({
       room: FEEDBACK_ROOM,
       nick: nick,
-      text: FEEDBACK_PREFIX + JSON.stringify({ v: 1, type: "done", id: id })
+      text: FEEDBACK_PREFIX + JSON.stringify(payload)
     });
     return result && result.error
       ? { ok: false, reason: "database", error: result.error }
       : { ok: true };
+  }
+  async function getFeedbackNotifications(nick, limit) {
+    nick = activityText(nick, 40);
+    if (!sb || !nick) return [];
+    limit = Math.max(1, Math.min(500, Number(limit) || 300));
+    var result = await sb.from("chat").select("nick,text,created_at")
+      .eq("room", FEEDBACK_ROOM)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (result.error || !result.data) return [];
+    var posts = Object.create(null), done = [];
+    result.data.forEach(function (row) {
+      var text = String(row && row.text || "");
+      if (text.indexOf(FEEDBACK_PREFIX) !== 0) return;
+      try {
+        var payload = JSON.parse(text.slice(FEEDBACK_PREFIX.length));
+        if (!payload || payload.v !== 1) return;
+        var id = feedbackId(payload.id);
+        if (!id) return;
+        if (payload.type === "post") {
+          posts[id] = {
+            id: id,
+            nick: activityText(row.nick, 40),
+            title: activityText(payload.title, 80),
+            body: activityText(payload.body, 1500),
+            createdAt: row.created_at || null
+          };
+        } else if (payload.type === "done" && row.nick === ADMIN) {
+          done.push({
+            id: id,
+            requester: activityText(payload.requester, 40),
+            title: activityText(payload.title, 80),
+            body: activityText(payload.body, 1500),
+            completedAt: row.created_at || null
+          });
+        }
+      } catch (e) {}
+    });
+    var seen = Object.create(null);
+    return done.map(function (item) {
+      if (seen[item.id]) return null;
+      var post = posts[item.id] || {};
+      var requester = item.requester || post.nick;
+      if (requester !== nick) return null;
+      var title = item.title || post.title;
+      var body = item.body || post.body;
+      if (!title || !body) return null;
+      seen[item.id] = true;
+      return {
+        id: item.id,
+        title: title,
+        body: body,
+        createdAt: post.createdAt || null,
+        completedAt: item.completedAt
+      };
+    }).filter(function (item) { return !!item; });
   }
   async function getFeedbackPosts(limit) {
     if (!sb) return [];
@@ -416,6 +480,7 @@ window.Db = (function () {
     addChatMsg: addChatMsg, getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,
     recordActivity: recordActivity, getActivityLogs: getActivityLogs,
     submitFeedback: submitFeedback, completeFeedback: completeFeedback, getFeedbackPosts: getFeedbackPosts,
+    getFeedbackNotifications: getFeedbackNotifications,
     getAllowlist: getAllowlist, addAllowed: addAllowed, removeAllowed: removeAllowed
   };
 })();
