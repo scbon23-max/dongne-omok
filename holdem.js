@@ -392,6 +392,23 @@ window.TexasHoldem = (function () {
     return aliases[raw] || raw;
   }
 
+  function canonicalSeatAction(value) {
+    var raw = text(value, 24).toLowerCase().replace(/[\s-]+/g, "_");
+    var aliases = {
+      all_in: "allin",
+      small: "small_blind",
+      sb: "small_blind",
+      big: "big_blind",
+      bb: "big_blind",
+      match: "call",
+      increase: "raise"
+    };
+    var canonical = aliases[raw] || raw;
+    return /^(fold|check|call|bet|raise|allin|small_blind|big_blind)$/.test(canonical)
+      ? canonical
+      : "";
+  }
+
   function addLegal(target, move, detail) {
     var canonical = canonicalMove(move);
     if (!/^(fold|check|call|bet|raise|allin)$/.test(canonical)) return;
@@ -447,6 +464,7 @@ window.TexasHoldem = (function () {
       ready: !!firstDefined(entry.ready, entry.isReady, false),
       folded: !!firstDefined(entry.folded, status === "folded" || status === "fold"),
       allIn: !!firstDefined(entry.allIn, entry.allin, status === "allin" || status === "all_in"),
+      lastAction: canonicalSeatAction(firstDefined(entry.lastAction, entry.recentAction, entry.action)),
       away: !!firstDefined(entry.away, entry.disconnected, status === "away" || status === "disconnected"),
       sittingOut: !!firstDefined(entry.sittingOut, entry.spectator, status === "sitting_out"),
       inHand: bool(firstDefined(entry.inHand, entry.playing), status !== "out"),
@@ -1284,6 +1302,53 @@ window.TexasHoldem = (function () {
     return "";
   }
 
+  function seatActionLabel(seat) {
+    if (!seat || !seat.lastAction || state.phase === "waiting") return "";
+    var amount = seat.bet > 0 ? " " + formatChips(seat.bet) : "";
+    var labels = {
+      fold: "폴드",
+      check: "체크",
+      call: "콜" + amount,
+      bet: "베팅" + amount,
+      raise: "레이즈" + amount,
+      allin: "올인",
+      small_blind: "SB " + formatChips(seat.bet || state.smallBlind),
+      big_blind: "BB " + formatChips(seat.bet || state.bigBlind)
+    };
+    return labels[seat.lastAction] || "";
+  }
+
+  function seatActionClass(seat) {
+    return seat && seat.lastAction ? "action-" + seat.lastAction.replace(/_/g, "-") : "";
+  }
+
+  function timerSnapshot() {
+    if (!state.deadlineAt || state.actingSeat < 0) {
+      return { seconds: 0, ratio: 0, urgent: false, active: false };
+    }
+    var remaining = Math.max(0, state.deadlineAt - Date.now());
+    var duration = state.actionDurationMs || Math.max(1000, state.deadlineAt - (Date.now() - 1000));
+    return {
+      seconds: Math.max(0, Math.ceil(remaining / 1000)),
+      ratio: clamp(remaining / duration, 0, 1),
+      urgent: remaining <= 10000,
+      active: true
+    };
+  }
+
+  function renderSeatTimers() {
+    var screen = root();
+    if (!screen || !screen.querySelectorAll) return;
+    var info = timerSnapshot();
+    var timers = screen.querySelectorAll(".holdem-seat-turn-timer");
+    for (var i = 0; i < timers.length; i++) {
+      var timer = timers[i];
+      timer.textContent = info.active ? String(info.seconds) : "";
+      timer.classList.toggle("urgent", info.urgent);
+      timer.style.setProperty("--holdem-seat-timer-ratio", String(info.ratio));
+    }
+  }
+
   function renderSeats() {
     var box = $("holdem-seats");
     if (!box) return;
@@ -1310,6 +1375,8 @@ window.TexasHoldem = (function () {
 
       var name = seat ? (seat.displayName || seat.nick) : "빈 자리";
       var status = seatStatus(seat);
+      var actionLabel = seatActionLabel(seat);
+      var actionClass = seatActionClass(seat);
       var personalityLabel = seat && seat.isBot
         ? botPersonalityLabel(seat.botPersonality)
         : "";
@@ -1345,6 +1412,10 @@ window.TexasHoldem = (function () {
             ? '<span class="holdem-seat-personality">' + esc(personalityLabel) + '</span>'
             : "") +
           (seat ? '<span class="holdem-seat-stack">' + formatChips(seat.stack) + '</span>' : "") +
+          (isActive && state.deadlineAt
+            ? '<span class="holdem-seat-turn-timer" data-holdem-seat-timer="' + absolute + '"></span>'
+            : "") +
+          (actionLabel ? '<span class="holdem-seat-action ' + esc(actionClass) + '">' + esc(actionLabel) + '</span>' : "") +
           (seat && seat.bet > 0 ? '<span class="holdem-seat-bet">BET ' + formatChips(seat.bet) + '</span>' : "") +
           (status ? '<span class="holdem-seat-status">' + esc(status) + '</span>' : "") +
         '</article>'
@@ -1658,6 +1729,7 @@ window.TexasHoldem = (function () {
 
   function renderTimer() {
     renderAutoNextCountdown();
+    renderSeatTimers();
     var timer = $("holdem-timer");
     if (!timer) return;
     if (!state.deadlineAt) {
@@ -1665,14 +1737,12 @@ window.TexasHoldem = (function () {
       timer.classList.remove("urgent");
       return;
     }
+    var info = timerSnapshot();
     var remaining = Math.max(0, state.deadlineAt - Date.now());
-    var seconds = Math.max(0, Math.ceil(remaining / 1000));
-    timer.textContent = String(seconds);
-    timer.classList.toggle("urgent", seconds <= 10);
-    var duration = state.actionDurationMs || Math.max(1000, state.deadlineAt - (Date.now() - 1000));
-    var ratio = clamp(remaining / duration, 0, 1);
+    timer.textContent = String(info.seconds);
+    timer.classList.toggle("urgent", info.urgent);
     var ring = $("holdem-timer-ring");
-    if (ring) ring.style.setProperty("--holdem-timer-ratio", String(ratio));
+    if (ring) ring.style.setProperty("--holdem-timer-ratio", String(info.ratio));
     if (remaining <= 0) requestDeadlineTick();
   }
 

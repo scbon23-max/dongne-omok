@@ -613,6 +613,7 @@
       if (!player) return;
       if (player.stack <= 0) player.ready = false;
       else if (!player.leaving) player.ready = true;
+      if (player.isBot && Array.isArray(player.cards) && player.cards.length === 2) player.revealed = true;
       player.waiting = true;
       if (player.leaving) state.seats[seat] = null;
     });
@@ -1193,11 +1194,12 @@
       streetBet: player.streetBet,
       totalBet: player.totalBet,
       lastAction: player.lastAction || "",
+      lastActionBet: player.lastActionBet == null ? null : player.lastActionBet,
       winAmount: player.winAmount || 0,
       cardCount: player.inHand && player.cards.length ? player.cards.length : 0
     };
     if ((viewerPlayer && player.seat === viewerPlayer.seat) ||
-        (revealAll && player.revealed && !player.folded)) {
+        (revealAll && player.revealed && (!player.folded || player.isBot))) {
       out.cards = player.cards.slice();
     }
     if (player.revealed && player.evaluation) {
@@ -1255,9 +1257,13 @@
       out.push({
         seat: player.seat,
         nick: player.nick,
+        displayName: text(player.displayName || player.nick, 40),
+        isBot: true,
+        botPersonality: normalizeBotPersonality(player.botPersonality) || legacyBotPersonality(player, player.seat),
         cards: player.cards.slice(),
         folded: !!player.folded,
-        testReveal: true
+        testReveal: true,
+        aiReveal: true
       });
     });
     return out;

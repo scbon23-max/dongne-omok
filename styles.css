@@ -3338,10 +3338,75 @@ body.is-admin .feedback-user-compose { display: none; }
   background: #163f43;
   color: #83e7d2;
 }
+.holdem-seat-action {
+  position: absolute;
+  top: calc(50% - 39px);
+  left: 50%;
+  z-index: 4;
+  max-width: 118px;
+  padding: 4px 9px;
+  overflow: hidden;
+  border: 1px solid rgba(242,199,125,.7);
+  border-radius: 999px;
+  background: rgba(12,16,20,.94);
+  color: #fff0c2;
+  font-size: clamp(10px, 2.8vw, 13px);
+  font-weight: 1000;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0,0,0,.7);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,.48);
+}
+.holdem-seat-action.action-fold {
+  border-color: rgba(172,187,193,.72);
+  background: rgba(22,28,33,.96);
+  color: #d7e0e2;
+}
+.holdem-seat-action.action-call,
+.holdem-seat-action.action-check {
+  border-color: rgba(91,220,194,.78);
+  color: #a6f5e5;
+}
+.holdem-seat-action.action-bet,
+.holdem-seat-action.action-raise {
+  border-color: rgba(255,143,87,.86);
+  background: rgba(79,35,18,.96);
+  color: #ffd2b9;
+}
+.holdem-seat-action.action-allin {
+  border-color: rgba(255,113,158,.88);
+  background: rgba(91,28,52,.96);
+  color: #ffd7e3;
+}
 .holdem-seat-status {
   right: calc(50% + 33px);
   background: rgba(9,15,19,.88);
   color: #d4e2e3;
+}
+.holdem-seat-turn-timer {
+  --holdem-seat-timer-ratio: 1;
+  position: absolute;
+  top: calc(50% - 23px);
+  left: calc(50% - 51px);
+  z-index: 5;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(#57d8c1 calc(var(--holdem-seat-timer-ratio) * 1turn), rgba(255,255,255,.12) 0);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(0,0,0,.8);
+  box-shadow: 0 3px 10px rgba(0,0,0,.5);
+}
+.holdem-seat-turn-timer.urgent {
+  background: conic-gradient(#ff7b58 calc(var(--holdem-seat-timer-ratio) * 1turn), rgba(255,255,255,.12) 0);
+  color: #ffd8cd;
 }
 .holdem-seat[data-relative-seat="1"] .holdem-seat-status,
 .holdem-seat[data-relative-seat="2"] .holdem-seat-status {

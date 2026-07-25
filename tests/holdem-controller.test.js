@@ -93,6 +93,8 @@ test("the controller consumes the engine's personalized snapshot contract", () =
   assert.equal(normalized.actingSeat, state.actorSeat);
   assert.equal(normalized.heroCards.length, 2);
   assert.equal(normalized.seats[1].cardCount, 2);
+  assert.equal(normalized.seats[state.smallBlindSeat].lastAction, "small_blind");
+  assert.equal(normalized.seats[state.bigBlindSeat].lastAction, "big_blind");
   assert.equal(normalized.toCall, 50);
   assert.equal(normalized.legal.call.move, "call");
   assert.equal(normalized.smallBlind, 50);

@@ -207,6 +207,29 @@ test("check/call play reaches showdown and conserves every chip", () => {
   assert.equal(state.seats.reduce((sum, player) => sum + (player ? player.stack : 0), 0), startingTotal);
 });
 
+test("completed hands reveal every AI player's cards", () => {
+  let state = Engine.createTable({ roomId: "ai-reveal", ownerNick: "alice" });
+  state = apply(state, { type: "join", nick: "alice" }, 10);
+  state = apply(state, { type: "add_bot", nick: "alice" }, 11);
+  state = apply(state, { type: "add_bot", nick: "alice" }, 12);
+  state = apply(state, { type: "ready", nick: "alice", ready: true }, 13);
+  state = apply(state, { type: "start", nick: "alice" }, 14);
+
+  const aiSeats = state.seats.filter((player) => player && player.isBot).map((player) => player.seat);
+  assert.equal(aiSeats.length, 2);
+  aiSeats.forEach((seat, index) => {
+    state.seats[seat].folded = index === 0;
+  });
+  state.phase = "hand_end";
+
+  const view = Engine.view(state, "alice");
+  aiSeats.forEach((seat) => {
+    const entry = view.showdown.find((row) => row.seat === seat);
+    assert.ok(entry, `AI seat ${seat} is in showdown`);
+    assert.equal(entry.cards.length, 2);
+  });
+});
+
 test("expired turns auto-check when free and otherwise auto-fold", () => {
   const names = ["a", "b"];
   let state = tableWithPlayers(names, { actionMs: 5000 });
