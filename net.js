@@ -143,6 +143,33 @@ window.Net = (function () {
       });
     });
   }
+  function roomRosterFingerprint(rows) {
+    var canonical = (Array.isArray(rows) ? rows : []).map(function (member) {
+      member = member || {};
+      var sessions = Array.isArray(member.presenceSessionIds)
+        ? member.presenceSessionIds.map(sessionIdOf).filter(Boolean).sort()
+        : [];
+      return {
+        nick: String(member.nick == null ? "" : member.nick).slice(0, 40),
+        isAdmin: !!member.isAdmin,
+        joinTs: Number(member.joinTs) || 0,
+        viewing: member.viewing == null ? "" : String(member.viewing).slice(0, 80),
+        away: !!member.away,
+        hostEligible: member.hostEligible !== false,
+        clientSessionId: sessionIdOf(member.clientSessionId),
+        presenceSessionIds: sessions,
+        presenceCount: Math.max(0, Math.floor(Number(member.presenceCount) || 0)),
+        hasCurrentSession: !!member.hasCurrentSession,
+        catchBoardFrameId: String(member.catchBoardFrameId == null ? "" : member.catchBoardFrameId).slice(0, 80),
+        catchLevel: Math.max(0, Math.floor(Number(member.catchLevel) || 0))
+      };
+    });
+    canonical.sort(function (a, b) {
+      return a.nick < b.nick ? -1 : a.nick > b.nick ? 1
+        : a.clientSessionId < b.clientSessionId ? -1 : a.clientSessionId > b.clientSessionId ? 1 : 0;
+    });
+    return JSON.stringify(canonical);
+  }
   function backoff(tries) { return Math.min(1000 * Math.pow(2, tries), 15000); }
   function isDead(status) { return status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED"; }
 
@@ -195,7 +222,7 @@ window.Net = (function () {
   function trackLobby(m) { lobbyMeta = withClientSession(m); if (enabled && lobbyCh) lobbyCh.track(lobbyMeta); }
 
   // ── 방 채널 (방에 들어갈 때만, 나가면 떠남) ──
-  var channel = null, myMeta = null, handlers = {}, curRoom = null, roomGen = 0, roomWant = false, roomTries = 0, roomReT = null, roomReady = false, roomPending = [], roomPresenceT = null;
+  var channel = null, myMeta = null, handlers = {}, curRoom = null, roomGen = 0, roomWant = false, roomTries = 0, roomReT = null, roomReady = false, roomPending = [], roomPresenceT = null, roomPresenceFingerprint = null;
   var directChannels = Object.create(null), directWanted = Object.create(null), directTries = Object.create(null);
   function init(roomId, meta, hs) {
     if (!enabled) { handlers = hs || {}; if (handlers.onStatus) handlers.onStatus("LOCAL"); return false; }
@@ -208,6 +235,7 @@ window.Net = (function () {
   function openRoom() {
     var gen = ++roomGen;
     roomReady = false;
+    roomPresenceFingerprint = null;
     stopRoomPresenceHeartbeat();
     if (channel) { try { window.SB.removeChannel(channel); } catch (e) {} channel = null; }
     channel = window.SB.channel("room:" + curRoom, {
@@ -239,7 +267,14 @@ window.Net = (function () {
     var d = backoff(roomTries++);
     roomReT = setTimeout(function () { roomReT = null; if (roomWant) openRoom(); }, d);
   }
-  function emit() { if (channel && handlers.onPresence) handlers.onPresence(rosterOf(channel)); }
+  function emit() {
+    if (!channel) return;
+    var nextRoster = rosterOf(channel);
+    var nextFingerprint = roomRosterFingerprint(nextRoster);
+    if (nextFingerprint === roomPresenceFingerprint) return;
+    roomPresenceFingerprint = nextFingerprint;
+    if (handlers.onPresence) handlers.onPresence(nextRoster);
+  }
   function flushRoom() { if (channel) flushPackets(channel, roomPending); }
   function send(o) {
     if (!enabled) return;
@@ -256,11 +291,10 @@ window.Net = (function () {
   function track(m) { myMeta = withClientSession(m); if (enabled && channel) channel.track(myMeta); }
   function directNick(value) { return String(value == null ? "" : value).trim().slice(0, 40); }
   function directTopic(nick) { return "room-input:" + curRoom + ":" + encodeURIComponent(nick); }
-  function closeDirectInput(nick, status) {
+  function closeDirectInput(nick) {
     var entry = directChannels[nick];
     if (!entry) return;
     if (entry.retry) clearTimeout(entry.retry);
-    discardPending(entry.pending, status || "cancelled");
     if (entry.channel) { try { window.SB.removeChannel(entry.channel); } catch (e) {} }
     delete directChannels[nick];
   }
@@ -268,7 +302,7 @@ window.Net = (function () {
     nick = directNick(nick);
     if (!enabled || !roomWant || !curRoom || !nick) return null;
     if (directChannels[nick]) return directChannels[nick];
-    var entry = { channel: null, ready: false, pending: [], retry: null };
+    var entry = { channel: null, ready: false, retry: null };
     var ch = window.SB.channel(directTopic(nick), { config: { broadcast: { self: false } } });
     entry.channel = ch;
     directChannels[nick] = entry;
@@ -280,7 +314,6 @@ window.Net = (function () {
       if (status === "SUBSCRIBED") {
         directTries[nick] = 0;
         entry.ready = true;
-        flushPackets(ch, entry.pending);
       } else if (isDead(status)) {
         entry.ready = false;
         if (entry.retry || !directWanted[nick]) return;
@@ -289,7 +322,7 @@ window.Net = (function () {
         entry.retry = setTimeout(function () {
           entry.retry = null;
           if (directChannels[nick] !== entry || !directWanted[nick] || !roomWant) return;
-          closeDirectInput(nick, "reconnecting");
+          closeDirectInput(nick);
           openDirectInput(nick);
         }, delay);
       }
@@ -322,11 +355,8 @@ window.Net = (function () {
     directWanted[nick] = true;
     var entry = openDirectInput(nick);
     if (!entry) return false;
+    if (!entry.ready) return false;
     payload = decoratePayload(payload, "direct", curRoom, myMeta);
-    if (!entry.ready) {
-      queuePacket(entry.pending, payload, null, true);
-      return true;
-    }
     sendPacket(entry.channel, payload);
     return true;
   }
@@ -337,10 +367,9 @@ window.Net = (function () {
     directWanted[nick] = true;
     var entry = openDirectInput(nick);
     if (!entry) return Promise.resolve(sendOutcome("unavailable"));
+    if (!entry.ready) return Promise.resolve(sendOutcome("unavailable"));
     payload = decoratePayload(payload, "direct", curRoom, myMeta);
-    if (entry.ready) return sendPacket(entry.channel, payload);
-    queuePacket(entry.pending, payload, null, true);
-    return Promise.resolve(sendOutcome("queued"));
+    return sendPacket(entry.channel, payload);
   }
   function closeAllDirectInputs() {
     directWanted = Object.create(null);
@@ -349,6 +378,7 @@ window.Net = (function () {
   }
   function leaveRoom() {
     roomWant = false; roomGen++; roomReady = false; discardPending(roomPending, "cancelled");
+    roomPresenceFingerprint = null;
     stopRoomPresenceHeartbeat();
     closeAllDirectInputs();
     if (roomReT) { clearTimeout(roomReT); roomReT = null; }

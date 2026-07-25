@@ -1192,6 +1192,13 @@ test("territories and trails render as bright flat colors without outlines", () 
   assert.doesNotMatch(minimapSource, /imageSmoothingQuality/);
 });
 
+test("mobile Territory overlays avoid live backdrop blur over the moving canvas", () => {
+  assert.match(
+    styles,
+    /@media \(max-width: 900px\), \(pointer: coarse\)[\s\S]*?#territorygame\.is-playing \.territory-time[\s\S]*?-webkit-backdrop-filter: none;[\s\S]*?backdrop-filter: none;/
+  );
+});
+
 test("worst-case territory and trail snapshots stay compact", () => {
   const grid = new Int8Array(engine.constants.cells);
   for (let i = 0; i < grid.length; i++) grid[i] = i % engine.constants.maxPlayers;

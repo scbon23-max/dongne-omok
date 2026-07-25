@@ -2715,6 +2715,17 @@ body.is-admin .feedback-user-compose { display: none; }
   clip-path: inset(50%);
   white-space: nowrap;
 }
+@media (max-width: 900px), (pointer: coarse) {
+  #territorygame.is-playing .territory-time,
+  #territorygame.is-playing .territory-scoreboard,
+  #territorygame.is-playing .territory-focus-hud,
+  #territorygame.is-playing .territory-utility button,
+  #territorygame.is-playing .territory-swipe-hint,
+  #territorygame.is-playing .territory-status {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
 .territory-panel {
   position: absolute;
   z-index: 8;

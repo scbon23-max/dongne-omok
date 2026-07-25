@@ -113,6 +113,107 @@ test("presence keeps the compatible nick roster while exposing duplicate session
   fixture.Net.leaveRoom();
 });
 
+test("identical room presence heartbeats are suppressed until meaningful metadata changes", () => {
+  const rosters = [];
+  const fixture = loadNet({ sessionId: "local" });
+  fixture.Net.init("room-presence", {
+    nick: "민서",
+    isAdmin: false,
+    joinTs: 1,
+    viewing: null,
+    hostEligible: true,
+    catchBoardFrameId: "frame-a",
+    catchLevel: 7
+  }, {
+    onPresence(value) { rosters.push(value); }
+  });
+  const room = fixture.channels.find((channel) => channel.topic === "room:room-presence");
+  const localSession = fixture.Net.clientSessionId;
+  room.state = {
+    local: [{
+      nick: "민서",
+      isAdmin: false,
+      joinTs: 1,
+      viewing: null,
+      hostEligible: true,
+      clientSessionId: localSession,
+      catchBoardFrameId: "frame-a",
+      catchLevel: 7
+    }]
+  };
+
+  room.emit("presence", "sync");
+  fixture.Net.track({
+    nick: "민서",
+    isAdmin: false,
+    joinTs: 1,
+    viewing: null,
+    hostEligible: true,
+    catchBoardFrameId: "frame-a",
+    catchLevel: 7
+  });
+  room.emit("presence", "sync");
+  room.emit("presence", "join");
+  room.emit("presence", "leave");
+  assert.equal(rosters.length, 1);
+
+  room.state.local[0] = Object.assign({}, room.state.local[0], {
+    viewing: "catchmind",
+    away: true,
+    hostEligible: false,
+    catchBoardFrameId: "frame-b",
+    catchLevel: 8
+  });
+  room.emit("presence", "sync");
+  assert.equal(rosters.length, 2);
+  assert.equal(rosters[1][0].viewing, "catchmind");
+  assert.equal(rosters[1][0].away, true);
+  assert.equal(rosters[1][0].hostEligible, false);
+  assert.equal(rosters[1][0].catchBoardFrameId, "frame-b");
+  assert.equal(rosters[1][0].catchLevel, 8);
+  fixture.Net.leaveRoom();
+});
+
+test("room presence forwards session and membership changes and resets after reopening", () => {
+  const rosters = [];
+  const fixture = loadNet({ sessionId: "local" });
+  const handlers = { onPresence(value) { rosters.push(value); } };
+  fixture.Net.init("room-reset", { nick: "민서", joinTs: 1 }, handlers);
+  const firstRoom = fixture.channels.find((channel) => channel.topic === "room:room-reset");
+  firstRoom.state = {
+    local: [{ nick: "민서", joinTs: 1, clientSessionId: fixture.Net.clientSessionId }]
+  };
+  firstRoom.emit("presence", "sync");
+  assert.equal(rosters.length, 1);
+
+  firstRoom.state.remote = [{ nick: "서준", joinTs: 2, clientSessionId: "c-remote-a" }];
+  firstRoom.emit("presence", "join");
+  assert.equal(rosters.length, 2);
+  assert.deepEqual(Array.from(rosters[1], (member) => member.nick).sort(), ["민서", "서준"].sort());
+
+  firstRoom.state.remote.push({ nick: "서준", joinTs: 3, clientSessionId: "c-remote-b" });
+  firstRoom.emit("presence", "sync");
+  assert.equal(rosters.length, 3);
+  const duplicate = rosters[2].find((member) => member.nick === "서준");
+  assert.equal(duplicate.presenceCount, 2);
+  assert.deepEqual(Array.from(duplicate.presenceSessionIds), ["c-remote-a", "c-remote-b"]);
+
+  firstRoom.state.remote = [{ nick: "서준", joinTs: 3, clientSessionId: "c-remote-b" }];
+  firstRoom.emit("presence", "leave");
+  assert.equal(rosters.length, 4);
+  assert.equal(rosters[3].find((member) => member.nick === "서준").clientSessionId, "c-remote-b");
+
+  fixture.Net.leaveRoom();
+  fixture.Net.init("room-reset", { nick: "민서", joinTs: 1 }, handlers);
+  const secondRoom = fixture.channels.filter((channel) => channel.topic === "room:room-reset").at(-1);
+  secondRoom.state = {
+    local: [{ nick: "민서", joinTs: 1, clientSessionId: fixture.Net.clientSessionId }]
+  };
+  secondRoom.emit("presence", "sync");
+  assert.equal(rosters.length, 5);
+  fixture.Net.leaveRoom();
+});
+
 test("equal-time duplicate presence always elects the same primary session", () => {
   function selectedPrimary(state) {
     let roster = null;
@@ -193,7 +294,7 @@ test("queued result sends settle after subscribe and settle as cancelled on leav
   assertResult(await cancelled, false, "cancelled");
 });
 
-test("direct input reports an unready channel immediately and later sends only the latest queued packet", async () => {
+test("an unready direct input falls back once without a late queued send, then new input uses direct", async () => {
   const fixture = loadNet({ autoSubscribe: false, sessionId: "direct-tab" });
   fixture.Net.init("room-2", { nick: "민서" }, {});
   const room = fixture.channels.find((channel) => channel.topic === "room:room-2");
@@ -201,17 +302,26 @@ test("direct input reports an unready channel immediately and later sends only t
   fixture.Net.syncDirectInputs(["민서"], "민서", false);
   const direct = fixture.channels.find((channel) => channel.topic.startsWith("room-input:"));
 
-  assertResult(await fixture.Net.sendDirectInputWithResult({ t: "tr_input", seq: 10 }), false, "queued");
-  assertResult(await fixture.Net.sendDirectInputWithResult({ t: "tr_input", seq: 11 }), false, "queued");
+  const first = { t: "tr_input", seq: 10 };
+  const firstResult = await fixture.Net.sendDirectInputWithResult(first);
+  assertResult(firstResult, false, "unavailable");
+  if (!firstResult.ok) await fixture.Net.sendWithResult(first);
+  assert.equal(room.sent.length, 1);
+  assert.equal(room.sent[0].payload.seq, 10);
   assert.equal(direct.sent.length, 0);
 
   direct.status("SUBSCRIBED");
+  assert.equal(direct.sent.length, 0);
+
+  const secondResult = await fixture.Net.sendDirectInputWithResult({ t: "tr_input", seq: 11 });
+  assertResult(secondResult, true, "ok");
   assert.equal(direct.sent.length, 1);
   assert.equal(direct.sent[0].payload.seq, 11);
+  assert.equal(room.sent.length, 1);
 
   const meta = fixture.Net.transportMetaOf(direct.sent[0].payload);
   assert.equal(meta.sessionId, fixture.Net.clientSessionId);
-  assert.equal(meta.seq, 2);
+  assert.equal(meta.seq, 1);
   assert.equal(meta.lane, "direct");
   assert.equal(meta.roomId, "room-2");
   assert.equal(fixture.Net.transportMetaOf({ _transport: { v: 1, seq: Infinity } }), null);

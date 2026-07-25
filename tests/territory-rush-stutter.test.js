@@ -437,13 +437,13 @@ test("continuous local input cannot starve the room fallback timer", () => {
   assert.ok(engine.getUnackedInput());
 });
 
-test("an unready direct channel immediately falls back to the room channel", async () => {
+test("an unavailable direct channel immediately falls back to the room channel once", async () => {
   const { engine } = loadTerritory();
   const sent = [];
   const direct = [];
   engine.setApi(guestApi(sent, {
     direct,
-    directResult: Promise.resolve({ ok: false, status: "queued" })
+    directResult: Promise.resolve({ ok: false, status: "unavailable" })
   }));
   const state = makePlayingState(engine, 1);
   engine.setState(state);
@@ -616,6 +616,127 @@ test("host tick catches up four fixed steps and caps a long stall at the same li
     "a 1000ms delay is capped at the configured four catch-up steps"
   );
   assert.ok(sent.some((message) => message.t === "tr_frame"));
+});
+
+test("host tick defers excess catch-up debt after its work budget is exhausted", () => {
+  const { engine, clock } = loadTerritory(650000);
+  const sent = [];
+  engine.setApi({
+    me() { return { nick: "host", clientSessionId: "host-session" }; },
+    roster() { return [{ nick: "host", clientSessionId: "host-session" }]; },
+    isHost() { return true; },
+    host() { return "host"; },
+    hostSessionId() { return "host-session"; },
+    isNet() { return false; },
+    isConnected() { return true; },
+    setHostEligible() {},
+    syncHostInputs() {},
+    roomChanged() {},
+    toast() {},
+    playWarning() {},
+    send(message) { sent.push(message); }
+  });
+
+  const state = makePlayingState(engine, 1, "budgeted-catchup");
+  const player = state.players[0];
+  player.nick = "host";
+  player.dir = "right";
+  player.angle = 0;
+  player.targetAngle = 0;
+  state.startAt = clock.now() - 1000;
+  state.deadline = clock.now() + 100000;
+  engine.setState(state);
+  engine.resetGrid();
+  engine.setSyncState(0, false, 0, false);
+  engine.setActive(true);
+  engine.setBroadcastTimes(clock.now(), clock.now());
+  engine.resetHostStepClock();
+
+  engine.hostTick();
+  let workNow = 0;
+  engine.setHostWorkClock(() => {
+    const value = workNow;
+    workNow += engine.constants.hostTickWorkBudgetMs + 1;
+    return value;
+  });
+
+  const beforeDelayedTick = player.x;
+  clock.advance(200);
+  engine.hostTick();
+  const oneStepDistance = engine.constants.speed * engine.constants.stepMs / 1000;
+  assert.ok(
+    Math.abs(player.x - beforeDelayedTick - oneStepDistance) < 1e-9,
+    "the long callback stops after one expensive simulation step"
+  );
+
+  engine.setHostWorkClock(null);
+  const beforeNextTick = player.x;
+  clock.advance(engine.constants.stepMs);
+  engine.hostTick();
+  const fourStepDistance = oneStepDistance * engine.constants.hostMaxCatchupSteps;
+  assert.ok(
+    Math.abs(player.x - beforeNextTick - fourStepDistance) < 1e-9,
+    "deferred debt catches up once later steps fit within the callback budget"
+  );
+});
+
+test("a pending full snapshot does not block lightweight pose frames while it is rate-limited", () => {
+  const { engine, clock } = loadTerritory(700000);
+  const sent = [];
+  engine.setApi({
+    me() { return { nick: "host", clientSessionId: "host-session" }; },
+    roster() {
+      return [{
+        nick: "host",
+        clientSessionId: "host-session",
+        presenceSessionIds: ["host-session"]
+      }];
+    },
+    isHost() { return true; },
+    host() { return "host"; },
+    hostSessionId() { return "host-session"; },
+    isNet() { return false; },
+    isConnected() { return true; },
+    setHostEligible() {},
+    syncHostInputs() {},
+    roomChanged() {},
+    toast() {},
+    playWarning() {},
+    send(message) { sent.push(message); }
+  });
+
+  const state = makePlayingState(engine, 1, "full-frame-overlap");
+  state.players[0].nick = "host";
+  state.startAt = clock.now() - 1000;
+  state.deadline = clock.now() + 100000;
+  engine.setState(state);
+  engine.resetGrid();
+  engine.setSyncState(0, false, 0, false);
+  engine.setActive(true);
+  engine.broadcastFull();
+  const publishedOwnerRev = state.ownerRev;
+  sent.length = 0;
+  engine.getOwner()[state.players[0].lastCell] = state.players[0].id;
+  engine.setBroadcastTimes(clock.now() - 1000, clock.now());
+  engine.resetHostStepClock();
+  engine.eliminate(state.players[0], null, clock.now(), "self");
+  assert.ok(state.ownerRev > publishedOwnerRev);
+
+  engine.hostTick();
+  const pendingFrames = sent.filter((message) => message.t === "tr_frame");
+  assert.equal(pendingFrames.length, 1);
+  assert.equal(
+    pendingFrames[0].state.ownerRev,
+    publishedOwnerRev,
+    "pose frames cannot advertise an owner revision before its full grid snapshot"
+  );
+  assert.equal(sent.filter((message) => message.t === "tr_state").length, 0);
+
+  clock.advance(engine.constants.fullMinMs);
+  engine.hostTick();
+  const fullSnapshots = sent.filter((message) => message.t === "tr_state");
+  assert.equal(fullSnapshots.length, 1);
+  assert.equal(fullSnapshots[0].state.ownerRev, state.ownerRev);
 });
 
 test("canvas backing-store resize skips identical dimensions and updates changed dimensions once", () => {

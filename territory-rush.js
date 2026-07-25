@@ -20,6 +20,7 @@ window.TerritoryRush = (function () {
   var INPUT_ACK_MAX_ATTEMPTS = 4;
   var HOST_MAX_CATCHUP_STEPS = 4;
   var HOST_MAX_CATCHUP_MS = STEP_MS * HOST_MAX_CATCHUP_STEPS;
+  var HOST_TICK_WORK_BUDGET_MS = 12;
   var PREDICTION_MAX_MS = 1200;
   var MIN_FRAME_MS = 200;
   var VISUAL_CATCHUP_SPEED_MULTIPLIER = 3;
@@ -87,6 +88,8 @@ window.TerritoryRush = (function () {
   var blocked = new Uint8Array(CELL_COUNT);
   var visited = new Uint8Array(CELL_COUNT);
   var queue = new Int32Array(CELL_COUNT);
+  var spawnBlocked = new Uint8Array(CELL_COUNT);
+  var spawnPrefix = new Int32Array((WORLD_W + 1) * (WORLD_H + 1));
   var visualPlayers = Object.create(null);
   var visualTrails = Object.create(null);
   var collisionTrails = Object.create(null);
@@ -107,6 +110,7 @@ window.TerritoryRush = (function () {
   var localInputHistoryId = 0;
   var syncRequestedAt = 0;
   var helloPending = false;
+  var lastPresenceSignature = "";
   var syncReplyAtByNick = Object.create(null);
   var wantedOwnerRev = 0;
   var ownerSyncMissingSince = 0;
@@ -119,12 +123,14 @@ window.TerritoryRush = (function () {
   var tickId = null;
   var lastHostTickAt = 0;
   var hostStepDebt = 0;
+  var hostWorkClockOverride = null;
   var renderRaf = 0;
   var lastRenderAt = 0;
   var lastHudAt = 0;
   var lastMiniAt = 0;
   var lastFrameSentAt = 0;
   var lastFullSentAt = 0;
+  var lastPublishedOwnerRev = 0;
   var frameSendInFlight = false;
   var queuedFrameMessage = null;
   var frameSendGeneration = 0;
@@ -332,6 +338,27 @@ window.TerritoryRush = (function () {
   }
   function activePeople() { return orderedPeople().filter(function (person) { return !person.away; }); }
   function activeNicks() { return activePeople().map(function (person) { return safeNick(person.nick); }); }
+  function territoryPresenceSignature(rows) {
+    var hostNick = api && api.host ? safeNick(api.host()) : "";
+    var hostSession = api && api.hostSessionId ? String(api.hostSessionId() || "").slice(0, 96) : "";
+    var members = (Array.isArray(rows) ? rows : []).map(function (person) {
+      person = person || {};
+      var sessions = Array.isArray(person.presenceSessionIds)
+        ? person.presenceSessionIds.map(function (sessionId) {
+          return String(sessionId || "").slice(0, 96);
+        }).filter(Boolean).sort()
+        : [];
+      return [
+        safeNick(person.nick),
+        Number(person.joinTs) || 0,
+        person.away ? 1 : 0,
+        String(person.clientSessionId || "").slice(0, 96),
+        sessions.join(","),
+        Math.max(0, Math.floor(Number(person.presenceCount) || sessions.length))
+      ].join(":");
+    }).sort();
+    return hostNick + "#" + hostSession + "|" + members.join("|");
+  }
   function personByNick(nick) {
     nick = safeNick(nick);
     var rows = orderedPeople();
@@ -553,13 +580,16 @@ window.TerritoryRush = (function () {
     return value;
   }
 
-  function frameSnapshot() {
+  function frameSnapshot(ownerRevOverride) {
+    var frameOwnerRev = Number.isFinite(Number(ownerRevOverride))
+      ? Math.max(0, Math.floor(Number(ownerRevOverride)))
+      : state.ownerRev;
     return {
       frameV: 1,
       phase: state.phase,
       rev: state.rev,
       frameSeq: state.frameSeq,
-      ownerRev: state.ownerRev,
+      ownerRev: frameOwnerRev,
       matchId: state.matchId,
       startAt: state.startAt,
       deadline: state.deadline,
@@ -769,13 +799,16 @@ window.TerritoryRush = (function () {
     visited.fill(0);
     var arena = activeArena();
     var i;
-    for (i = 0; i < map.length; i++) {
-      var mapX = i % WORLD_W;
-      var mapY = Math.floor(i / WORLD_W);
-      if (!isPlayableCell(mapX, mapY, arena)) {
-        map[i] = -1;
-        visited[i] = 1;
-      } else if (map[i] === playerId) blocked[i] = 1;
+    map.fill(-1, 0, arena.minY * WORLD_W);
+    map.fill(-1, arena.maxY * WORLD_W, CELL_COUNT);
+    for (var mapY = arena.minY; mapY < arena.maxY; mapY++) {
+      var rowStart = mapY * WORLD_W;
+      map.fill(-1, rowStart, rowStart + arena.minX);
+      map.fill(-1, rowStart + arena.maxX, rowStart + WORLD_W);
+      for (var mapX = arena.minX; mapX < arena.maxX; mapX++) {
+        var mapKey = rowStart + mapX;
+        if (map[mapKey] === playerId) blocked[mapKey] = 1;
+      }
     }
     for (i = 0; i < trail.length; i++) {
       var trailKey = normalizeTrailCellKey(trail[i], arena);
@@ -802,29 +835,32 @@ window.TerritoryRush = (function () {
       var x = index % WORLD_W;
       var y = Math.floor(index / WORLD_W);
       var next;
-      if (x > 0) {
+      if (x > arena.minX) {
         next = index - 1;
         if (!blocked[next] && !visited[next]) { visited[next] = 1; queue[tail++] = next; }
       }
-      if (x < WORLD_W - 1) {
+      if (x < arena.maxX - 1) {
         next = index + 1;
         if (!blocked[next] && !visited[next]) { visited[next] = 1; queue[tail++] = next; }
       }
-      if (y > 0) {
+      if (y > arena.minY) {
         next = index - WORLD_W;
         if (!blocked[next] && !visited[next]) { visited[next] = 1; queue[tail++] = next; }
       }
-      if (y < WORLD_H - 1) {
+      if (y < arena.maxY - 1) {
         next = index + WORLD_W;
         if (!blocked[next] && !visited[next]) { visited[next] = 1; queue[tail++] = next; }
       }
     }
     var gained = 0;
-    for (i = 0; i < map.length; i++) {
-      if (!visited[i] && map[i] !== playerId
-          && isPlayableCell(i % WORLD_W, Math.floor(i / WORLD_W), arena)) {
-        map[i] = playerId;
-        gained++;
+    for (var fillY = arena.minY; fillY < arena.maxY; fillY++) {
+      var fillRowStart = fillY * WORLD_W;
+      for (var fillX = arena.minX; fillX < arena.maxX; fillX++) {
+        var fillKey = fillRowStart + fillX;
+        if (!visited[fillKey] && map[fillKey] !== playerId) {
+          map[fillKey] = playerId;
+          gained++;
+        }
       }
     }
     return gained;
@@ -969,8 +1005,8 @@ window.TerritoryRush = (function () {
 
   function buildSpawnBlockedPrefix(playerId, allowOccupiedTerritory) {
     var stride = WORLD_W + 1;
-    var spawnBlocked = new Uint8Array(CELL_COUNT);
-    var prefix = new Int32Array(stride * (WORLD_H + 1));
+    spawnBlocked.fill(0);
+    spawnPrefix.fill(0);
     for (var key = 0; key < CELL_COUNT; key++) {
       if ((!allowOccupiedTerritory && owner[key] >= 0 && owner[key] !== playerId)
           || (trailOwner[key] >= 0 && trailOwner[key] !== playerId)) {
@@ -990,10 +1026,10 @@ window.TerritoryRush = (function () {
       var rowTotal = 0;
       for (var x = 0; x < WORLD_W; x++) {
         rowTotal += spawnBlocked[cellIndex(x, y)];
-        prefix[(y + 1) * stride + x + 1] = prefix[y * stride + x + 1] + rowTotal;
+        spawnPrefix[(y + 1) * stride + x + 1] = spawnPrefix[y * stride + x + 1] + rowTotal;
       }
     }
-    return prefix;
+    return spawnPrefix;
   }
 
   function blockedSpawnCells(prefix, centerX, centerY, radius) {
@@ -1006,14 +1042,22 @@ window.TerritoryRush = (function () {
       - prefix[y1 * stride + x0] + prefix[y0 * stride + x0];
   }
 
-  function farFromActivePlayers(player, x, y, minimumDistance) {
-    minimumDistance = Number(minimumDistance) || RESPAWN_PLAYER_DISTANCE;
-    var minimumSquared = minimumDistance * minimumDistance;
+  function activePlayerPositions(player) {
+    var positions = [];
     for (var i = 0; i < state.players.length; i++) {
       var other = state.players[i];
       if (other === player || other.deadUntil || other.retired) continue;
-      var dx = other.x - x;
-      var dy = other.y - y;
+      positions.push(Number(other.x) || 0, Number(other.y) || 0);
+    }
+    return positions;
+  }
+
+  function farFromPlayerPositions(positions, x, y, minimumDistance) {
+    minimumDistance = Number(minimumDistance) || RESPAWN_PLAYER_DISTANCE;
+    var minimumSquared = minimumDistance * minimumDistance;
+    for (var i = 0; i < positions.length; i += 2) {
+      var dx = positions[i] - x;
+      var dy = positions[i + 1] - y;
       if (dx * dx + dy * dy <= minimumSquared) return false;
     }
     return true;
@@ -1030,37 +1074,41 @@ window.TerritoryRush = (function () {
     };
   }
 
+  function chooseSpawnCandidate(bounds, random, isSafe) {
+    var safeCount = 0;
+    for (var y = bounds.minY; y < bounds.maxY; y++) {
+      for (var x = bounds.minX; x < bounds.maxX; x++) {
+        if (!isSafe(x, y)) continue;
+        queue[safeCount++] = cellIndex(x, y);
+      }
+    }
+    if (!safeCount) return null;
+    var chosenKey = queue[Math.min(safeCount - 1, Math.floor(unitRandom(random) * safeCount))];
+    var chosenX = chosenKey % WORLD_W;
+    var chosenY = Math.floor(chosenKey / WORLD_W);
+    return { x: chosenX, y: chosenY, dir: directionForPosition(chosenX, chosenY) };
+  }
+
   function findRespawnSpot(player, random) {
     var prefix = buildSpawnBlockedPrefix(player.id);
     var clearRadius = BASE_RADIUS + SPAWN_CLEARANCE;
     var bounds = spawnSearchBounds(clearRadius);
-    var chosen = null;
-    var safeCount = 0;
-    for (var y = bounds.minY; y < bounds.maxY; y++) {
-      for (var x = bounds.minX; x < bounds.maxX; x++) {
-        if (blockedSpawnCells(prefix, x, y, clearRadius) || !farFromActivePlayers(player, x, y)) continue;
-        safeCount++;
-        if (unitRandom(random) < 1 / safeCount) chosen = { x: x, y: y, dir: directionForPosition(x, y) };
-      }
-    }
-    return chosen;
+    var positions = activePlayerPositions(player);
+    return chooseSpawnCandidate(bounds, random, function (x, y) {
+      return !blockedSpawnCells(prefix, x, y, clearRadius)
+        && farFromPlayerPositions(positions, x, y, RESPAWN_PLAYER_DISTANCE);
+    });
   }
 
   function findEmergencyRespawnSpot(player, random) {
     var prefix = buildSpawnBlockedPrefix(player.id, true);
     var clearRadius = BASE_RADIUS + 1;
     var bounds = spawnSearchBounds(clearRadius);
-    var chosen = null;
-    var safeCount = 0;
-    for (var y = bounds.minY; y < bounds.maxY; y++) {
-      for (var x = bounds.minX; x < bounds.maxX; x++) {
-        if (blockedSpawnCells(prefix, x, y, clearRadius)
-            || !farFromActivePlayers(player, x, y, EMERGENCY_PLAYER_DISTANCE)) continue;
-        safeCount++;
-        if (unitRandom(random) < 1 / safeCount) chosen = { x: x, y: y, dir: directionForPosition(x, y) };
-      }
-    }
-    return chosen;
+    var positions = activePlayerPositions(player);
+    return chooseSpawnCandidate(bounds, random, function (x, y) {
+      return !blockedSpawnCells(prefix, x, y, clearRadius)
+        && farFromPlayerPositions(positions, x, y, EMERGENCY_PLAYER_DISTANCE);
+    });
   }
 
   function hasPlayerTerritory(playerId) {
@@ -1071,18 +1119,12 @@ window.TerritoryRush = (function () {
   function findOwnedRespawnSpot(player, random) {
     var prefix = buildSpawnBlockedPrefix(player.id);
     var bounds = spawnSearchBounds(PRESERVED_SPAWN_CLEARANCE);
-    var chosen = null;
-    var safeCount = 0;
-    for (var y = bounds.minY; y < bounds.maxY; y++) {
-      for (var x = bounds.minX; x < bounds.maxX; x++) {
-        if (owner[cellIndex(x, y)] !== player.id
-            || blockedSpawnCells(prefix, x, y, PRESERVED_SPAWN_CLEARANCE)
-            || !farFromActivePlayers(player, x, y)) continue;
-        safeCount++;
-        if (unitRandom(random) < 1 / safeCount) chosen = { x: x, y: y, dir: directionForPosition(x, y) };
-      }
-    }
-    return chosen;
+    var positions = activePlayerPositions(player);
+    return chooseSpawnCandidate(bounds, random, function (x, y) {
+      return owner[cellIndex(x, y)] === player.id
+        && !blockedSpawnCells(prefix, x, y, PRESERVED_SPAWN_CLEARANCE)
+        && farFromPlayerPositions(positions, x, y, RESPAWN_PLAYER_DISTANCE);
+    });
   }
 
   function resolveRespawnPlacement(player, now) {
@@ -1414,9 +1456,48 @@ window.TerritoryRush = (function () {
     );
   }
 
+  function trailCollisionBounds(points) {
+    if (!Array.isArray(points) || points.length < 2) return null;
+    var minX = Infinity;
+    var minY = Infinity;
+    var maxX = -Infinity;
+    var maxY = -Infinity;
+    for (var i = 0; i < points.length; i++) {
+      var x = Number(points[i] && points[i].x);
+      var y = Number(points[i] && points[i].y);
+      if (!isFinite(x) || !isFinite(y)) return null;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
+  }
+
+  function movementBoundsOverlapTrail(fromX, fromY, toX, toY, bounds, radius) {
+    if (!bounds) return true;
+    var minX = Math.min(fromX, toX);
+    var maxX = Math.max(fromX, toX);
+    var minY = Math.min(fromY, toY);
+    var maxY = Math.max(fromY, toY);
+    return maxX >= bounds.minX - radius && minX <= bounds.maxX + radius
+      && maxY >= bounds.minY - radius && minY <= bounds.maxY + radius;
+  }
+
+  function movementBoundsOverlapSegment(minX, minY, maxX, maxY, start, end, radius) {
+    return maxX >= Math.min(start.x, end.x) - radius
+      && minX <= Math.max(start.x, end.x) + radius
+      && maxY >= Math.min(start.y, end.y) - radius
+      && minY <= Math.max(start.y, end.y) + radius;
+  }
+
   function trailWithoutHead(points, excludedLength) {
-    if (!Array.isArray(points) || points.length < 2) return [];
+    points = Array.isArray(points) ? points : [];
+    if (points.length < 2) return { points: points, lastPointIndex: -1, endPoint: null };
     var remaining = Math.max(0, Number(excludedLength) || 0);
+    if (!remaining) {
+      return { points: points, lastPointIndex: points.length - 1, endPoint: null };
+    }
     for (var i = points.length - 1; i > 0; i--) {
       var start = points[i - 1];
       var end = points[i];
@@ -1428,22 +1509,50 @@ window.TerritoryRush = (function () {
         continue;
       }
       var keptRatio = (length - remaining) / length;
-      var trimmed = points.slice(0, i);
-      trimmed.push({ x: start.x + dx * keptRatio, y: start.y + dy * keptRatio });
-      return trimmed.length >= 2 ? trimmed : [];
+      return {
+        points: points,
+        lastPointIndex: i - 1,
+        endPoint: { x: start.x + dx * keptRatio, y: start.y + dy * keptRatio }
+      };
     }
-    return [];
+    return { points: points, lastPointIndex: -1, endPoint: null };
   }
 
-  function movementHitsTrail(fromX, fromY, toX, toY, points, headGrace, radius) {
-    var collisionPoints = trailWithoutHead(points, headGrace);
-    if (collisionPoints.length < 2) return false;
+  function movementHitsTrail(fromX, fromY, toX, toY, points, headGrace, radius, bounds, stats) {
+    var hitRadius = isFinite(radius) ? Math.max(0, Number(radius)) : TRAIL_COLLISION_RADIUS;
+    if (!movementBoundsOverlapTrail(fromX, fromY, toX, toY, bounds, hitRadius)) {
+      if (stats) stats.trailBoundsRejected = (stats.trailBoundsRejected || 0) + 1;
+      return false;
+    }
+    var collisionView = trailWithoutHead(points, headGrace);
+    if (collisionView.lastPointIndex < 1 && !collisionView.endPoint) return false;
     var movementStart = { x: Number(fromX), y: Number(fromY) };
     var movementEnd = { x: Number(toX), y: Number(toY) };
-    var hitRadius = isFinite(radius) ? Math.max(0, Number(radius)) : TRAIL_COLLISION_RADIUS;
+    var movementMinX = Math.min(movementStart.x, movementEnd.x);
+    var movementMaxX = Math.max(movementStart.x, movementEnd.x);
+    var movementMinY = Math.min(movementStart.y, movementEnd.y);
+    var movementMaxY = Math.max(movementStart.y, movementEnd.y);
     var radiusSquared = hitRadius * hitRadius;
-    for (var i = 1; i < collisionPoints.length; i++) {
-      if (segmentDistanceSquared(movementStart, movementEnd, collisionPoints[i - 1], collisionPoints[i]) <= radiusSquared) return true;
+    var previous = collisionView.points[0];
+    for (var i = 1; i <= collisionView.lastPointIndex; i++) {
+      var next = collisionView.points[i];
+      if (stats) stats.segmentCandidates = (stats.segmentCandidates || 0) + 1;
+      if (movementBoundsOverlapSegment(
+        movementMinX, movementMinY, movementMaxX, movementMaxY, previous, next, hitRadius
+      )) {
+        if (stats) stats.segmentChecks = (stats.segmentChecks || 0) + 1;
+        if (segmentDistanceSquared(movementStart, movementEnd, previous, next) <= radiusSquared) return true;
+      } else if (stats) stats.segmentBoundsRejected = (stats.segmentBoundsRejected || 0) + 1;
+      previous = next;
+    }
+    if (collisionView.endPoint) {
+      if (stats) stats.segmentCandidates = (stats.segmentCandidates || 0) + 1;
+      if (movementBoundsOverlapSegment(
+        movementMinX, movementMinY, movementMaxX, movementMaxY, previous, collisionView.endPoint, hitRadius
+      )) {
+        if (stats) stats.segmentChecks = (stats.segmentChecks || 0) + 1;
+        if (segmentDistanceSquared(movementStart, movementEnd, previous, collisionView.endPoint) <= radiusSquared) return true;
+      } else if (stats) stats.segmentBoundsRejected = (stats.segmentBoundsRejected || 0) + 1;
     }
     return false;
   }
@@ -1516,20 +1625,20 @@ window.TerritoryRush = (function () {
       fromY: fromY,
       toX: nx,
       toY: ny,
-      crossedEvents: crossedEvents,
-      crossed: crossedEvents.map(function (event) { return event.key; })
+      crossedEvents: crossedEvents
     };
   }
 
   function analyzeProposalTerritory(proposal, ownerAtStart) {
     var player = proposal.player;
-    var plannedTrail = (player.trail || []).slice();
-    var trailOpen = plannedTrail.length > 0;
-    var lastCell = player.lastCell;
     proposal.closeIndex = -1;
     proposal.closeAt = null;
     proposal.captureTrail = null;
     proposal.limitIndex = -1;
+    if (!proposal.crossedEvents.length) return;
+    var plannedTrail = (player.trail || []).slice();
+    var trailOpen = plannedTrail.length > 0;
+    var lastCell = player.lastCell;
     for (var i = 0; i < proposal.crossedEvents.length; i++) {
       var event = proposal.crossedEvents[i];
       event.ownAtStart = ownerAtStart[event.key] === player.id;
@@ -1558,7 +1667,7 @@ window.TerritoryRush = (function () {
     }
   }
 
-  function proposalHitsTrailBefore(proposal, points, headGrace, cutoff) {
+  function proposalHitsTrailBefore(proposal, points, headGrace, cutoff, bounds) {
     var toX = proposal.toX;
     var toY = proposal.toY;
     if (cutoff != null) {
@@ -1567,7 +1676,7 @@ window.TerritoryRush = (function () {
       toX = proposal.fromX + (proposal.toX - proposal.fromX) * amount;
       toY = proposal.fromY + (proposal.toY - proposal.fromY) * amount;
     }
-    return movementHitsTrail(proposal.fromX, proposal.fromY, toX, toY, points, headGrace);
+    return movementHitsTrail(proposal.fromX, proposal.fromY, toX, toY, points, headGrace, undefined, bounds);
   }
 
   function resolveAdvanceCollisions(proposals, now) {
@@ -1579,7 +1688,8 @@ window.TerritoryRush = (function () {
     });
     candidates.forEach(function (player) {
       if (!player || player.deadUntil || player.retired || !player.trail.length) return;
-      trailRows.push({ player: player, points: collisionTrailPoints(player).slice() });
+      var points = collisionTrailPoints(player);
+      trailRows.push({ player: player, points: points, bounds: trailCollisionBounds(points) });
     });
 
     function rowFor(player) {
@@ -1611,14 +1721,16 @@ window.TerritoryRush = (function () {
     proposals.forEach(function (proposal) {
       var player = proposal.player;
       var ownRow = rowFor(player);
-      if (ownRow && proposalHitsTrailBefore(proposal, ownRow.points, TRAIL_HEAD_GRACE, proposal.closeAt)) {
+      if (ownRow && proposalHitsTrailBefore(
+        proposal, ownRow.points, TRAIL_HEAD_GRACE, proposal.closeAt, ownRow.bounds
+      )) {
         recordHit(player, null);
       }
       trailRows.forEach(function (row) {
         if (row.player === player) return;
         var victimProposal = proposalFor(row.player);
         var cutoff = victimProposal && victimProposal.closeAt != null ? victimProposal.closeAt : null;
-        if (proposalHitsTrailBefore(proposal, row.points, 0, cutoff)) {
+        if (proposalHitsTrailBefore(proposal, row.points, 0, cutoff, row.bounds)) {
           recordHit(row.player, player);
         }
       });
@@ -1790,8 +1902,9 @@ window.TerritoryRush = (function () {
     var ownerBeforeCapture = owner.slice();
     var claimMask = new Uint8Array(CELL_COUNT);
     var claimSizes = new Uint16Array(MAX_PLAYERS);
+    var candidate = ownerAtStart.slice();
     closures.forEach(function (proposal) {
-      var candidate = ownerAtStart.slice();
+      candidate.set(ownerAtStart);
       captureInto(candidate, proposal.captureTrail || [], proposal.player.id);
       var playerBit = 1 << proposal.player.id;
       for (var key = 0; key < CELL_COUNT; key++) {
@@ -1916,14 +2029,17 @@ window.TerritoryRush = (function () {
 
   function advancePlayers(players, dt, now) {
     var proposals = [];
-    var ownerAtStart = owner.slice();
+    var ownerBeforePrepare = null;
+    if ((players || []).some(function (player) {
+      return player && !player.retired && !player.away && player.deadUntil && now >= player.deadUntil;
+    })) ownerBeforePrepare = owner.slice();
     (players || []).forEach(function (player) {
       var proposal = preparePlayerAdvance(player, dt, now);
-      if (proposal) {
-        analyzeProposalTerritory(proposal, ownerAtStart);
-        proposals.push(proposal);
-      }
+      if (proposal) proposals.push(proposal);
     });
+    var crossedTerritoryCell = proposals.some(function (proposal) { return proposal.crossedEvents.length > 0; });
+    var ownerAtStart = crossedTerritoryCell ? (ownerBeforePrepare || owner.slice()) : null;
+    proposals.forEach(function (proposal) { analyzeProposalTerritory(proposal, ownerAtStart); });
     resolveAdvanceCollisions(proposals, now);
     applySimultaneousCaptures(proposals, ownerAtStart, now);
     proposals.forEach(function (proposal) { applyPlayerAdvance(proposal, now); });
@@ -2030,7 +2146,7 @@ window.TerritoryRush = (function () {
       var next = queuedFrameMessage;
       queuedFrameMessage = null;
       if (!next || !api || !api.isHost() || !next.state || next.state.matchId !== state.matchId) return;
-      next.state = frameSnapshot();
+      next.state = frameSnapshot(next.state.ownerRev);
       sendFrameMessage(next);
     });
   }
@@ -2049,13 +2165,14 @@ window.TerritoryRush = (function () {
     if (!to) {
       lastFrameSentAt = nowMs();
       lastFullSentAt = lastFrameSentAt;
+      lastPublishedOwnerRev = state.ownerRev;
     }
   }
 
-  function broadcastFrame(now) {
+  function broadcastFrame(now, ownerRevOverride) {
     if (!api || !api.isHost()) return;
     state.frameSeq++;
-    sendFrameMessage({ t: "tr_frame", by: me().nick, state: frameSnapshot() });
+    sendFrameMessage({ t: "tr_frame", by: me().nick, state: frameSnapshot(ownerRevOverride) });
     lastFrameSentAt = now;
   }
 
@@ -2089,6 +2206,7 @@ window.TerritoryRush = (function () {
       }
       owner.set(parsed.owner);
       state.ownerRev = parsed.state.ownerRev;
+      lastPublishedOwnerRev = state.ownerRev;
       state.rev = Math.max(state.rev, parsed.state.rev);
       if (wantedOwnerRev <= state.ownerRev) {
         wantedOwnerRev = state.ownerRev;
@@ -2136,6 +2254,7 @@ window.TerritoryRush = (function () {
     }
     if (sourceHost) authoritativeHost = sourceHost;
     owner.set(parsed.owner);
+    lastPublishedOwnerRev = state.ownerRev;
     wantedOwnerRev = state.ownerRev;
     ownerSyncMissingSince = 0;
     authorityYielded = false;
@@ -2555,6 +2674,19 @@ window.TerritoryRush = (function () {
     hostStepDebt = 0;
   }
 
+  function hostWorkNow() {
+    var value;
+    if (typeof hostWorkClockOverride === "function") {
+      value = Number(hostWorkClockOverride());
+    } else if (typeof performance !== "undefined" && performance
+        && typeof performance.now === "function") {
+      value = Number(performance.now());
+    } else {
+      value = nowMs();
+    }
+    return isFinite(value) ? value : nowMs();
+  }
+
   function hostTick() {
     if (!active || !api || !api.isHost() || state.phase !== "playing") {
       resetHostStepClock();
@@ -2590,20 +2722,22 @@ window.TerritoryRush = (function () {
     hostStepDebt = Math.min(HOST_MAX_CATCHUP_MS, hostStepDebt + clamp(elapsed, 0, HOST_MAX_CATCHUP_MS));
     retryReturningPlayers(now);
     var catchupSteps = Math.floor(hostStepDebt / STEP_MS);
+    var workStartedAt = hostWorkNow();
     while (catchupSteps-- > 0) {
       advancePlayers(state.players, STEP_MS / 1000, now);
-      hostStepDebt -= STEP_MS;
-    }
-    if (fullPending) {
-      if (now - lastFullSentAt >= FULL_MIN_MS) {
-        fullPending = false;
-        state.rev++;
-        broadcastFull();
+      hostStepDebt = Math.max(0, hostStepDebt - STEP_MS);
+      if (catchupSteps > 0 && hostWorkNow() - workStartedAt >= HOST_TICK_WORK_BUDGET_MS) {
+        break;
       }
+    }
+    if (fullPending && now - lastFullSentAt >= FULL_MIN_MS) {
+      fullPending = false;
+      state.rev++;
+      broadcastFull();
       return;
     }
     if (now - lastFrameSentAt >= frameInterval) {
-      broadcastFrame(now);
+      broadcastFrame(now, fullPending ? lastPublishedOwnerRev : state.ownerRev);
     }
   }
 
@@ -3294,7 +3428,13 @@ window.TerritoryRush = (function () {
     var dx = next.x - last.x;
     var dy = next.y - last.y;
     if (dx * dx + dy * dy <= 1e-12) points[points.length - 1] = next;
-    else points.push(next);
+    else if (points.length >= 2) {
+      var start = points[points.length - 2];
+      var forward = (last.x - start.x) * dx + (last.y - start.y) * dy;
+      if (forward >= 0 && pointDistanceToSegmentSquared(last, start, next) <= 1e-12) {
+        points[points.length - 1] = next;
+      } else points.push(next);
+    } else points.push(next);
     return points;
   }
 
@@ -3338,6 +3478,24 @@ window.TerritoryRush = (function () {
       && trail[cache.trailLength - 1] === cache.lastKey);
   }
 
+  function remapVisualTrailCursor(oldPoints, compactPoints, oldCursor) {
+    oldPoints = Array.isArray(oldPoints) ? oldPoints : [];
+    compactPoints = Array.isArray(compactPoints) ? compactPoints : [];
+    if (oldPoints.length < 2 || compactPoints.length < 2) return 0;
+    oldCursor = clamp(Math.floor(Number(oldCursor) || 0), 0, oldPoints.length - 2);
+    var sourceIndexes = new Map();
+    for (var sourceIndex = 0; sourceIndex < oldPoints.length; sourceIndex++) {
+      sourceIndexes.set(oldPoints[sourceIndex], sourceIndex);
+    }
+    var remapped = 0;
+    for (var compactIndex = 0; compactIndex < compactPoints.length - 1; compactIndex++) {
+      var originalIndex = sourceIndexes.get(compactPoints[compactIndex]);
+      if (originalIndex == null || originalIndex > oldCursor) break;
+      remapped = compactIndex;
+    }
+    return clamp(remapped, 0, compactPoints.length - 2);
+  }
+
   function syncVisualTrail(player, startX, startY) {
     var trail = player.trail || [];
     if (!trail.length) { delete visualTrails[player.nick]; return null; }
@@ -3371,7 +3529,25 @@ window.TerritoryRush = (function () {
       };
     }
     appendVisualTrailPoint(cache.points, player.x, player.y);
-    if (cache.points.length > MAX_VISUAL_TRAIL_POINTS) cache.points = limitVisualTrailPoints(cache.points);
+    if (cache.points.length > MAX_VISUAL_TRAIL_POINTS) {
+      var beforeCompaction = cache.points;
+      var compactPoints = limitVisualTrailPoints(beforeCompaction);
+      cache.visibleSegmentIndex = remapVisualTrailCursor(
+        beforeCompaction,
+        compactPoints,
+        cache.visibleSegmentIndex
+      );
+      cache.points = compactPoints;
+    }
+    if (cache.predictionBaseFrameSeq !== state.frameSeq
+        || cache.predictionBaseInputAck !== player.inputAck
+        || cache.predictionBaseX !== player.x || cache.predictionBaseY !== player.y) {
+      cache.predictedSegmentIndex = 0;
+      cache.predictionBaseFrameSeq = state.frameSeq;
+      cache.predictionBaseInputAck = player.inputAck;
+      cache.predictionBaseX = player.x;
+      cache.predictionBaseY = player.y;
+    }
     cache.trailLength = trail.length;
     cache.lastKey = trail[trail.length - 1];
     return cache;
@@ -3406,6 +3582,37 @@ window.TerritoryRush = (function () {
     return visibleTrailSlice(points, endpoint, 0).points;
   }
 
+  function closestTrailPosition(points, endpoint, minimumIndex) {
+    if (!Array.isArray(points) || points.length < 2 || !endpoint
+        || !isFinite(endpoint.x) || !isFinite(endpoint.y)) return null;
+    var lastIndex = points.length - 2;
+    minimumIndex = clamp(Math.floor(Number(minimumIndex) || 0), 0, lastIndex);
+    var best = null;
+    for (var index = lastIndex; index >= minimumIndex; index--) {
+      var start = points[index];
+      var end = points[index + 1];
+      var dx = end.x - start.x;
+      var dy = end.y - start.y;
+      var lengthSquared = dx * dx + dy * dy;
+      var amount = lengthSquared
+        ? clamp(((endpoint.x - start.x) * dx + (endpoint.y - start.y) * dy) / lengthSquared, 0, 1)
+        : 0;
+      var px = start.x + dx * amount;
+      var py = start.y + dy * amount;
+      var offsetX = endpoint.x - px;
+      var offsetY = endpoint.y - py;
+      var distanceSquared = offsetX * offsetX + offsetY * offsetY;
+      if (!best || distanceSquared < best.distanceSquared) {
+        best = {
+          segmentIndex: index,
+          amount: amount,
+          distanceSquared: distanceSquared
+        };
+      }
+    }
+    return best;
+  }
+
   function trailPoints(player, endpoint) {
     var cache = syncVisualTrail(player);
     if (!cache) return [];
@@ -3414,10 +3621,42 @@ window.TerritoryRush = (function () {
     return visible.points;
   }
 
+  function localPredictedTrailPoints(player, visual, now) {
+    var cache = syncVisualTrail(player);
+    if (!cache) return [];
+    function settledFallback() {
+      var settled = visibleTrailSlice(cache.points, visual, cache.visibleSegmentIndex);
+      cache.visibleSegmentIndex = settled.segmentIndex;
+      return settled.points;
+    }
+    if (!api || api.isHost() || player.nick !== safeNick(me().nick)
+        || player.deadUntil || player.retired || player.away) return settledFallback();
+    var prediction = replayLocalPrediction(player, now, true);
+    if (!prediction.points || prediction.points.length < 2) return settledFallback();
+    var minimumIndex = cache.predictedSegmentIndex || 0;
+    var closest = closestTrailPosition(prediction.points, visual, minimumIndex);
+    var maximumDeviation = Math.max(TRAIL_WIDTH, SPEED * .08);
+    if (!closest || closest.segmentIndex + closest.amount <= .001
+        || closest.distanceSquared > maximumDeviation * maximumDeviation) {
+      cache.predictedSegmentIndex = 0;
+      return settledFallback();
+    }
+    var predicted = visibleTrailSlice(prediction.points, visual, minimumIndex);
+    cache.predictedSegmentIndex = predicted.segmentIndex;
+    var combined = cache.points.slice();
+    for (var index = 1; index < predicted.points.length; index++) {
+      appendVisualTrailPoint(combined, predicted.points[index].x, predicted.points[index].y);
+    }
+    return combined;
+  }
+
   function drawTrail(player, view) {
     if (!player.trail.length) return;
     var visual = visualPlayers[player.nick] || player;
-    var points = trailPoints(player, visual);
+    var localGuest = api && !api.isHost() && player.nick === safeNick(me().nick);
+    var points = localGuest
+      ? localPredictedTrailPoints(player, visual, lastPredictionAt || nowMs())
+      : trailPoints(player, visual);
     if (!points.length) return;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -3564,32 +3803,60 @@ window.TerritoryRush = (function () {
     return pose;
   }
 
+  function localPredictionElapsed(now) {
+    if (!api || api.isHost() || !lastAuthoritativeAt || (state.startAt && now < state.startAt)) return 0;
+    return clamp(now - lastAuthoritativeAt, 0, PREDICTION_MAX_MS);
+  }
+
+  function advancePredictedPose(pose, elapsedMs, targetAngle, points) {
+    var remaining = Math.max(0, Number(elapsedMs) || 0);
+    while (remaining > 0) {
+      var stepMs = Math.min(STEP_MS, remaining);
+      pose = predictedPlayerPose(pose, stepMs, targetAngle);
+      if (points) appendVisualTrailPoint(points, pose.x, pose.y);
+      remaining -= stepMs;
+    }
+    return pose;
+  }
+
+  function replayLocalPrediction(player, now, collectPoints) {
+    now = Number(now) || nowMs();
+    var elapsed = localPredictionElapsed(now);
+    var fromAt = now - elapsed;
+    var cursor = fromAt;
+    var target = requestedAngle(player && player.targetAngle,
+      requestedAngle(player && player.angle, directionAngle(player && player.dir)));
+    var pose = predictedPlayerPose(player, 0, target);
+    var points = collectPoints ? [{ x: pose.x, y: pose.y }] : null;
+    if (!player || player.deadUntil || player.retired || player.away || !elapsed) {
+      return { pose: pose, points: points || [] };
+    }
+    var inputAck = Math.max(0, Math.floor(Number(player.inputAck) || 0));
+    for (var index = 0; index < localInputHistory.length; index++) {
+      var entry = localInputHistory[index];
+      if (!entry || entry.matchId !== state.matchId || !validAngle(entry.angle)
+          || (entry.seq && entry.seq <= inputAck)) continue;
+      if (entry.at <= cursor) {
+        target = entry.angle;
+        continue;
+      }
+      if (entry.at >= now) break;
+      pose = advancePredictedPose(pose, entry.at - cursor, target, points);
+      cursor = entry.at;
+      target = entry.angle;
+    }
+    pose = advancePredictedPose(pose, now - cursor, target, points);
+    return { pose: pose, points: points || [] };
+  }
+
   function visualTargetFor(player, now) {
     var elapsed = 0;
     if (api && !api.isHost() && lastAuthoritativeAt && (!state.startAt || now >= state.startAt)) {
       elapsed = clamp(now - lastAuthoritativeAt, 0, PREDICTION_MAX_MS);
     }
     var localPlayer = api && !api.isHost() && player.nick === safeNick(me().nick);
-    if (!localPlayer || !localInputHistory.length || !elapsed) {
-      return predictedPlayerPose(player, elapsed, player.targetAngle);
-    }
-    var fromAt = now - elapsed;
-    var cursor = fromAt;
-    var target = requestedAngle(player.targetAngle, requestedAngle(player.angle, directionAngle(player.dir)));
-    var pose = player;
-    for (var index = 0; index < localInputHistory.length; index++) {
-      var entry = localInputHistory[index];
-      if (!entry || entry.matchId !== state.matchId || !validAngle(entry.angle)) continue;
-      if (entry.at <= cursor) {
-        target = entry.angle;
-        continue;
-      }
-      if (entry.at >= now) break;
-      pose = predictedPlayerPose(pose, entry.at - cursor, target);
-      cursor = entry.at;
-      target = entry.angle;
-    }
-    return predictedPlayerPose(pose, now - cursor, target);
+    if (localPlayer) return replayLocalPrediction(player, now, false).pose;
+    return predictedPlayerPose(player, elapsed, player.targetAngle);
   }
 
   function visualPositionBlend(dx, dy, baseBlend, frameDelta) {
@@ -3867,6 +4134,9 @@ window.TerritoryRush = (function () {
   function onPresence(_list, options) {
     if (!api) return;
     var shownPeople = orderedPeople();
+    var nextPresenceSignature = territoryPresenceSignature(shownPeople);
+    var presenceChanged = nextPresenceSignature !== lastPresenceSignature;
+    lastPresenceSignature = nextPresenceSignature;
     var shownList = shownPeople.map(function (person) { return safeNick(person.nick); });
     var activeList = activeNicks();
     var changed = false;
@@ -3960,7 +4230,9 @@ window.TerritoryRush = (function () {
       if (helloPending) {
         helloPending = false;
         api.send({ t: "tr_hello", by: me().nick });
-      } else requestSync();
+      } else if (presenceChanged || authorityYielded || needsAuthoritySync || wantedOwnerRev > state.ownerRev) {
+        requestSync();
+      }
     }
     syncHostEligibility();
     render();
@@ -4263,6 +4535,7 @@ window.TerritoryRush = (function () {
     desiredInputAngle = null;
     syncReplyAtByNick = Object.create(null);
     helloPending = false;
+    lastPresenceSignature = "";
     lastInputAt = 0;
     lastWarnMatchId = "";
     playedDeathCues = Object.create(null);
@@ -4276,6 +4549,7 @@ window.TerritoryRush = (function () {
     authorityYielded = false;
     needsAuthoritySync = false;
     lastFullSentAt = 0;
+    lastPublishedOwnerRev = 0;
     resetHostStepClock();
     lastAuthoritativeAt = 0;
     lastPredictionAt = 0;
@@ -4329,12 +4603,14 @@ window.TerritoryRush = (function () {
     inputSessionByNick = Object.create(null);
     transportSeqBySession = Object.create(null);
     helloPending = false;
+    lastPresenceSignature = "";
     wantedOwnerRev = 0;
     ownerSyncMissingSince = 0;
     authoritativeHost = "";
     authorityYielded = false;
     needsAuthoritySync = false;
     lastFullSentAt = 0;
+    lastPublishedOwnerRev = 0;
     lastAuthoritativeAt = 0;
     lastPredictionAt = 0;
     lastCountdownValue = "";
@@ -4404,11 +4680,16 @@ window.TerritoryRush = (function () {
       advancePlayer: advancePlayer,
       advancePlayers: advancePlayers,
       crossedCellKeys: crossedCellKeys,
+      analyzeProposalTerritory: analyzeProposalTerritory,
       segmentDistanceSquared: segmentDistanceSquared,
+      trailCollisionBounds: trailCollisionBounds,
       trailWithoutHead: trailWithoutHead,
       movementHitsTrail: movementHitsTrail,
       simplifyTrailPoints: simplifyTrailPoints,
+      limitVisualTrailPoints: limitVisualTrailPoints,
+      remapVisualTrailCursor: remapVisualTrailCursor,
       appendVisualTrailPoint: appendVisualTrailPoint,
+      appendCollisionTrailPoint: appendCollisionTrailPoint,
       syncVisualTrail: syncVisualTrail,
       syncCollisionTrail: syncCollisionTrail,
       collisionTrailPoints: collisionTrailPoints,
@@ -4419,6 +4700,8 @@ window.TerritoryRush = (function () {
       encodeVisualTrail: encodeVisualTrail,
       decodeVisualTrail: decodeVisualTrail,
       predictedPlayerPose: predictedPlayerPose,
+      replayLocalPrediction: replayLocalPrediction,
+      localPredictedTrailPoints: localPredictedTrailPoints,
       visualTargetFor: visualTargetFor,
       visualPositionBlend: visualPositionBlend,
       frameIntervalMs: frameIntervalMs,
@@ -4459,6 +4742,9 @@ window.TerritoryRush = (function () {
       getUnackedInput: function () { return unackedInput; },
       getInputTimers: function () { return { pending: pendingInputTimer, retry: inputRetryTimer }; },
       setLastAuthoritativeAt: function (value) { lastAuthoritativeAt = Number(value) || 0; },
+      setHostWorkClock: function (clock) {
+        hostWorkClockOverride = typeof clock === "function" ? clock : null;
+      },
       resetFrameSendQueue: resetFrameSendQueue,
       setApi: function (nextApi) { api = nextApi; },
       setState: function (nextState) { state = nextState; },
@@ -4500,6 +4786,7 @@ window.TerritoryRush = (function () {
         inputAckRetryMs: INPUT_ACK_RETRY_MS,
         inputAckMaxAttempts: INPUT_ACK_MAX_ATTEMPTS,
         hostMaxCatchupSteps: HOST_MAX_CATCHUP_STEPS,
+        hostTickWorkBudgetMs: HOST_TICK_WORK_BUDGET_MS,
         frameTrailTail: FRAME_TRAIL_TAIL,
         speed: SPEED,
         arenaInset: ARENA_INSET,
