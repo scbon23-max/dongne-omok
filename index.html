@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260726-holdem-result-flow-v1">
+<meta name="app-build" content="20260726-holdem-ai-fill-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -792,6 +792,7 @@
           <button id="holdem-bot-remove-btn" type="button" aria-label="마지막 AI 한 명 제거">−</button>
           <output id="holdem-bot-count" aria-live="polite">AI 0명</output>
           <button id="holdem-bot-add-btn" type="button" aria-label="빈 자리에 AI 한 명 추가">＋</button>
+          <button id="holdem-bot-fill-btn" class="holdem-bot-fill-btn" type="button" aria-label="빈 자리에 AI 다섯 명까지 한 번에 추가">AI 5명</button>
         </div>
         <p id="holdem-bot-note" class="holdem-bot-note hidden">모든 AI는 같은 단일 전략 엔진을 사용합니다. 추가될 때 타이트 패시브·타이트 어그레시브·루즈 패시브·루즈 어그레시브 중 하나가 무작위로 정해져 유지됩니다. 첫 핸드 전에만 구성할 수 있어요.</p>
         <div id="holdem-lobby-roster" class="holdem-lobby-roster" aria-live="polite"></div>

@@ -3663,7 +3663,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-bot-controls {
   min-height: 54px;
   display: grid;
-  grid-template-columns: minmax(78px, 1fr) 44px auto 44px;
+  grid-template-columns: minmax(58px, 1fr) 42px auto 42px minmax(66px, auto);
   align-items: center;
   gap: 6px;
   margin: -3px 0 8px;
@@ -3679,7 +3679,7 @@ body.is-admin .feedback-user-compose { display: none; }
   font-weight: 950;
 }
 .holdem-bot-controls button {
-  width: 44px;
+  min-width: 42px;
   min-height: 44px;
   padding: 0;
   border: 1px solid rgba(141,227,211,.16);
@@ -3690,6 +3690,13 @@ body.is-admin .feedback-user-compose { display: none; }
   font-size: 20px;
   font-weight: 900;
   cursor: pointer;
+}
+.holdem-bot-controls .holdem-bot-fill-btn {
+  min-width: 66px;
+  padding: 0 8px;
+  color: #f2c77d;
+  font-size: 11px;
+  white-space: nowrap;
 }
 .holdem-bot-controls output {
   min-width: 45px;

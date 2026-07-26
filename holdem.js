@@ -11,7 +11,8 @@
  * Waiting UI: #holdem-lobby, #holdem-lobby-title,
  *   #holdem-lobby-roster, #holdem-ready-btn, #holdem-start-btn,
  *   #holdem-next-btn, #holdem-bot-controls,
- *   #holdem-bot-add-btn, #holdem-bot-remove-btn, #holdem-bot-count
+ *   #holdem-bot-add-btn, #holdem-bot-remove-btn, #holdem-bot-fill-btn,
+ *   #holdem-bot-count
  * Action UI: #holdem-action-panel, #holdem-action-label,
  *   #holdem-hand-name, #holdem-timer-ring, #holdem-timer,
  *   #holdem-raise-panel, #holdem-raise-slider,
@@ -1260,17 +1261,37 @@ window.TexasHoldem = (function () {
     }, { key: "start", label: "start", broadcast: true });
   }
 
-  function addBot() {
+  function addBot(options) {
+    options = options || {};
     if (!state.canManageBots || state.botCount >= MAX_SEATS) return;
-    invoke("add_bot", {
+    return invoke("add_bot", {
       expectedVersion: state.version
     }, {
       key: "bot_manage",
       label: "bot",
       broadcast: true
     }).then(function (result) {
-      if (result && result.ok && api && typeof api.toast === "function") {
+      if (!options.silent && result && result.ok && api && typeof api.toast === "function") {
         api.toast("AI를 추가했어요.", 2200);
+      }
+      return result;
+    });
+  }
+
+  function addFiveBots() {
+    if (!state.canManageBots || requests.bot_manage) return;
+    function step() {
+      var occupiedSeats = state.seats.filter(Boolean).length;
+      var remaining = Math.min(5 - state.botCount, MAX_SEATS - occupiedSeats);
+      if (!state.canManageBots || remaining <= 0) return Promise.resolve();
+      return addBot({ silent: true }).then(function (result) {
+        if (!result || !result.ok) return result;
+        return step();
+      });
+    }
+    return step().then(function () {
+      if (api && typeof api.toast === "function") {
+        api.toast("AI를 5명까지 채웠어요.", 2200);
       }
     });
   }
@@ -1877,6 +1898,7 @@ window.TexasHoldem = (function () {
     show("holdem-bot-note", canManageBots);
     setText("holdem-bot-count", "AI " + state.botCount + "명");
     disable("holdem-bot-add-btn", busy || !canManageBots || occupiedSeats >= MAX_SEATS);
+    disable("holdem-bot-fill-btn", busy || !canManageBots || state.botCount >= 5 || occupiedSeats >= MAX_SEATS);
     disable("holdem-bot-remove-btn", busy || !canManageBots || state.botCount <= 0);
     show("holdem-ready-btn", waiting && state.heroSeat >= 0 && state.canReady);
     show("holdem-start-btn", waiting && state.canStart);
@@ -2095,6 +2117,8 @@ window.TexasHoldem = (function () {
       setReady();
     } else if (id === "holdem-bot-add-btn") {
       addBot();
+    } else if (id === "holdem-bot-fill-btn") {
+      addFiveBots();
     } else if (id === "holdem-bot-remove-btn") {
       removeBot();
     } else if (id === "holdem-start-btn" || id === "holdem-next-btn") {

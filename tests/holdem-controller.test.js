@@ -303,6 +303,7 @@ test("the page loads the strong AI before the controller and exposes exact perso
   [
     "holdem-bot-controls",
     "holdem-bot-add-btn",
+    "holdem-bot-fill-btn",
     "holdem-bot-remove-btn",
     "holdem-bot-count",
     "holdem-bot-note",
@@ -324,9 +325,12 @@ test("the page loads the strong AI before the controller and exposes exact perso
     assert.match(source + indexSource, new RegExp(label));
   }
   assert.doesNotMatch(source, /botDifficulty|botLevel/);
+  assert.match(source, /function addFiveBots\(\)/);
+  assert.match(source, /5 - state\.botCount/);
+  assert.match(source, /id === "holdem-bot-fill-btn"[\s\S]*addFiveBots\(\)/);
 
   const addBotFunction = source.match(
-    /function addBot\(\)\s*\{([\s\S]*?)\n  \}\n\n  function removeBot/,
+    /function addBot\([^)]*\)\s*\{([\s\S]*?)\n  \}\n\n  function addFiveBots/,
   );
   assert.ok(addBotFunction, "addBot exists");
   const addInvoke = addBotFunction[1].match(
