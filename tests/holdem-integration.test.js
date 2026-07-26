@@ -144,7 +144,8 @@ test("hand results replace the lobby and advance automatically", () => {
   assert.match(controller, /function scheduleAutoReadyForNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*invoke\("ready"/);
   assert.match(controller, /scheduleAutoReadyForNextHand\(\)[\s\S]*scheduleAutoNextHand\(\)/);
   assert.match(controller, /function scheduleAutoNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*setTimeout\(function \(\) \{ autoStartHand\(key\); \}, AUTO_NEXT_HAND_MS\)/);
-  assert.match(styles, /\.holdem-result-panel\s*\{[\s\S]*background: transparent/);
+  assert.match(styles, /\.holdem-result-panel\s*\{[\s\S]*background: rgba\(3,18,23,\.88\)/);
+  assert.match(styles, /\.holdem-screen\.is-showdown \.holdem-table-info/);
   assert.doesNotMatch(styles, /\.holdem-result-panel\s*\{[\s\S]*background: rgba\(5,24,30,\.95\)/);
   assert.match(index, /id="holdem-result"/);
 });

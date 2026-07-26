@@ -3619,21 +3619,21 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-secondary:disabled { opacity: .45; cursor: default; }
 .holdem-result-panel {
   position: absolute;
-  z-index: 18;
-  top: 43%;
+  z-index: 36;
+  top: 46%;
   left: 50%;
-  width: min(86vw, 420px);
-  max-height: none;
-  padding: 0 10px;
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
+  width: min(90vw, 430px);
+  max-height: min(42vh, 330px);
+  padding: 11px 12px 10px;
+  overflow: hidden;
+  border: 1px solid rgba(117,215,198,.28);
+  border-radius: 16px;
   pointer-events: none;
   text-align: center;
   transform: translate(-50%, -50%);
-  background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
+  background: rgba(3,18,23,.88);
+  box-shadow: 0 10px 28px rgba(0,0,0,.46), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: blur(2px);
 }
 .holdem-result-head {
   display: grid;
@@ -3713,7 +3713,7 @@ body.is-admin .feedback-user-compose { display: none; }
   font-weight: 800;
 }
 .holdem-result-showdown {
-  max-height: 112px;
+  max-height: 104px;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -3766,6 +3766,25 @@ body.is-admin .feedback-user-compose { display: none; }
   font-weight: 850;
   text-align: center;
   text-shadow: 0 2px 7px rgba(0,0,0,.8);
+}
+.holdem-screen.is-showdown .holdem-table-info,
+.holdem-screen.is-showdown .holdem-pot,
+.holdem-screen.is-showdown .holdem-seat-bet,
+.holdem-screen.is-showdown .holdem-seat-status,
+.holdem-screen.is-showdown .holdem-seat-action,
+.holdem-screen.is-showdown .holdem-seat-name,
+.holdem-screen.is-showdown .holdem-seat-stack,
+.holdem-screen.is-showdown .holdem-seat-personality {
+  opacity: .24;
+}
+.holdem-screen.is-showdown .holdem-seat-avatar,
+.holdem-screen.is-showdown .holdem-hole-cards,
+.holdem-screen.is-showdown .holdem-seat-badges {
+  opacity: .68;
+}
+.holdem-screen.is-showdown .holdem-seat.is-winner .holdem-seat-avatar,
+.holdem-screen.is-showdown .holdem-seat.is-winner .holdem-hole-cards {
+  opacity: 1;
 }
 #holdemgame button:focus-visible,
 #holdemgame select:focus-visible,
