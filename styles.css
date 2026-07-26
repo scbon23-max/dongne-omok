@@ -3307,6 +3307,10 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-card {
   position: relative;
   width: var(--holdem-card-width, clamp(43px, 12vw, 74px));
+  --holdem-card-rank-size-auto: calc(var(--holdem-card-width, clamp(43px, 12vw, 74px)) * .51);
+  --holdem-card-rank-ten-size-auto: calc(var(--holdem-card-width, clamp(43px, 12vw, 74px)) * .4);
+  --holdem-card-rank-top-auto: calc(var(--holdem-card-width, clamp(43px, 12vw, 74px)) * .07);
+  --holdem-card-rank-left-auto: calc(var(--holdem-card-width, clamp(43px, 12vw, 74px)) * .08);
   aspect-ratio: 2 / 3;
   flex: 0 0 auto;
   overflow: hidden;
@@ -3328,16 +3332,16 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-card > .rank {
   position: absolute;
   z-index: 2;
-  top: var(--holdem-card-rank-top, 5px);
-  left: var(--holdem-card-rank-left, 6px);
-  font-size: var(--holdem-card-rank-size, clamp(22px, 6vw, 38px));
+  top: var(--holdem-card-rank-top, var(--holdem-card-rank-top-auto));
+  left: var(--holdem-card-rank-left, var(--holdem-card-rank-left-auto));
+  font-size: var(--holdem-card-rank-size, var(--holdem-card-rank-size-auto));
   font-weight: 1000;
   line-height: .82;
   letter-spacing: 0;
 }
 .holdem-card[data-rank="10"] .holdem-card-rank,
 .holdem-card[data-rank="10"] > .rank {
-  font-size: var(--holdem-card-rank-ten-size, clamp(17px, 4.7vw, 30px));
+  font-size: var(--holdem-card-rank-ten-size, var(--holdem-card-rank-ten-size-auto));
 }
 .holdem-card-suit,
 .holdem-card > .suit {
@@ -3704,21 +3708,26 @@ body.is-admin .feedback-user-compose { display: none; }
   left: 50%;
   z-index: -1;
   display: flex;
+  align-items: center;
+  gap: 0;
   transform: translate(-50%, -55%);
 }
 .holdem-hole-cards .holdem-card {
-  --holdem-card-width: clamp(28px, 8vw, 42px);
+  --holdem-card-width: clamp(38px, 10vw, 52px);
   --holdem-card-radius: 3px;
-  --holdem-card-rank-top: 3px;
-  --holdem-card-rank-left: 4px;
-  --holdem-card-rank-size: clamp(13px, 3.5vw, 19px);
-  --holdem-card-rank-ten-size: clamp(10px, 2.8vw, 15px);
-  --holdem-card-mark-top: 64%;
   --holdem-card-shadow: 0 1px 4px rgba(0,0,0,.24);
-  margin-left: -4px;
-  transform: rotate(-4deg);
+  margin-left: 0;
+  transform: none;
 }
-.holdem-hole-cards .holdem-card + .holdem-card { transform: rotate(5deg); }
+.holdem-hole-cards .holdem-card + .holdem-card { margin-left: -1px; }
+.holdem-hole-cards .holdem-card:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.holdem-hole-cards .holdem-card:last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
 .holdem-announcer {
   position: absolute;
   z-index: 20;

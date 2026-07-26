@@ -147,6 +147,10 @@ test("the six-seat table exposes every required game control", () => {
     );
   }
   assert.match(styles, /\.holdem-card\.back/);
+  assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-size-auto:[\s\S]*var\(--holdem-card-width/);
+  assert.match(styles, /\.holdem-hole-cards \.holdem-card\s*\{[\s\S]*transform: none/);
+  assert.match(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -1px; \}/);
+  assert.doesNotMatch(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ transform: rotate/);
   assert.match(styles, /@media \(min-width: 900px\)[\s\S]*\.holdem-table/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
 });
