@@ -66,6 +66,7 @@ window.TexasHoldem = (function () {
   var lastError = "";
   var state = emptyState();
   var rawSnapshot = null;
+  var moneyUnitMode = "chips";
 
   var pollId = null;
   var clockId = null;
@@ -320,6 +321,11 @@ window.TexasHoldem = (function () {
 
   function formatChips(value) {
     var amount = Math.max(0, Math.round(nonnegative(value, 0)));
+    if (moneyUnitMode === "bb" && state && state.bigBlind > 0) {
+      var bbValue = amount / state.bigBlind;
+      var digits = bbValue >= 100 || Number.isInteger(bbValue) ? 0 : bbValue >= 10 ? 1 : 2;
+      return Number(bbValue.toFixed(digits)).toLocaleString("ko-KR") + "BB";
+    }
     try {
       return new Intl.NumberFormat("ko-KR").format(amount);
     } catch (_error) {
@@ -1355,6 +1361,14 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function toggleMoneyUnitMode() {
+    moneyUnitMode = moneyUnitMode === "bb" ? "chips" : "bb";
+    renderHeader();
+    renderSeats();
+    renderHandResult();
+    renderControls();
+  }
+
   function renderSeats() {
     var box = $("holdem-seats");
     if (!box) return;
@@ -1389,6 +1403,9 @@ window.TexasHoldem = (function () {
       var label = name + (seat ? ", 칩 " + formatChips(seat.stack) : "") +
         (seat && seat.isBot ? ", AI, " + personalityLabel : "") +
         (status ? ", " + status : "") + (isActive ? ", 행동 차례" : "");
+      var toggleAttr = isMe
+        ? ' data-holdem-stack-toggle="true" role="button" tabindex="0" aria-label="Toggle chip and BB units"'
+        : "";
       var badges = "";
       if (absolute === state.dealerSeat) badges += "<span>D</span>";
       if (absolute === state.smallBlindSeat) badges += "<span>SB</span>";
@@ -1413,11 +1430,11 @@ window.TexasHoldem = (function () {
           '<div class="holdem-hole-cards">' + holes + '</div>' +
           '<div class="holdem-seat-avatar" aria-hidden="true">' + esc(initialFor(name)) + '</div>' +
           '<div class="holdem-seat-badges" aria-hidden="true">' + badges + '</div>' +
-          '<strong class="holdem-seat-name">' + esc(name) + '</strong>' +
+          '<strong class="holdem-seat-name"' + toggleAttr + '>' + esc(name) + '</strong>' +
           (personalityLabel
             ? '<span class="holdem-seat-personality">' + esc(personalityLabel) + '</span>'
             : "") +
-          (seat ? '<span class="holdem-seat-stack">' + formatChips(seat.stack) + '</span>' : "") +
+          (seat ? '<span class="holdem-seat-stack"' + toggleAttr + '>' + formatChips(seat.stack) + '</span>' : "") +
           (isActive && state.deadlineAt
             ? '<span class="holdem-seat-turn-timer" data-holdem-seat-timer="' + absolute + '"></span>'
             : "") +
@@ -1850,6 +1867,12 @@ window.TexasHoldem = (function () {
   function onRootClick(event) {
     var screen = root();
     if (!screen || !event.target || !event.target.closest) return;
+    var unitToggle = event.target.closest("[data-holdem-stack-toggle]");
+    if (unitToggle && screen.contains(unitToggle) && state.heroSeat >= 0) {
+      toggleMoneyUnitMode();
+      return;
+    }
+
     var seatElement = event.target.closest(".holdem-seat.is-empty");
     if (seatElement && screen.contains(seatElement)) {
       var targetSeat = safeSeat(seatElement.getAttribute("data-seat"));
@@ -1913,6 +1936,13 @@ window.TexasHoldem = (function () {
   }
 
   function onRootKeydown(event) {
+    if (event.target && event.target.closest &&
+        event.target.closest("[data-holdem-stack-toggle]") &&
+        (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      toggleMoneyUnitMode();
+      return;
+    }
     if (event.target && event.target.id === "holdem-chat-input" &&
         event.key === "Enter" && !event.isComposing) {
       event.preventDefault();
