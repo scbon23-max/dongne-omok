@@ -11,6 +11,7 @@
   var ACTION_HISTORY_LIMIT = 128;
   var BOT_THINK_DELAY_MS = 900;
   var BOT_DISPLAY_NAME = "AI";
+  var BLIND_LEVEL_MULTIPLIERS = [1, 1.5, 2, 3, 4, 6, 8, 12, 16, 20, 30, 40, 60, 80, 100];
   var BOT_PERSONALITIES = {
     tight_passive: "타이트 패시브",
     tight_aggressive: "타이트 어그레시브",
@@ -63,6 +64,14 @@
   function normalizeBotPersonality(value) {
     value = text(value, 32).toLowerCase().replace(/-/g, "_");
     return own(BOT_PERSONALITIES, value) ? value : "";
+  }
+
+  function normalizeTableMode(value) {
+    return text(value, 24).toLowerCase() === "ring" ? "ring" : "tournament";
+  }
+
+  function normalizeTournamentSpeed(value) {
+    return text(value, 24).toLowerCase() === "turbo" ? "turbo" : "normal";
   }
 
   function legacyBotPersonality(player, fallbackIndex) {
@@ -310,23 +319,45 @@
 
   function createTable(options) {
     options = options || {};
+    var mode = normalizeTableMode(options.mode);
+    var tournamentSpeed = normalizeTournamentSpeed(options.tournamentSpeed);
     var smallBlind = clamp(options.smallBlind, 1, 1000000, 50);
     var bigBlind = clamp(options.bigBlind, smallBlind, 2000000, 100);
     if (bigBlind < smallBlind * 2) bigBlind = smallBlind * 2;
+    var defaultLevelMs = tournamentSpeed === "turbo" ? 5 * 60 * 1000 : 10 * 60 * 1000;
+    var blindLevelMs = mode === "ring"
+      ? 0
+      : clamp(options.blindLevelMs, 60 * 1000, 60 * 60 * 1000, defaultLevelMs);
+    var startingStack = clamp(options.startingStack, bigBlind * 10, 100000000, 10000);
     return {
       schemaVersion: SCHEMA_VERSION,
       roomId: text(options.roomId, 80),
       ownerNick: text(options.ownerNick, 40),
       phase: "waiting",
       settings: {
+        mode: mode,
+        tournamentSpeed: mode === "ring" ? "" : tournamentSpeed,
         maxPlayers: Math.min(MAX_SEATS, clamp(options.maxPlayers, 2, MAX_SEATS, MAX_SEATS)),
-        startingStack: clamp(options.startingStack, 100, 100000000, 10000),
+        startingStack: startingStack,
+        initialSmallBlind: smallBlind,
+        initialBigBlind: bigBlind,
         smallBlind: smallBlind,
         bigBlind: bigBlind,
-        actionMs: clamp(options.actionMs, 5000, 120000, 20000)
+        blindLevelMs: blindLevelMs,
+        actionMs: clamp(options.actionMs, 5000, 120000, mode === "ring" ? 20000 : tournamentSpeed === "turbo" ? 15000 : 20000),
+        refillAmount: mode === "ring"
+          ? clamp(options.refillAmount, startingStack, 100000000, startingStack)
+          : 0,
+        dailyRefillLimit: mode === "ring"
+          ? clamp(options.dailyRefillLimit, 1, 10, 3)
+          : 0
       },
+      ringStacks: {},
       seats: [null, null, null, null, null, null],
       handNo: 0,
+      tournamentStartedAt: null,
+      blindLevel: 0,
+      nextBlindAt: null,
       buttonSeat: null,
       previousBigBlindSeat: null,
       smallBlindSeat: null,
@@ -356,6 +387,79 @@
   }
 
   function ensureAdditiveState(state, now) {
+    state.settings = state.settings && typeof state.settings === "object" ? state.settings : {};
+    state.settings.mode = normalizeTableMode(state.settings.mode);
+    state.settings.tournamentSpeed = state.settings.mode === "ring"
+      ? ""
+      : normalizeTournamentSpeed(state.settings.tournamentSpeed);
+    state.settings.initialSmallBlind = clamp(
+      state.settings.initialSmallBlind,
+      1,
+      1000000,
+      clamp(state.settings.smallBlind, 1, 1000000, 50)
+    );
+    state.settings.initialBigBlind = clamp(
+      state.settings.initialBigBlind,
+      state.settings.initialSmallBlind * 2,
+      2000000,
+      clamp(state.settings.bigBlind, state.settings.initialSmallBlind * 2, 2000000, 100)
+    );
+    state.settings.startingStack = clamp(
+      state.settings.startingStack,
+      state.settings.initialBigBlind * 10,
+      100000000,
+      10000
+    );
+    if (state.settings.mode === "ring") {
+      state.settings.smallBlind = state.settings.initialSmallBlind;
+      state.settings.bigBlind = state.settings.initialBigBlind;
+      state.settings.blindLevelMs = 0;
+      state.settings.refillAmount = clamp(
+        state.settings.refillAmount,
+        state.settings.startingStack,
+        100000000,
+        state.settings.startingStack
+      );
+      state.settings.dailyRefillLimit = clamp(state.settings.dailyRefillLimit, 1, 10, 3);
+    } else {
+      state.settings.blindLevelMs = clamp(
+        state.settings.blindLevelMs,
+        60 * 1000,
+        60 * 60 * 1000,
+        state.settings.tournamentSpeed === "turbo" ? 5 * 60 * 1000 : 10 * 60 * 1000
+      );
+      state.settings.refillAmount = 0;
+      state.settings.dailyRefillLimit = 0;
+    }
+    state.settings.actionMs = clamp(
+      state.settings.actionMs,
+      5000,
+      120000,
+      state.settings.tournamentSpeed === "turbo" ? 15000 : 20000
+    );
+    state.blindLevel = Math.max(0, integer(state.blindLevel, 0));
+    state.tournamentStartedAt = state.tournamentStartedAt != null &&
+      Number.isFinite(Number(state.tournamentStartedAt))
+      ? Math.max(0, integer(state.tournamentStartedAt, 0))
+      : null;
+    state.nextBlindAt = state.nextBlindAt != null &&
+      Number.isFinite(Number(state.nextBlindAt))
+      ? Math.max(0, integer(state.nextBlindAt, 0))
+      : null;
+    var savedRingStacks = Object.create(null);
+    if (state.ringStacks && typeof state.ringStacks === "object" &&
+        !Array.isArray(state.ringStacks)) {
+      Object.keys(state.ringStacks).slice(0, 200).forEach(function (nick) {
+        if (!nick || nick.length > 40) return;
+        savedRingStacks[nick] = clamp(
+          state.ringStacks[nick],
+          0,
+          100000000,
+          state.settings.startingStack
+        );
+      });
+    }
+    state.ringStacks = savedRingStacks;
     var nextBotSeq = Math.max(1, integer(state.nextBotSeq, 1));
     state.seats.forEach(function (player, seatIndex) {
       if (!player) return;
@@ -377,6 +481,14 @@
         player.botId = null;
         delete player.botDifficulty;
         delete player.botPersonality;
+        if (state.settings.mode === "ring" && player.nick) {
+          state.ringStacks[player.nick] = clamp(
+            player.stack,
+            0,
+            100000000,
+            state.settings.startingStack
+          );
+        }
       }
     });
     state.nextBotSeq = nextBotSeq;
@@ -393,6 +505,33 @@
       state.botDueAt = Math.max(0, integer(now, 0)) + BOT_THINK_DELAY_MS;
     }
     return state;
+  }
+
+  function updateBlindLevel(state, now) {
+    if (state.settings.mode === "ring") {
+      state.settings.smallBlind = state.settings.initialSmallBlind;
+      state.settings.bigBlind = state.settings.initialBigBlind;
+      state.blindLevel = 0;
+      state.nextBlindAt = null;
+      return;
+    }
+    if (state.tournamentStartedAt == null) state.tournamentStartedAt = now;
+    var levelMs = state.settings.blindLevelMs;
+    var elapsed = Math.max(0, now - state.tournamentStartedAt);
+    var level = Math.min(
+      BLIND_LEVEL_MULTIPLIERS.length - 1,
+      Math.floor(elapsed / levelMs)
+    );
+    var multiplier = BLIND_LEVEL_MULTIPLIERS[level];
+    state.blindLevel = level;
+    state.settings.smallBlind = Math.max(1, Math.round(state.settings.initialSmallBlind * multiplier));
+    state.settings.bigBlind = Math.max(
+      state.settings.smallBlind * 2,
+      Math.round(state.settings.initialBigBlind * multiplier)
+    );
+    state.nextBlindAt = level < BLIND_LEVEL_MULTIPLIERS.length - 1
+      ? state.tournamentStartedAt + (level + 1) * levelMs
+      : null;
   }
 
   function occupiedPlayers(state) {
@@ -600,7 +739,8 @@
     state.actorSeat = null;
     state.actionDeadline = null;
     state.pendingSeats = [];
-    state.phase = state.seats.filter(function (player) { return !!player && !player.leaving && player.stack > 0; }).length <= 1
+    state.phase = state.settings.mode !== "ring" &&
+      state.seats.filter(function (player) { return !!player && !player.leaving && player.stack > 0; }).length <= 1
       ? "tournament_end"
       : "hand_end";
     state.lastEvent = { type: "hand_won", nick: winner.nick, amount: amount, reason: "folds", at: now };
@@ -611,9 +751,20 @@
     state.botDueAt = null;
     state.seats.forEach(function (player, seat) {
       if (!player) return;
-      if (player.stack <= 0) player.ready = false;
+      if (player.stack <= 0 && state.settings.mode === "ring" && player.isBot) {
+        player.stack = state.settings.refillAmount;
+        player.ready = true;
+      } else if (player.stack <= 0) player.ready = false;
       else if (!player.leaving) player.ready = true;
       if (player.isBot && Array.isArray(player.cards) && player.cards.length === 2) player.revealed = true;
+      if (state.settings.mode === "ring" && !player.isBot && player.nick) {
+        state.ringStacks[player.nick] = clamp(
+          player.stack,
+          0,
+          100000000,
+          state.settings.startingStack
+        );
+      }
       player.waiting = true;
       if (player.leaving) state.seats[seat] = null;
     });
@@ -671,7 +822,8 @@
     state.actorSeat = null;
     state.actionDeadline = null;
     state.pendingSeats = [];
-    state.phase = state.seats.filter(function (player) { return !!player && !player.leaving && player.stack > 0; }).length <= 1
+    state.phase = state.settings.mode !== "ring" &&
+      state.seats.filter(function (player) { return !!player && !player.leaving && player.stack > 0; }).length <= 1
       ? "tournament_end"
       : "hand_end";
     state.lastEvent = {
@@ -858,6 +1010,7 @@
   }
 
   function startHand(state, now, context) {
+    updateBlindLevel(state, now);
     var active = state.seats.filter(function (player) {
       return !!player && !player.leaving && player.stack > 0 && player.ready;
     });
@@ -913,7 +1066,12 @@
     state.pendingSeats = firstActor == null ? [] : orderedSeats(state, firstActor, function (player) {
       return player.inHand && !player.folded && !player.allIn && player.stack > 0;
     });
-    state.lastEvent = { type: "hand_started", handNo: state.handNo, at: now };
+    state.lastEvent = {
+      type: "hand_started",
+      handNo: state.handNo,
+      blindLevel: state.blindLevel,
+      at: now
+    };
     assignActor(state, now);
     if (!state.pendingSeats.length) runoutToShowdown(state, now);
     return { ok: true };
@@ -989,7 +1147,11 @@
           if (seat < 0) result = { ok: false, reason: "table_full" };
           else if (next.seats[seat]) result = { ok: false, reason: "seat_taken" };
           else {
-            next.seats[seat] = createPlayer(nick, seat, next.settings.startingStack, now);
+            var joinStack = next.settings.mode === "ring" && own(next.ringStacks, nick)
+              ? clamp(next.ringStacks[nick], 0, 100000000, next.settings.startingStack)
+              : next.settings.startingStack;
+            next.seats[seat] = createPlayer(nick, seat, joinStack, now);
+            if (next.settings.mode === "ring") next.ringStacks[nick] = joinStack;
             next.lastEvent = { type: "joined", nick: nick, seat: seat, at: now };
             result = { ok: true };
             changed = true;
@@ -1015,6 +1177,14 @@
           }
           changed = result.ok;
         } else {
+          if (next.settings.mode === "ring" && !player.isBot && player.nick) {
+            next.ringStacks[player.nick] = clamp(
+              player.stack,
+              0,
+              100000000,
+              next.settings.startingStack
+            );
+          }
           next.seats[player.seat] = null;
           next.lastEvent = { type: "left", nick: nick, at: now };
           result = { ok: true };
@@ -1024,10 +1194,44 @@
         player = playerByNick(next, nick);
         if (!player) result = { ok: false, reason: "not_joined" };
         else if (PLAYING_PHASES[next.phase]) result = { ok: false, reason: "hand_active" };
-        else if (player.stack <= 0) result = { ok: false, reason: "eliminated" };
+        else if (player.stack <= 0) result = {
+          ok: false,
+          reason: next.settings.mode === "ring" ? "refill_required" : "eliminated"
+        };
         else {
           player.ready = cmd.ready == null ? !player.ready : !!cmd.ready;
           next.lastEvent = { type: "ready", nick: nick, ready: player.ready, at: now };
+          result = { ok: true };
+          changed = true;
+        }
+      } else if (type === "refill") {
+        player = playerByNick(next, nick);
+        if (next.settings.mode !== "ring") result = { ok: false, reason: "ring_only" };
+        else if (context.internalRefill !== true) result = { ok: false, reason: "internal" };
+        else if (!player || player.isBot) result = { ok: false, reason: "not_joined" };
+        else if (PLAYING_PHASES[next.phase]) result = { ok: false, reason: "hand_active" };
+        else if (player.stack > 0) result = { ok: false, reason: "refill_not_needed" };
+        else {
+          player.stack = next.settings.refillAmount;
+          player.ready = true;
+          player.waiting = true;
+          player.inHand = false;
+          player.folded = false;
+          player.allIn = false;
+          player.streetBet = 0;
+          player.totalBet = 0;
+          player.cards = [];
+          player.revealed = false;
+          player.lastAction = "";
+          player.lastActionBet = null;
+          player.winAmount = 0;
+          next.ringStacks[nick] = next.settings.refillAmount;
+          next.lastEvent = {
+            type: "ring_refilled",
+            nick: nick,
+            amount: next.settings.refillAmount,
+            at: now
+          };
           result = { ok: true };
           changed = true;
         }
@@ -1035,9 +1239,17 @@
         if (nick !== next.ownerNick) result = { ok: false, reason: "owner" };
         else if (PLAYING_PHASES[next.phase] || next.handNo > 0) result = { ok: false, reason: "settings_locked" };
         else {
-          var sb = clamp(cmd.smallBlind, 1, 1000000, next.settings.smallBlind);
-          var bb = clamp(cmd.bigBlind, sb * 2, 2000000, next.settings.bigBlind);
-          next.settings.startingStack = clamp(cmd.startingStack, bb * 10, 100000000, next.settings.startingStack);
+          var sb = next.settings.mode === "ring"
+            ? next.settings.initialSmallBlind
+            : clamp(cmd.smallBlind, 1, 1000000, next.settings.initialSmallBlind);
+          var bb = next.settings.mode === "ring"
+            ? next.settings.initialBigBlind
+            : clamp(cmd.bigBlind, sb * 2, 2000000, next.settings.initialBigBlind);
+          next.settings.startingStack = next.settings.mode === "ring"
+            ? next.settings.startingStack
+            : clamp(cmd.startingStack, bb * 10, 100000000, next.settings.startingStack);
+          next.settings.initialSmallBlind = sb;
+          next.settings.initialBigBlind = bb;
           next.settings.smallBlind = sb;
           next.settings.bigBlind = bb;
           next.settings.actionMs = clamp(cmd.actionMs, 5000, 120000, next.settings.actionMs);
@@ -1299,6 +1511,14 @@
       viewerNick: viewerNick,
       phase: state.phase,
       settings: clone(state.settings),
+      mode: state.settings.mode,
+      tournamentSpeed: state.settings.tournamentSpeed,
+      blindLevel: Math.max(0, integer(state.blindLevel, 0)),
+      nextBlindAt: state.nextBlindAt == null ? null : Math.max(0, integer(state.nextBlindAt, 0)),
+      canRefill: state.settings.mode === "ring" && !!viewerPlayer &&
+        !viewerPlayer.isBot && viewerPlayer.stack <= 0 && !PLAYING_PHASES[state.phase],
+      refillAmount: state.settings.refillAmount,
+      dailyRefillLimit: state.settings.dailyRefillLimit,
       seats: state.seats.map(function (player) { return publicPlayer(player, viewerPlayer, revealAll); }),
       handNo: state.handNo,
       handId: String(state.handNo),

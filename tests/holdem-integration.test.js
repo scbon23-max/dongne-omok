@@ -34,7 +34,31 @@ test("Hold'em is an available six-player controller game", () => {
   assert.match(game, /visibleGameIds\(createIds\)\.filter\(canCreateGame\)/);
   assert.match(game, /def && def\.createAdminOnly && !me\.isAdmin/);
   assert.doesNotMatch(game, /createAdminOnly && !isGunaAdmin\(\)/);
-  assert.match(game, /id === "holdem" \? "최대 6명 · 비공개 테스트 방"/);
+  assert.match(game, /id === "holdem" \? "토너먼트 · 자산안심 링게임"/);
+});
+
+test("Hold'em room creation offers tournament speed and an asset-safe ring game", () => {
+  const context = { window: {} };
+  vm.createContext(context);
+  vm.runInContext(catalogSource, context, { filename: "game-catalog.js" });
+
+  for (const id of ["holdem_tournament", "holdem_turbo", "holdem_ring"]) {
+    const definition = context.window.GameCatalog.get(id);
+    assert.equal(definition.family, "holdem");
+    assert.equal(definition.createAdminOnly, true);
+    assert.equal(definition.discoverable, false);
+  }
+  assert.equal(context.window.GameCatalog.get("holdem_ring").name, "자산안심 링게임");
+  assert.match(index, /id="create-holdem-mode-step"/);
+  assert.match(index, /data-holdem-mode="tournament"/);
+  assert.match(index, /data-holdem-mode="ring"/);
+  assert.match(index, /data-holdem-speed="normal"/);
+  assert.match(index, /data-holdem-speed="turbo"/);
+  assert.match(index, /계정 자산과 무관한 방 전용 칩/);
+  assert.match(game, /function holdemCreateGameId\(mode, speed\)/);
+  assert.match(game, /return "holdem_ring"/);
+  assert.match(game, /speed === "turbo" \? "holdem_turbo" : "holdem_tournament"/);
+  assert.match(game, /createRoom\(holdemCreateGameId\(createHoldemMode, createHoldemSpeed\), nm\)/);
 });
 
 test("Hold'em test rooms are neither announced nor rendered in other users' room lists", () => {
@@ -103,6 +127,8 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-bot-fill-btn",
     "holdem-bot-remove-btn",
     "holdem-action-panel",
+    "holdem-refill-panel",
+    "holdem-refill-btn",
     "holdem-fold-btn",
     "holdem-check-btn",
     "holdem-call-btn",
@@ -157,6 +183,8 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(styles, /\.holdem-winner-result\s*\{/);
   assert.match(styles, /\.holdem-screen\.is-settling-pot \.holdem-seat\.is-winner \.holdem-seat-avatar/);
   assert.match(controller, /var RESULT_CARDS_FIRST_MS = 900/);
+  assert.match(controller, /var RESULT_BOARD_REVEAL_STEP_MS = 900/);
+  assert.match(controller, /function resultBoardVisibleCount\(\)[\s\S]*resultFlow\.initialBoardCount/);
   assert.match(controller, /function animatedPotAmount\(\)/);
   assert.match(styles, /\.holdem-screen\.is-showdown \.holdem-table-info/);
   assert.doesNotMatch(styles, /\.holdem-result-panel\s*\{[\s\S]*background: rgba\(5,24,30,\.95\)/);
@@ -172,6 +200,7 @@ test("the browser sends only server commands and public refresh hints", () => {
   assert.match(controller, /var busy = pendingUiCount > 0/);
   assert.doesNotMatch(controller, /api\.send\(\{[^}]*\b(?:deck|burn|holeCards|cards)\b/s);
   assert.match(config, /\[functions\.holdem-table\]\s*verify_jwt = false/);
+  assert.match(controller, /invoke\("refill"/);
 });
 
 test("the rules and UI clearly identify play chips and standard no-limit play", () => {

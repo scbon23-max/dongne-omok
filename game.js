@@ -197,6 +197,7 @@
       clientSessionId: function () { return currentClientSessionId(); },
       roomId: function () { return curRoomId || ""; },
       roomName: function () { return curRoomTitle || curRoomId || ""; },
+      roomGame: function () { return curRoomGame || curGame || ""; },
       isNet: function () { return netMode; },
       isConnected: function () { return !netMode || connected; },
       setHostEligible: function (eligible) {
@@ -5092,7 +5093,7 @@
         : id === "alk" ? "돌을 튕겨 겨루는 실시간 대결"
         : id === "catchmind" ? "그리고 맞히는 단체 그림 퀴즈"
         : id === "relay" ? "문장과 그림을 번갈아 이어가기"
-        : id === "holdem" ? "최대 6명 · 비공개 테스트 방"
+        : id === "holdem" ? "토너먼트 · 자산안심 링게임"
         : "선을 이어 내 땅을 차지하는 실시간 대결";
       var iconSrc = id === "alk" ? "assets/game-icon-alkkagi.svg"
         : id === "catchmind" ? "assets/game-icon-catchmind.svg"
@@ -5111,8 +5112,10 @@
   function showCreateRoomStep(step) {
     if (step === "alk-mode" && !ENABLE_ALK_TERRITORY) step = "game";
     var gameStep = $("create-game-step"), modeStep = $("create-alk-mode-step");
+    var holdemStep = $("create-holdem-mode-step");
     if (gameStep) gameStep.classList.toggle("hidden", step !== "game");
     if (modeStep) modeStep.classList.toggle("hidden", step !== "alk-mode");
+    if (holdemStep) holdemStep.classList.toggle("hidden", step !== "holdem-mode");
   }
   function renderCreateAlkMode(selected) {
     selected = selected === "alk_terr" ? "alk_terr" : "alk";
@@ -5127,6 +5130,47 @@
     }
     if ($("create-mode-confirm")) $("create-mode-confirm").textContent = (selected === "alk_terr" ? "점령전" : "일반") + " 방 만들기";
     return selected;
+  }
+  function renderCreateHoldemMode(mode, speed) {
+    mode = mode === "ring" ? "ring" : "tournament";
+    speed = speed === "turbo" ? "turbo" : "normal";
+    var modeBox = $("create-holdem-mode");
+    if (modeBox) {
+      var modeCards = modeBox.querySelectorAll("[data-holdem-mode]");
+      for (var i = 0; i < modeCards.length; i++) {
+        var modeActive = modeCards[i].getAttribute("data-holdem-mode") === mode;
+        modeCards[i].classList.toggle("active", modeActive);
+        modeCards[i].setAttribute("aria-pressed", modeActive ? "true" : "false");
+      }
+    }
+    var speedBox = $("create-holdem-speed");
+    if (speedBox) {
+      var speedButtons = speedBox.querySelectorAll("[data-holdem-speed]");
+      for (var j = 0; j < speedButtons.length; j++) {
+        var speedActive = speedButtons[j].getAttribute("data-holdem-speed") === speed;
+        speedButtons[j].classList.toggle("active", speedActive);
+        speedButtons[j].setAttribute("aria-pressed", speedActive ? "true" : "false");
+      }
+    }
+    if ($("create-holdem-speed-group")) {
+      $("create-holdem-speed-group").classList.toggle("hidden", mode !== "tournament");
+    }
+    if ($("create-holdem-rule-summary")) {
+      $("create-holdem-rule-summary").textContent = mode === "ring"
+        ? "전원 10,000칩 · SB 50 / BB 100 고정 · 소진 시 하루 3회 10,000칩 충전"
+        : "시작 10,000칩 · 블라인드 50/100 · " +
+          (speed === "turbo" ? "5분" : "10분") + "마다 상승 · 마지막 1인 승리";
+    }
+    if ($("create-holdem-mode-confirm")) {
+      $("create-holdem-mode-confirm").textContent = mode === "ring"
+        ? "자산안심 링게임 만들기"
+        : (speed === "turbo" ? "터보" : "일반") + " 토너먼트 만들기";
+    }
+    return mode;
+  }
+  function holdemCreateGameId(mode, speed) {
+    if (mode === "ring") return "holdem_ring";
+    return speed === "turbo" ? "holdem_turbo" : "holdem_tournament";
   }
   function openMenu() {
     if ($("menu-main")) $("menu-main").classList.remove("hidden");
@@ -5969,11 +6013,14 @@
     $("create-room-btn").addEventListener("click", function () {
       createGame = renderCreateGameOptions(createGame);
       createAlkMode = renderCreateAlkMode(createAlkMode);
+      createHoldemMode = renderCreateHoldemMode(createHoldemMode, createHoldemSpeed);
       showCreateRoomStep("game");
       openModal("create-modal");
     });
     var createGame = renderCreateGameOptions("omok");
     var createAlkMode = renderCreateAlkMode("alk");
+    var createHoldemMode = renderCreateHoldemMode("tournament", "normal");
+    var createHoldemSpeed = "normal";
     $("create-game").addEventListener("click", function (event) {
       var option = event.target.closest(".create-game-option");
       if (!option || !this.contains(option)) return;
@@ -5985,6 +6032,12 @@
         if ($("create-room-summary-name")) $("create-room-summary-name").textContent = nm.trim() || (me.nick + "님의 방");
         createAlkMode = renderCreateAlkMode(createAlkMode);
         showCreateRoomStep("alk-mode");
+        return;
+      }
+      if (createGame === "holdem") {
+        if ($("create-holdem-summary-name")) $("create-holdem-summary-name").textContent = nm.trim() || (me.nick + "님의 방");
+        createHoldemMode = renderCreateHoldemMode(createHoldemMode, createHoldemSpeed);
+        showCreateRoomStep("holdem-mode");
         return;
       }
       $("create-modal").classList.add("hidden");
@@ -6001,6 +6054,24 @@
       $("create-modal").classList.add("hidden");
       var nm = $("create-name").value; $("create-name").value = "";
       createRoom(createAlkMode, nm);
+      showCreateRoomStep("game");
+    });
+    $("create-holdem-step-back").addEventListener("click", function () { showCreateRoomStep("game"); });
+    $("create-holdem-mode").addEventListener("click", function (event) {
+      var card = event.target.closest("[data-holdem-mode]");
+      if (!card || !this.contains(card)) return;
+      createHoldemMode = renderCreateHoldemMode(card.getAttribute("data-holdem-mode"), createHoldemSpeed);
+    });
+    $("create-holdem-speed").addEventListener("click", function (event) {
+      var option = event.target.closest("[data-holdem-speed]");
+      if (!option || !this.contains(option)) return;
+      createHoldemSpeed = option.getAttribute("data-holdem-speed") === "turbo" ? "turbo" : "normal";
+      createHoldemMode = renderCreateHoldemMode(createHoldemMode, createHoldemSpeed);
+    });
+    $("create-holdem-mode-confirm").addEventListener("click", function () {
+      $("create-modal").classList.add("hidden");
+      var nm = $("create-name").value; $("create-name").value = "";
+      createRoom(holdemCreateGameId(createHoldemMode, createHoldemSpeed), nm);
       showCreateRoomStep("game");
     });
     $("alk-chipB").addEventListener("click", function () { onAlkChipTap("black"); });

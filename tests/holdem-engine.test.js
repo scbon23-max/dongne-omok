@@ -676,3 +676,109 @@ test("AI seats count toward the six-player cap and configuration locks after pla
   assert.equal(locked.ok, false);
   assert.equal(locked.reason, "bots_locked");
 });
+
+test("normal and turbo tournaments raise blinds on their server-timed schedules", () => {
+  const names = ["owner", "guest"];
+  const startAt = 1_800_000_000_000;
+
+  let normal = tableWithPlayers(names, {
+    mode: "tournament",
+    tournamentSpeed: "normal",
+  });
+  normal = readyAndStart(normal, names, startAt);
+  assert.equal(normal.settings.smallBlind, 50);
+  assert.equal(normal.settings.bigBlind, 100);
+  assert.equal(normal.settings.blindLevelMs, 10 * 60 * 1000);
+  assert.equal(normal.blindLevel, 0);
+
+  let turbo = tableWithPlayers(names, {
+    mode: "tournament",
+    tournamentSpeed: "turbo",
+  });
+  turbo = readyAndStart(turbo, names, startAt);
+  assert.equal(turbo.settings.blindLevelMs, 5 * 60 * 1000);
+  assert.equal(turbo.settings.actionMs, 15000);
+
+  const actor = turbo.seats[turbo.actorSeat];
+  turbo = apply(turbo, {
+    type: "act",
+    nick: actor.nick,
+    action: "fold",
+  }, startAt + 1);
+  assert.equal(turbo.phase, "hand_end");
+  turbo = apply(turbo, {
+    type: "start",
+    nick: names[0],
+  }, startAt + 5 * 60 * 1000 + names.length + 1);
+  assert.equal(turbo.blindLevel, 1);
+  assert.equal(turbo.settings.smallBlind, 75);
+  assert.equal(turbo.settings.bigBlind, 150);
+});
+
+test("ring games keep one blind level, fixed entry chips, and server-only bust refills", () => {
+  const names = ["owner", "guest"];
+  let state = tableWithPlayers(names, {
+    mode: "ring",
+    startingStack: 10000,
+    smallBlind: 50,
+    bigBlind: 100,
+    refillAmount: 10000,
+    dailyRefillLimit: 3,
+  });
+  assert.deepEqual(
+    state.seats.filter(Boolean).map((player) => player.stack),
+    [10000, 10000],
+  );
+  state = readyAndStart(state, names, 1000);
+  const bustedSeat = state.actorSeat;
+  const bustedNick = state.seats[bustedSeat].nick;
+  state.seats[bustedSeat].stack = 0;
+  state = apply(state, {
+    type: "act",
+    nick: bustedNick,
+    action: "fold",
+  }, 1001);
+
+  assert.equal(state.phase, "hand_end", "ring tables do not become tournament_end");
+  assert.equal(state.settings.smallBlind, 50);
+  assert.equal(state.settings.bigBlind, 100);
+  assert.equal(state.nextBlindAt, null);
+  assert.equal(Engine.view(state, bustedNick).canRefill, true);
+
+  const browserAttempt = Engine.command(state, {
+    type: "refill",
+    nick: bustedNick,
+    requestId: "refill:browser",
+  }, context(1002));
+  assert.equal(browserAttempt.ok, false);
+  assert.equal(browserAttempt.reason, "internal");
+
+  const refill = Engine.command(state, {
+    type: "refill",
+    nick: bustedNick,
+    requestId: "refill:server",
+  }, {
+    now: 1003,
+    randomInt: () => 0,
+    internalRefill: true,
+  });
+  assert.equal(refill.ok, true, refill.reason);
+  assert.equal(refill.state.seats[bustedSeat].stack, 10000);
+  assert.equal(refill.state.seats[bustedSeat].ready, true);
+
+  let rejoinState = refill.state;
+  rejoinState.seats[bustedSeat].stack = 0;
+  rejoinState = apply(rejoinState, {
+    type: "leave",
+    nick: bustedNick,
+    requestId: "leave:busted",
+  }, 1004);
+  assert.equal(rejoinState.seats[bustedSeat], null);
+  rejoinState = apply(rejoinState, {
+    type: "join",
+    nick: bustedNick,
+    seat: bustedSeat,
+    requestId: "join:busted",
+  }, 1005);
+  assert.equal(rejoinState.seats[bustedSeat].stack, 0, "rejoining cannot bypass refill");
+});

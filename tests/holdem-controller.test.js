@@ -147,6 +147,44 @@ test("hand-end snapshots map to the completed UI and expose only server showdown
   assert.ok(normalized.showdown.some((row) => row.handName));
 });
 
+test("completed all-in boards reveal flop, turn, and river in order", () => {
+  const controller = loadController();
+  let { state } = serverView();
+  let guard = 0;
+  while (["preflop", "flop", "turn", "river"].includes(state.phase)) {
+    assert.ok(guard++ < 30);
+    const actor = state.seats[state.actorSeat];
+    const legal = Engine.legalActions(state, actor.nick);
+    const action = legal.actions.includes("check") ? "check" : "call";
+    state = Engine.command(state, { type: "act", nick: actor.nick, action }, {
+      now: 300 + guard,
+      randomInt: () => 0,
+    }).state;
+  }
+  const snapshot = Engine.view(state, "alice");
+  const completed = controller._test.normalizeSnapshot(snapshot, 21);
+  assert.equal(completed.board.length, 5);
+  controller._test.setState(Object.assign({}, completed, {
+    phase: "flop",
+    board: [],
+    version: 20,
+  }));
+
+  const originalNow = Date.now;
+  let now = 1_900_000_000_000;
+  Date.now = () => now;
+  try {
+    assert.equal(controller._test.applySnapshot(snapshot, 21), true);
+    assert.equal(controller._test.resultBoardVisibleCount(), 3);
+    now += controller._test.constants.resultBoardRevealStepMs;
+    assert.equal(controller._test.resultBoardVisibleCount(), 4);
+    now += controller._test.constants.resultBoardRevealStepMs;
+    assert.equal(controller._test.resultBoardVisibleCount(), 5);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
 test("the completed UI receives an AI winner's cards even without a showdown", () => {
   const controller = loadController();
   const ctx = { now: 1_800_000_000_000, randomInt: () => 0 };
@@ -232,9 +270,47 @@ test("public refresh messages are treated only as invalidation hints", () => {
 test("request ids and rendered cards stay bounded and accessible", () => {
   const controller = loadController();
   const requestId = controller._test.requestId("move", "7:hand:2");
+  const renderedAce = controller._test.cardHtml({ rank: "A", suit: "h" });
   assert.match(requestId, /^[A-Za-z0-9._:-]{1,100}$/);
-  assert.match(controller._test.cardHtml({ rank: "A", suit: "h" }), /aria-label="하트 A"/);
+  assert.match(renderedAce, /aria-label="하트 A"/);
+  assert.match(renderedAce, /data-rank="A"/);
+  assert.match(renderedAce, /holdem-card-suit-svg/);
   assert.match(controller._test.cardHtml(null, "back"), /aria-label="비공개 카드"/);
+});
+
+test("ring refill status survives controller normalization", () => {
+  const controller = loadController();
+  let state = Engine.createTable({
+    roomId: "room-controller",
+    ownerNick: "alice",
+    mode: "ring",
+    startingStack: 10000,
+    refillAmount: 10000,
+    dailyRefillLimit: 3,
+  });
+  state = Engine.command(state, { type: "join", nick: "alice" }, {
+    now: 1,
+    randomInt: () => 0,
+  }).state;
+  state.seats[0].stack = 0;
+  const snapshot = Engine.view(state, "alice");
+  snapshot.ringRefill = {
+    amount: 10000,
+    dailyLimit: 3,
+    usedToday: 1,
+    remainingToday: 2,
+    canRefill: true,
+  };
+  snapshot.canRefill = true;
+
+  const normalized = controller._test.normalizeSnapshot(snapshot, 20);
+  assert.equal(normalized.mode, "ring");
+  assert.equal(normalized.refillAmount, 10000);
+  assert.equal(normalized.dailyRefillLimit, 3);
+  assert.equal(normalized.refillsUsedToday, 1);
+  assert.equal(normalized.refillsRemainingToday, 2);
+  assert.equal(normalized.refillStatusKnown, true);
+  assert.equal(normalized.canRefill, true);
 });
 
 test("an in-flight join cannot leak an old-room snapshot and cleans its seat after exit", async () => {

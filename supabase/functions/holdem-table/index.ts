@@ -13,7 +13,19 @@ type HoldemCommandResult = {
 };
 
 type HoldemEngineApi = {
-  createTable(options: { roomId: string; ownerNick: string }): unknown;
+  createTable(options: {
+    roomId: string;
+    ownerNick: string;
+    mode?: string;
+    tournamentSpeed?: string;
+    startingStack?: number;
+    smallBlind?: number;
+    bigBlind?: number;
+    actionMs?: number;
+    blindLevelMs?: number;
+    refillAmount?: number;
+    dailyRefillLimit?: number;
+  }): unknown;
   command(
     state: unknown,
     command: JsonRecord,
@@ -21,6 +33,7 @@ type HoldemEngineApi = {
       now: number;
       randomInt(max: number): number;
       internalBot?: boolean;
+      internalRefill?: boolean;
     },
   ): HoldemCommandResult;
   view(state: unknown, nick: string): unknown;
@@ -54,9 +67,15 @@ type TableRow = {
 
 type CasRow = {
   applied: boolean;
+  reason?: string;
   current_state: unknown;
   current_version: number | string;
   current_owner_nickname: string | null;
+};
+
+type LeaseInfo = {
+  ownerNick: string;
+  game: string;
 };
 
 const CORS = {
@@ -78,6 +97,7 @@ const ACTIONS = new Set([
   "remove_bot",
   "bot_step",
   "snapshot",
+  "refill",
 ]);
 const OWNER_ACTIONS = new Set(["settings", "add_bot", "remove_bot"]);
 const VERSIONED_ACTIONS = new Set([
@@ -85,6 +105,7 @@ const VERSIONED_ACTIONS = new Set([
   "add_bot",
   "remove_bot",
   "bot_step",
+  "refill",
 ]);
 const HAND_SCOPED_ACTIONS = new Set(["act", "tick"]);
 HAND_SCOPED_ACTIONS.add("bot_step");
@@ -102,6 +123,12 @@ const MAX_BODY_BYTES = 16 * 1024;
 const MAX_STATE_BYTES = 256 * 1024;
 const MAX_SNAPSHOT_BYTES = 64 * 1024;
 const MAX_CAS_RETRIES = 5;
+const HOLDEM_ROOM_GAMES = new Set([
+  "holdem",
+  "holdem_tournament",
+  "holdem_turbo",
+  "holdem_ring",
+]);
 
 const RESERVED_COMMAND_KEYS = new Set([
   "auth",
@@ -329,7 +356,51 @@ function botCommand(
   return command;
 }
 
-function publicTableResponse(
+function seoulDateKey(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const values: Record<string, string> = {};
+  for (const part of parts) values[part.type] = part.value;
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function ringSettings(state: unknown) {
+  if (!isRecord(state) || !isRecord(state.settings)) return null;
+  if (safeText(state.settings.mode, 24) !== "ring") return null;
+  return {
+    amount: Math.max(0, Number(state.settings.refillAmount) || 0),
+    dailyLimit: Math.max(
+      1,
+      Math.min(3, Number(state.settings.dailyRefillLimit) || 3),
+    ),
+  };
+}
+
+async function ringRefillStatus(
+  client: ReturnType<typeof createClient>,
+  nick: string,
+  dailyLimit: number,
+) {
+  const { data, error } = await client
+    .from("holdem_ring_refills")
+    .select("used_count")
+    .eq("nickname", nick)
+    .eq("refill_date", seoulDateKey())
+    .maybeSingle();
+  if (error) return null;
+  const used = Math.max(
+    0,
+    Math.min(dailyLimit, Number(data?.used_count) || 0),
+  );
+  return { used, remaining: Math.max(0, dailyLimit - used) };
+}
+
+async function publicTableResponse(
+  client: ReturnType<typeof createClient>,
   engine: HoldemEngineApi,
   state: unknown,
   nick: string,
@@ -337,11 +408,29 @@ function publicTableResponse(
   ok: boolean,
   reason?: string,
 ) {
+  const snapshot = sanitizedSnapshot(engine, state, nick);
+  const refill = ringSettings(state);
+  if (refill && isRecord(snapshot)) {
+    const status = await ringRefillStatus(client, nick, refill.dailyLimit);
+    const engineAllowsRefill = snapshot.canRefill === true;
+    snapshot.ringRefill = {
+      amount: refill.amount,
+      dailyLimit: refill.dailyLimit,
+      ...(status
+        ? {
+          usedToday: status.used,
+          remainingToday: status.remaining,
+          canRefill: engineAllowsRefill && status.remaining > 0,
+        }
+        : { canRefill: engineAllowsRefill }),
+    };
+    if (status) snapshot.canRefill = engineAllowsRefill && status.remaining > 0;
+  }
   return jsonResponse({
     ok,
     ...(reason ? { reason: safeText(reason, 80) || "rejected" } : {}),
     version,
-    snapshot: sanitizedSnapshot(engine, state, nick),
+    snapshot,
   });
 }
 
@@ -405,18 +494,39 @@ async function verifyAccount(
   return verifiedNick ? { nick: verifiedNick } : null;
 }
 
-async function activeLeaseOwner(
+async function activeLease(
   client: ReturnType<typeof createClient>,
   roomId: string,
-) {
+): Promise<LeaseInfo | null> {
   const { data, error } = await client
     .from("room_leases")
-    .select("nickname")
+    .select("nickname,game")
     .eq("room_id", roomId)
     .gt("expires_at", new Date().toISOString())
     .maybeSingle();
   if (error) throw new Error("lease_lookup");
-  return data ? safeText(data.nickname, 40) || null : null;
+  if (!data) return null;
+  const ownerNick = safeText(data.nickname, 40);
+  const game = safeText(data.game, 30);
+  return ownerNick && game ? { ownerNick, game } : null;
+}
+
+function createTableOptions(roomId: string, ownerNick: string, game: string) {
+  const ring = game === "holdem_ring";
+  const turbo = game === "holdem_turbo";
+  return {
+    roomId,
+    ownerNick,
+    mode: ring ? "ring" : "tournament",
+    tournamentSpeed: turbo ? "turbo" : "normal",
+    startingStack: 10000,
+    smallBlind: 50,
+    bigBlind: 100,
+    actionMs: turbo ? 15000 : 20000,
+    blindLevelMs: ring ? 0 : turbo ? 5 * 60 * 1000 : 10 * 60 * 1000,
+    refillAmount: ring ? 10000 : 0,
+    dailyRefillLimit: ring ? 3 : 0,
+  };
 }
 
 async function loadTable(
@@ -458,6 +568,29 @@ async function compareAndSwap(
   });
   const row = Array.isArray(data) ? data[0] : null;
   if (error || !row) throw new Error("table_write");
+  return row as CasRow;
+}
+
+async function compareAndSwapRingRefill(
+  client: ReturnType<typeof createClient>,
+  roomId: string,
+  expectedVersion: number,
+  state: JsonRecord,
+  ownerNick: string,
+  nick: string,
+): Promise<CasRow> {
+  const { data, error } = await client.rpc(
+    "holdem_ring_refill_compare_and_swap",
+    {
+      p_room_id: roomId,
+      p_expected_version: expectedVersion,
+      p_state: state,
+      p_owner_nickname: ownerNick,
+      p_nickname: nick,
+    },
+  );
+  const row = Array.isArray(data) ? data[0] : null;
+  if (error || !row) throw new Error("ring_refill_write");
   return row as CasRow;
 }
 
@@ -522,7 +655,7 @@ Deno.serve(async (request) => {
   if (!account) return jsonResponse({ ok: false, reason: "auth" }, 401);
 
   try {
-    const leaseOwner = await activeLeaseOwner(client, roomId);
+    const lease = await activeLease(client, roomId);
     let table = await loadTable(client, roomId);
     const requestedAt = Date.now();
     const expectedVersion = parseVersion(body.expectedVersion);
@@ -534,6 +667,7 @@ Deno.serve(async (request) => {
     if (action === "snapshot") {
       return table
         ? publicTableResponse(
+          client,
           engine,
           table.state,
           account.nick,
@@ -558,12 +692,20 @@ Deno.serve(async (request) => {
           snapshot: null,
         }, 404);
       }
+      if (creating && (!lease || !HOLDEM_ROOM_GAMES.has(lease.game))) {
+        return jsonResponse({
+          ok: false,
+          reason: "invalid_room",
+          version: 0,
+          snapshot: null,
+        }, 400);
+      }
 
-      const ownerNick = leaseOwner ??
+      const ownerNick = lease?.ownerNick ??
         table?.owner_nickname ??
         account.nick;
       const baseState = table?.state ??
-        engine.createTable({ roomId, ownerNick });
+        engine.createTable(createTableOptions(roomId, ownerNick, lease?.game ?? "holdem"));
       const baseVersion = table?.version ?? 0;
 
       if (
@@ -571,6 +713,7 @@ Deno.serve(async (request) => {
         expectedVersion !== baseVersion
       ) {
         return publicTableResponse(
+          client,
           engine,
           baseState,
           account.nick,
@@ -589,6 +732,7 @@ Deno.serve(async (request) => {
         )
       ) {
         return publicTableResponse(
+          client,
           engine,
           baseState,
           account.nick,
@@ -607,6 +751,7 @@ Deno.serve(async (request) => {
         )
       ) {
         return publicTableResponse(
+          client,
           engine,
           baseState,
           account.nick,
@@ -623,6 +768,7 @@ Deno.serve(async (request) => {
         requestedAt < Number(baseState.botDueAt)
       ) {
         return publicTableResponse(
+          client,
           engine,
           baseState,
           account.nick,
@@ -634,6 +780,7 @@ Deno.serve(async (request) => {
 
       if (OWNER_ACTIONS.has(action) && account.nick !== ownerNick) {
         return publicTableResponse(
+          client,
           engine,
           baseState,
           account.nick,
@@ -648,6 +795,7 @@ Deno.serve(async (request) => {
         : authenticatedCommand(body, action, account, requestId);
       if (!command) {
         return publicTableResponse(
+          client,
           engine,
           baseState,
           account.nick,
@@ -660,6 +808,7 @@ Deno.serve(async (request) => {
         now: requestedAt,
         randomInt: secureRandomInt,
         internalBot: action === "bot_step",
+        internalRefill: action === "refill",
       });
       if (
         !result ||
@@ -673,6 +822,7 @@ Deno.serve(async (request) => {
       const resultState = result.state;
       if (!result.ok) {
         return publicTableResponse(
+          client,
           engine,
           resultState,
           account.nick,
@@ -683,6 +833,7 @@ Deno.serve(async (request) => {
       }
       if (!result.changed) {
         return publicTableResponse(
+          client,
           engine,
           resultState,
           account.nick,
@@ -692,21 +843,42 @@ Deno.serve(async (request) => {
       }
 
       const nextState = normalizeState(resultState);
-      const cas = await compareAndSwap(
-        client,
-        roomId,
-        baseVersion,
-        nextState,
-        ownerNick,
-      );
+      const cas = action === "refill"
+        ? await compareAndSwapRingRefill(
+          client,
+          roomId,
+          baseVersion,
+          nextState,
+          ownerNick,
+          account.nick,
+        )
+        : await compareAndSwap(
+          client,
+          roomId,
+          baseVersion,
+          nextState,
+          ownerNick,
+        );
       if (cas.applied) {
         return publicTableResponse(
+          client,
           engine,
-          nextState,
+          isRecord(cas.current_state) ? cas.current_state : nextState,
           account.nick,
           parseVersion(cas.current_version),
           true,
           result.reason,
+        );
+      }
+      if (cas.reason === "refill_limit") {
+        return publicTableResponse(
+          client,
+          engine,
+          cas.current_state,
+          account.nick,
+          parseVersion(cas.current_version),
+          false,
+          "refill_limit",
         );
       }
 
@@ -716,6 +888,7 @@ Deno.serve(async (request) => {
     const latest = table ?? await loadTable(client, roomId);
     return latest
       ? publicTableResponse(
+        client,
         engine,
         latest.state,
         account.nick,

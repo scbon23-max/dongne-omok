@@ -15,6 +15,15 @@ const migration = fs.readFileSync(
   ),
   "utf8"
 );
+const ringRefillMigration = fs.readFileSync(
+  path.join(
+    root,
+    "supabase",
+    "migrations",
+    "202607260001_holdem_ring_refills.sql"
+  ),
+  "utf8"
+);
 const edge = fs.readFileSync(
   path.join(root, "supabase", "functions", "holdem-table", "index.ts"),
   "utf8"
@@ -154,16 +163,19 @@ test("the endpoint action, poker move, version, and hand identity stay distinct"
   );
 });
 
-test("room lease ownership wins, with the authenticated creator as final fallback", () => {
-  assert.match(edge, /async function activeLeaseOwner/);
+test("room lease ownership and game mode configure the authoritative table", () => {
+  assert.match(edge, /async function activeLease/);
   assert.match(edge, /\.from\("room_leases"\)/);
+  assert.match(edge, /\.select\("nickname,game"\)/);
   assert.match(edge, /\.eq\("room_id", roomId\)/);
   assert.match(edge, /\.gt\("expires_at", new Date\(\)\.toISOString\(\)\)/);
   assert.match(
     edge,
-    /const ownerNick = leaseOwner \?\?\s*table\?\.owner_nickname \?\?\s*account\.nick/
+    /const ownerNick = lease\?\.ownerNick \?\?\s*table\?\.owner_nickname \?\?\s*account\.nick/
   );
-  assert.match(edge, /engine\.createTable\(\{ roomId, ownerNick \}\)/);
+  assert.match(edge, /engine\.createTable\(createTableOptions\(roomId, ownerNick, lease\?\.game \?\? "holdem"\)\)/);
+  assert.match(edge, /game === "holdem_ring"/);
+  assert.match(edge, /game === "holdem_turbo"/);
   assert.match(
     edge,
     /OWNER_ACTIONS\.has\(action\) && account\.nick !== ownerNick/
@@ -185,7 +197,7 @@ test("the engine gets secure randomness and only changed results reach CAS", () 
   );
   assert.match(
     edge,
-    /const nextState = normalizeState\(resultState\);[\s\S]*const cas = await compareAndSwap/
+    /const nextState = normalizeState\(resultState\);[\s\S]*const cas = action === "refill"/
   );
   assert.match(
     edge,
@@ -195,7 +207,8 @@ test("the engine gets secure randomness and only changed results reach CAS", () 
 
 test("responses are built from the per-player engine view, never stored state", () => {
   assert.match(edge, /const snapshot = engine\.view\(state, nick\)/);
-  assert.match(edge, /snapshot: sanitizedSnapshot\(engine, state, nick\)/);
+  assert.match(edge, /const snapshot = sanitizedSnapshot\(engine, state, nick\)/);
+  assert.match(edge, /snapshot,\s*\}\);/);
   assert.doesNotMatch(edge, /jsonResponse\(\{[^}]*\bstate\s*:/s);
   assert.doesNotMatch(edge, /jsonResponse\(\{[^}]*\bdeck\s*:/s);
   assert.doesNotMatch(edge, /jsonResponse\(\{[^}]*\bburn\s*:/s);
@@ -251,6 +264,44 @@ test("the AI receives only botView data and client-supplied moves cannot steer i
   );
   assert.match(
     edge,
-    /publicTableResponse\(\s*engine,\s*nextState,\s*account\.nick/s,
+    /publicTableResponse\(\s*client,\s*engine,\s*isRecord\(cas\.current_state\) \? cas\.current_state : nextState,\s*account\.nick/s,
   );
+});
+
+test("ring refills are account-wide, Korea-day limited, and atomic with the table update", () => {
+  assert.match(
+    ringRefillMigration,
+    /create table if not exists public\.holdem_ring_refills/i
+  );
+  assert.match(ringRefillMigration, /primary key \(nickname, refill_date\)/i);
+  assert.match(ringRefillMigration, /used_count between 0 and 3/i);
+  assert.match(
+    ringRefillMigration,
+    /alter table public\.holdem_ring_refills enable row level security/i
+  );
+  assert.match(
+    ringRefillMigration,
+    /revoke all on table public\.holdem_ring_refills from public, anon, authenticated/i
+  );
+  assert.match(
+    ringRefillMigration,
+    /timezone\('Asia\/Seoul', now\(\)\)/i
+  );
+  assert.match(
+    ringRefillMigration,
+    /if current_count >= 3[\s\S]*'refill_limit'/i
+  );
+  assert.match(
+    ringRefillMigration,
+    /update public\.holdem_ring_refills[\s\S]*update public\.holdem_tables/i
+  );
+  assert.match(
+    ringRefillMigration,
+    /grant execute on function public\.holdem_ring_refill_compare_and_swap\(text,bigint,jsonb,text,text\)[\s\S]*to service_role/i
+  );
+  assert.match(edge, /"refill"/);
+  assert.match(edge, /internalRefill: action === "refill"/);
+  assert.match(edge, /client\.rpc\(\s*"holdem_ring_refill_compare_and_swap"/s);
+  assert.match(edge, /\.from\("holdem_ring_refills"\)/);
+  assert.match(edge, /cas\.reason === "refill_limit"/);
 });

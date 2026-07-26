@@ -338,6 +338,7 @@ test("room creation keeps CatchMind, Territory Rush, and private-test Hold'em av
 
   assert.match(index, /id="create-game-step"/);
   assert.match(index, /id="create-alk-mode-step"/);
+  assert.match(index, /id="create-holdem-mode-step"/);
   assert.match(index, /id="create-step-back"/);
   assert.match(index, /id="create-mode-confirm"/);
   assert.match(index, /data-game="alk"[\s\S]*data-game="alk_terr"/);
@@ -359,6 +360,7 @@ test("room creation keeps CatchMind, Territory Rush, and private-test Hold'em av
   assert.match(game, /if \(createGame === "alk" && ENABLE_ALK_TERRITORY\)[\s\S]*showCreateRoomStep\("alk-mode"\)/);
   assert.match(game, /createRoom\(createGame === "alk" \? "alk" : createGame, nm\)/);
   assert.match(game, /createRoom\(createAlkMode, nm\)/);
+  assert.match(game, /holdemCreateGameId\(createHoldemMode, createHoldemSpeed\)/);
   assert.match(styles, /\.create-room-dialog\s*\{[^}]*background:\s*var\(--navy-2\)/);
   assert.match(styles, /\.create-game-option\.active\s*\{[^}]*background:\s*rgba\(243,97,42,\.2\)/);
   assert.match(styles, /\.create-game-option\s*\{[^}]*border:\s*0/);
