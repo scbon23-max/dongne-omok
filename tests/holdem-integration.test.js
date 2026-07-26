@@ -126,7 +126,9 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /var raiseMenuOpen = false/);
   assert.match(controller, /var moneyUnitMode = "chips"/);
   assert.match(controller, /function toggleMoneyUnitMode\(\)[\s\S]*moneyUnitMode === "bb" \? "chips" : "bb"/);
-  assert.match(controller, /data-holdem-stack-toggle="true"/);
+  assert.match(controller, /var settingsOpen = false/);
+  assert.match(controller, /id === "holdem-settings-btn"[\s\S]*settingsOpen = !settingsOpen/);
+  assert.match(controller, /id === "holdem-unit-toggle"[\s\S]*toggleMoneyUnitMode\(\)/);
   assert.match(controller, /show\("holdem-raise-panel", hasMove && canSize && raiseMenuOpen\)/);
   assert.match(controller, /id === "holdem-raise-btn"[\s\S]*raiseMenuOpen = true[\s\S]*renderControls\(\)/);
   assert.match(controller, /function quickBet\(kind\)[\s\S]*performSizedMove\(raiseValue\)/);

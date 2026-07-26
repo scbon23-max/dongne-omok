@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260726-holdem-bb-toggle-v1">
+<meta name="app-build" content="20260726-holdem-settings-unit-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -730,9 +730,24 @@
       <nav class="holdem-utility" aria-label="홀덤 방 메뉴">
         <button id="holdem-people-btn" type="button"><span id="holdem-people-count">0</span>명</button>
         <button id="holdem-rules-btn" type="button">규칙</button>
-        <button id="holdem-menu-btn" type="button" aria-label="메뉴">☰</button>
+        <button id="holdem-settings-btn" type="button" aria-label="설정" aria-expanded="false">⚙</button>
         <button id="holdem-leave-btn" type="button">나가기</button>
       </nav>
+      <section id="holdem-settings-panel" class="holdem-settings-panel hidden" aria-labelledby="holdem-settings-title">
+        <div class="holdem-settings-head">
+          <strong id="holdem-settings-title">설정</strong>
+          <button id="holdem-settings-close" type="button" aria-label="설정 닫기">✕</button>
+        </div>
+        <div class="holdem-setting-row">
+          <div>
+            <span>칩 표시 단위</span>
+            <small id="holdem-unit-label">칩 단위</small>
+          </div>
+          <button id="holdem-unit-toggle" class="holdem-setting-toggle" type="button" aria-pressed="false">
+            BB
+          </button>
+        </div>
+      </section>
     </header>
 
     <div id="holdem-connection" class="holdem-connection" role="status" aria-live="polite">

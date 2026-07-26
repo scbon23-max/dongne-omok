@@ -3074,6 +3074,76 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-utility button:active,
 .holdem-chat-row button:active { transform: scale(.96); }
+.holdem-utility #holdem-settings-btn {
+  width: 38px;
+  padding: 0;
+  font-size: 16px;
+}
+.holdem-settings-panel {
+  position: absolute;
+  z-index: 55;
+  top: max(52px, calc(env(safe-area-inset-top) + 44px));
+  right: 8px;
+  width: min(260px, calc(100vw - 24px));
+  padding: 12px;
+  border: 1px solid rgba(119,225,210,.22);
+  border-radius: 8px;
+  background: rgba(5,24,29,.97);
+  color: #edfafa;
+  box-shadow: 0 18px 36px rgba(0,0,0,.46);
+}
+.holdem-settings-head,
+.holdem-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.holdem-settings-head {
+  margin-bottom: 10px;
+}
+.holdem-settings-head strong {
+  font-size: 14px;
+  font-weight: 950;
+}
+.holdem-settings-head button {
+  width: 30px;
+  min-height: 30px;
+  padding: 0;
+}
+.holdem-setting-row {
+  min-height: 54px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.055);
+}
+.holdem-setting-row span,
+.holdem-setting-row small {
+  display: block;
+}
+.holdem-setting-row span {
+  color: #effafa;
+  font-size: 13px;
+  font-weight: 900;
+}
+.holdem-setting-row small {
+  margin-top: 2px;
+  color: #8edbd0;
+  font-size: 11px;
+  font-weight: 800;
+}
+.holdem-setting-toggle {
+  min-width: 58px;
+  height: 36px;
+  border-color: rgba(104,225,206,.38) !important;
+  background: rgba(18,84,83,.95) !important;
+  color: #effafa !important;
+  font-weight: 950 !important;
+}
+.holdem-setting-toggle[aria-pressed="true"] {
+  background: linear-gradient(145deg, #1aa892, #0e615e) !important;
+  color: #fff !important;
+}
 .holdem-connection {
   position: absolute;
   z-index: 42;
@@ -3305,12 +3375,6 @@ body.is-admin .feedback-user-compose { display: none; }
   font-size: clamp(9px, 2.7vw, 12px);
   font-weight: 750;
   text-shadow: 0 1px 2px #000;
-}
-.holdem-seat.is-me [data-holdem-stack-toggle] {
-  cursor: pointer;
-}
-.holdem-seat.is-me [data-holdem-stack-toggle]:active {
-  transform: scale(.96);
 }
 .holdem-seat-personality {
   max-width: 100%;
