@@ -78,6 +78,7 @@ window.TexasHoldem = (function () {
   var responseCounter = 0;
   var lastAppliedResponse = 0;
   var pendingCount = 0;
+  var pendingUiCount = 0;
   var pendingAction = "";
   var requests = Object.create(null);
   var lifecycleGeneration = 0;
@@ -872,11 +873,12 @@ window.TexasHoldem = (function () {
     });
   }
 
-  function finishRequest(key, promise, value, failed, requestStore, generation) {
+  function finishRequest(key, promise, value, failed, requestStore, generation, uiRequest) {
     if (requestStore[key] === promise) delete requestStore[key];
     if (generation === lifecycleGeneration) {
       pendingCount = Math.max(0, pendingCount - 1);
-      if (!pendingCount) pendingAction = "";
+      if (uiRequest) pendingUiCount = Math.max(0, pendingUiCount - 1);
+      if (!pendingUiCount) pendingAction = "";
       renderControls();
     }
     if (failed) throw value;
@@ -918,8 +920,12 @@ window.TexasHoldem = (function () {
     body.requestId = req;
     if (body.expectedVersion == null) body.expectedVersion = beforeVersion;
 
+    var uiRequest = options.ui !== false;
     pendingCount += 1;
-    if (options.ui !== false) pendingAction = options.label || endpointAction;
+    if (uiRequest) {
+      pendingUiCount += 1;
+      pendingAction = options.label || endpointAction;
+    }
     renderControls();
 
     var promise = transport(endpointAction, body).then(function (response) {
@@ -972,10 +978,10 @@ window.TexasHoldem = (function () {
     requestStore[key] = promise;
     return promise.then(
       function (value) {
-        return finishRequest(key, promise, value, false, requestStore, generation);
+        return finishRequest(key, promise, value, false, requestStore, generation, uiRequest);
       },
       function (error) {
-        return finishRequest(key, promise, error, true, requestStore, generation);
+        return finishRequest(key, promise, error, true, requestStore, generation, uiRequest);
       }
     );
   }
@@ -1667,7 +1673,7 @@ window.TexasHoldem = (function () {
     var completed = state.phase === "complete";
     var moves = ["fold", "check", "call", "bet", "raise", "allin"];
     var hasMove = moves.some(function (move) { return !!state.legal[move]; });
-    var busy = pendingCount > 0;
+    var busy = pendingUiCount > 0;
     var isOwner = !!(text(me().nick, 40) && text(me().nick, 40) === state.ownerNick);
     var canManageBots = isOwner && state.canManageBots;
     var occupiedSeats = state.seats.filter(Boolean).length;
@@ -2002,6 +2008,7 @@ window.TexasHoldem = (function () {
     lastError = "";
     requests = Object.create(null);
     pendingCount = 0;
+    pendingUiCount = 0;
     pendingAction = "";
     state = emptyState();
     rawSnapshot = null;

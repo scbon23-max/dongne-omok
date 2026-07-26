@@ -144,7 +144,8 @@ test("hand results replace the lobby and advance automatically", () => {
   assert.match(controller, /function scheduleAutoReadyForNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*invoke\("ready"/);
   assert.match(controller, /scheduleAutoReadyForNextHand\(\)[\s\S]*scheduleAutoNextHand\(\)/);
   assert.match(controller, /function scheduleAutoNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*setTimeout\(function \(\) \{ autoStartHand\(key\); \}, AUTO_NEXT_HAND_MS\)/);
-  assert.match(styles, /\.holdem-result-panel\s*\{/);
+  assert.match(styles, /\.holdem-result-panel\s*\{[\s\S]*background: transparent/);
+  assert.doesNotMatch(styles, /\.holdem-result-panel\s*\{[\s\S]*background: rgba\(5,24,30,\.95\)/);
   assert.match(index, /id="holdem-result"/);
 });
 
@@ -153,6 +154,8 @@ test("the browser sends only server commands and public refresh hints", () => {
   assert.match(db, /sb\.functions\.invoke\("holdem-table"/);
   assert.match(controller, /Db\.holdemInvoke/);
   assert.match(controller, /holdem_refresh/);
+  assert.match(controller, /var pendingUiCount = 0/);
+  assert.match(controller, /var busy = pendingUiCount > 0/);
   assert.doesNotMatch(controller, /api\.send\(\{[^}]*\b(?:deck|burn|holeCards|cards)\b/s);
   assert.match(config, /\[functions\.holdem-table\]\s*verify_jwt = false/);
 });
