@@ -144,6 +144,7 @@ test("hand-end snapshots map to the completed UI and expose only server showdown
   assert.equal(normalized.phase, "complete");
   assert.equal(normalized.revealedCards[1].length, 2);
   assert.ok(normalized.winners.length >= 1);
+  assert.ok(normalized.showdown.some((row) => row.handName));
 });
 
 test("the completed UI receives an AI winner's cards even without a showdown", () => {
@@ -177,6 +178,7 @@ test("the completed UI receives an AI winner's cards even without a showdown", (
   const normalized = controller._test.normalizeSnapshot(snapshot, 14);
   assert.equal(normalized.phase, "complete");
   assert.equal(normalized.revealedCards[bot.seat].length, 2);
+  assert.equal(normalized.showdown.some((entry) => entry.seat === bot.seat && entry.testReveal), true);
 });
 
 test("completed AI tables are immediately eligible for automatic next hand", () => {

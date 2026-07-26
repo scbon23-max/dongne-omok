@@ -3337,6 +3337,7 @@ body.is-admin .feedback-user-compose { display: none; }
   height: clamp(42px, 12vw, 60px);
   display: grid;
   place-items: center;
+  overflow: hidden;
   border: 3px solid #28444d;
   border-radius: 50%;
   background:
@@ -3346,6 +3347,12 @@ body.is-admin .feedback-user-compose { display: none; }
   font-size: clamp(15px, 4.4vw, 21px);
   font-weight: 1000;
   box-shadow: 0 4px 12px rgba(0,0,0,.55);
+}
+.holdem-seat-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 .holdem-seat.is-active .holdem-seat-avatar {
   border-color: #f2c77d;
@@ -3501,6 +3508,69 @@ body.is-admin .feedback-user-compose { display: none; }
   border-color: #f4cc75;
   box-shadow: 0 0 0 4px rgba(244,204,117,.22), 0 0 24px rgba(244,204,117,.55);
 }
+.holdem-winner-result {
+  position: absolute;
+  z-index: 8;
+  top: -64px;
+  left: 50%;
+  min-width: 92px;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  text-align: center;
+  filter: drop-shadow(0 5px 10px rgba(0,0,0,.62));
+}
+.holdem-winner-result strong {
+  padding: 2px 13px 3px;
+  border: 1px solid rgba(255,216,92,.82);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(44,35,7,.96), rgba(10,9,6,.98));
+  color: #ffe481;
+  font-size: clamp(10px, 2.8vw, 13px);
+  font-weight: 1000;
+  line-height: 1;
+  text-shadow: 0 0 8px rgba(255,192,44,.8), 0 1px 2px #000;
+  box-shadow: 0 0 13px rgba(255,188,44,.46), inset 0 1px 0 rgba(255,255,255,.18);
+}
+.holdem-winner-result small {
+  max-width: 132px;
+  padding: 2px 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(4,15,18,.88);
+  color: #f6e9bd;
+  font-size: clamp(8px, 2.2vw, 10px);
+  font-weight: 900;
+  line-height: 1.12;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.holdem-win-gain {
+  color: #fff3bf;
+  font-size: clamp(10px, 2.8vw, 13px);
+  font-weight: 1000;
+  line-height: 1;
+  text-shadow: 0 0 9px rgba(255,205,81,.85), 0 1px 2px #000;
+}
+.holdem-seat[data-relative-seat="3"] .holdem-winner-result {
+  top: calc(100% + 3px);
+}
+.holdem-seat[data-relative-seat="1"] .holdem-winner-result,
+.holdem-seat[data-relative-seat="2"] .holdem-winner-result {
+  left: calc(50% + 42px);
+}
+.holdem-seat[data-relative-seat="4"] .holdem-winner-result,
+.holdem-seat[data-relative-seat="5"] .holdem-winner-result {
+  left: calc(50% - 42px);
+}
+.holdem-screen.is-settling-pot .holdem-seat.is-winner .holdem-seat-avatar {
+  animation: holdemWinnerPulse .42s ease-in-out infinite;
+}
+.holdem-screen.is-result-cards-first .holdem-seat .holdem-hole-cards .holdem-card:not(.back):not(.empty) {
+  animation: holdemCardRevealPop .34s ease-out both;
+}
 .holdem-seat-badges {
   position: absolute;
   top: -4px;
@@ -3526,7 +3596,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-seat.is-bot .holdem-seat-avatar {
   border-color: rgba(242,199,125,.76);
-  background: linear-gradient(145deg, #315a60, #16343a);
+  background: #f7fbf7;
 }
 .holdem-hole-cards {
   position: absolute;
@@ -3690,20 +3760,20 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-result-panel {
   position: absolute;
   z-index: 36;
-  top: 46%;
+  top: 39%;
   left: 50%;
-  width: min(90vw, 430px);
-  max-height: min(42vh, 330px);
-  padding: 11px 12px 10px;
+  width: min(78vw, 330px);
+  max-height: none;
+  padding: 0;
   overflow: hidden;
-  border: 1px solid rgba(117,215,198,.28);
-  border-radius: 16px;
+  border: 0;
+  border-radius: 0;
   pointer-events: none;
   text-align: center;
   transform: translate(-50%, -50%);
-  background: rgba(3,18,23,.88);
-  box-shadow: 0 10px 28px rgba(0,0,0,.46), inset 0 1px 0 rgba(255,255,255,.06);
-  backdrop-filter: blur(2px);
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 .holdem-result-head {
   display: grid;
@@ -3717,25 +3787,30 @@ body.is-admin .feedback-user-compose { display: none; }
   letter-spacing: 1.2px;
 }
 .holdem-result-head strong {
+  padding: 3px 15px 5px;
+  border: 1px solid rgba(255,218,91,.74);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(42,33,7,.94), rgba(7,7,5,.96));
   color: #fff;
-  font-size: clamp(25px, 7vw, 40px);
+  font-size: clamp(18px, 5vw, 27px);
   font-weight: 1000;
   letter-spacing: 0;
-  text-shadow: 0 3px 12px rgba(0,0,0,.8);
+  text-shadow: 0 0 10px rgba(255,196,47,.76), 0 3px 12px rgba(0,0,0,.8);
+  box-shadow: 0 0 18px rgba(255,194,53,.36), inset 0 1px 0 rgba(255,255,255,.16);
 }
 .holdem-result-potline {
-  min-height: 34px;
+  min-height: 28px;
   width: max-content;
   max-width: 100%;
-  margin: 7px auto 6px;
-  padding: 6px 13px;
+  margin: 5px auto 5px;
+  padding: 4px 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   border: 1px solid rgba(242,199,125,.38);
   border-radius: 999px;
-  background: rgba(5,24,30,.76);
+  background: rgba(5,24,30,.58);
   box-shadow: 0 6px 18px rgba(0,0,0,.34);
 }
 .holdem-result-potline span {
@@ -3750,7 +3825,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-result-board {
   min-height: 0;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3783,7 +3858,7 @@ body.is-admin .feedback-user-compose { display: none; }
   font-weight: 800;
 }
 .holdem-result-showdown {
-  max-height: 104px;
+  max-height: 72px;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -3792,7 +3867,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-result-player {
   min-height: 35px;
-  padding: 5px 7px;
+  padding: 4px 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3838,7 +3913,6 @@ body.is-admin .feedback-user-compose { display: none; }
   text-shadow: 0 2px 7px rgba(0,0,0,.8);
 }
 .holdem-screen.is-showdown .holdem-table-info,
-.holdem-screen.is-showdown .holdem-pot,
 .holdem-screen.is-showdown .holdem-seat-bet,
 .holdem-screen.is-showdown .holdem-seat-status,
 .holdem-screen.is-showdown .holdem-seat-action,
@@ -3855,6 +3929,14 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-screen.is-showdown .holdem-seat.is-winner .holdem-seat-avatar,
 .holdem-screen.is-showdown .holdem-seat.is-winner .holdem-hole-cards {
   opacity: 1;
+}
+@keyframes holdemWinnerPulse {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(1.18); }
+}
+@keyframes holdemCardRevealPop {
+  0% { opacity: .35; transform: translateY(6px) scale(.82) rotate(-3deg); }
+  100% { opacity: 1; }
 }
 #holdemgame button:focus-visible,
 #holdemgame select:focus-visible,

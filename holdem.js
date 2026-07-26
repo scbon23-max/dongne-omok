@@ -51,6 +51,8 @@ window.TexasHoldem = (function () {
   var CLOCK_MS = 250;
   var REFRESH_DEBOUNCE_MS = 90;
   var AUTO_NEXT_HAND_MS = 5000;
+  var RESULT_CARDS_FIRST_MS = 900;
+  var RESULT_SETTLE_MS = 1600;
   var BOT_PERSONALITY_LABELS = {
     tight_passive: "타이트 패시브",
     tight_aggressive: "타이트 어그레시브",
@@ -97,6 +99,7 @@ window.TexasHoldem = (function () {
   var autoNextDueAt = 0;
   var autoReadyTimer = null;
   var autoReadyKey = "";
+  var resultFlow = null;
 
   var boundRoot = null;
   var demoState = null;
@@ -261,6 +264,7 @@ window.TexasHoldem = (function () {
       actionSeq: 0,
       ownerNick: "",
       winners: [],
+      showdown: [],
       handName: "",
       message: ""
     };
@@ -492,6 +496,13 @@ window.TexasHoldem = (function () {
     return BOT_PERSONALITY_LABELS[normalizeBotPersonality(value)] || "";
   }
 
+  function botPersonalityAvatar(value) {
+    var personality = normalizeBotPersonality(value);
+    return personality
+      ? "assets/holdem/ai-avatar-" + personality.replace(/_/g, "-") + ".png"
+      : "";
+  }
+
   function normalizePots(table) {
     var main = nonnegative(firstDefined(
       table.totalPot,
@@ -588,11 +599,25 @@ window.TexasHoldem = (function () {
     var dealerSeat = safeSeat(firstDefined(table.dealerSeat, table.buttonSeat, table.dealer));
     var phase = phaseKey(firstDefined(table.phase, table.street, table.status));
     var revealedCards = [null, null, null, null, null, null];
+    var showdownRows = [];
     if ((phase === "complete" || phase === "showdown") && Array.isArray(table.showdown)) {
       table.showdown.forEach(function (entry) {
         if (!isObject(entry)) return;
         var revealedSeat = safeSeat(firstDefined(entry.seat, entry.index, entry.position));
-        if (revealedSeat >= 0) revealedCards[revealedSeat] = normalizeCards(entry.cards, 2);
+        var cards = normalizeCards(entry.cards, 2);
+        if (revealedSeat >= 0) {
+          revealedCards[revealedSeat] = cards;
+          showdownRows.push({
+            seat: revealedSeat,
+            nick: text(firstDefined(entry.nick, entry.nickname, entry.name), 40),
+            displayName: text(firstDefined(entry.displayName, entry.label, entry.nick, entry.nickname), 40),
+            cards: cards,
+            handName: text(firstDefined(entry.handName, entry.handLabel, entry.name), 80),
+            handCategory: integer(firstDefined(entry.handCategory, entry.category), -1),
+            folded: !!firstDefined(entry.folded, false),
+            testReveal: !!firstDefined(entry.testReveal, entry.aiReveal, false)
+          });
+        }
       });
     }
     var canReadyValue = firstDefined(viewer.canReady, raw.canReady, table.canReady);
@@ -706,6 +731,7 @@ window.TexasHoldem = (function () {
       actionSeq: Math.max(0, integer(firstDefined(table.actionSeq, raw.actionSeq), 0)),
       ownerNick: text(firstDefined(table.ownerNick, table.owner, raw.ownerNick), 40),
       winners: winnerNicks(table),
+      showdown: showdownRows,
       handName: text(firstDefined(viewer.handName, viewer.bestHandName, raw.handName), 80),
       message: text(firstDefined(raw.message, table.message, table.announcement, table.resultText), 160)
     };
@@ -725,6 +751,7 @@ window.TexasHoldem = (function () {
 
     var previousDeadlineKey = state.version + ":" + state.deadlineAt;
     var nextDeadlineKey = next.version + ":" + next.deadlineAt;
+    syncResultFlow(state, next);
     state = next;
     rawSnapshot = snapshot;
     hasSnapshot = true;
@@ -737,6 +764,89 @@ window.TexasHoldem = (function () {
     }
     render();
     return true;
+  }
+
+  function resultKeyOf(snapshot) {
+    if (!snapshot || snapshot.phase !== "complete") return "";
+    return [
+      snapshot.handId || snapshot.handNumber || "hand",
+      snapshot.handNumber || 0,
+      snapshot.winners.join("|")
+    ].join(":");
+  }
+
+  function winnerSeatMap(snapshot) {
+    var winners = Object.create(null);
+    if (!snapshot || !Array.isArray(snapshot.seats)) return winners;
+    var nicks = Object.create(null);
+    (snapshot.winners || []).forEach(function (nick) { nicks[nick] = true; });
+    snapshot.seats.forEach(function (seat, index) {
+      if (seat && (seat.winner || nicks[seat.nick])) winners[index] = true;
+    });
+    return winners;
+  }
+
+  function syncResultFlow(previous, next) {
+    var key = resultKeyOf(next);
+    if (!key) {
+      resultFlow = null;
+      return;
+    }
+    if (resultFlow && resultFlow.key === key) return;
+    var now = Date.now();
+    var fromStacks = [];
+    var toStacks = [];
+    for (var i = 0; i < MAX_SEATS; i++) {
+      fromStacks[i] = previous && previous.seats[i] ? previous.seats[i].stack : null;
+      toStacks[i] = next.seats[i] ? next.seats[i].stack : null;
+    }
+    resultFlow = {
+      key: key,
+      cardsUntil: now + RESULT_CARDS_FIRST_MS,
+      settleStart: now + RESULT_CARDS_FIRST_MS,
+      settleEnd: now + RESULT_CARDS_FIRST_MS + RESULT_SETTLE_MS,
+      potFrom: Math.max(nonnegative(previous && previous.pot, 0), nonnegative(next && next.pot, 0)),
+      fromStacks: fromStacks,
+      toStacks: toStacks,
+      winnerSeats: winnerSeatMap(next)
+    };
+  }
+
+  function resultStage() {
+    if (state.phase !== "complete") return "none";
+    if (!resultFlow) return "announced";
+    return Date.now() < resultFlow.cardsUntil ? "cards" : "announced";
+  }
+
+  function settleRatio() {
+    if (!resultFlow || state.phase !== "complete") return 1;
+    if (Date.now() < resultFlow.settleStart) return 0;
+    return clamp((Date.now() - resultFlow.settleStart) / RESULT_SETTLE_MS, 0, 1);
+  }
+
+  function easeOutCubic(ratio) {
+    ratio = clamp(ratio, 0, 1);
+    return 1 - Math.pow(1 - ratio, 3);
+  }
+
+  function animatedPotAmount() {
+    if (state.phase !== "complete" || !resultFlow) return state.pot;
+    return Math.round(resultFlow.potFrom * (1 - easeOutCubic(settleRatio())));
+  }
+
+  function animatedStackAmount(seatIndex, fallback) {
+    if (state.phase !== "complete" || !resultFlow || !resultFlow.winnerSeats[seatIndex]) return fallback;
+    var from = resultFlow.fromStacks[seatIndex];
+    var to = resultFlow.toStacks[seatIndex];
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return fallback;
+    return Math.round(from + (to - from) * easeOutCubic(settleRatio()));
+  }
+
+  function animatedWinAmount(seatIndex) {
+    if (!resultFlow || !resultFlow.winnerSeats[seatIndex]) return 0;
+    var from = resultFlow.fromStacks[seatIndex];
+    var to = resultFlow.toStacks[seatIndex];
+    return Number.isFinite(from) && Number.isFinite(to) && to > from ? to - from : 0;
   }
 
   function requestId(prefix, stableSuffix) {
@@ -1415,7 +1525,8 @@ window.TexasHoldem = (function () {
       if (seat && seat.allIn) classes.push("is-allin");
       if (seat && seat.away) classes.push("is-away");
       if (seat && seat.isBot) classes.push("is-bot");
-      if (seat && (seat.winner || winners[seat.nick])) classes.push("is-winner");
+      var isWinner = !!(seat && (seat.winner || winners[seat.nick]));
+      if (isWinner) classes.push("is-winner");
 
       var name = seat ? (seat.displayName || seat.nick) : "빈 자리";
       var status = seatStatus(seat);
@@ -1424,7 +1535,11 @@ window.TexasHoldem = (function () {
       var personalityLabel = seat && seat.isBot
         ? botPersonalityLabel(seat.botPersonality)
         : "";
-      var label = name + (seat ? ", 칩 " + formatChips(seat.stack) : "") +
+      var avatarSrc = seat && seat.isBot
+        ? botPersonalityAvatar(seat.botPersonality)
+        : "";
+      var displayStack = seat ? animatedStackAmount(absolute, seat.stack) : 0;
+      var label = name + (seat ? ", 칩 " + formatChips(displayStack) : "") +
         (seat && seat.isBot ? ", AI, " + personalityLabel : "") +
         (status ? ", " + status : "") + (isActive ? ", 행동 차례" : "");
       var badges = "";
@@ -1444,18 +1559,30 @@ window.TexasHoldem = (function () {
           for (var cardIndex = 0; cardIndex < count; cardIndex++) holes += cardHtml(null, "back");
         }
       }
+      var resultBadge = "";
+      if (seat && isWinner && state.phase === "complete" && resultStage() !== "cards") {
+        var won = animatedWinAmount(absolute);
+        resultBadge = '<div class="holdem-winner-result" aria-hidden="true">' +
+          (won > 0 ? '<span class="holdem-win-gain">+' + esc(formatChips(won)) + '</span>' : "") +
+          '<strong>WINNER</strong>' +
+          '<small>' + esc(resultHandLabel(absolute)) + '</small>' +
+        '</div>';
+      }
 
       html.push(
         '<article class="' + classes.join(" ") + '" data-seat="' + absolute +
         '" data-relative-seat="' + relative + '" aria-label="' + esc(label) + '">' +
           '<div class="holdem-hole-cards">' + holes + '</div>' +
-          '<div class="holdem-seat-avatar" aria-hidden="true">' + esc(initialFor(name)) + '</div>' +
+          resultBadge +
+          '<div class="holdem-seat-avatar" aria-hidden="true">' +
+            (avatarSrc ? '<img src="' + esc(avatarSrc) + '" alt="">' : esc(initialFor(name))) +
+          '</div>' +
           '<div class="holdem-seat-badges" aria-hidden="true">' + badges + '</div>' +
           '<strong class="holdem-seat-name">' + esc(name) + '</strong>' +
           (personalityLabel
             ? '<span class="holdem-seat-personality">' + esc(personalityLabel) + '</span>'
             : "") +
-          (seat ? '<span class="holdem-seat-stack">' + formatChips(seat.stack) + '</span>' : "") +
+          (seat ? '<span class="holdem-seat-stack">' + formatChips(displayStack) + '</span>' : "") +
           (isActive && state.deadlineAt
             ? '<span class="holdem-seat-turn-timer" data-holdem-seat-timer="' + absolute + '"></span>'
             : "") +
@@ -1512,16 +1639,34 @@ window.TexasHoldem = (function () {
     return state.winners.join(", ") + " 승리";
   }
 
+  function showdownRowForSeat(seatIndex) {
+    if (!Array.isArray(state.showdown)) return null;
+    for (var i = 0; i < state.showdown.length; i++) {
+      if (state.showdown[i] && state.showdown[i].seat === seatIndex) return state.showdown[i];
+    }
+    return null;
+  }
+
+  function resultHandLabel(seatIndex) {
+    var row = showdownRowForSeat(seatIndex);
+    if (row && row.handName) return row.handName;
+    if (row && row.folded) return "\uD3F4\uB4DC \uACF5\uAC1C";
+    return "\uC0C1\uB300 \uD3F4\uB4DC \uC2B9\uB9AC";
+  }
+
   function resultSeatCards() {
     var rows = [];
     for (var i = 0; i < state.revealedCards.length; i++) {
       var cards = state.revealedCards[i];
       var seat = state.seats[i];
+      var row = showdownRowForSeat(i);
       if (!seat || !cards || !cards.length) continue;
       rows.push({
+        seat: i,
         nick: seat.displayName || seat.nick,
         stack: seat.stack,
         winner: state.winners.indexOf(seat.nick) >= 0,
+        handName: row && row.handName ? row.handName : resultHandLabel(i),
         cards: cards
       });
     }
@@ -1532,10 +1677,11 @@ window.TexasHoldem = (function () {
     var panel = $("holdem-result");
     if (!panel) return;
     var completed = state.phase === "complete";
-    panel.classList.toggle("hidden", !completed);
+    var announced = completed && resultStage() !== "cards";
+    panel.classList.toggle("hidden", !announced);
     if (!completed) return;
     setText("holdem-result-title", resultWinnerText());
-    setText("holdem-result-pot", formatChips(state.pot));
+    setText("holdem-result-pot", formatChips(animatedPotAmount()));
 
     var board = $("holdem-result-board");
     if (board) {
@@ -1550,7 +1696,8 @@ window.TexasHoldem = (function () {
       if (rows.length) {
         showdown.innerHTML = rows.map(function (row) {
           return '<div class="holdem-result-player' + (row.winner ? " winner" : "") + '">' +
-            '<span><strong>' + esc(row.nick) + '</strong><small>' + formatChips(row.stack) + '</small></span>' +
+            '<span><strong>' + esc(row.nick) + '</strong><small>' +
+              (row.winner ? esc(row.handName) : formatChips(row.stack)) + '</small></span>' +
             '<span class="holdem-result-cards">' +
               row.cards.map(function (card) { return cardHtml(card); }).join("") +
             '</span>' +
@@ -1571,7 +1718,7 @@ window.TexasHoldem = (function () {
       "SB " + formatChips(state.smallBlind) + " · BB " + formatChips(state.bigBlind) +
       (state.ante ? " · ANTE " + formatChips(state.ante) : ""));
     setText("holdem-hand-number", "HAND " + (state.handNumber || state.handId || 0));
-    setText("holdem-pot-amount", formatChips(state.pot));
+    setText("holdem-pot-amount", formatChips(animatedPotAmount()));
     setText("holdem-side-pots", state.sidePots.length
       ? state.sidePots.map(function (amount, index) {
           return "사이드 " + (index + 1) + " " + formatChips(amount);
@@ -1775,6 +1922,7 @@ window.TexasHoldem = (function () {
   function renderTimer() {
     renderAutoNextCountdown();
     renderSeatTimers();
+    renderSettlementAnimation();
     var timer = $("holdem-timer");
     if (!timer) return;
     if (!state.deadlineAt) {
@@ -1805,6 +1953,31 @@ window.TexasHoldem = (function () {
     var remaining = autoNextDueAt ? Math.max(0, autoNextDueAt - Date.now()) : AUTO_NEXT_HAND_MS;
     var seconds = Math.max(1, Math.ceil(remaining / 1000));
     countdown.textContent = seconds + "초 후 다음 핸드가 자동으로 시작됩니다.";
+  }
+
+  function syncResultClasses() {
+    var screen = root();
+    if (!screen) return;
+    var stage = resultStage();
+    var settling = !!(state.phase === "complete" && resultFlow &&
+      Date.now() >= resultFlow.settleStart && Date.now() < resultFlow.settleEnd);
+    screen.classList.toggle("is-result-cards-first", stage === "cards");
+    screen.classList.toggle("is-result-announced", stage === "announced");
+    screen.classList.toggle("is-settling-pot", settling);
+  }
+
+  function renderSettlementAnimation() {
+    if (state.phase !== "complete") return;
+    syncResultClasses();
+    setText("holdem-pot-amount", formatChips(animatedPotAmount()));
+    setText("holdem-result-pot", formatChips(animatedPotAmount()));
+    for (var i = 0; i < MAX_SEATS; i++) {
+      var seat = state.seats[i];
+      if (!seat) continue;
+      var node = root() && root().querySelector('.holdem-seat[data-seat="' + i + '"] .holdem-seat-stack');
+      if (node) node.textContent = formatChips(animatedStackAmount(i, seat.stack));
+    }
+    if (resultStage() === "announced") renderHandResult();
   }
 
   function renderPlayers(box, hint) {
@@ -1850,6 +2023,7 @@ window.TexasHoldem = (function () {
     screen.classList.toggle("is-playing", isHandActive(state.phase));
     screen.classList.toggle("is-showdown", isBetweenHands(state.phase));
     screen.classList.toggle("is-connected", connected);
+    syncResultClasses();
     renderHeader();
     renderBoard();
     renderSeats();
@@ -1889,6 +2063,7 @@ window.TexasHoldem = (function () {
   function onRootClick(event) {
     var screen = root();
     if (!screen || !event.target || !event.target.closest) return;
+
     var seatElement = event.target.closest(".holdem-seat.is-empty");
     if (seatElement && screen.contains(seatElement)) {
       var targetSeat = safeSeat(seatElement.getAttribute("data-seat"));
@@ -2003,6 +2178,7 @@ window.TexasHoldem = (function () {
     clearAutoNextHand();
     clearAutoReadyForNextHand();
     clearBotTimer();
+    resultFlow = null;
   }
 
   function enter(nextApi) {
@@ -2022,6 +2198,7 @@ window.TexasHoldem = (function () {
     botRetryAt = 0;
     demoState = null;
     demoVersion = 0;
+    resultFlow = null;
     if (!bindDom()) throw new Error("텍사스 홀덤 화면을 찾을 수 없습니다.");
     render();
     startTimers();
