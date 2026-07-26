@@ -144,15 +144,16 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-chat-row \{[\s\S]*opacity: 0/);
 });
 
-test("hand results replace the lobby and advance automatically", () => {
+test("hand results stay on the table without a popup and advance automatically", () => {
   assert.match(controller, /var AUTO_NEXT_HAND_MS = 5000/);
-  assert.match(controller, /function renderHandResult\(\)[\s\S]*holdem-result-title[\s\S]*holdem-result-board[\s\S]*holdem-result-showdown/);
+  assert.match(controller, /function renderHandResult\(\)[\s\S]*panel\.classList\.add\("hidden"\)/);
+  assert.doesNotMatch(controller, /panel\.classList\.toggle\("hidden", !announced\)/);
   assert.match(controller, /show\("holdem-lobby", waiting\)/);
   assert.match(controller, /show\("holdem-ready-btn", waiting && state\.heroSeat >= 0 && state\.canReady\)/);
   assert.match(controller, /function scheduleAutoReadyForNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*invoke\("ready"/);
   assert.match(controller, /scheduleAutoReadyForNextHand\(\)[\s\S]*scheduleAutoNextHand\(\)/);
   assert.match(controller, /function scheduleAutoNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*setTimeout\(function \(\) \{ autoStartHand\(key\); \}, AUTO_NEXT_HAND_MS\)/);
-  assert.match(styles, /\.holdem-result-panel\s*\{[\s\S]*background: transparent/);
+  assert.match(styles, /\.holdem-result-panel\s*\{[\s\S]*display: none !important/);
   assert.match(styles, /\.holdem-winner-result\s*\{/);
   assert.match(styles, /\.holdem-screen\.is-settling-pot \.holdem-seat\.is-winner \.holdem-seat-avatar/);
   assert.match(controller, /var RESULT_CARDS_FIRST_MS = 900/);

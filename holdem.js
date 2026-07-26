@@ -1697,40 +1697,7 @@ window.TexasHoldem = (function () {
   function renderHandResult() {
     var panel = $("holdem-result");
     if (!panel) return;
-    var completed = state.phase === "complete";
-    var announced = completed && resultStage() !== "cards";
-    panel.classList.toggle("hidden", !announced);
-    if (!completed) return;
-    setText("holdem-result-title", resultWinnerText());
-    setText("holdem-result-pot", formatChips(animatedPotAmount()));
-
-    var board = $("holdem-result-board");
-    if (board) {
-      board.innerHTML = state.board.length
-        ? state.board.map(function (card) { return cardHtml(card); }).join("")
-        : '<span class="holdem-result-empty">공개 카드 없음</span>';
-    }
-
-    var showdown = $("holdem-result-showdown");
-    if (showdown) {
-      var rows = resultSeatCards();
-      if (rows.length) {
-        showdown.innerHTML = rows.map(function (row) {
-          return '<div class="holdem-result-player' + (row.winner ? " winner" : "") + '">' +
-            '<span><strong>' + esc(row.nick) + '</strong><small>' +
-              (row.winner ? esc(row.handName) : formatChips(row.stack)) + '</small></span>' +
-            '<span class="holdem-result-cards">' +
-              row.cards.map(function (card) { return cardHtml(card); }).join("") +
-            '</span>' +
-          '</div>';
-        }).join("");
-      } else {
-        showdown.innerHTML = '<div class="holdem-result-player winner"><span><strong>' +
-          esc(state.winners.join(", ") || "승자") +
-          '</strong><small>상대가 폴드했습니다</small></span></div>';
-      }
-    }
-    renderAutoNextCountdown();
+    panel.classList.add("hidden");
   }
 
   function renderHeader() {

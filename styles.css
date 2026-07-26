@@ -3767,6 +3767,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-result-panel {
   position: absolute;
   z-index: 36;
+  display: none !important;
   top: 39%;
   left: 50%;
   width: min(78vw, 330px);
