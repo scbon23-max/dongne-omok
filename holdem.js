@@ -1562,9 +1562,9 @@ window.TexasHoldem = (function () {
     } else if (!hasSnapshot || pendingAction === "join") {
       message = "안전한 서버 테이블에 연결하고 있어요";
     } else {
-      message = "서버가 카드와 베팅을 안전하게 관리해요";
-      element.classList.add("ready");
+      message = "";
     }
+    element.classList.toggle("hidden", !message);
     if (element.textContent !== message) element.textContent = message;
 
     var status = state.phase === "loading"
