@@ -3842,6 +3842,7 @@ body.is-admin .feedback-user-compose { display: none; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.holdem-announcer:empty { display: none; }
 .holdem-lobby-panel {
   position: absolute;
   z-index: 30;

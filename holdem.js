@@ -1681,10 +1681,8 @@ window.TexasHoldem = (function () {
       var isWinner = !!(seat && (seat.winner || winners[seat.nick]));
       if (isWinner) classes.push("is-winner");
 
-      var name = seat ? (seat.displayName || seat.nick) : "빈 자리";
-      var status = seatStatus(seat);
-      var actionLabel = seatActionLabel(seat);
-      var actionClass = seatActionClass(seat);
+      var name = seat ? (seat.displayName || seat.nick) : "";
+      var status = seat ? seatStatus(seat) : "";
       var personalityLabel = seat && seat.isBot
         ? botPersonalityLabel(seat.botPersonality)
         : "";
@@ -1692,9 +1690,11 @@ window.TexasHoldem = (function () {
         ? botPersonalityAvatar(seat.botPersonality)
         : "";
       var displayStack = seat ? animatedStackAmount(absolute, seat.stack) : 0;
-      var label = name + (seat ? ", 칩 " + formatChips(displayStack) : "") +
-        (seat && seat.isBot ? ", AI, " + personalityLabel : "") +
-        (status ? ", " + status : "") + (isActive ? ", 행동 차례" : "");
+      var label = seat
+        ? name + ", 칩 " + formatChips(displayStack) +
+          (seat.isBot ? ", AI, " + personalityLabel : "") +
+          (status ? ", " + status : "") + (isActive ? ", 행동 차례" : "")
+        : "빈 자리";
       var badges = "";
       if (absolute === state.dealerSeat) badges += "<span>D</span>";
       if (absolute === state.smallBlindSeat) badges += "<span>SB</span>";
@@ -1728,20 +1728,14 @@ window.TexasHoldem = (function () {
           '<div class="holdem-hole-cards">' + holes + '</div>' +
           resultBadge +
           '<div class="holdem-seat-avatar" aria-hidden="true">' +
-            (avatarSrc ? '<img src="' + esc(avatarSrc) + '" alt="">' : esc(initialFor(name))) +
+            (avatarSrc ? '<img src="' + esc(avatarSrc) + '" alt="">' : seat ? esc(initialFor(name)) : "빈") +
           '</div>' +
           '<div class="holdem-seat-badges" aria-hidden="true">' + badges + '</div>' +
-          '<strong class="holdem-seat-name">' + esc(name) + '</strong>' +
-          (personalityLabel
-            ? '<span class="holdem-seat-personality">' + esc(personalityLabel) + '</span>'
-            : "") +
+          (seat ? '<strong class="holdem-seat-name">' + esc(name) + '</strong>' : "") +
           (seat ? '<span class="holdem-seat-stack">' + formatChips(displayStack) + '</span>' : "") +
           (isActive && state.deadlineAt
             ? '<span class="holdem-seat-turn-timer" data-holdem-seat-timer="' + absolute + '"></span>'
             : "") +
-          (actionLabel ? '<span class="holdem-seat-action ' + esc(actionClass) + '">' + esc(actionLabel) + '</span>' : "") +
-          (seat && seat.bet > 0 ? '<span class="holdem-seat-bet">BET ' + formatChips(seat.bet) + '</span>' : "") +
-          (status ? '<span class="holdem-seat-status">' + esc(status) + '</span>' : "") +
         '</article>'
       );
     }
@@ -1906,12 +1900,7 @@ window.TexasHoldem = (function () {
         ? "플레이 칩을 충전하면 다음 핸드에 참여할 수 있어요"
         : "오늘 사용할 수 있는 충전 횟수를 모두 사용했어요";
     }
-    if (state.winners.length) return state.winners.join(", ") + "님이 팟을 가져갔어요";
-    if (state.actingSeat === state.heroSeat && Object.keys(state.legal).length) return "내 차례입니다";
-    if (state.actorIsBot && state.actingNick) return state.actingNick + "님이 생각 중이에요";
-    if (state.actingNick) return state.actingNick + "님 차례";
-    if (isBetweenHands(state.phase)) return "핸드가 끝났어요";
-    return phaseLabel(state.phase) + " 진행 중";
+    return "";
   }
 
   function renderAnnouncer() {
