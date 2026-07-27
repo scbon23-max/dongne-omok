@@ -55,6 +55,8 @@ window.TexasHoldem = (function () {
   var RESULT_FINAL_ACTION_MS = 1000;
   var RESULT_CARDS_FIRST_MS = 900;
   var RESULT_BOARD_REVEAL_STEP_MS = 900;
+  var COMMUNITY_CARD_FLIP_MS = 620;
+  var COMMUNITY_CARD_FLIP_STAGGER_MS = 120;
   var RESULT_SETTLE_MS = 1600;
   var BOT_PERSONALITY_LABELS = {
     tight_passive: "타이트 패시브",
@@ -103,6 +105,8 @@ window.TexasHoldem = (function () {
   var autoReadyTimer = null;
   var autoReadyKey = "";
   var resultFlow = null;
+  var boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [] };
+  var lastBoardHtml = "";
 
   var boundRoot = null;
   var demoState = null;
@@ -411,6 +415,22 @@ window.TexasHoldem = (function () {
       if (card) cards.push(card);
     }
     return cards;
+  }
+
+  function communityCardKey(card) {
+    return card && card.rank && card.suit ? String(card.rank) + String(card.suit) : "";
+  }
+
+  function boardRevealKey(snapshot) {
+    if (!snapshot) return "";
+    return String(snapshot.handId || snapshot.handNumber || (snapshot.board && snapshot.board.length ? snapshot.version : snapshot.phase) || "");
+  }
+
+  function syncBoardRevealKey() {
+    var key = boardRevealKey(state);
+    if (boardRevealState.key === key) return;
+    boardRevealState = { key: key, cards: [], revealAt: [], delayMs: [] };
+    lastBoardHtml = "";
   }
 
   function canonicalMove(value) {
@@ -1640,12 +1660,14 @@ window.TexasHoldem = (function () {
       : "";
   }
 
-  function cardHtml(card, kind) {
+  function cardHtml(card, kind, extraClass, extraAttrs) {
+    var classSuffix = extraClass ? " " + extraClass : "";
+    var attrs = extraAttrs || "";
     if (kind === "back") {
-      return '<span class="holdem-card back" role="img" aria-label="비공개 카드"></span>';
+      return '<span class="holdem-card back' + classSuffix + '"' + attrs + ' role="img" aria-label="비공개 카드"></span>';
     }
     if (!card) {
-      return '<span class="holdem-card empty" aria-hidden="true"></span>';
+      return '<span class="holdem-card empty' + classSuffix + '"' + attrs + ' aria-hidden="true"></span>';
     }
     var suits = {
       s: { mark: "♠", label: "스페이드", color: "black" },
@@ -1655,9 +1677,9 @@ window.TexasHoldem = (function () {
     };
     var suit = suits[card.suit];
     if (!suit) return cardHtml(null, "empty");
-    return '<span class="holdem-card ' + suit.color + '" data-suit="' + card.suit +
+    return '<span class="holdem-card ' + suit.color + classSuffix + '" data-suit="' + card.suit +
       '" data-rank="' + esc(card.rank) +
-      '" role="img" aria-label="' + esc(suit.label + " " + card.rank) + '">' +
+      '"' + attrs + ' role="img" aria-label="' + esc(suit.label + " " + card.rank) + '">' +
       '<span class="holdem-card-rank rank" aria-hidden="true">' + cardRankSvg(card.rank) + '</span>' +
       '<span class="holdem-card-mark mark" aria-hidden="true">' + cardSuitSvg(card.suit) + '</span>' +
       '</span>';
@@ -1960,13 +1982,47 @@ window.TexasHoldem = (function () {
     box.innerHTML = html.join("");
   }
 
+  function communityCardHtml(card, index, newRevealIndex, now) {
+    if (!card) return cardHtml(null);
+    var key = communityCardKey(card);
+    if (boardRevealState.cards[index] !== key) {
+      boardRevealState.cards[index] = key;
+      boardRevealState.delayMs[index] = newRevealIndex * COMMUNITY_CARD_FLIP_STAGGER_MS;
+      boardRevealState.revealAt[index] = now + boardRevealState.delayMs[index];
+    }
+    var revealEnd = boardRevealState.revealAt[index] + COMMUNITY_CARD_FLIP_MS;
+    if (now <= revealEnd) {
+      return cardHtml(
+        card,
+        null,
+        "is-community-flipping",
+        ' style="--holdem-community-flip-delay: ' + boardRevealState.delayMs[index] + 'ms;"'
+      );
+    }
+    return cardHtml(card);
+  }
+
   function renderBoard() {
     var board = $("holdem-board");
     if (!board) return;
+    syncBoardRevealKey();
     var html = "";
     var visibleCount = resultBoardVisibleCount();
-    for (var i = 0; i < 5; i++) html += cardHtml(i < visibleCount ? state.board[i] : null);
-    board.innerHTML = html;
+    var now = Date.now();
+    var newRevealIndex = 0;
+    for (var i = 0; i < 5; i++) {
+      var card = i < visibleCount ? state.board[i] : null;
+      if (card && boardRevealState.cards[i] !== communityCardKey(card)) {
+        html += communityCardHtml(card, i, newRevealIndex, now);
+        newRevealIndex += 1;
+      } else {
+        html += card ? communityCardHtml(card, i, 0, now) : cardHtml(null);
+      }
+    }
+    if (lastBoardHtml !== html) {
+      board.innerHTML = html;
+      lastBoardHtml = html;
+    }
     board.setAttribute("aria-label", visibleCount
       ? "커뮤니티 카드 " + visibleCount + "장"
       : "커뮤니티 카드 없음");
@@ -2588,6 +2644,8 @@ window.TexasHoldem = (function () {
     clearAutoReadyForNextHand();
     clearBotTimer();
     resultFlow = null;
+    boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [] };
+    lastBoardHtml = "";
   }
 
   function enter(nextApi) {
@@ -2608,6 +2666,8 @@ window.TexasHoldem = (function () {
     demoState = null;
     demoVersion = 0;
     resultFlow = null;
+    boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [] };
+    lastBoardHtml = "";
     if (!bindDom()) throw new Error("텍사스 홀덤 화면을 찾을 수 없습니다.");
     render();
     startTimers();

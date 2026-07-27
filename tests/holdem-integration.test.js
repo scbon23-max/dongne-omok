@@ -209,6 +209,11 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /"10": \{ viewBox: "7\.15 36\.26 115\.14 76\.02"/);
   assert.match(controller, /M62\.8 73\.97 C62\.8 60\.37/);
   assert.match(styles, /\.holdem-board\s*\{[\s\S]*gap:\s*clamp\(3px,\s*\.8vw,\s*5px\)/);
+  assert.match(styles, /\.holdem-board\s*\{[\s\S]*perspective:\s*720px/);
+  assert.match(styles, /\.holdem-board \.holdem-card\.is-community-flipping\s*\{[\s\S]*holdemCommunityCardFlip 620ms/);
+  assert.match(styles, /@keyframes holdemCommunityCardBackFlip/);
+  assert.match(controller, /COMMUNITY_CARD_FLIP_STAGGER_MS = 120/);
+  assert.match(controller, /lastBoardHtml !== html[\s\S]*board\.innerHTML = html/);
   assert.match(styles, /\.holdem-board \.holdem-card\s*\{[\s\S]*--holdem-card-width:\s*clamp\(38px,\s*10vw,\s*52px\)/);
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-style:\s*dashed/);
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-color:\s*rgba\(213,239,235,\.12\)/);
