@@ -3815,6 +3815,10 @@ body.is-admin .feedback-user-compose { display: none; }
   margin-left: 0;
   transform: none;
 }
+.holdem-seat:not(.is-me) .holdem-hole-cards .holdem-card.back {
+  --holdem-card-width: clamp(16px, 4.6vw, 24px);
+  --holdem-card-radius: 2px;
+}
 .holdem-hole-cards .holdem-card + .holdem-card { margin-left: -1px; }
 .holdem-hole-cards .holdem-card:first-child {
   border-top-right-radius: 0;
