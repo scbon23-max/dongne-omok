@@ -515,8 +515,8 @@
   var HOLDEM_MAX_BUY_IN = 100000;
   var HOLDEM_DEFAULT_BUY_IN = 50000;
   var HOLDEM_BUY_IN_OPTIONS = [
-    { amount: 10000, title: "라이트", minBuyIn: 10000, maxBuyIn: 20000, smallBlind: 50, bigBlind: 100 },
-    { amount: 50000, title: "스탠다드", minBuyIn: 30000, maxBuyIn: 50000, smallBlind: 250, bigBlind: 500 },
+    { amount: 10000, title: "라이트", minBuyIn: 10000, maxBuyIn: 20000, smallBlind: 100, bigBlind: 200 },
+    { amount: 50000, title: "스탠다드", minBuyIn: 30000, maxBuyIn: 50000, smallBlind: 300, bigBlind: 600 },
     { amount: 100000, title: "하이롤러", minBuyIn: 50000, maxBuyIn: 100000, smallBlind: 500, bigBlind: 1000 }
   ];
   var roomLease = null, roomLeaseTimer = null, roomCreatePending = false, roomLeaseRestorePending = false;

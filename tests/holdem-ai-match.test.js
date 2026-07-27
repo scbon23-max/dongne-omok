@@ -45,8 +45,8 @@ function startedSixMaxBotTable(seed = 1) {
     roomId: `ai-match-${seed}`,
     ownerNick: "owner",
     startingStack: 10000,
-    smallBlind: 50,
-    bigBlind: 100,
+    smallBlind: 100,
+    bigBlind: 200,
   });
   const humans = [
     ["owner", 0],

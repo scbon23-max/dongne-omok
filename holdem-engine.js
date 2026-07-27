@@ -59,7 +59,8 @@
   }
 
   function normalizedChipUnit(value) {
-    return clamp(value, 1, 10000, 1);
+    var unit = clamp(value, 100, 10000, 100);
+    return Math.max(100, Math.round(unit / 100) * 100);
   }
 
   function roundToChipUnit(value, unit) {
@@ -338,11 +339,11 @@
     var tournamentSpeed = normalizeTournamentSpeed(options.tournamentSpeed);
     var chipUnit = normalizedChipUnit(options.chipUnit);
     var smallBlind = roundToChipUnit(
-      clamp(options.smallBlind, chipUnit, 1000000, Math.max(chipUnit, 50)),
+      clamp(options.smallBlind, chipUnit, 1000000, chipUnit),
       chipUnit
     );
     var bigBlind = roundToChipUnit(
-      clamp(options.bigBlind, smallBlind, 2000000, Math.max(smallBlind * 2, 100)),
+      clamp(options.bigBlind, smallBlind * 2, 2000000, smallBlind * 2),
       chipUnit
     );
     if (bigBlind < smallBlind * 2) bigBlind = smallBlind * 2;
@@ -433,7 +434,7 @@
         state.settings.initialSmallBlind,
         state.settings.chipUnit,
         1000000,
-        clamp(state.settings.smallBlind, state.settings.chipUnit, 1000000, 50)
+        clamp(state.settings.smallBlind, state.settings.chipUnit, 1000000, state.settings.chipUnit)
       ),
       state.settings.chipUnit
     );
@@ -442,7 +443,7 @@
         state.settings.initialBigBlind,
         state.settings.initialSmallBlind * 2,
         2000000,
-        clamp(state.settings.bigBlind, state.settings.initialSmallBlind * 2, 2000000, 100)
+        clamp(state.settings.bigBlind, state.settings.initialSmallBlind * 2, 2000000, state.settings.initialSmallBlind * 2)
       ),
       state.settings.chipUnit
     );

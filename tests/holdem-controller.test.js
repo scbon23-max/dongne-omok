@@ -95,10 +95,10 @@ test("the controller consumes the engine's personalized snapshot contract", () =
   assert.equal(normalized.seats[1].cardCount, 2);
   assert.equal(normalized.seats[state.smallBlindSeat].lastAction, "small_blind");
   assert.equal(normalized.seats[state.bigBlindSeat].lastAction, "big_blind");
-  assert.equal(normalized.toCall, 50);
+  assert.equal(normalized.toCall, 100);
   assert.equal(normalized.legal.call.move, "call");
-  assert.equal(normalized.smallBlind, 50);
-  assert.equal(normalized.bigBlind, 100);
+  assert.equal(normalized.smallBlind, 100);
+  assert.equal(normalized.bigBlind, 200);
 });
 
 test("central pot readout omits the side pot subline", () => {
@@ -307,9 +307,10 @@ test("request ids and rendered cards stay bounded and accessible", () => {
   assert.doesNotMatch(renderedAce, />A<\/span>/);
   const rankings = controller._test.handRankings();
   assert.equal(rankings.title, "홀덤 족보");
-  assert.match(rankings.html, /로열 플러시/);
+  assert.match(rankings.html, /로열 스트레이트 플러시/);
   assert.match(rankings.html, /holdem-card-rank-svg/);
   assert.match(rankings.html, /holdem-hand-row/);
+  assert.match(rankings.html, /holdem-card empty/);
   assert.match(controller._test.cardHtml(null, "back"), /aria-label="비공개 카드"/);
 });
 

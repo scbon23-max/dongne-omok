@@ -2071,6 +2071,11 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   border-color: #bfc5c2;
   box-shadow: 0 1px 2px rgba(0,0,0,.16);
 }
+.holdem-hand-example .holdem-card.empty {
+  border: 1px solid #c9cecb;
+  background: #fdfdf8;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.54), 0 1px 2px rgba(0,0,0,.12);
+}
 .holdem-hand-copy {
   min-width: 0;
   display: flex;
@@ -4167,6 +4172,7 @@ body.is-admin .feedback-user-compose { display: none; }
   box-shadow: inset 0 0 0 1px #ecede8, inset 0 0 0 2px #1f6470, 0 1px 3px rgba(0,0,0,.32);
 }
 .holdem-hole-cards .holdem-card + .holdem-card { margin-left: -5px; }
+.holdem-seat.is-me .holdem-hole-cards .holdem-card + .holdem-card { margin-left: -14px; }
 .holdem-hole-cards .holdem-card:first-child {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;

@@ -84,8 +84,8 @@ function observation(options = {}) {
     pot: legal.pot,
     currentBet: legal.currentBet,
     settings: {
-      smallBlind: 50,
-      bigBlind: 100,
+      smallBlind: 100,
+      bigBlind: 200,
     },
     actionHistory: options.actionHistory || [],
     viewer: {

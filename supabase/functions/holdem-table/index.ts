@@ -392,10 +392,9 @@ function normalizedRingBuyIn(value: unknown) {
 }
 
 function ringBlindForBuyIn(buyIn: number) {
-  return {
-    smallBlind: Math.max(CHIP_UNIT / 2, Math.floor(buyIn / 200)),
-    bigBlind: Math.max(CHIP_UNIT, Math.floor(buyIn / 100)),
-  };
+  if (buyIn >= 100000) return { smallBlind: 500, bigBlind: 1000 };
+  if (buyIn >= 50000) return { smallBlind: 300, bigBlind: 600 };
+  return { smallBlind: 100, bigBlind: 200 };
 }
 
 async function walletProfile(

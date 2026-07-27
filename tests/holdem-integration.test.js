@@ -84,6 +84,10 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.match(game, /HOLDEM_INITIAL_ASSETS = 100000/);
   assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 50000/);
   assert.match(game, /HOLDEM_BUY_IN_OPTIONS = \[[\s\S]*minBuyIn: 10000[\s\S]*maxBuyIn: 20000[\s\S]*minBuyIn: 30000[\s\S]*maxBuyIn: 50000[\s\S]*minBuyIn: 50000[\s\S]*maxBuyIn: 100000/);
+  assert.match(game, /smallBlind: 100[\s\S]*bigBlind: 200/);
+  assert.match(game, /smallBlind: 300[\s\S]*bigBlind: 600/);
+  assert.doesNotMatch(game, /smallBlind: 50(?!0)|smallBlind: 250/);
+  assert.doesNotMatch(index, /SB 50(?!0)|SB 250/);
   assert.match(game, /function holdemBuyInRangeLabel\(amount\)/);
   assert.match(game, /totalAssets[\s\S]*tableBalance[\s\S]*현재 테이블에서 사용 중/);
   assert.match(game, /mode = "ring"/);
@@ -197,6 +201,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*--holdem-card-width:\s*clamp\(16px,\s*4\.6vw,\s*24px\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*box-shadow:\s*inset 0 0 0 1px #ecede8/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -5px; \}/);
+  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -14px; \}/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card:first-child\s*\{[\s\S]*rotate\(-7deg\)/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card:last-child\s*\{[\s\S]*rotate\(7deg\)/);
   assert.match(controller, /class="holdem-seat-open-icon"/);

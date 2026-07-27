@@ -33,8 +33,8 @@ test("a real six-seat table can run consecutive strong-AI hands across all perso
     roomId: "ai-engine-soak",
     ownerNick: "owner",
     startingStack: 10000,
-    smallBlind: 25,
-    bigBlind: 50,
+    smallBlind: 100,
+    bigBlind: 200,
     actionMs: 5000,
   });
   state = requireCommand(state, {

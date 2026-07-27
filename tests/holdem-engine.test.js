@@ -86,8 +86,8 @@ test("heads-up uses the button as small blind and swaps pre/post-flop action", (
   assert.equal(state.smallBlindSeat, 0);
   assert.equal(state.bigBlindSeat, 1);
   assert.equal(state.actorSeat, 0);
-  assert.equal(state.seats[0].streetBet, 50);
-  assert.equal(state.seats[1].streetBet, 100);
+  assert.equal(state.seats[0].streetBet, 100);
+  assert.equal(state.seats[1].streetBet, 200);
 
   state = apply(state, { type: "act", nick: "alice", action: "call" }, 110);
   assert.equal(state.actorSeat, 1);
@@ -128,18 +128,18 @@ test("any two ready players can start while unready seats safely sit out", () =>
 test("a full raise sets the minimum and cumulative short all-ins reopen action", () => {
   const names = ["d", "b", "c", "a"];
   let state = tableWithPlayers(names);
-  state.seats[0].stack = 2000;
-  state.seats[1].stack = 400;
-  state.seats[2].stack = 500;
-  state.seats[3].stack = 2000;
+  state.seats[0].stack = 4000;
+  state.seats[1].stack = 800;
+  state.seats[2].stack = 1000;
+  state.seats[3].stack = 4000;
   state = readyAndStart(state, names);
 
   assert.equal(state.actorSeat, 3);
-  state = apply(state, { type: "act", nick: "a", action: "raise", amount: 300 }, 110);
-  assert.equal(state.lastFullRaiseSize, 200);
+  state = apply(state, { type: "act", nick: "a", action: "raise", amount: 600 }, 110);
+  assert.equal(state.lastFullRaiseSize, 400);
   state = apply(state, { type: "act", nick: "d", action: "call" }, 111);
   state = apply(state, { type: "act", nick: "b", action: "allin" }, 112);
-  assert.equal(state.currentBet, 400);
+  assert.equal(state.currentBet, 800);
 
   const singleShort = apply(state, { type: "act", nick: "c", action: "call" }, 113);
   assert.equal(singleShort.actorSeat, 3);
@@ -148,11 +148,11 @@ test("a full raise sets the minimum and cumulative short all-ins reopen action",
   assert.equal(notReopened.includes("allin"), false);
 
   state = apply(state, { type: "act", nick: "c", action: "allin" }, 113);
-  assert.equal(state.currentBet, 500);
+  assert.equal(state.currentBet, 1000);
   assert.equal(state.actorSeat, 3);
   const reopened = Engine.legalActions(state, "a");
   assert.equal(reopened.actions.includes("raise"), true);
-  assert.equal(reopened.minRaiseTo, 700);
+  assert.equal(reopened.minRaiseTo, 1400);
 });
 
 test("side pots keep folded chips, return uncalled excess, and split layers independently", () => {
@@ -686,8 +686,8 @@ test("normal and turbo tournaments raise blinds on their server-timed schedules"
     tournamentSpeed: "normal",
   });
   normal = readyAndStart(normal, names, startAt);
-  assert.equal(normal.settings.smallBlind, 50);
-  assert.equal(normal.settings.bigBlind, 100);
+  assert.equal(normal.settings.smallBlind, 100);
+  assert.equal(normal.settings.bigBlind, 200);
   assert.equal(normal.settings.blindLevelMs, 10 * 60 * 1000);
   assert.equal(normal.blindLevel, 0);
 
@@ -711,8 +711,8 @@ test("normal and turbo tournaments raise blinds on their server-timed schedules"
     nick: names[0],
   }, startAt + 5 * 60 * 1000 + names.length + 1);
   assert.equal(turbo.blindLevel, 1);
-  assert.equal(turbo.settings.smallBlind, 75);
-  assert.equal(turbo.settings.bigBlind, 150);
+  assert.equal(turbo.settings.smallBlind, 200);
+  assert.equal(turbo.settings.bigBlind, 400);
 });
 
 test("100-chip tournaments use distinct whole-chip blind levels", () => {
@@ -762,8 +762,8 @@ test("ring games keep one blind level, fixed entry chips, and server-only bust r
     mode: "ring",
     assetBacked: true,
     startingStack: 10000,
-    smallBlind: 50,
-    bigBlind: 100,
+    smallBlind: 1,
+    bigBlind: 1,
     refillAmount: 10000,
     dailyRefillLimit: 3,
   });
@@ -782,8 +782,8 @@ test("ring games keep one blind level, fixed entry chips, and server-only bust r
   }, 1001);
 
   assert.equal(state.phase, "hand_end", "ring tables do not become tournament_end");
-  assert.equal(state.settings.smallBlind, 50);
-  assert.equal(state.settings.bigBlind, 100);
+  assert.equal(state.settings.smallBlind, 100);
+  assert.equal(state.settings.bigBlind, 200);
   assert.equal(state.nextBlindAt, null);
   assert.equal(Engine.view(state, bustedNick).canRefill, true);
 
