@@ -5348,9 +5348,12 @@
     if (modeBox) {
       var modeCards = modeBox.querySelectorAll("[data-holdem-mode]");
       for (var i = 0; i < modeCards.length; i++) {
-        var modeActive = modeCards[i].getAttribute("data-holdem-mode") === mode;
-        var tournamentLocked = modeCards[i].getAttribute("data-holdem-mode") === "tournament" &&
-          !me.isAdmin;
+        var cardMode = modeCards[i].getAttribute("data-holdem-mode");
+        var isTournamentCard = cardMode === "tournament";
+        var modeActive = cardMode === mode;
+        var tournamentLocked = isTournamentCard && !me.isAdmin;
+        modeCards[i].hidden = false;
+        modeCards[i].classList.remove("hidden");
         modeCards[i].disabled = tournamentLocked;
         modeCards[i].setAttribute("aria-disabled", tournamentLocked ? "true" : "false");
         modeCards[i].classList.toggle("active", modeActive);

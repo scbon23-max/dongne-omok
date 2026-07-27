@@ -2060,6 +2060,28 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   font-weight: 900;
 }
 .create-head-mode h2 { grid-column: 2; text-align: center; font-size: 19px; }
+.create-head-mode .create-head-title {
+  grid-column: 2;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  text-align: center;
+}
+.create-head-mode .create-head-title h2 {
+  grid-column: auto;
+  font-size: 19px;
+}
+.create-holdem-head-title strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: #8fb2c0;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .create-icon-btn {
   width: 34px;
   height: 34px;
@@ -2194,32 +2216,14 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.create-holdem-overview {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: stretch;
-  gap: 8px;
-  margin-bottom: 11px;
-}
-.create-holdem-summary,
-.create-holdem-overview .create-holdem-wallet {
-  margin: 0;
-}
-.create-holdem-summary {
-  min-width: 0;
-}
-.create-holdem-summary strong {
-  max-width: 150px;
-}
 .create-holdem-wallet {
   display: grid;
-  grid-template-columns: auto;
-  align-content: center;
-  justify-items: end;
-  min-width: 116px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  justify-items: stretch;
   gap: 2px;
-  margin: -3px 0 13px;
-  padding: 8px 10px;
+  margin: -3px 0 11px;
+  padding: 9px 11px;
   border-radius: 6px;
   border-top: 1px solid rgba(255,255,255,.08);
   border-bottom: 1px solid rgba(255,255,255,.08);
@@ -2430,11 +2434,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   .create-holdem-buyin-group > small { display: none; }
 }
 @media (max-width: 380px) {
-  .create-holdem-overview {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .create-holdem-wallet {
-    justify-items: stretch;
     grid-template-columns: minmax(0, 1fr) auto;
   }
 }

@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260727-holdem-create-clean-v1">
+<meta name="app-build" content="20260727-holdem-create-title-room-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -1063,18 +1063,15 @@
     <div id="create-holdem-mode-step" class="hidden">
       <div class="create-head create-head-mode">
         <button id="create-holdem-step-back" class="create-icon-btn create-back" type="button" aria-label="이전">←</button>
-        <h2>홀덤 방식</h2>
-        <button class="create-icon-btn modal-close" data-close aria-label="닫기">✕</button>
-      </div>
-      <div class="create-holdem-overview">
-        <div class="create-room-summary create-holdem-summary">
-          <span>방 이름</span>
+        <div class="create-head-title create-holdem-head-title">
+          <h2>홀덤 방식</h2>
           <strong id="create-holdem-summary-name"></strong>
         </div>
-        <div class="create-holdem-wallet" aria-live="polite">
-          <span>내 홀덤 총 자산</span>
-          <strong id="create-holdem-wallet-balance">불러오는 중</strong>
-        </div>
+        <button class="create-icon-btn modal-close" data-close aria-label="닫기">✕</button>
+      </div>
+      <div class="create-holdem-wallet create-holdem-wallet-full" aria-live="polite">
+        <span>내 홀덤 총 자산</span>
+        <strong id="create-holdem-wallet-balance">불러오는 중</strong>
       </div>
       <div class="setting-title create-holdem-section-title">게임 방식</div>
       <div id="create-holdem-mode" class="create-mode-list create-holdem-mode-list">
@@ -1085,12 +1082,12 @@
             <span>바이인을 정하고 바로 시작 · 최대 6명</span>
           </span>
         </button>
-        <button class="create-mode-card create-holdem-mode-card create-holdem-tournament-card" type="button" data-holdem-mode="tournament" aria-pressed="false">
+        <button class="create-mode-card create-holdem-mode-card create-holdem-tournament-card" type="button" data-holdem-mode="tournament" aria-pressed="false" aria-disabled="true" disabled>
           <span class="create-holdem-mode-icon tournament" aria-hidden="true">♠</span>
           <span class="create-mode-copy">
             <strong>토너먼트</strong>
             <span>블라인드 상승 · 마지막 1인 승리</span>
-            <small class="create-holdem-admin-lock">관리자만 만들 수 있어요</small>
+            <small class="create-holdem-admin-lock">토너먼트를 하려면 관리자에게 문의해주세요</small>
           </span>
         </button>
       </div>

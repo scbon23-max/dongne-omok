@@ -53,6 +53,10 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.equal(ring.createAdminOnly, false);
   assert.equal(ring.discoverable, true);
   assert.equal(ring.name, "홀덤");
+  const holdemCreateStep = index.slice(
+    index.indexOf('id="create-holdem-mode-step"'),
+    index.indexOf("<!-- 메뉴 모달 -->")
+  );
   assert.match(index, /id="create-holdem-mode-step"/);
   assert.match(index, /id="create-holdem-wallet-balance"/);
   assert.match(index, /내 홀덤 총 자산/);
@@ -62,16 +66,24 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
       index.indexOf('data-holdem-mode="tournament"')
   );
   assert.match(index, /data-holdem-mode="tournament"/);
+  assert.doesNotMatch(index, /create-holdem-tournament-card hidden/);
+  assert.doesNotMatch(index, /data-holdem-mode="tournament"[^>]*hidden/);
+  assert.match(index, /토너먼트를 하려면 관리자에게 문의해주세요/);
   assert.match(index, /data-holdem-mode="ring"/);
   assert.match(index, /data-holdem-speed="normal"/);
   assert.match(index, /data-holdem-speed="turbo"/);
   assert.match(index, /id="create-holdem-buyin-slider"[^>]*step="100"/);
   assert.match(index, /<strong>홀덤<\/strong>/);
+  assert.match(index, /create-holdem-head-title[\s\S]*id="create-holdem-summary-name"/);
+  assert.doesNotMatch(holdemCreateStep, /<span>방 이름<\/span>/);
+  assert.match(holdemCreateStep, /create-holdem-wallet create-holdem-wallet-full/);
   assert.match(game, /renderCreateHoldemMode\("ring", "normal"\)/);
   assert.match(game, /HOLDEM_INITIAL_ASSETS = 100000/);
   assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 20000/);
   assert.match(game, /totalAssets[\s\S]*tableBalance[\s\S]*현재 테이블에서 사용 중/);
   assert.match(game, /mode = mode === "ring" \|\| !me\.isAdmin \? "ring" : "tournament"/);
+  assert.match(game, /modeCards\[i\]\.hidden = false/);
+  assert.match(game, /classList\.remove\("hidden"\)/);
   assert.match(game, /토너먼트 방은 관리자만 만들 수 있어요/);
   assert.match(game, /function holdemCreateGameId\(mode, speed\)/);
   assert.match(game, /return "holdem_ring"/);
