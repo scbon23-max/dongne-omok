@@ -4190,6 +4190,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-hole-cards .holdem-card + .holdem-card { margin-left: -5px; }
 .holdem-seat:not(.is-me) .holdem-hole-cards .holdem-card.back + .holdem-card.back { margin-left: -7px; }
+.holdem-seat:not(.is-me) .holdem-hole-cards .holdem-card:not(.back):not(.empty) + .holdem-card:not(.back):not(.empty) { margin-left: -14px; }
 .holdem-seat.is-me .holdem-hole-cards .holdem-card + .holdem-card { margin-left: -14px; }
 .holdem-hole-cards .holdem-card:first-child {
   border-top-right-radius: 0;

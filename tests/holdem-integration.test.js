@@ -202,6 +202,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*box-shadow:\s*inset 0 0 0 1px #ecede8/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card:not\(\.back\):not\(\.empty\)\s*\{[\s\S]*--holdem-card-width:\s*clamp\(23px,\s*6vw,\s*31px\)/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -5px; \}/);
+  assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card:not\(\.back\):not\(\.empty\) \+ \.holdem-card:not\(\.back\):not\(\.empty\) \{ margin-left: -14px; \}/);
   assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -14px; \}/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card:first-child\s*\{[\s\S]*rotate\(-7deg\)/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card:last-child\s*\{[\s\S]*rotate\(7deg\)/);
