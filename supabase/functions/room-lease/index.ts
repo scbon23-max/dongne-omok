@@ -92,25 +92,6 @@ Deno.serve(async (request) => {
     if (game === "holdem_ring" && !buyIn) {
       return response({ ok: false, reason: "invalid_buy_in" });
     }
-    if (game === "holdem_ring") {
-      const { data: walletRows, error: walletError } = await client.rpc(
-        "holdem_wallet_get_or_create",
-        { p_nickname: nick },
-      );
-      const walletRow = Array.isArray(walletRows) ? walletRows[0] : null;
-      const balance = Number(walletRow?.current_balance);
-      if (walletError || !Number.isSafeInteger(balance)) {
-        return response({ ok: false, reason: "server", msg: walletError?.message });
-      }
-      if (balance < buyIn) {
-        return response({
-          ok: false,
-          reason: "wallet_insufficient",
-          balance,
-        });
-      }
-    }
-
     const config = game === "holdem_ring"
       ? { holdemBuyIn: buyIn || RING_DEFAULT_BUY_IN }
       : {};

@@ -626,7 +626,7 @@ function createTableOptions(
     ownerNick,
     mode: ring ? "ring" : "tournament",
     tournamentSpeed: turbo ? "turbo" : "normal",
-    assetBacked: ring,
+    assetBacked: false,
     chipUnit: CHIP_UNIT,
     startingStack,
     smallBlind: 100,
@@ -1002,13 +1002,15 @@ Deno.serve(async (request) => {
       const nextState = normalizeState(resultState);
       const ringTable = isRecord(nextState.settings) &&
         safeText(nextState.settings.mode, 24) === "ring";
+      const assetBackedRingTable = ringTable &&
+        nextState.settings.assetBacked === true;
       const walletAdjustments = ringTable
         ? takeWalletAdjustments(nextState)
         : [];
       if (action === "refill" && walletAdjustments.length) {
         throw new Error("unexpected_refill_wallet_adjustment");
       }
-      const cas = action === "refill"
+      const cas = action === "refill" && assetBackedRingTable
         ? await compareAndSwapRingRefill(
           client,
           roomId,
@@ -1017,7 +1019,7 @@ Deno.serve(async (request) => {
           ownerNick,
           account.nick,
         )
-        : ringTable
+        : assetBackedRingTable || walletAdjustments.length > 0
         ? await compareAndSwapRingWallet(
           client,
           roomId,

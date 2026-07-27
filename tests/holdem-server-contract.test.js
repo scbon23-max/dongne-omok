@@ -37,6 +37,7 @@ const edge = fs.readFileSync(
   path.join(root, "supabase", "functions", "holdem-table", "index.ts"),
   "utf8"
 );
+const engine = fs.readFileSync(path.join(root, "holdem-engine.js"), "utf8");
 
 test("secret Hold'em state is isolated from browser database roles", () => {
   assert.match(
@@ -250,6 +251,13 @@ test("AI management and bot turns stay inside the authoritative command surface"
     /const command = action === "bot_step" && ai\s*\?\s*botCommand\(engine, ai, baseState\)/,
   );
   assert.match(edge, /internalBot: action === "bot_step"/);
+  assert.match(engine, /function humanPlayers\(state\)/);
+  assert.match(engine, /function botPlayers\(state\)/);
+  assert.match(engine, /function convertRingTableToPractice\(state\)/);
+  assert.match(engine, /practice_refund/);
+  assert.match(engine, /practice_ai_only/);
+  assert.match(engine, /bots_solo_only/);
+  assert.match(engine, /convertRingTableToAssetBacked\(next\)/);
 });
 
 test("the AI receives only botView data and client-supplied moves cannot steer it", () => {
@@ -369,13 +377,16 @@ test("Hold'em wallets use 100-chip accounting and update atomically with ring ta
   assert.match(edge, /const INITIAL_WALLET_BALANCE = 100000/);
   assert.match(edge, /smallBlind: 100/);
   assert.match(edge, /bigBlind: 200/);
-  assert.match(edge, /assetBacked: ring/);
+  assert.match(edge, /assetBacked: false/);
   assert.match(edge, /RING_REFILL_AMOUNT = 20000/);
   assert.match(edge, /action === "wallet"/);
   assert.match(edge, /holdem_wallet_get_or_create/);
   assert.match(edge, /availableBalance[\s\S]*tableBalance[\s\S]*totalAssets/);
   assert.match(edge, /function takeWalletAdjustments/);
   assert.match(edge, /delete state\.walletAdjustments/);
+  assert.match(edge, /const assetBackedRingTable = ringTable/);
+  assert.match(edge, /assetBackedRingTable \|\| walletAdjustments\.length > 0/);
+  assert.match(edge, /action === "refill" && assetBackedRingTable/);
   assert.match(edge, /client\.rpc\(\s*"holdem_ring_table_compare_and_swap"/s);
   assert.match(edge, /cas\.reason === "wallet_insufficient"/);
   assert.match(

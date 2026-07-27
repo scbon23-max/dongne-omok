@@ -209,6 +209,13 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /function seatActionLabel\(seat\)[\s\S]*레이즈/);
   assert.match(controller, /class="holdem-seat-action /);
   assert.match(controller, /class="holdem-seat-turn-timer"/);
+  assert.match(index, /AI 연습은 방에 혼자 있을 때만 사용할 수 있고/);
+  assert.match(index, /연습용 임시 칩으로 진행됩니다/);
+  assert.match(controller, /practiceMode: mode === "ring" && botCount > 0 && !assetBacked/);
+  assert.match(controller, /var humanCount = state\.seats\.filter/);
+  assert.match(controller, /state\.canManageBots && humanCount === 1/);
+  assert.match(controller, /AI와 하는 연습용 임시 칩/);
+  assert.match(controller, /연습용 임시 칩 충전/);
   assert.match(styles, /\.holdem-seat-action\s*\{/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-action-summary \{ display: none; \}/);

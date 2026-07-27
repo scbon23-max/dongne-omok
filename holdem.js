@@ -271,6 +271,8 @@ window.TexasHoldem = (function () {
       canStart: false,
       canNext: false,
       canManageBots: false,
+      assetBacked: false,
+      practiceMode: false,
       canRefill: false,
       refillAmount: 0,
       dailyRefillLimit: 0,
@@ -673,6 +675,8 @@ window.TexasHoldem = (function () {
     var hero = heroSeat >= 0 ? seats[heroSeat] : null;
     var botCount = seats.filter(function (seat) { return !!(seat && seat.isBot); }).length;
     var actorSeatEntry = actingSeat >= 0 ? seats[actingSeat] : null;
+    var assetBacked = mode === "ring" &&
+      !!firstDefined(settings.assetBacked, table.assetBacked, raw.assetBacked, false);
 
     var normalized = {
       version: Math.max(0, integer(firstDefined(versionHint, raw.version, table.version, table.rev), 0)),
@@ -777,6 +781,8 @@ window.TexasHoldem = (function () {
       canStart: bool(canStartValue, false),
       canNext: bool(canNextValue, false),
       canManageBots: bool(canManageBotsValue, false),
+      assetBacked: assetBacked,
+      practiceMode: mode === "ring" && botCount > 0 && !assetBacked,
       canRefill: bool(firstDefined(
         ringRefill.canRefill,
         table.canRefill,
@@ -1082,6 +1088,8 @@ window.TexasHoldem = (function () {
       refill_not_needed: "보유한 플레이 칩이 남아 있어요.",
       refill_limit: "오늘 사용할 수 있는 충전 3회를 모두 사용했어요.",
       wallet_insufficient: "홀덤 자산이 이 방의 바이인보다 부족해요.",
+      bots_solo_only: "AI 연습은 방에 혼자 있을 때만 사용할 수 있어요.",
+      practice_ai_only: "AI 연습 중인 방에는 다른 사람이 함께할 수 없어요.",
       stale: "상태가 바뀌어 새로 불러왔어요."
     };
     return messages[text(reason, 80)] || text(fallback, 140) || "요청을 처리하지 못했어요.";
@@ -1832,9 +1840,11 @@ window.TexasHoldem = (function () {
 
   function renderHeader() {
     var modeLabel = state.mode === "ring"
-      ? "6-MAX · 자산안심 링게임"
+      ? (state.practiceMode ? "6-MAX · AI 연습 홀덤" : "6-MAX · 홀덤")
       : "6-MAX · " + (state.tournamentSpeed === "turbo" ? "터보" : "일반") + " 토너먼트";
-    var modeDescription = state.mode === "ring"
+    var modeDescription = state.practiceMode
+      ? "AI와 하는 연습용 임시 칩입니다. 보유 자산·테이블 자산에 반영되지 않아요."
+      : state.mode === "ring"
       ? "홀덤 자산에서 " + formatChips(state.startingStack) +
         "을 바이인합니다. 퇴장하면 남은 테이블 칩이 자산으로 돌아오며, 블라인드는 " +
         formatChips(state.smallBlind) + "/" + formatChips(state.bigBlind) + "로 고정됩니다."
@@ -1999,7 +2009,8 @@ window.TexasHoldem = (function () {
     var hasMove = moves.some(function (move) { return !!state.legal[move]; });
     var busy = pendingUiCount > 0;
     var isOwner = !!(text(me().nick, 40) && text(me().nick, 40) === state.ownerNick);
-    var canManageBots = isOwner && state.canManageBots;
+    var humanCount = state.seats.filter(function (seat) { return seat && !seat.isBot; }).length;
+    var canManageBots = isOwner && state.canManageBots && humanCount === 1;
     var occupiedSeats = state.seats.filter(Boolean).length;
     var canSize = !!(state.legal.bet || state.legal.raise);
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
@@ -2038,7 +2049,9 @@ window.TexasHoldem = (function () {
       refillButton.disabled = busy || !state.canRefill;
     }
     if (needsRefill) {
-      var refillStatus = state.refillStatusKnown
+      var refillStatus = state.practiceMode
+        ? "연습용 임시 칩 충전 · 자산에는 반영되지 않아요"
+        : state.refillStatusKnown
         ? (state.refillsRemainingToday > 0
           ? "오늘 " + state.refillsRemainingToday + "회 남음 · 무료 리필 칩도 퇴장 시 함께 정산돼요"
           : "오늘 충전 3회를 모두 사용했어요")

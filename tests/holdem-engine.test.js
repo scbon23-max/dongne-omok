@@ -285,7 +285,7 @@ test("join can claim a requested empty seat", () => {
 });
 
 test("only the owner can add and remove a disclosed AI seat before the first hand", () => {
-  let state = tableWithPlayers(["owner", "guest"]);
+  let state = tableWithPlayers(["owner"]);
   let result = Engine.command(state, {
     type: "add_bot",
     nick: "guest",
@@ -942,4 +942,102 @@ test("legacy ring tables do not mint wallet credits during the asset migration",
   }, context(2));
   assert.equal(left.ok, true);
   assert.deepEqual(left.state.walletAdjustments, []);
+});
+
+test("AI practice ring tables use temporary chips and stay solo-only", () => {
+  const assetOptions = {
+    mode: "ring",
+    assetBacked: true,
+    chipUnit: 100,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  };
+  let state = Engine.createTable({
+    roomId: "ai-practice-ring",
+    ownerNick: "owner",
+    ...assetOptions,
+  });
+  let joined = Engine.command(state, {
+    type: "join",
+    nick: "owner",
+    requestId: "practice:join",
+  }, context(1));
+  assert.equal(joined.ok, true);
+  assert.deepEqual(
+    joined.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    [{ nickname: "owner", delta: -20000 }],
+  );
+  joined.state.walletAdjustments = [];
+
+  const botAdded = Engine.command(joined.state, {
+    type: "add_bot",
+    nick: "owner",
+    requestId: "practice:add-bot",
+  }, context(2));
+  assert.equal(botAdded.ok, true, botAdded.reason);
+  assert.equal(botAdded.state.settings.assetBacked, false);
+  assert.equal(botAdded.state.settings.practice, true);
+  assert.deepEqual(
+    botAdded.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    [{ nickname: "owner", delta: 20000 }],
+    "adding AI refunds any asset-backed buy-in before practice starts",
+  );
+
+  const guestJoin = Engine.command(botAdded.state, {
+    type: "join",
+    nick: "guest",
+    requestId: "practice:guest",
+  }, context(3));
+  assert.equal(guestJoin.ok, false);
+  assert.equal(guestJoin.reason, "practice_ai_only");
+
+  state = tableWithPlayers(["owner", "guest"], assetOptions);
+  const botWithGuest = Engine.command(state, {
+    type: "add_bot",
+    nick: "owner",
+    requestId: "practice:blocked",
+  }, context(4));
+  assert.equal(botWithGuest.ok, false);
+  assert.equal(botWithGuest.reason, "bots_solo_only");
+});
+
+test("ring tables switch to asset-backed chips only when a second human joins", () => {
+  let state = Engine.createTable({
+    roomId: "deferred-asset-ring",
+    ownerNick: "owner",
+    mode: "ring",
+    assetBacked: false,
+    chipUnit: 100,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  });
+  let joined = Engine.command(state, {
+    type: "join",
+    nick: "owner",
+    requestId: "deferred:owner",
+  }, context(1));
+  assert.equal(joined.ok, true);
+  assert.equal(joined.state.settings.assetBacked, false);
+  assert.deepEqual(joined.state.walletAdjustments, []);
+
+  const guestJoined = Engine.command(joined.state, {
+    type: "join",
+    nick: "guest",
+    requestId: "deferred:guest",
+  }, context(2));
+  assert.equal(guestJoined.ok, true, guestJoined.reason);
+  assert.equal(guestJoined.state.settings.assetBacked, true);
+  assert.deepEqual(
+    guestJoined.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    [
+      { nickname: "owner", delta: -20000 },
+      { nickname: "guest", delta: -20000 },
+    ],
+  );
 });

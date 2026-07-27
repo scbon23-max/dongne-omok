@@ -610,6 +610,43 @@
     return state.seats.filter(function (player) { return !!player && !player.leaving; });
   }
 
+  function humanPlayers(state) {
+    return occupiedPlayers(state).filter(function (player) { return !player.isBot; });
+  }
+
+  function botPlayers(state) {
+    return occupiedPlayers(state).filter(function (player) { return !!player.isBot; });
+  }
+
+  function convertRingTableToPractice(state) {
+    if (!state || !state.settings || state.settings.mode !== "ring") return;
+    if (state.settings.assetBacked === true) {
+      humanPlayers(state).forEach(function (player) {
+        if (!player || !player.nick) return;
+        var amount = own(state.ringStacks, player.nick)
+          ? clamp(state.ringStacks[player.nick], 0, 100000000, player.stack)
+          : player.stack;
+        addWalletAdjustment(state, player.nick, amount, "practice_refund");
+      });
+    }
+    state.settings.assetBacked = false;
+    state.settings.practice = true;
+  }
+
+  function convertRingTableToAssetBacked(state) {
+    if (!state || !state.settings || state.settings.mode !== "ring" ||
+        state.settings.assetBacked === true || botPlayers(state).length > 0) return;
+    state.settings.assetBacked = true;
+    state.settings.practice = false;
+    humanPlayers(state).forEach(function (player) {
+      if (!player || !player.nick) return;
+      var amount = own(state.ringStacks, player.nick)
+        ? clamp(state.ringStacks[player.nick], 0, 100000000, player.stack)
+        : player.stack;
+      addWalletAdjustment(state, player.nick, -amount, "buy_in");
+    });
+  }
+
   function handPlayers(state) {
     return state.seats.filter(function (player) { return !!player && player.inHand; });
   }
@@ -1227,6 +1264,8 @@
           }
         } else if (anyPlayerByNick(next, nick)) {
           result = { ok: false, reason: "nick_reserved" };
+        } else if (next.settings.mode === "ring" && botPlayers(next).length > 0) {
+          result = { ok: false, reason: "practice_ai_only" };
         } else if (occupiedPlayers(next).length >= next.settings.maxPlayers) {
           result = { ok: false, reason: "table_full" };
         } else {
@@ -1245,9 +1284,10 @@
             next.seats[seat] = createPlayer(nick, seat, joinStack, now);
             if (next.settings.mode === "ring") {
               next.ringStacks[nick] = joinStack;
-              if (!hasSavedRingStack) {
+              if (next.settings.assetBacked === true && !hasSavedRingStack) {
                 addWalletAdjustment(next, nick, -joinStack, "buy_in");
               }
+              if (humanPlayers(next).length >= 2) convertRingTableToAssetBacked(next);
             }
             next.lastEvent = { type: "joined", nick: nick, seat: seat, at: now };
             result = { ok: true };
@@ -1373,6 +1413,7 @@
       } else if (type === "add_bot") {
         if (nick !== next.ownerNick) result = { ok: false, reason: "owner" };
         else if (next.phase !== "waiting" || next.handNo !== 0) result = { ok: false, reason: "bots_locked" };
+        else if (humanPlayers(next).length !== 1) result = { ok: false, reason: "bots_solo_only" };
         else {
           if (occupiedPlayers(next).length >= next.settings.maxPlayers) {
             result = { ok: false, reason: "table_full" };
@@ -1384,6 +1425,7 @@
             if (botSeat < 0) result = { ok: false, reason: "table_full" };
             else if (next.seats[botSeat]) result = { ok: false, reason: "seat_taken" };
             else {
+              convertRingTableToPractice(next);
               var identity = reserveBotIdentity(next);
               var botPersonality = chooseBotPersonality(next, context.randomInt);
               next.seats[botSeat] = createPlayer(identity.displayName, botSeat, next.settings.startingStack, now, {
