@@ -27,7 +27,7 @@ test("Hold'em is an available six-player controller game", () => {
   assert.equal(definition.maxRoomMembers, 6);
   assert.equal(definition.rankable, false);
   assert.equal(definition.createAdminOnly, true);
-  assert.equal(definition.discoverable, true);
+  assert.equal(definition.discoverable, false);
   assert.equal(definition.controller, "TexasHoldem");
   assert.equal(definition.screenId, "holdemgame");
   assert.match(game, /GameCatalog\.order\.filter\(function \(id\) \{ return id !== "alk_terr"; \}\)/);
@@ -46,12 +46,12 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
     const definition = context.window.GameCatalog.get(id);
     assert.equal(definition.family, "holdem");
     assert.equal(definition.createAdminOnly, true);
-    assert.equal(definition.discoverable, true);
+    assert.equal(definition.discoverable, false);
   }
   const ring = context.window.GameCatalog.get("holdem_ring");
   assert.equal(ring.family, "holdem");
   assert.equal(ring.createAdminOnly, false);
-  assert.equal(ring.discoverable, true);
+  assert.equal(ring.discoverable, false);
   assert.equal(ring.name, "홀덤");
   const holdemCreateStep = index.slice(
     index.indexOf('id="create-holdem-mode-step"'),
@@ -94,12 +94,12 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.match(styles, /\.room-badge\.holdem_tournament/);
 });
 
-test("room visibility follows the catalog and public Hold'em rooms can be listed", () => {
+test("room visibility follows the catalog and Hold'em rooms stay off the public list", () => {
   const context = { window: {} };
   vm.createContext(context);
   vm.runInContext(catalogSource, context, { filename: "game-catalog.js" });
   for (const id of ["holdem", "holdem_tournament", "holdem_turbo", "holdem_ring"]) {
-    assert.notEqual(context.window.GameCatalog.get(id).discoverable, false);
+    assert.equal(context.window.GameCatalog.get(id).discoverable, false);
   }
   assert.match(
     game,
