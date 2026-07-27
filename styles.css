@@ -3579,7 +3579,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-table-wrap {
   position: absolute;
   z-index: 2;
-  inset: max(83px, calc(env(safe-area-inset-top) + 72px)) 0 max(52px, calc(env(safe-area-inset-bottom) + 48px));
+  inset: max(73px, calc(env(safe-area-inset-top) + 62px)) 0 max(52px, calc(env(safe-area-inset-bottom) + 48px));
   display: grid;
   place-items: center;
   min-height: 0;
@@ -4812,7 +4812,7 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-utility { gap: 3px; }
   .holdem-utility button { min-height: 31px; padding: 0 7px; font-size: 10px; }
   .holdem-connection { top: max(51px, calc(env(safe-area-inset-top) + 43px)); }
-  .holdem-table-wrap { inset: max(73px, calc(env(safe-area-inset-top) + 64px)) 0 max(49px, calc(env(safe-area-inset-bottom) + 45px)); padding-bottom: 30px; }
+  .holdem-table-wrap { inset: max(66px, calc(env(safe-area-inset-top) + 57px)) 0 max(49px, calc(env(safe-area-inset-bottom) + 45px)); padding-bottom: 30px; }
   .holdem-table { width: min(75vw, 350px); border-width: 8px; }
   .holdem-seat { --holdem-seat-avatar-size: 39px; width: 80px; }
   .holdem-seat-avatar { width: 39px; height: 39px; border-width: 2px; }
@@ -4828,7 +4828,7 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-topbar { min-height: 66px; padding: 12px 18px; }
   .holdem-utility button { min-height: 39px; padding: 0 13px; font-size: 12px; }
   .holdem-connection { top: 70px; }
-  .holdem-table-wrap { inset: 90px 0 58px; padding-bottom: 6px; }
+  .holdem-table-wrap { inset: 78px 0 58px; padding-bottom: 6px; }
   .holdem-table {
     width: min(72vw, 920px);
     height: min(71vh, 570px);
