@@ -26,7 +26,7 @@ test("Hold'em is an available six-player controller game", () => {
   assert.equal(definition.maxPlayers, 6);
   assert.equal(definition.maxRoomMembers, 6);
   assert.equal(definition.rankable, false);
-  assert.equal(definition.createAdminOnly, false);
+  assert.equal(definition.createAdminOnly, true);
   assert.equal(definition.discoverable, true);
   assert.equal(definition.controller, "TexasHoldem");
   assert.equal(definition.screenId, "holdemgame");

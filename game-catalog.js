@@ -104,7 +104,7 @@ window.GameCatalog = (function () {
       name: "텍사스 홀덤",
       rankName: "텍사스 홀덤",
       rankable: false,
-      createAdminOnly: false,
+      createAdminOnly: true,
       discoverable: true,
       maxRoomMembers: 6,
       maxPlayers: 6,
