@@ -161,7 +161,7 @@ window.GameCatalog = (function () {
     holdem_ring: {
       id: "holdem_ring",
       family: "holdem",
-      name: "자산안심 링게임",
+      name: "홀덤",
       rankName: "텍사스 홀덤",
       rankable: false,
       createAdminOnly: false,

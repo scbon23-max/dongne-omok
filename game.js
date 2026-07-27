@@ -5145,7 +5145,7 @@
         : id === "alk" ? "돌을 튕겨 겨루는 실시간 대결"
         : id === "catchmind" ? "그리고 맞히는 단체 그림 퀴즈"
         : id === "relay" ? "문장과 그림을 번갈아 이어가기"
-        : id === "holdem" ? "토너먼트 · 자산안심 링게임"
+        : id === "holdem" ? "홀덤 · 토너먼트"
         : "선을 이어 내 땅을 차지하는 실시간 대결";
       var iconSrc = id === "alk" ? "assets/game-icon-alkkagi.svg"
         : id === "catchmind" ? "assets/game-icon-catchmind.svg"
@@ -5215,7 +5215,7 @@
             ? "총 자산 중 " + formatHoldemAsset(tableBalance) +
               "은 현재 테이블에서 사용 중이며, " +
               formatHoldemAsset(availableBalance) + "을 사용할 수 있습니다."
-            : "현금과 무관한 게임 전용 자산이며 방을 나가면 남은 칩이 돌아옵니다.";
+            : "";
     }
 
     var slider = $("create-holdem-buyin-slider");
@@ -5252,7 +5252,7 @@
     if (mode === "ring" && $("create-holdem-rule-summary")) {
       $("create-holdem-rule-summary").textContent =
         "전원 " + formatHoldemAsset(canBuyIn ? createHoldemBuyIn : 0) +
-        " · SB 100 / BB 200 고정 · 파산 시 하루 3회 20,000칩 무료 충전";
+        " · SB 100 / BB 200 · 최대 6명";
     }
     var presetBox = $("create-holdem-buyin-presets");
     if (presetBox) {
@@ -5374,15 +5374,15 @@
     }
     if ($("create-holdem-rule-summary")) {
       $("create-holdem-rule-summary").textContent = mode === "ring"
-        ? "전원 " + formatHoldemAsset(createHoldemBuyIn) +
-          " · SB 100 / BB 200 고정 · 파산 시 하루 3회 20,000칩 무료 충전"
+        ? "바이인 " + formatHoldemAsset(createHoldemBuyIn) +
+          " · SB 100 / BB 200 · 최대 6명"
         : "시작 20,000칩 · 블라인드 100/200 · " +
           (speed === "turbo" ? "5분" : "10분") +
           "마다 상승 · 마지막 1인 승리";
     }
     if ($("create-holdem-mode-confirm")) {
       $("create-holdem-mode-confirm").textContent = mode === "ring"
-        ? "자산안심 링게임 만들기"
+        ? "홀덤 방 만들기"
         : (speed === "turbo" ? "터보" : "일반") + " 토너먼트 만들기";
     }
     renderHoldemWalletControls(mode);
@@ -6239,7 +6239,7 @@
     });
     var createGame = renderCreateGameOptions("omok");
     var createAlkMode = renderCreateAlkMode("alk");
-    var createHoldemMode = renderCreateHoldemMode("tournament", "normal");
+    var createHoldemMode = renderCreateHoldemMode("ring", "normal");
     var createHoldemSpeed = "normal";
     $("create-game").addEventListener("click", function (event) {
       var option = event.target.closest(".create-game-option");

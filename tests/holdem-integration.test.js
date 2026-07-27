@@ -34,7 +34,7 @@ test("Hold'em is an available six-player controller game", () => {
   assert.match(game, /visibleGameIds\(createIds\)\.filter\(canCreateGame\)/);
   assert.match(game, /def && def\.createAdminOnly && !me\.isAdmin/);
   assert.doesNotMatch(game, /createAdminOnly && !isGunaAdmin\(\)/);
-  assert.match(game, /id === "holdem" \? "토너먼트 · 자산안심 링게임"/);
+  assert.match(game, /id === "holdem" \? "홀덤 · 토너먼트"/);
 });
 
 test("Hold'em room creation shows assets, locks tournaments to admins, and selects a ring buy-in", () => {
@@ -52,16 +52,22 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.equal(ring.family, "holdem");
   assert.equal(ring.createAdminOnly, false);
   assert.equal(ring.discoverable, true);
-  assert.equal(ring.name, "자산안심 링게임");
+  assert.equal(ring.name, "홀덤");
   assert.match(index, /id="create-holdem-mode-step"/);
   assert.match(index, /id="create-holdem-wallet-balance"/);
   assert.match(index, /내 홀덤 총 자산/);
+  assert.doesNotMatch(index, /현금과 무관한/);
+  assert.ok(
+    index.indexOf('data-holdem-mode="ring"') <
+      index.indexOf('data-holdem-mode="tournament"')
+  );
   assert.match(index, /data-holdem-mode="tournament"/);
   assert.match(index, /data-holdem-mode="ring"/);
   assert.match(index, /data-holdem-speed="normal"/);
   assert.match(index, /data-holdem-speed="turbo"/);
   assert.match(index, /id="create-holdem-buyin-slider"[^>]*step="100"/);
-  assert.match(index, /홀덤 자산에서 바이인하고/);
+  assert.match(index, /<strong>홀덤<\/strong>/);
+  assert.match(game, /renderCreateHoldemMode\("ring", "normal"\)/);
   assert.match(game, /HOLDEM_INITIAL_ASSETS = 100000/);
   assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 20000/);
   assert.match(game, /totalAssets[\s\S]*tableBalance[\s\S]*현재 테이블에서 사용 중/);

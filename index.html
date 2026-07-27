@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260727-holdem-thin-hidden-card-border-v1">
+<meta name="app-build" content="20260727-holdem-create-clean-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -1066,30 +1066,31 @@
         <h2>홀덤 방식</h2>
         <button class="create-icon-btn modal-close" data-close aria-label="닫기">✕</button>
       </div>
-      <div class="create-room-summary">
-        <span>방 이름</span>
-        <strong id="create-holdem-summary-name"></strong>
+      <div class="create-holdem-overview">
+        <div class="create-room-summary create-holdem-summary">
+          <span>방 이름</span>
+          <strong id="create-holdem-summary-name"></strong>
+        </div>
+        <div class="create-holdem-wallet" aria-live="polite">
+          <span>내 홀덤 총 자산</span>
+          <strong id="create-holdem-wallet-balance">불러오는 중</strong>
+        </div>
       </div>
-      <div class="create-holdem-wallet" aria-live="polite">
-        <span>내 홀덤 총 자산</span>
-        <strong id="create-holdem-wallet-balance">불러오는 중</strong>
-        <small id="create-holdem-wallet-status">현금과 무관한 게임 전용 자산입니다.</small>
-      </div>
-      <div class="setting-title">게임 방식 선택</div>
+      <div class="setting-title create-holdem-section-title">게임 방식</div>
       <div id="create-holdem-mode" class="create-mode-list create-holdem-mode-list">
-        <button class="create-mode-card create-holdem-mode-card active" type="button" data-holdem-mode="tournament" aria-pressed="true">
+        <button class="create-mode-card create-holdem-mode-card active" type="button" data-holdem-mode="ring" aria-pressed="true">
+          <span class="create-holdem-mode-icon ring" aria-hidden="true">₩</span>
+          <span class="create-mode-copy">
+            <strong>홀덤</strong>
+            <span>바이인을 정하고 바로 시작 · 최대 6명</span>
+          </span>
+        </button>
+        <button class="create-mode-card create-holdem-mode-card create-holdem-tournament-card" type="button" data-holdem-mode="tournament" aria-pressed="false">
           <span class="create-holdem-mode-icon tournament" aria-hidden="true">♠</span>
           <span class="create-mode-copy">
             <strong>토너먼트</strong>
-            <span>블라인드가 올라가며 마지막 한 명이 남을 때까지 겨룹니다.</span>
-            <small class="create-holdem-admin-lock">관리자만 방을 만들 수 있어요</small>
-          </span>
-        </button>
-        <button class="create-mode-card create-holdem-mode-card" type="button" data-holdem-mode="ring" aria-pressed="false">
-          <span class="create-holdem-mode-icon ring" aria-hidden="true">₩</span>
-          <span class="create-mode-copy">
-            <strong>자산안심 링게임</strong>
-            <span>홀덤 자산에서 바이인하고, 퇴장할 때 남은 칩이 다시 자산으로 돌아옵니다.</span>
+            <span>블라인드 상승 · 마지막 1인 승리</span>
+            <small class="create-holdem-admin-lock">관리자만 만들 수 있어요</small>
           </span>
         </button>
       </div>
@@ -1118,9 +1119,9 @@
         <small id="create-holdem-buyin-note">모든 참가자가 같은 바이인으로 시작합니다.</small>
       </div>
       <div id="create-holdem-rule-summary" class="create-holdem-rule-summary">
-        시작 20,000칩 · 블라인드 100/200 · 마지막 1인 승리
+        바이인 20,000칩 · SB 100 / BB 200 · 최대 6명
       </div>
-      <button id="create-holdem-mode-confirm" class="btn-primary create-confirm">일반 토너먼트 만들기</button>
+      <button id="create-holdem-mode-confirm" class="btn-primary create-confirm">홀덤 방 만들기</button>
     </div>
   </div>
 </div>

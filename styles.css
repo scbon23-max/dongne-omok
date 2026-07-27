@@ -2194,15 +2194,36 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.create-holdem-wallet {
+.create-holdem-overview {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 3px 12px;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 11px;
+}
+.create-holdem-summary,
+.create-holdem-overview .create-holdem-wallet {
+  margin: 0;
+}
+.create-holdem-summary {
+  min-width: 0;
+}
+.create-holdem-summary strong {
+  max-width: 150px;
+}
+.create-holdem-wallet {
+  display: grid;
+  grid-template-columns: auto;
+  align-content: center;
+  justify-items: end;
+  min-width: 116px;
+  gap: 2px;
   margin: -3px 0 13px;
-  padding: 10px 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
   border-top: 1px solid rgba(255,255,255,.08);
   border-bottom: 1px solid rgba(255,255,255,.08);
+  background: rgba(9,31,41,.55);
   color: #9fb5bf;
   font-size: 12px;
   font-weight: 800;
@@ -2215,12 +2236,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   overflow-wrap: anywhere;
   text-align: right;
 }
-.create-holdem-wallet small {
-  grid-column: 1 / -1;
-  color: #7895a1;
-  font-size: 10px;
-  line-height: 1.4;
-}
+.create-holdem-section-title { margin-bottom: 7px; }
 .create-mode-list { display: grid; gap: 9px; margin-bottom: 16px; }
 .create-mode-card {
   width: 100%;
@@ -2275,24 +2291,44 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-holdem-mode-card:disabled .create-holdem-admin-lock { display: block; }
 .create-holdem-mode-card {
-  grid-template-columns: 76px minmax(0, 1fr);
-  min-height: 88px;
+  grid-template-columns: 58px minmax(0, 1fr);
+  min-height: 70px;
+  border: 1px solid rgba(255,255,255,.06);
 }
 .create-holdem-mode-icon {
-  width: 76px;
+  width: 58px;
   display: grid;
   place-items: center;
   background: #102f3b;
   color: #e8eef0;
-  font-size: 37px;
+  font-size: 29px;
   font-weight: 900;
 }
 .create-holdem-mode-icon.ring {
   background: #123b35;
   color: #7de1c4;
-  font-size: 30px;
+  font-size: 24px;
 }
-.create-holdem-speed-group { margin: -2px 0 13px; }
+.create-holdem-mode-list {
+  gap: 7px;
+  margin-bottom: 10px;
+}
+.create-holdem-mode-card .create-mode-copy {
+  padding: 10px 11px;
+}
+.create-holdem-mode-card .create-mode-copy strong {
+  font-size: 15px;
+}
+.create-holdem-mode-card .create-mode-copy span {
+  margin-top: 3px;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+.create-holdem-tournament-card {
+  min-height: 62px;
+  opacity: .9;
+}
+.create-holdem-speed-group { margin: -2px 0 10px; }
 .create-holdem-speed {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2318,8 +2354,8 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-holdem-speed strong { font-size: 13px; }
 .create-holdem-speed span { margin-top: 3px; font-size: 10px; line-height: 1.35; }
 .create-holdem-buyin-group {
-  margin: -2px 0 13px;
-  padding: 11px;
+  margin: -1px 0 10px;
+  padding: 10px;
   border: 1px solid rgba(125,225,196,.18);
   border-radius: 7px;
   background: rgba(9,31,41,.68);
@@ -2339,7 +2375,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-holdem-buyin-group input[type="range"] {
   width: 100%;
-  margin: 11px 0 9px;
+  margin: 9px 0 8px;
   accent-color: #2fb89e;
 }
 .create-holdem-buyin-presets {
@@ -2374,14 +2410,14 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   line-height: 1.4;
 }
 .create-holdem-rule-summary {
-  margin-bottom: 13px;
-  padding: 10px 11px;
+  margin-bottom: 11px;
+  padding: 8px 10px;
   border-left: 3px solid #2fb89e;
   background: rgba(47,184,158,.09);
   color: #b9d7d3;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 750;
-  line-height: 1.5;
+  line-height: 1.35;
 }
 @media (max-height: 680px) {
   .create-room-dialog { padding: 15px; }
@@ -2390,6 +2426,17 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   .create-game-icon { width: 46px; height: 46px; }
   .create-room-dialog .setting-group { margin-bottom: 12px; }
   .create-mode-card > img { height: 82px; }
+  .create-holdem-mode-card { min-height: 62px; }
+  .create-holdem-buyin-group > small { display: none; }
+}
+@media (max-width: 380px) {
+  .create-holdem-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .create-holdem-wallet {
+    justify-items: stretch;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
 }
 
 .win-close:active { background: rgba(255,255,255,.35); }
