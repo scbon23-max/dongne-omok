@@ -208,7 +208,8 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-card-rank svg,[\s\S]*\.holdem-card > \.rank svg\s*\{[\s\S]*fill: currentColor/);
   assert.match(styles, /\.holdem-board\s*\{[\s\S]*gap:\s*clamp\(3px,\s*\.8vw,\s*5px\)/);
   assert.match(styles, /\.holdem-board \.holdem-card\s*\{[\s\S]*--holdem-card-width:\s*clamp\(38px,\s*10vw,\s*52px\)/);
-  assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-color:\s*rgba\(213,239,235,\.035\)/);
+  assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-style:\s*dashed/);
+  assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-color:\s*rgba\(213,239,235,\.12\)/);
   assert.match(styles, /\.holdem-board \.holdem-card \+ \.holdem-card\s*\{\s*margin-left:\s*0;\s*\}/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\s*\{[\s\S]*top: 1px[\s\S]*translate\(-50%, -45%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\.is-revealed-cards\s*\{[\s\S]*z-index:\s*24[\s\S]*translate\(-50%, -72%\)/);

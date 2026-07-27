@@ -3767,8 +3767,10 @@ body.is-admin .feedback-user-compose { display: none; }
   --holdem-card-shadow: 0 1px 4px rgba(0,0,0,.24);
 }
 .holdem-board .holdem-card.empty {
-  border-color: rgba(213,239,235,.035);
-  background: rgba(1,37,43,.025);
+  border-style: dashed;
+  border-color: rgba(213,239,235,.12);
+  background: rgba(1,37,43,.05);
+  box-shadow: none;
 }
 .holdem-board .holdem-card + .holdem-card,
 .holdem-result-board .holdem-card + .holdem-card,
