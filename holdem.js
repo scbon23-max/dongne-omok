@@ -52,6 +52,7 @@ window.TexasHoldem = (function () {
   var CLOCK_MS = 250;
   var REFRESH_DEBOUNCE_MS = 90;
   var AUTO_NEXT_HAND_MS = 5000;
+  var RESULT_FINAL_ACTION_MS = 1000;
   var RESULT_CARDS_FIRST_MS = 900;
   var RESULT_BOARD_REVEAL_STEP_MS = 900;
   var RESULT_SETTLE_MS = 1600;
@@ -353,9 +354,9 @@ window.TexasHoldem = (function () {
       return Number(bbValue.toFixed(digits)).toLocaleString("ko-KR") + "BB";
     }
     try {
-      return new Intl.NumberFormat("ko-KR").format(amount);
+      return new Intl.NumberFormat("ko-KR").format(amount) + "\uC6D0";
     } catch (_error) {
-      return String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      return String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "\uC6D0";
     }
   }
 
@@ -866,6 +867,14 @@ window.TexasHoldem = (function () {
     return winners;
   }
 
+  function hasSeatAction(snapshot) {
+    if (!snapshot || !Array.isArray(snapshot.seats)) return false;
+    for (var i = 0; i < snapshot.seats.length; i++) {
+      if (snapshot.seats[i] && seatActionLabel(snapshot.seats[i])) return true;
+    }
+    return false;
+  }
+
   function syncResultFlow(previous, next) {
     var key = resultKeyOf(next);
     if (!key) {
@@ -881,6 +890,9 @@ window.TexasHoldem = (function () {
     var initialBoardCount = Math.min(nextBoardCount, Math.max(previousBoardCount, Math.min(3, nextBoardCount)));
     var hiddenCommunityCards = Math.max(0, nextBoardCount - initialBoardCount);
     var cardsFirstMs = RESULT_CARDS_FIRST_MS + (RESULT_BOARD_REVEAL_STEP_MS * hiddenCommunityCards);
+    var finalActionMs = previous && isHandActive(previous.phase) && hasSeatAction(next)
+      ? RESULT_FINAL_ACTION_MS
+      : 0;
     for (var i = 0; i < MAX_SEATS; i++) {
       fromStacks[i] = previous && previous.seats[i] ? previous.seats[i].stack : null;
       toStacks[i] = next.seats[i] ? next.seats[i].stack : null;
@@ -888,11 +900,13 @@ window.TexasHoldem = (function () {
     resultFlow = {
       key: key,
       startedAt: now,
+      actionUntil: now + finalActionMs,
+      revealStart: now + finalActionMs,
       initialBoardCount: initialBoardCount,
       hiddenCommunityCards: hiddenCommunityCards,
-      cardsUntil: now + cardsFirstMs,
-      settleStart: now + cardsFirstMs,
-      settleEnd: now + cardsFirstMs + RESULT_SETTLE_MS,
+      cardsUntil: now + finalActionMs + cardsFirstMs,
+      settleStart: now + finalActionMs + cardsFirstMs,
+      settleEnd: now + finalActionMs + cardsFirstMs + RESULT_SETTLE_MS,
       potFrom: Math.max(nonnegative(previous && previous.pot, 0), nonnegative(next && next.pot, 0)),
       fromStacks: fromStacks,
       toStacks: toStacks,
@@ -903,6 +917,7 @@ window.TexasHoldem = (function () {
   function resultStage() {
     if (state.phase !== "complete") return "none";
     if (!resultFlow) return "announced";
+    if (Date.now() < resultFlow.actionUntil) return "action";
     return Date.now() < resultFlow.cardsUntil ? "cards" : "announced";
   }
 
@@ -910,7 +925,7 @@ window.TexasHoldem = (function () {
     var count = Array.isArray(state.board) ? clamp(state.board.length, 0, 5) : 0;
     if (state.phase !== "complete" || !resultFlow) return count;
     var visible = clamp(resultFlow.initialBoardCount, 0, count);
-    var elapsed = Math.max(0, Date.now() - resultFlow.startedAt);
+    var elapsed = Math.max(0, Date.now() - resultFlow.revealStart);
     var revealedAfterStart = Math.floor(elapsed / RESULT_BOARD_REVEAL_STEP_MS);
     return clamp(visible + revealedAfterStart, 0, count);
   }
@@ -1069,7 +1084,7 @@ window.TexasHoldem = (function () {
       turn: "지금은 내 차례가 아니에요.",
       illegal_action: "현재 선택할 수 없는 액션이에요.",
       amount: "베팅 금액을 확인해 주세요.",
-      chip_unit: "베팅 금액은 100칩 단위로 선택해 주세요.",
+      chip_unit: "베팅 금액은 100원 단위로 선택해 주세요.",
       minimum_bet: "최소 베팅 금액 이상을 선택해 주세요.",
       minimum_raise: "최소 레이즈 금액 이상을 선택해 주세요.",
       raise_not_reopened: "숏 올인만으로는 아직 레이즈 권리가 다시 열리지 않았어요.",
@@ -1083,9 +1098,9 @@ window.TexasHoldem = (function () {
       nick_reserved: "AI와 같은 이름은 이 테이블에서 사용할 수 없어요.",
       reserved_nick: "AI 전용 이름은 참가자 이름으로 사용할 수 없어요.",
       tournament_end: "마지막 플레이어가 남아 테이블이 종료됐어요.",
-      refill_required: "칩을 충전한 뒤 다시 준비할 수 있어요.",
+      refill_required: "원화 자산을 충전한 뒤 다시 준비할 수 있어요.",
       ring_only: "자산안심 링게임에서만 충전할 수 있어요.",
-      refill_not_needed: "보유한 플레이 칩이 남아 있어요.",
+      refill_not_needed: "보유한 테이블 금액이 남아 있어요.",
       refill_limit: "오늘 사용할 수 있는 충전 3회를 모두 사용했어요.",
       wallet_insufficient: "홀덤 자산이 이 방의 바이인보다 부족해요.",
       bots_solo_only: "AI 연습은 방에 혼자 있을 때만 사용할 수 있어요.",
@@ -1531,13 +1546,35 @@ window.TexasHoldem = (function () {
 
   function cardSuitSvg(suitKey) {
     var shapes = {
-      s: '<path d="M50 7C82 36 92 51 92 67C92 81 82 89 70 89C61 89 54 84 50 76C46 84 39 89 30 89C18 89 8 81 8 67C8 51 18 36 50 7Z"></path><path d="M42 66H58C58 78 64 88 75 95H25C36 88 42 78 42 66Z"></path>',
+      s: '<path d="M50 5C80 32 91 48 91 65C91 79 81 87 69 87C60 87 54 82 50 74C46 82 40 87 31 87C19 87 9 79 9 65C9 48 20 32 50 5Z"></path><path d="M43 69H57C57 79 62 88 72 95H28C38 88 43 79 43 69Z"></path>',
       h: '<path d="M50 89C18 60 8 45 8 28C8 15 18 7 31 7C40 7 47 13 50 21C53 13 60 7 69 7C82 7 92 15 92 28C92 45 82 60 50 89Z"></path>',
       d: '<path d="M50 4L93 50L50 96L7 50Z"></path>',
       c: '<circle cx="50" cy="27" r="22"></circle><circle cx="29" cy="55" r="22"></circle><circle cx="71" cy="55" r="22"></circle><path d="M42 60H58C58 74 64 86 76 94H24C36 86 42 74 42 60Z"></path>'
     };
     return '<svg class="holdem-card-suit-svg" viewBox="0 0 100 100" focusable="false" aria-hidden="true">' +
       (shapes[suitKey] || "") + '</svg>';
+  }
+
+  function cardRankSvg(rank) {
+    var ranks = {
+      "A": { viewBox: "-0.85 37.48 79.93 73.58", d: "M51.33 98.24 L26.22 98.24 L22.73 110.06 L0.15 110.06 L27.05 38.48 L51.18 38.48 L78.08 110.06 L54.91 110.06 Z M46.75 82.76 L38.84 57.03 L31.02 82.76 Z" },
+      "K": { viewBox: "6.42 37.48 77.88 73.58", d: "M7.42 38.48 L29.54 38.48 L29.54 65.53 L52.71 38.48 L82.13 38.48 L56.01 65.49 L83.3 110.06 L56.06 110.06 L40.97 80.62 L29.54 92.59 L29.54 110.06 L7.42 110.06 Z" },
+      "Q": { viewBox: "3.54 36.26 78.9 82.86", d: "M70.9 99.61 C73.67 101.53 75.47 102.73 76.32 103.22 C77.59 103.94 79.3 104.77 81.45 105.71 L75.29 118.12 C72.2 116.62 69.14 114.84 66.11 112.77 C63.09 110.7 60.97 109.15 59.77 108.11 C54.88 110.22 48.76 111.28 41.41 111.28 C30.53 111.28 21.96 108.45 15.67 102.78 C8.25 96.08 4.54 86.65 4.54 74.51 C4.54 62.73 7.79 53.57 14.28 47.05 C20.78 40.52 29.85 37.26 41.5 37.26 C53.39 37.26 62.56 40.45 69.02 46.83 C75.48 53.21 78.71 62.34 78.71 74.22 C78.71 84.8 76.11 93.26 70.9 99.61 Z M53.96 88.28 C55.71 85.12 56.59 80.4 56.59 74.12 C56.59 66.89 55.25 61.74 52.56 58.64 C49.88 55.55 46.18 54 41.46 54 C37.06 54 33.5 55.58 30.76 58.74 C28.03 61.9 26.66 66.83 26.66 73.54 C26.66 81.35 27.99 86.83 30.66 89.99 C33.33 93.15 37 94.73 41.65 94.73 C43.15 94.73 44.56 94.58 45.9 94.29 C44.04 92.5 41.11 90.8 37.11 89.21 L40.58 81.25 C42.53 81.61 44.05 82.05 45.14 82.57 C46.23 83.09 48.36 84.46 51.51 86.67 C52.26 87.19 53.08 87.73 53.96 88.28 Z" },
+      "J": { viewBox: "0.71 37.48 59.57 74.8", d: "M37.11 38.48 L59.28 38.48 L59.28 77.37 C59.28 85.53 58.55 91.74 57.1 96.01 C55.66 100.27 52.74 103.88 48.36 106.84 C43.99 109.8 38.38 111.28 31.54 111.28 C24.32 111.28 18.72 110.3 14.75 108.35 C10.77 106.4 7.71 103.54 5.54 99.78 C3.38 96.02 2.1 91.37 1.71 85.84 L22.85 82.96 C22.88 86.12 23.16 88.46 23.68 89.99 C24.2 91.52 25.08 92.76 26.32 93.7 C27.16 94.32 28.37 94.63 29.93 94.63 C32.41 94.63 34.22 93.71 35.38 91.87 C36.53 90.03 37.11 86.94 37.11 82.58 Z" },
+      "10": { viewBox: "7.15 36.26 123.14 76.02", d: "M49.17 37.26 L49.17 110.06 L29.05 110.06 L29.05 62.35 C25.8 64.83 22.65 66.83 19.6 68.36 C16.56 69.89 12.74 71.35 8.15 72.75 L8.15 56.45 C14.93 54.26 20.18 51.64 23.93 48.58 C27.67 45.52 30.6 41.75 32.71 37.26 Z M70.8 73.97 C70.8 60.37 73.25 50.85 78.15 45.41 C83.05 39.97 90.51 37.26 100.54 37.26 C105.35 37.26 109.31 37.85 112.4 39.04 C115.49 40.23 118.02 41.77 119.97 43.68 C121.92 45.58 123.46 47.58 124.58 49.68 C125.71 51.78 126.61 54.23 127.29 57.03 C128.63 62.37 129.3 67.94 129.3 73.73 C129.3 86.72 127.1 96.22 122.71 102.25 C118.31 108.27 110.74 111.28 100 111.28 C93.98 111.28 89.11 110.32 85.4 108.4 C81.69 106.48 78.65 103.66 76.27 99.95 C74.54 97.31 73.2 93.71 72.24 89.14 C71.28 84.56 70.8 79.51 70.8 73.97 Z M90.53 74.02 C90.53 83.14 91.33 89.36 92.94 92.7 C94.56 96.04 96.89 97.71 99.95 97.71 C101.97 97.71 103.72 97 105.2 95.58 C106.68 94.17 107.77 91.93 108.47 88.87 C109.17 85.81 109.52 81.04 109.52 74.56 C109.52 65.06 108.72 58.67 107.1 55.4 C105.49 52.12 103.08 50.49 99.85 50.49 C96.57 50.49 94.19 52.16 92.72 55.49 C91.26 58.83 90.53 65.01 90.53 74.02 Z" },
+      "9": { viewBox: "2.47 36.26 60.98 76.02", d: "M4.98 93.99 L24.76 91.5 C25.28 94.27 26.16 96.22 27.39 97.36 C28.63 98.5 30.14 99.07 31.93 99.07 C35.12 99.07 37.61 97.46 39.4 94.24 C40.71 91.86 41.68 86.83 42.33 79.15 C39.96 81.59 37.52 83.38 35.01 84.52 C32.5 85.66 29.61 86.23 26.32 86.23 C19.91 86.23 14.49 83.95 10.08 79.39 C5.67 74.84 3.47 69.08 3.47 62.11 C3.47 57.36 4.59 53.03 6.84 49.12 C9.08 45.21 12.17 42.26 16.11 40.26 C20.05 38.26 25 37.26 30.96 37.26 C38.12 37.26 43.86 38.48 48.19 40.94 C52.52 43.4 55.98 47.31 58.57 52.66 C61.16 58.02 62.45 65.09 62.45 73.88 C62.45 86.8 59.73 96.26 54.3 102.27 C48.86 108.28 41.32 111.28 31.69 111.28 C25.99 111.28 21.5 110.62 18.21 109.3 C14.93 107.98 12.19 106.05 10.01 103.52 C7.83 100.98 6.15 97.8 4.98 93.99 Z M41.6 62.06 C41.6 58.19 40.62 55.15 38.67 52.95 C36.72 50.76 34.34 49.66 31.54 49.66 C28.91 49.66 26.72 50.65 24.98 52.64 C23.23 54.62 22.36 57.6 22.36 61.57 C22.36 65.58 23.27 68.64 25.07 70.75 C26.88 72.87 29.13 73.93 31.84 73.93 C34.64 73.93 36.96 72.9 38.82 70.85 C40.67 68.8 41.6 65.87 41.6 62.06 Z" },
+      "8": { viewBox: "3.1 36.26 60.5 76.02", d: "M16.06 71.58 C12.94 69.92 10.66 68.07 9.23 66.02 C7.28 63.22 6.3 59.99 6.3 56.35 C6.3 50.36 9.11 45.46 14.75 41.65 C19.14 38.72 24.95 37.26 32.18 37.26 C41.75 37.26 48.82 39.08 53.39 42.72 C57.97 46.37 60.25 50.96 60.25 56.49 C60.25 59.72 59.34 62.73 57.52 65.53 C56.15 67.61 54 69.63 51.07 71.58 C54.95 73.44 57.84 75.9 59.74 78.96 C61.65 82.01 62.6 85.4 62.6 89.11 C62.6 92.69 61.78 96.04 60.13 99.15 C58.49 102.25 56.47 104.65 54.08 106.35 C51.68 108.04 48.71 109.29 45.14 110.08 C41.58 110.88 37.78 111.28 33.74 111.28 C26.16 111.28 20.36 110.38 16.36 108.59 C12.35 106.8 9.31 104.17 7.23 100.68 C5.14 97.2 4.1 93.31 4.1 89.01 C4.1 84.81 5.08 81.26 7.03 78.34 C8.98 75.43 12 73.18 16.06 71.58 Z M25 57.52 C25 59.99 25.77 61.99 27.32 63.5 C28.87 65.01 30.92 65.77 33.5 65.77 C35.77 65.77 37.65 65.02 39.11 63.53 C40.58 62.03 41.31 60.09 41.31 57.71 C41.31 55.24 40.54 53.23 39.01 51.68 C37.48 50.14 35.53 49.37 33.15 49.37 C30.75 49.37 28.78 50.12 27.27 51.64 C25.76 53.15 25 55.11 25 57.52 Z M23.93 88.33 C23.93 91.49 24.89 94.07 26.81 96.07 C28.73 98.07 30.92 99.07 33.4 99.07 C35.77 99.07 37.91 98.06 39.79 96.02 C41.68 93.99 42.63 91.41 42.63 88.28 C42.63 85.12 41.67 82.54 39.77 80.52 C37.87 78.5 35.66 77.49 33.15 77.49 C30.68 77.49 28.52 78.47 26.68 80.42 C24.85 82.37 23.93 85.01 23.93 88.33 Z" },
+      "7": { viewBox: "3.44 37.48 60.06 73.58", d: "M4.44 38.48 L62.5 38.48 L62.5 51.9 C57.45 56.46 53.24 61.39 49.85 66.7 C45.75 73.14 42.51 80.32 40.14 88.23 C38.25 94.38 36.98 101.66 36.33 110.06 L16.5 110.06 C18.07 98.37 20.52 88.57 23.88 80.66 C27.23 72.75 32.54 64.29 39.79 55.27 L4.44 55.27 Z" },
+      "6": { viewBox: "3.2 36.26 60.98 76.02", d: "M61.67 54.59 L41.89 57.03 C41.37 54.26 40.5 52.31 39.28 51.17 C38.06 50.03 36.56 49.46 34.77 49.46 C31.54 49.46 29.04 51.09 27.25 54.35 C25.94 56.69 24.98 61.7 24.37 69.38 C26.74 66.98 29.18 65.19 31.69 64.04 C34.2 62.88 37.09 62.3 40.38 62.3 C46.76 62.3 52.16 64.58 56.57 69.14 C60.98 73.7 63.18 79.48 63.18 86.47 C63.18 91.19 62.07 95.51 59.84 99.41 C57.61 103.32 54.52 106.27 50.56 108.28 C46.61 110.28 41.65 111.28 35.69 111.28 C28.53 111.28 22.79 110.06 18.46 107.62 C14.13 105.18 10.67 101.28 8.08 95.92 C5.49 90.57 4.2 83.48 4.2 74.66 C4.2 61.74 6.92 52.27 12.35 46.26 C17.79 40.26 25.33 37.26 34.96 37.26 C40.66 37.26 45.16 37.92 48.46 39.23 C51.77 40.55 54.51 42.48 56.69 45.02 C58.87 47.56 60.53 50.75 61.67 54.59 Z M25.05 86.47 C25.05 90.35 26.03 93.38 27.98 95.58 C29.93 97.78 32.32 98.88 35.16 98.88 C37.76 98.88 39.94 97.88 41.7 95.9 C43.46 93.91 44.34 90.95 44.34 87.01 C44.34 82.98 43.42 79.9 41.6 77.78 C39.78 75.67 37.52 74.61 34.81 74.61 C32.05 74.61 29.73 75.63 27.86 77.69 C25.98 79.74 25.05 82.67 25.05 86.47 Z" },
+      "5": { viewBox: "2.27 37.48 61.52 74.8", d: "M12.16 38.48 L59.38 38.48 L59.38 54.35 L27.39 54.35 L25.68 65.09 C27.9 64.05 30.09 63.26 32.25 62.74 C34.42 62.22 36.56 61.96 38.67 61.96 C45.83 61.96 51.64 64.13 56.1 68.46 C60.56 72.79 62.79 78.24 62.79 84.81 C62.79 89.44 61.65 93.88 59.35 98.14 C57.06 102.41 53.8 105.66 49.58 107.91 C45.37 110.16 39.97 111.28 33.4 111.28 C28.68 111.28 24.63 110.83 21.26 109.94 C17.9 109.04 15.03 107.71 12.67 105.93 C10.31 104.16 8.4 102.15 6.93 99.9 C5.47 97.66 4.25 94.86 3.27 91.5 L23.39 89.31 C23.88 92.53 25.02 94.98 26.81 96.66 C28.6 98.33 30.73 99.17 33.2 99.17 C35.97 99.17 38.26 98.12 40.06 96.02 C41.87 93.92 42.77 90.79 42.77 86.62 C42.77 82.36 41.86 79.23 40.04 77.25 C38.22 75.26 35.79 74.27 32.76 74.27 C30.84 74.27 28.99 74.74 27.2 75.68 C25.86 76.37 24.4 77.6 22.8 79.39 L5.86 76.95 Z" },
+      "4": { viewBox: "1.05 36.26 64.55 74.8", d: "M38.28 96.68 L2.05 96.68 L2.05 80.32 L38.28 37.26 L55.62 37.26 L55.62 81.25 L64.6 81.25 L64.6 96.68 L55.62 96.68 L55.62 110.06 L38.28 110.06 Z M38.28 81.25 L38.28 58.72 L19.14 81.25 Z" },
+      "3": { viewBox: "2.52 36.26 61.13 76.02", d: "M23.39 59.18 L4.59 55.81 C6.15 49.82 9.16 45.23 13.6 42.04 C18.04 38.85 24.33 37.26 32.47 37.26 C41.81 37.26 48.57 39 52.73 42.48 C56.9 45.96 58.98 50.34 58.98 55.62 C58.98 58.71 58.14 61.51 56.45 64.01 C54.75 66.52 52.2 68.72 48.78 70.61 C51.55 71.29 53.66 72.09 55.13 73 C57.5 74.46 59.35 76.39 60.67 78.78 C61.99 81.18 62.65 84.03 62.65 87.35 C62.65 91.52 61.56 95.52 59.38 99.34 C57.19 103.17 54.05 106.11 49.95 108.18 C45.85 110.25 40.46 111.28 33.79 111.28 C27.28 111.28 22.14 110.51 18.38 108.98 C14.62 107.45 11.53 105.22 9.11 102.27 C6.68 99.32 4.82 95.62 3.52 91.16 L23.39 88.53 C24.17 92.53 25.38 95.3 27.03 96.85 C28.67 98.4 30.76 99.17 33.3 99.17 C35.97 99.17 38.19 98.19 39.97 96.24 C41.74 94.29 42.63 91.68 42.63 88.43 C42.63 85.11 41.77 82.54 40.06 80.71 C38.35 78.89 36.04 77.98 33.11 77.98 C31.54 77.98 29.39 78.37 26.66 79.15 L27.69 64.94 C28.79 65.1 29.65 65.19 30.27 65.19 C32.88 65.19 35.05 64.36 36.79 62.7 C38.53 61.04 39.4 59.07 39.4 56.79 C39.4 54.61 38.75 52.86 37.45 51.56 C36.15 50.26 34.36 49.61 32.08 49.61 C29.74 49.61 27.83 50.32 26.37 51.73 C24.9 53.15 23.91 55.63 23.39 59.18 Z" },
+      "2": { viewBox: "1.64 36.26 61.67 74.8", d: "M62.3 110.06 L2.64 110.06 C3.32 104.17 5.4 98.62 8.86 93.43 C12.33 88.24 18.83 82.11 28.37 75.05 C34.2 70.72 37.92 67.43 39.55 65.19 C41.18 62.94 41.99 60.81 41.99 58.79 C41.99 56.61 41.19 54.74 39.58 53.2 C37.96 51.65 35.94 50.88 33.5 50.88 C30.96 50.88 28.88 51.68 27.27 53.27 C25.66 54.87 24.58 57.68 24.02 61.72 L4.1 60.11 C4.88 54.51 6.32 50.14 8.4 47 C10.48 43.86 13.42 41.45 17.21 39.77 C21 38.09 26.25 37.26 32.96 37.26 C39.96 37.26 45.4 38.05 49.29 39.65 C53.18 41.24 56.24 43.69 58.47 47 C60.7 50.3 61.82 54 61.82 58.11 C61.82 62.47 60.54 66.63 57.98 70.61 C55.43 74.58 50.78 78.94 44.04 83.69 C40.04 86.46 37.36 88.4 36.01 89.5 C34.66 90.61 33.07 92.06 31.25 93.85 L62.3 93.85 Z" }
+    };
+    var rank = ranks[rank];
+    return rank
+      ? '<svg class="holdem-card-rank-svg" viewBox="' + rank.viewBox + '" focusable="false" aria-hidden="true"><path d="' + rank.d + '"></path></svg>'
+      : "";
   }
 
   function cardHtml(card, kind) {
@@ -1558,8 +1595,7 @@ window.TexasHoldem = (function () {
     return '<span class="holdem-card ' + suit.color + '" data-suit="' + card.suit +
       '" data-rank="' + esc(card.rank) +
       '" role="img" aria-label="' + esc(suit.label + " " + card.rank) + '">' +
-      '<span class="holdem-card-rank rank" aria-hidden="true">' + esc(card.rank) + '</span>' +
-      '<span class="holdem-card-suit suit" aria-hidden="true">' + suit.mark + '</span>' +
+      '<span class="holdem-card-rank rank" aria-hidden="true">' + cardRankSvg(card.rank) + '</span>' +
       '<span class="holdem-card-mark mark" aria-hidden="true">' + cardSuitSvg(card.suit) + '</span>' +
       '</span>';
   }
@@ -1639,10 +1675,10 @@ window.TexasHoldem = (function () {
     if (settingsButton) settingsButton.setAttribute("aria-expanded", settingsOpen ? "true" : "false");
     var unitToggle = $("holdem-unit-toggle");
     var isBb = moneyUnitMode === "bb";
-    setText("holdem-unit-label", isBb ? "BB \uB2E8\uC704" : "\uCE69 \uB2E8\uC704");
+    setText("holdem-unit-label", isBb ? "BB \uB2E8\uC704" : "\uC6D0 \uB2E8\uC704");
     if (unitToggle) {
       unitToggle.setAttribute("aria-pressed", isBb ? "true" : "false");
-      unitToggle.textContent = isBb ? "\uCE69" : "BB";
+      unitToggle.textContent = isBb ? "\uC6D0" : "BB";
     }
   }
 
@@ -1701,7 +1737,7 @@ window.TexasHoldem = (function () {
         : "";
       var displayStack = seat ? animatedStackAmount(absolute, seat.stack) : 0;
       var label = seat
-        ? name + ", 칩 " + formatChips(displayStack) +
+        ? name + ", 보유액 " + formatChips(displayStack) +
           (seat.isBot ? ", AI, " + personalityLabel : "") +
           (status ? ", " + status : "") + (isActive ? ", 행동 차례" : "")
         : "빈 자리";
@@ -1843,10 +1879,10 @@ window.TexasHoldem = (function () {
       ? (state.practiceMode ? "6-MAX · AI 연습 홀덤" : "6-MAX · 홀덤")
       : "6-MAX · " + (state.tournamentSpeed === "turbo" ? "터보" : "일반") + " 토너먼트";
     var modeDescription = state.practiceMode
-      ? "AI와 하는 연습용 임시 칩입니다. 보유 자산·테이블 자산에 반영되지 않아요."
+      ? "AI와 하는 연습용 임시 원화 자산입니다. 보유 자산·테이블 자산에 반영되지 않아요."
       : state.mode === "ring"
       ? "홀덤 자산에서 " + formatChips(state.startingStack) +
-        "을 바이인합니다. 퇴장하면 남은 테이블 칩이 자산으로 돌아오며, 블라인드는 " +
+        "을 바이인합니다. 퇴장하면 남은 테이블 금액이 자산으로 돌아오며, 블라인드는 " +
         formatChips(state.smallBlind) + "/" + formatChips(state.bigBlind) + "로 고정됩니다."
       : "전원 " + formatChips(state.startingStack) + "으로 시작하며 " +
         (state.tournamentSpeed === "turbo" ? "5분" : "10분") +
@@ -1910,7 +1946,7 @@ window.TexasHoldem = (function () {
     if (state.mode === "ring" && state.heroSeat >= 0 &&
         state.seats[state.heroSeat] && state.seats[state.heroSeat].stack <= 0) {
       return state.canRefill
-        ? "플레이 칩을 충전하면 다음 핸드에 참여할 수 있어요"
+        ? "원화 자산을 충전하면 다음 핸드에 참여할 수 있어요"
         : "오늘 사용할 수 있는 충전 횟수를 모두 사용했어요";
     }
     return "";
@@ -2050,10 +2086,10 @@ window.TexasHoldem = (function () {
     }
     if (needsRefill) {
       var refillStatus = state.practiceMode
-        ? "연습용 임시 칩 충전 · 자산에는 반영되지 않아요"
+        ? "연습용 임시 원화 자산 충전 · 자산에는 반영되지 않아요"
         : state.refillStatusKnown
         ? (state.refillsRemainingToday > 0
-          ? "오늘 " + state.refillsRemainingToday + "회 남음 · 무료 리필 칩도 퇴장 시 함께 정산돼요"
+          ? "오늘 " + state.refillsRemainingToday + "회 남음 · 무료 리필 금액도 퇴장 시 함께 정산돼요"
           : "오늘 충전 3회를 모두 사용했어요")
         : "하루 최대 " + (state.dailyRefillLimit || 3) + "회 충전할 수 있어요";
       setText("holdem-refill-status", refillStatus);
@@ -2130,6 +2166,7 @@ window.TexasHoldem = (function () {
     var stage = resultStage();
     var settling = !!(state.phase === "complete" && resultFlow &&
       Date.now() >= resultFlow.settleStart && Date.now() < resultFlow.settleEnd);
+    screen.classList.toggle("is-result-final-action", stage === "action");
     screen.classList.toggle("is-result-cards-first", stage === "cards");
     screen.classList.toggle("is-result-announced", stage === "announced");
     screen.classList.toggle("is-settling-pot", settling);
@@ -2154,7 +2191,7 @@ window.TexasHoldem = (function () {
     if (!box) return;
     if (hint) {
       hint.className = "players-hint";
-      hint.textContent = "홀덤 좌석과 현재 플레이 칩입니다. 한 테이블에는 최대 6명이 참가합니다.";
+      hint.textContent = "홀덤 좌석과 현재 보유 금액입니다. 한 테이블에는 최대 6명이 참가합니다.";
     }
     var byNick = Object.create(null);
     state.seats.forEach(function (seat, index) {
@@ -2191,7 +2228,7 @@ window.TexasHoldem = (function () {
     if (!screen) return;
     screen.dataset.phase = state.phase;
     screen.classList.toggle("is-playing", isHandActive(state.phase));
-    screen.classList.toggle("is-showdown", isBetweenHands(state.phase));
+    screen.classList.toggle("is-showdown", isBetweenHands(state.phase) && resultStage() !== "action");
     screen.classList.toggle("is-connected", connected);
     syncResultClasses();
     renderHeader();
@@ -2495,9 +2532,9 @@ window.TexasHoldem = (function () {
         '</ul></section>' +
         '<section class="cm-rule-section"><h3>2. 패 순위</h3><p>로열 플러시 · 스트레이트 플러시 · 포카드 · 풀하우스 · 플러시 · 스트레이트 · 트리플 · 투페어 · 원페어 · 하이카드 순입니다. 같은 조합이면 구성 카드의 높은 숫자를 차례로 비교합니다.</p></section>' +
         '<section class="cm-rule-section"><h3>3. 올인과 동률</h3><ul class="cm-rule-list">' +
-        '<li>칩이 부족한 참가자가 올인하면 참가 자격에 따라 메인 팟과 사이드 팟이 나뉩니다.</li>' +
+        '<li>보유 금액이 부족한 참가자가 올인하면 참가 자격에 따라 메인 팟과 사이드 팟이 나뉩니다.</li>' +
         '<li>숏 올인은 허용되지만 정상 최소 레이즈에 못 미치면 단독으로 베팅 권리를 다시 열지 않습니다. 여러 숏 올인의 누적액이 정상 레이즈 폭에 이르면 다시 레이즈할 수 있습니다.</li>' +
-        '<li>완전히 같은 패는 팟을 나누며, 나눌 수 없는 남는 칩은 규칙상 먼저 받을 위치의 참가자에게 갑니다.</li>' +
+        '<li>완전히 같은 패는 팟을 나누며, 나눌 수 없는 남는 금액은 규칙상 먼저 받을 위치의 참가자에게 갑니다.</li>' +
         '</ul></section>' +
         '<p class="cm-rule-muted">공개 알림에는 카드 정보가 포함되지 않으며, 내 홀 카드는 인증된 개인 스냅샷에서만 표시됩니다.</p>' +
         '</div>'
@@ -2542,6 +2579,7 @@ window.TexasHoldem = (function () {
         maxSeats: MAX_SEATS,
         pollMs: POLL_MS,
         clockMs: CLOCK_MS,
+        resultFinalActionMs: RESULT_FINAL_ACTION_MS,
         resultCardsFirstMs: RESULT_CARDS_FIRST_MS,
         resultBoardRevealStepMs: RESULT_BOARD_REVEAL_STEP_MS
       }

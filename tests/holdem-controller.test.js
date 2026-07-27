@@ -176,7 +176,8 @@ test("completed all-in boards reveal flop, turn, and river in order", () => {
   try {
     assert.equal(controller._test.applySnapshot(snapshot, 21), true);
     assert.equal(controller._test.resultBoardVisibleCount(), 3);
-    now += controller._test.constants.resultBoardRevealStepMs;
+    now += controller._test.constants.resultFinalActionMs +
+      controller._test.constants.resultBoardRevealStepMs;
     assert.equal(controller._test.resultBoardVisibleCount(), 4);
     now += controller._test.constants.resultBoardRevealStepMs;
     assert.equal(controller._test.resultBoardVisibleCount(), 5);
@@ -274,7 +275,9 @@ test("request ids and rendered cards stay bounded and accessible", () => {
   assert.match(requestId, /^[A-Za-z0-9._:-]{1,100}$/);
   assert.match(renderedAce, /aria-label="하트 A"/);
   assert.match(renderedAce, /data-rank="A"/);
+  assert.match(renderedAce, /holdem-card-rank-svg/);
   assert.match(renderedAce, /holdem-card-suit-svg/);
+  assert.doesNotMatch(renderedAce, />A<\/span>/);
   assert.match(controller._test.cardHtml(null, "back"), /aria-label="비공개 카드"/);
 });
 

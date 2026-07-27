@@ -1023,7 +1023,7 @@
         toast("홀덤 자산이 선택한 바이인보다 부족해요");
         loadHoldemWallet(true);
       } else if (claimed && claimed.reason === "invalid_buy_in") {
-        toast("바이인은 100칩 단위로 선택해주세요");
+        toast("바이인은 100원 단위로 선택해주세요");
       } else toast("방 생성 확인에 실패했어요. 잠시 후 다시 시도해주세요");
       return;
     }
@@ -5184,7 +5184,7 @@
     return selected;
   }
   function formatHoldemAsset(value) {
-    return Math.max(0, Math.floor(Number(value) || 0)).toLocaleString("ko-KR") + "칩";
+    return Math.max(0, Math.floor(Number(value) || 0)).toLocaleString("ko-KR") + "원";
   }
   function renderHoldemWalletControls(mode) {
     var availableBalance = holdemWalletProfile &&
@@ -5246,13 +5246,13 @@
     if ($("create-holdem-buyin-note")) {
       $("create-holdem-buyin-note").textContent = canBuyIn
         ? "모든 참가자가 " + Math.round(createHoldemBuyIn / HOLDEM_BIG_BLIND) +
-          "BB로 시작하고, 퇴장 시 남은 칩이 자산으로 돌아옵니다."
+          "BB로 시작하고, 퇴장 시 남은 금액이 자산으로 돌아옵니다."
         : "바이인에 필요한 홀덤 자산이 부족해요.";
     }
     if (mode === "ring" && $("create-holdem-rule-summary")) {
       $("create-holdem-rule-summary").textContent =
         "전원 " + formatHoldemAsset(canBuyIn ? createHoldemBuyIn : 0) +
-        " · SB 100 / BB 200 · 최대 6명";
+        " · SB 100원 / BB 200원 · 최대 6명";
     }
     var presetBox = $("create-holdem-buyin-presets");
     if (presetBox) {
@@ -5378,8 +5378,8 @@
     if ($("create-holdem-rule-summary")) {
       $("create-holdem-rule-summary").textContent = mode === "ring"
         ? "바이인 " + formatHoldemAsset(createHoldemBuyIn) +
-          " · SB 100 / BB 200 · 최대 6명"
-        : "시작 20,000칩 · 블라인드 100/200 · " +
+          " · SB 100원 / BB 200원 · 최대 6명"
+        : "시작 20,000원 · 블라인드 100원/200원 · " +
           (speed === "turbo" ? "5분" : "10분") +
           "마다 상승 · 마지막 1인 승리";
     }

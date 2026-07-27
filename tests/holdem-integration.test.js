@@ -186,7 +186,8 @@ test("the six-seat table exposes every required game control", () => {
     );
   }
   assert.match(styles, /\.holdem-card\.back/);
-  assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-size-auto:[\s\S]*var\(--holdem-card-width/);
+  assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-width-auto:[\s\S]*var\(--holdem-card-width/);
+  assert.match(styles, /\.holdem-card-rank svg,[\s\S]*\.holdem-card > \.rank svg\s*\{[\s\S]*fill: currentColor/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card\s*\{[\s\S]*transform: none/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*--holdem-card-width:\s*clamp\(16px,\s*4\.6vw,\s*24px\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*box-shadow:\s*inset 0 0 0 1px #ecede8/);
@@ -210,12 +211,12 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /class="holdem-seat-action /);
   assert.match(controller, /class="holdem-seat-turn-timer"/);
   assert.match(index, /AI 연습은 방에 혼자 있을 때만 사용할 수 있고/);
-  assert.match(index, /연습용 임시 칩으로 진행됩니다/);
+  assert.match(index, /연습용 임시 원화 자산으로 진행됩니다/);
   assert.match(controller, /practiceMode: mode === "ring" && botCount > 0 && !assetBacked/);
   assert.match(controller, /var humanCount = state\.seats\.filter/);
   assert.match(controller, /state\.canManageBots && humanCount === 1/);
-  assert.match(controller, /AI와 하는 연습용 임시 칩/);
-  assert.match(controller, /연습용 임시 칩 충전/);
+  assert.match(controller, /AI와 하는 연습용 임시 원화 자산/);
+  assert.match(controller, /연습용 임시 원화 자산 충전/);
   assert.match(styles, /\.holdem-seat-action\s*\{/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-action-summary \{ display: none; \}/);
@@ -236,6 +237,9 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(styles, /\.holdem-winner-result\s*\{/);
   assert.match(styles, /\.holdem-screen\.is-settling-pot \.holdem-seat\.is-winner \.holdem-seat-avatar/);
   assert.match(controller, /var RESULT_CARDS_FIRST_MS = 900/);
+  assert.match(controller, /var RESULT_FINAL_ACTION_MS = 1000/);
+  assert.match(controller, /function resultStage\(\)[\s\S]*resultFlow\.actionUntil[\s\S]*return "action"/);
+  assert.match(controller, /isBetweenHands\(state\.phase\) && resultStage\(\) !== "action"/);
   assert.match(controller, /var RESULT_BOARD_REVEAL_STEP_MS = 900/);
   assert.match(controller, /function resultBoardVisibleCount\(\)[\s\S]*resultFlow\.initialBoardCount/);
   assert.match(controller, /function animatedPotAmount\(\)/);
@@ -256,9 +260,9 @@ test("the browser sends only server commands and public refresh hints", () => {
   assert.match(controller, /invoke\("refill"/);
 });
 
-test("the rules and UI clearly identify play chips and standard no-limit play", () => {
+test("the rules and UI clearly identify KRW-unit assets and standard no-limit play", () => {
   assert.match(index, /6-MAX · NO LIMIT/);
-  assert.match(index, /실제 가치가 없는 플레이 칩/);
+  assert.match(index, /실제 현금 가치가 없는 원화 단위 게임 자산/);
   assert.match(index, /data-rules="holdem">텍사스 홀덤 규칙/);
   assert.match(controller, /Poker TDA|TDA/);
   assert.match(controller, /사이드\s*팟|사이드팟/);
