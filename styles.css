@@ -4180,6 +4180,11 @@ body.is-admin .feedback-user-compose { display: none; }
   top: 1px;
   transform: translate(-50%, -45%);
 }
+.holdem-seat:not(.is-me) .holdem-hole-cards.is-revealed-cards {
+  top: 0;
+  z-index: 24;
+  transform: translate(-50%, -72%);
+}
 .holdem-hole-cards .holdem-card {
   --holdem-card-width: clamp(38px, 10vw, 52px);
   --holdem-card-radius: 3px;
@@ -4193,12 +4198,13 @@ body.is-admin .feedback-user-compose { display: none; }
   border-color: #a8bdc0;
   box-shadow: inset 0 0 0 1px #ecede8, inset 0 0 0 2px #1f6470, 0 1px 3px rgba(0,0,0,.32);
 }
-.holdem-seat:not(.is-me) .holdem-hole-cards .holdem-card:not(.back):not(.empty) {
-  --holdem-card-width: clamp(23px, 6vw, 31px);
+.holdem-seat:not(.is-me) .holdem-hole-cards.is-revealed-cards .holdem-card:not(.back):not(.empty) {
+  --holdem-card-width: clamp(30px, 8vw, 42px);
+  --holdem-card-shadow: 0 3px 10px rgba(0,0,0,.42);
 }
 .holdem-hole-cards .holdem-card + .holdem-card { margin-left: -5px; }
 .holdem-seat:not(.is-me) .holdem-hole-cards .holdem-card.back + .holdem-card.back { margin-left: -10px; }
-.holdem-seat:not(.is-me) .holdem-hole-cards .holdem-card:not(.back):not(.empty) + .holdem-card:not(.back):not(.empty) { margin-left: -14px; }
+.holdem-seat:not(.is-me) .holdem-hole-cards.is-revealed-cards .holdem-card:not(.back):not(.empty) + .holdem-card:not(.back):not(.empty) { margin-left: -12px; }
 .holdem-seat.is-me .holdem-hole-cards .holdem-card + .holdem-card { margin-left: -14px; }
 .holdem-hole-cards .holdem-card:first-child {
   border-top-right-radius: 0;

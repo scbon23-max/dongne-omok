@@ -1915,10 +1915,13 @@ window.TexasHoldem = (function () {
       if (seat && seat.isBot) badges += '<span class="holdem-badge-ai">AI</span>';
 
       var holes = "";
+      var holesClass = "holdem-hole-cards";
       if (seat) {
         if (isMe && state.heroCards.length) {
+          holesClass += " is-visible-cards";
           holes = state.heroCards.map(function (card) { return cardHtml(card); }).join("");
         } else if (state.revealedCards[absolute] && state.revealedCards[absolute].length) {
+          holesClass += " is-visible-cards is-revealed-cards";
           holes = state.revealedCards[absolute].map(function (card) { return cardHtml(card); }).join("");
         } else {
           var count = seat.cardCount || (isHandActive(state.phase) && seat.inHand && !seat.folded ? 2 : 0);
@@ -1939,7 +1942,7 @@ window.TexasHoldem = (function () {
         '<article class="' + classes.join(" ") + '" data-seat="' + absolute +
         '" data-relative-seat="' + relative + '" aria-label="' + esc(label) + '"' +
         (!seat && !isHandActive(state.phase) ? ' role="button" tabindex="0"' : "") + '>' +
-          '<div class="holdem-hole-cards">' + holes + '</div>' +
+          '<div class="' + holesClass + '">' + holes + '</div>' +
           resultBadge +
           '<div class="holdem-seat-avatar" aria-hidden="true">' +
             (avatarSrc ? '<img src="' + esc(avatarSrc) + '" alt="">' : seat ? esc(initialFor(name)) :
