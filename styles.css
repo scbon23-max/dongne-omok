@@ -3609,7 +3609,7 @@ body.is-admin .feedback-user-compose { display: none; }
   display: grid;
   place-items: center;
   min-height: 0;
-  padding: 6px 8px 18px;
+  padding: 6px 8px 34px;
 }
 .holdem-table {
   position: relative;
@@ -3827,7 +3827,7 @@ body.is-admin .feedback-user-compose { display: none; }
   text-align: center;
   transition: opacity .18s ease, filter .18s ease;
 }
-.holdem-seat[data-relative-seat="0"] { top: 91%; left: 50%; }
+.holdem-seat[data-relative-seat="0"] { top: 98%; left: 50%; }
 .holdem-seat[data-relative-seat="1"] { top: 72%; left: -1%; }
 .holdem-seat[data-relative-seat="2"] { top: 29%; left: -1%; }
 .holdem-seat[data-relative-seat="3"] { top: 1%; left: 50%; }
@@ -4836,7 +4836,7 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-utility { gap: 3px; }
   .holdem-utility button { min-height: 31px; padding: 0 7px; font-size: 10px; }
   .holdem-connection { top: max(51px, calc(env(safe-area-inset-top) + 43px)); }
-  .holdem-table-wrap { inset: max(73px, calc(env(safe-area-inset-top) + 64px)) 0 max(49px, calc(env(safe-area-inset-bottom) + 45px)); }
+  .holdem-table-wrap { inset: max(73px, calc(env(safe-area-inset-top) + 64px)) 0 max(49px, calc(env(safe-area-inset-bottom) + 45px)); padding-bottom: 30px; }
   .holdem-table { width: min(75vw, 350px); border-width: 8px; }
   .holdem-seat { --holdem-seat-avatar-size: 39px; width: 80px; }
   .holdem-seat-avatar { width: 39px; height: 39px; border-width: 2px; }

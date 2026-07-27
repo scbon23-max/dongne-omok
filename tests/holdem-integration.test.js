@@ -194,6 +194,7 @@ test("the six-seat table exposes every required game control", () => {
       new RegExp(`\\.holdem-seat\\[data-relative-seat="${seat}"\\]`)
     );
   }
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{\s*top:\s*98%;\s*left:\s*50%;\s*\}/);
   assert.match(styles, /\.holdem-card\.back/);
   assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-width-auto:[\s\S]*var\(--holdem-card-width/);
   assert.match(styles, /\.holdem-card-rank svg,[\s\S]*\.holdem-card > \.rank svg\s*\{[\s\S]*fill: currentColor/);
