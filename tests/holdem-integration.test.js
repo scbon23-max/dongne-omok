@@ -193,11 +193,12 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-card\.back/);
   assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-width-auto:[\s\S]*var\(--holdem-card-width/);
   assert.match(styles, /\.holdem-card-rank svg,[\s\S]*\.holdem-card > \.rank svg\s*\{[\s\S]*fill: currentColor/);
-  assert.match(styles, /\.holdem-hole-cards \.holdem-card\s*\{[\s\S]*transform: none/);
+  assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\s*\{[\s\S]*top: 1px[\s\S]*translate\(-50%, -45%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*--holdem-card-width:\s*clamp\(16px,\s*4\.6vw,\s*24px\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*box-shadow:\s*inset 0 0 0 1px #ecede8/);
-  assert.match(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -1px; \}/);
-  assert.doesNotMatch(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ transform: rotate/);
+  assert.match(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -5px; \}/);
+  assert.match(styles, /\.holdem-hole-cards \.holdem-card:first-child\s*\{[\s\S]*rotate\(-7deg\)/);
+  assert.match(styles, /\.holdem-hole-cards \.holdem-card:last-child\s*\{[\s\S]*rotate\(7deg\)/);
   assert.match(controller, /class="holdem-seat-open-icon"/);
   assert.match(controller, /role="button" tabindex="0"/);
   assert.match(styles, /\.holdem-seat-open-icon\s*\{/);
