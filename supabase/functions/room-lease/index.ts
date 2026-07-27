@@ -10,7 +10,6 @@ const CHIP_UNIT = 100;
 const RING_MIN_BUY_IN = 10000;
 const RING_MAX_BUY_IN = 100000;
 const RING_DEFAULT_BUY_IN = 50000;
-const RING_BUY_IN_OPTIONS = new Set([10000, 50000, 100000]);
 const HOLDEM_TOURNAMENT_GAMES = new Set([
   "holdem",
   "holdem_tournament",
@@ -33,7 +32,6 @@ function ringBuyIn(value: unknown) {
   return Number.isSafeInteger(amount) &&
       amount >= RING_MIN_BUY_IN &&
       amount <= RING_MAX_BUY_IN &&
-      RING_BUY_IN_OPTIONS.has(amount) &&
       amount % CHIP_UNIT === 0
     ? amount
     : 0;
