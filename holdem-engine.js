@@ -541,6 +541,9 @@
         }
       }
     });
+    if (state.settings.mode === "ring" && botPlayers(state).length > 0) {
+      convertRingTableToPractice(state);
+    }
     state.nextBotSeq = nextBotSeq;
     state.actionHistory = Array.isArray(state.actionHistory)
       ? state.actionHistory.slice(-ACTION_HISTORY_LIMIT)

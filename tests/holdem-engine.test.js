@@ -1004,6 +1004,52 @@ test("AI practice ring tables use temporary chips and stay solo-only", () => {
   assert.equal(botWithGuest.reason, "bots_solo_only");
 });
 
+test("stale AI ring tables are forced back to practice before wallet changes", () => {
+  let state = Engine.createTable({
+    roomId: "stale-ai-practice-ring",
+    ownerNick: "owner",
+    mode: "ring",
+    assetBacked: true,
+    chipUnit: 100,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  });
+  let joined = Engine.command(state, {
+    type: "join",
+    nick: "owner",
+    requestId: "stale:join",
+  }, context(1));
+  assert.equal(joined.ok, true);
+  joined.state.walletAdjustments = [];
+
+  let botAdded = Engine.command(joined.state, {
+    type: "add_bot",
+    nick: "owner",
+    requestId: "stale:add-bot",
+  }, context(2));
+  assert.equal(botAdded.ok, true);
+  state = botAdded.state;
+  state.walletAdjustments = [];
+  state.settings.assetBacked = true;
+  state.settings.practice = false;
+
+  const left = Engine.command(state, {
+    type: "leave",
+    nick: "owner",
+    requestId: "stale:leave",
+  }, context(3));
+  assert.equal(left.ok, true, left.reason);
+  assert.equal(left.state.settings.assetBacked, false);
+  assert.equal(left.state.settings.practice, true);
+  assert.deepEqual(
+    left.state.walletAdjustments.map(({ nickname, delta, reason }) => ({ nickname, delta, reason })),
+    [{ nickname: "owner", delta: 20000, reason: "practice_refund" }],
+  );
+});
+
 test("ring tables switch to asset-backed chips only when a second human joins", () => {
   let state = Engine.createTable({
     roomId: "deferred-asset-ring",
