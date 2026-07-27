@@ -6,7 +6,7 @@
  * Screen/root: #holdemgame, #holdem-stage
  * Readouts: #holdem-status, #holdem-connection, #holdem-phase,
  *   #holdem-blinds, #holdem-hand-number, #holdem-pot,
- *   #holdem-pot-amount, #holdem-side-pots, #holdem-board,
+ *   #holdem-pot-amount, #holdem-board,
  *   #holdem-seats, #holdem-announcer, #holdem-people-count
  * Waiting UI: #holdem-lobby, #holdem-lobby-title,
  *   #holdem-lobby-roster, #holdem-ready-btn, #holdem-start-btn,
@@ -1896,11 +1896,6 @@ window.TexasHoldem = (function () {
       (state.mode === "tournament" ? " · LV " + (state.blindLevel + 1) : ""));
     setText("holdem-hand-number", "HAND " + (state.handNumber || state.handId || 0));
     setText("holdem-pot-amount", formatChips(animatedPotAmount()));
-    setText("holdem-side-pots", state.sidePots.length
-      ? state.sidePots.map(function (amount, index) {
-          return "사이드 " + (index + 1) + " " + formatChips(amount);
-        }).join(" · ")
-      : "");
     var occupied = state.seats.filter(Boolean).length;
     var roster = api && typeof api.roster === "function" ? api.roster() : [];
     setText("holdem-people-count", Math.max(occupied, Array.isArray(roster) ? roster.length : 0));
