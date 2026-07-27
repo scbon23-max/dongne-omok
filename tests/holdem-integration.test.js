@@ -207,6 +207,7 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /id === "holdem-raise-btn"[\s\S]*raiseMenuOpen = true[\s\S]*renderControls\(\)/);
   assert.match(controller, /function quickBet\(kind\)[\s\S]*performSizedMove\(raiseValue\)/);
   assert.match(controller, /function seatActionLabel\(seat\)[\s\S]*레이즈/);
+  assert.match(controller, /class="holdem-seat-action /);
   assert.match(controller, /class="holdem-seat-turn-timer"/);
   assert.match(styles, /\.holdem-seat-action\s*\{/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);

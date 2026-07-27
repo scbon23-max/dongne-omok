@@ -1683,6 +1683,8 @@ window.TexasHoldem = (function () {
 
       var name = seat ? (seat.displayName || seat.nick) : "";
       var status = seat ? seatStatus(seat) : "";
+      var actionLabel = seatActionLabel(seat);
+      var actionClass = seatActionClass(seat);
       var personalityLabel = seat && seat.isBot
         ? botPersonalityLabel(seat.botPersonality)
         : "";
@@ -1736,6 +1738,7 @@ window.TexasHoldem = (function () {
           (isActive && state.deadlineAt
             ? '<span class="holdem-seat-turn-timer" data-holdem-seat-timer="' + absolute + '"></span>'
             : "") +
+          (actionLabel ? '<span class="holdem-seat-action ' + esc(actionClass) + '">' + esc(actionLabel) + '</span>' : "") +
         '</article>'
       );
     }
