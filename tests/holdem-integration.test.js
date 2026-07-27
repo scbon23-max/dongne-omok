@@ -206,6 +206,8 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-card\.back/);
   assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-width-auto:[\s\S]*var\(--holdem-card-width/);
   assert.match(styles, /\.holdem-card-rank svg,[\s\S]*\.holdem-card > \.rank svg\s*\{[\s\S]*fill: currentColor/);
+  assert.match(controller, /"10": \{ viewBox: "7\.15 36\.26 115\.14 76\.02"/);
+  assert.match(controller, /M62\.8 73\.97 C62\.8 60\.37/);
   assert.match(styles, /\.holdem-board\s*\{[\s\S]*gap:\s*clamp\(3px,\s*\.8vw,\s*5px\)/);
   assert.match(styles, /\.holdem-board \.holdem-card\s*\{[\s\S]*--holdem-card-width:\s*clamp\(38px,\s*10vw,\s*52px\)/);
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-style:\s*dashed/);
