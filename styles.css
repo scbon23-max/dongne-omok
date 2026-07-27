@@ -3686,7 +3686,7 @@ body.is-admin .feedback-user-compose { display: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0;
+  gap: clamp(3px, .8vw, 5px);
   min-height: clamp(67px, 18vw, 112px);
   transform: translateX(-50%);
 }
@@ -3787,10 +3787,18 @@ body.is-admin .feedback-user-compose { display: none; }
   --holdem-card-radius: 0;
   border-color: #dfe2e3;
 }
+.holdem-board .holdem-card {
+  --holdem-card-width: clamp(38px, 10vw, 52px);
+  --holdem-card-radius: 3px;
+  --holdem-card-shadow: 0 1px 4px rgba(0,0,0,.24);
+}
 .holdem-board .holdem-card + .holdem-card,
 .holdem-result-board .holdem-card + .holdem-card,
 .holdem-result-cards .holdem-card + .holdem-card {
   margin-left: -1px;
+}
+.holdem-board .holdem-card + .holdem-card {
+  margin-left: 0;
 }
 .holdem-board .holdem-card:first-child,
 .holdem-result-board .holdem-card:first-child,
