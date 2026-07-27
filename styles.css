@@ -3655,7 +3655,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-board {
   position: absolute;
   z-index: 8;
-  top: 54%;
+  top: 66%;
   left: 50%;
   display: flex;
   align-items: center;
@@ -3806,11 +3806,11 @@ body.is-admin .feedback-user-compose { display: none; }
   transition: opacity .18s ease, filter .18s ease;
 }
 .holdem-seat[data-relative-seat="0"] { top: 98%; left: 50%; }
-.holdem-seat[data-relative-seat="1"] { top: 72%; left: -1%; }
-.holdem-seat[data-relative-seat="2"] { top: 29%; left: -1%; }
+.holdem-seat[data-relative-seat="1"] { top: 57%; left: -1%; }
+.holdem-seat[data-relative-seat="2"] { top: 25%; left: -1%; }
 .holdem-seat[data-relative-seat="3"] { top: 1%; left: 50%; }
-.holdem-seat[data-relative-seat="4"] { top: 29%; left: 101%; }
-.holdem-seat[data-relative-seat="5"] { top: 72%; left: 101%; }
+.holdem-seat[data-relative-seat="4"] { top: 25%; left: 101%; }
+.holdem-seat[data-relative-seat="5"] { top: 57%; left: 101%; }
 .holdem-seat-avatar {
   position: relative;
   width: var(--holdem-seat-avatar-size);
@@ -4836,14 +4836,14 @@ body.is-admin .feedback-user-compose { display: none; }
     border-radius: 48% / 46%;
   }
   .holdem-seat[data-relative-seat="0"] { top: 98%; left: 50%; }
-  .holdem-seat[data-relative-seat="1"] { top: 77%; left: 4%; }
-  .holdem-seat[data-relative-seat="2"] { top: 18%; left: 17%; }
+  .holdem-seat[data-relative-seat="1"] { top: 58%; left: 4%; }
+  .holdem-seat[data-relative-seat="2"] { top: 22%; left: 17%; }
   .holdem-seat[data-relative-seat="3"] { top: 0; left: 50%; }
-  .holdem-seat[data-relative-seat="4"] { top: 18%; left: 83%; }
-  .holdem-seat[data-relative-seat="5"] { top: 77%; left: 96%; }
+  .holdem-seat[data-relative-seat="4"] { top: 22%; left: 83%; }
+  .holdem-seat[data-relative-seat="5"] { top: 58%; left: 96%; }
   .holdem-table-info { top: 27%; }
   .holdem-pot { top: 42%; }
-  .holdem-board { top: 57%; }
+  .holdem-board { top: 68%; }
   .holdem-lobby-panel { width: 390px; }
   .holdem-action-panel { right: 50%; left: auto; width: 720px; transform: translateX(50%); }
   .holdem-chat-row { right: 50%; left: auto; width: 720px; transform: translateX(50%); }
