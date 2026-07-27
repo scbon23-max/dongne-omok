@@ -2010,7 +2010,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .holdem-hand-strength {
   position: relative;
-  min-height: 620px;
+  min-height: 1120px;
   border-left: 7px solid #9ad6cd;
 }
 .holdem-hand-strength::before {
@@ -2035,17 +2035,17 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .holdem-hand-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .holdem-hand-row {
   display: grid;
-  grid-template-columns: 22px auto minmax(160px, 1fr);
-  align-items: center;
-  gap: 10px;
-  min-height: 58px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: start;
+  gap: 5px 10px;
+  min-height: 108px;
 }
 .holdem-hand-order {
   display: grid;
@@ -2060,6 +2060,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .holdem-hand-example {
   --holdem-card-width: clamp(31px, 7vw, 44px);
+  grid-column: 2;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -2077,6 +2078,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.54), 0 1px 2px rgba(0,0,0,.12);
 }
 .holdem-hand-copy {
+  grid-column: 2;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -2099,13 +2101,13 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   .holdem-hand-rankings-head { flex-direction: column; gap: 3px; margin-bottom: 10px; }
   .holdem-hand-rankings-head strong { font-size: 20px; }
   .holdem-hand-rankings-body { grid-template-columns: 14px minmax(0, 1fr); gap: 7px; }
-  .holdem-hand-strength { min-height: 720px; border-left-width: 5px; }
+  .holdem-hand-strength { min-height: 1050px; border-left-width: 5px; }
   .holdem-hand-strength::before { left: -12px; border-right-width: 9px; border-left-width: 9px; border-bottom-width: 20px; }
   .holdem-hand-strength span { left: -16px; font-size: 10px; }
   .holdem-hand-row {
     grid-template-columns: 20px minmax(0, 1fr);
-    gap: 6px 8px;
-    min-height: 66px;
+    gap: 5px 8px;
+    min-height: 104px;
   }
   .holdem-hand-order { width: 20px; height: 20px; font-size: 10px; }
   .holdem-hand-example {
@@ -3804,6 +3806,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-seats { position: absolute; inset: 0; z-index: 12; pointer-events: none; }
 .holdem-seat {
+  --holdem-seat-avatar-size: clamp(42px, 12vw, 60px);
   position: absolute;
   z-index: 15;
   width: clamp(88px, 26vw, 132px);
@@ -3824,8 +3827,8 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat[data-relative-seat="5"] { top: 72%; left: 101%; }
 .holdem-seat-avatar {
   position: relative;
-  width: clamp(42px, 12vw, 60px);
-  height: clamp(42px, 12vw, 60px);
+  width: var(--holdem-seat-avatar-size);
+  height: var(--holdem-seat-avatar-size);
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -3963,10 +3966,11 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-seat-action {
   position: absolute;
-  top: calc(50% - 39px);
+  top: calc(var(--holdem-seat-avatar-size) / 2);
   left: 50%;
   z-index: 4;
-  max-width: 118px;
+  max-width: 124px;
+  min-width: 50px;
   padding: 4px 9px;
   overflow: hidden;
   border: 1px solid rgba(242,199,125,.7);
@@ -3978,9 +3982,19 @@ body.is-admin .feedback-user-compose { display: none; }
   line-height: 1.05;
   text-overflow: ellipsis;
   text-shadow: 0 1px 2px rgba(0,0,0,.7);
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   white-space: nowrap;
   box-shadow: 0 4px 12px rgba(0,0,0,.48);
+}
+.holdem-seat-action-main,
+.holdem-seat-action-amount {
+  display: block;
+}
+.holdem-seat-action-amount {
+  margin-top: 2px;
+  color: #ffe2be;
+  font-size: .86em;
+  line-height: 1;
 }
 .holdem-seat-action.action-fold {
   border-color: rgba(172,187,193,.72);
@@ -4170,6 +4184,9 @@ body.is-admin .feedback-user-compose { display: none; }
   --holdem-card-radius: 2px;
   border-color: #a8bdc0;
   box-shadow: inset 0 0 0 1px #ecede8, inset 0 0 0 2px #1f6470, 0 1px 3px rgba(0,0,0,.32);
+}
+.holdem-seat:not(.is-me) .holdem-hole-cards .holdem-card:not(.back):not(.empty) {
+  --holdem-card-width: clamp(23px, 6vw, 31px);
 }
 .holdem-hole-cards .holdem-card + .holdem-card { margin-left: -5px; }
 .holdem-seat.is-me .holdem-hole-cards .holdem-card + .holdem-card { margin-left: -14px; }
@@ -4805,7 +4822,7 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-connection { top: max(51px, calc(env(safe-area-inset-top) + 43px)); }
   .holdem-table-wrap { inset: max(73px, calc(env(safe-area-inset-top) + 64px)) 0 max(49px, calc(env(safe-area-inset-bottom) + 45px)); }
   .holdem-table { width: min(75vw, 350px); border-width: 8px; }
-  .holdem-seat { width: 80px; }
+  .holdem-seat { --holdem-seat-avatar-size: 39px; width: 80px; }
   .holdem-seat-avatar { width: 39px; height: 39px; border-width: 2px; }
   .holdem-seat[data-relative-seat="1"],
   .holdem-seat[data-relative-seat="2"] { left: 0; }

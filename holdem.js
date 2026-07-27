@@ -1707,7 +1707,7 @@ window.TexasHoldem = (function () {
         cards: [["9", "h"], ["8", "s"], ["7", "d"], ["6", "c"], ["5", "d"]]
       },
       {
-        name: "쓰리 오브 어 카인드",
+        name: "트리플",
         desc: "같은 숫자 3장",
         cards: [["J", "h"], ["J", "d"], ["J", "c"], null, null]
       },
@@ -1737,8 +1737,8 @@ window.TexasHoldem = (function () {
     hands.forEach(function (hand, index) {
       html += '<li class="holdem-hand-row">' +
         '<span class="holdem-hand-order">' + (index + 1) + '</span>' +
-        '<div class="holdem-hand-example" aria-hidden="true">' + handRankExample(hand.cards) + '</div>' +
         '<div class="holdem-hand-copy"><strong>' + esc(hand.name) + '</strong><span>' + esc(hand.desc) + '</span></div>' +
+        '<div class="holdem-hand-example" aria-hidden="true">' + handRankExample(hand.cards) + '</div>' +
         '</li>';
     });
     html += '</ol></div></div>';
@@ -1784,6 +1784,24 @@ window.TexasHoldem = (function () {
       big_blind: "BB " + formatChips(seat.bet || state.bigBlind)
     };
     return labels[seat.lastAction] || "";
+  }
+
+  function seatActionAmountLabel(seat) {
+    if (!seat || (seat.lastAction !== "bet" && seat.lastAction !== "raise")) return "";
+    return seat.bet > 0 ? formatChips(seat.bet) : "";
+  }
+
+  function seatActionHtml(seat) {
+    var label = seatActionLabel(seat);
+    var amount = seatActionAmountLabel(seat);
+    if (!label) return "";
+    if (!amount) return esc(label);
+    var suffix = " " + amount;
+    var main = label.slice(-suffix.length) === suffix
+      ? label.slice(0, -suffix.length)
+      : label;
+    return '<span class="holdem-seat-action-main">' + esc(main) + '</span>' +
+      '<span class="holdem-seat-action-amount">' + esc(amount) + '</span>';
   }
 
   function seatActionClass(seat) {
@@ -1876,6 +1894,7 @@ window.TexasHoldem = (function () {
       var name = seat ? (seat.displayName || seat.nick) : "";
       var status = seat ? seatStatus(seat) : "";
       var actionLabel = seatActionLabel(seat);
+      var actionHtml = seatActionHtml(seat);
       var actionClass = seatActionClass(seat);
       var personalityLabel = seat && seat.isBot
         ? botPersonalityLabel(seat.botPersonality)
@@ -1932,7 +1951,7 @@ window.TexasHoldem = (function () {
           (isActive && state.deadlineAt
             ? '<span class="holdem-seat-turn-timer" data-holdem-seat-timer="' + absolute + '"></span>'
             : "") +
-          (actionLabel ? '<span class="holdem-seat-action ' + esc(actionClass) + '">' + esc(actionLabel) + '</span>' : "") +
+          (actionLabel ? '<span class="holdem-seat-action ' + esc(actionClass) + '">' + actionHtml + '</span>' : "") +
         '</article>'
       );
     }
@@ -2707,7 +2726,7 @@ window.TexasHoldem = (function () {
         '<li>프리플랍 → 플랍 3장 → 턴 1장 → 리버 1장 순서로 공개되며 각 단계마다 베팅합니다.</li>' +
         '<li>가능한 액션은 폴드, 체크, 콜, 벳, 레이즈, 올인입니다. 서버가 현재 가능한 액션과 최소 금액을 검증합니다.</li>' +
         '</ul></section>' +
-        '<section class="cm-rule-section"><h3>2. 패 순위</h3><p>로열 스트레이트 플러시 · 스트레이트 플러시 · 포카드 · 풀하우스 · 플러시 · 스트레이트 · 쓰리 오브 어 카인드 · 투 페어 · 원 페어 · 하이 카드 순입니다. 같은 조합이면 구성 카드의 높은 숫자를 차례로 비교합니다.</p></section>' +
+        '<section class="cm-rule-section"><h3>2. 패 순위</h3><p>로열 스트레이트 플러시 · 스트레이트 플러시 · 포카드 · 풀하우스 · 플러시 · 스트레이트 · 트리플 · 투 페어 · 원 페어 · 하이 카드 순입니다. 같은 조합이면 구성 카드의 높은 숫자를 차례로 비교합니다.</p></section>' +
         '<section class="cm-rule-section"><h3>3. 올인과 동률</h3><ul class="cm-rule-list">' +
         '<li>보유 금액이 부족한 참가자가 올인하면 참가 자격에 따라 메인 팟과 사이드 팟이 나뉩니다.</li>' +
         '<li>숏 올인은 허용되지만 정상 최소 레이즈에 못 미치면 단독으로 베팅 권리를 다시 열지 않습니다. 여러 숏 올인의 누적액이 정상 레이즈 폭에 이르면 다시 레이즈할 수 있습니다.</li>' +
