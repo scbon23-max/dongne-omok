@@ -1912,7 +1912,6 @@ window.TexasHoldem = (function () {
       if (absolute === state.dealerSeat) badges += "<span>D</span>";
       if (absolute === state.smallBlindSeat) badges += "<span>SB</span>";
       if (absolute === state.bigBlindSeat) badges += "<span>BB</span>";
-      if (seat && seat.isBot) badges += '<span class="holdem-badge-ai">AI</span>';
 
       var holes = "";
       var holesClass = "holdem-hole-cards";
