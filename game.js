@@ -512,12 +512,12 @@
   var HOLDEM_CHIP_UNIT = 100;
   var HOLDEM_INITIAL_ASSETS = 100000;
   var HOLDEM_MIN_BUY_IN = 10000;
-  var HOLDEM_MAX_BUY_IN = 100000;
-  var HOLDEM_DEFAULT_BUY_IN = 50000;
+  var HOLDEM_MAX_BUY_IN = 40000;
+  var HOLDEM_DEFAULT_BUY_IN = 30000;
   var HOLDEM_BUY_IN_OPTIONS = [
     { amount: 10000, title: "라이트", minBuyIn: 10000, maxBuyIn: 20000, smallBlind: 100, bigBlind: 200 },
-    { amount: 50000, title: "스탠다드", minBuyIn: 30000, maxBuyIn: 50000, smallBlind: 300, bigBlind: 600 },
-    { amount: 100000, title: "하이롤러", minBuyIn: 50000, maxBuyIn: 100000, smallBlind: 500, bigBlind: 1000 }
+    { amount: 30000, title: "스탠다드", minBuyIn: 20000, maxBuyIn: 30000, smallBlind: 200, bigBlind: 400 },
+    { amount: 40000, title: "하이롤러", minBuyIn: 30000, maxBuyIn: 40000, smallBlind: 300, bigBlind: 600 }
   ];
   var roomLease = null, roomLeaseTimer = null, roomCreatePending = false, roomLeaseRestorePending = false;
   var holdemWalletProfile = null, holdemWalletPending = false;
@@ -1057,7 +1057,7 @@
         toast("홀덤 자산이 선택한 바이인보다 부족해요");
         loadHoldemWallet(true);
       } else if (claimed && claimed.reason === "invalid_buy_in") {
-        toast("바이인은 100원 단위로 선택해주세요");
+        toast("현재 가능한 참가비용 범위로 다시 선택해주세요");
       } else toast("방 생성 확인에 실패했어요. 잠시 후 다시 시도해주세요");
       return;
     }

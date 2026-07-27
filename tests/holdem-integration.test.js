@@ -71,10 +71,10 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.match(index, /data-holdem-speed="normal"/);
   assert.match(index, /data-holdem-speed="turbo"/);
   assert.match(index, /id="create-holdem-speed-group"[^>]*hidden/);
-  assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*max="100000"[^>]*step="100"/);
-  assert.match(index, /data-holdem-buyin="10000"[\s\S]*data-holdem-buyin="50000"[\s\S]*data-holdem-buyin="100000"/);
+  assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*max="40000"[^>]*step="100"/);
+  assert.match(index, /data-holdem-buyin="10000"[\s\S]*data-holdem-buyin="30000"[\s\S]*data-holdem-buyin="40000"/);
   assert.match(index, /참가비용 범위/);
-  assert.match(index, /10,000원~20,000원[\s\S]*30,000원~50,000원[\s\S]*50,000원~100,000원/);
+  assert.match(index, /10,000원~20,000원[\s\S]*20,000원~30,000원[\s\S]*30,000원~40,000원/);
   assert.match(index, /<strong>홀덤<\/strong>/);
   assert.doesNotMatch(index, /id="create-holdem-summary-name"/);
   assert.doesNotMatch(index, /create-holdem-head-title/);
@@ -82,9 +82,10 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.match(holdemCreateStep, /create-holdem-wallet create-holdem-wallet-full/);
   assert.match(game, /renderCreateHoldemMode\("ring", "normal"\)/);
   assert.match(game, /HOLDEM_INITIAL_ASSETS = 100000/);
-  assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 50000/);
-  assert.match(game, /HOLDEM_BUY_IN_OPTIONS = \[[\s\S]*minBuyIn: 10000[\s\S]*maxBuyIn: 20000[\s\S]*minBuyIn: 30000[\s\S]*maxBuyIn: 50000[\s\S]*minBuyIn: 50000[\s\S]*maxBuyIn: 100000/);
+  assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 30000/);
+  assert.match(game, /HOLDEM_BUY_IN_OPTIONS = \[[\s\S]*minBuyIn: 10000[\s\S]*maxBuyIn: 20000[\s\S]*minBuyIn: 20000[\s\S]*maxBuyIn: 30000[\s\S]*minBuyIn: 30000[\s\S]*maxBuyIn: 40000/);
   assert.match(game, /smallBlind: 100[\s\S]*bigBlind: 200/);
+  assert.match(game, /smallBlind: 200[\s\S]*bigBlind: 400/);
   assert.match(game, /smallBlind: 300[\s\S]*bigBlind: 600/);
   assert.doesNotMatch(game, /smallBlind: 50(?!0)|smallBlind: 250/);
   assert.doesNotMatch(index, /SB 50(?!0)|SB 250/);
