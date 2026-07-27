@@ -715,10 +715,52 @@ test("normal and turbo tournaments raise blinds on their server-timed schedules"
   assert.equal(turbo.settings.bigBlind, 150);
 });
 
+test("100-chip tournaments use distinct whole-chip blind levels", () => {
+  const names = ["owner", "guest"];
+  const startAt = 1_800_000_000_000;
+  let state = tableWithPlayers(names, {
+    mode: "tournament",
+    tournamentSpeed: "turbo",
+    chipUnit: 100,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+  });
+  state = readyAndStart(state, names, startAt);
+  let actor = state.seats[state.actorSeat];
+  state = apply(state, {
+    type: "act",
+    nick: actor.nick,
+    action: "fold",
+  }, startAt + 1);
+  state = apply(state, {
+    type: "start",
+    nick: names[0],
+  }, startAt + 5 * 60 * 1000 + names.length + 1);
+  assert.equal(state.blindLevel, 1);
+  assert.equal(state.settings.smallBlind, 200);
+  assert.equal(state.settings.bigBlind, 400);
+
+  actor = state.seats[state.actorSeat];
+  state = apply(state, {
+    type: "act",
+    nick: actor.nick,
+    action: "fold",
+  }, startAt + 5 * 60 * 1000 + 2);
+  state = apply(state, {
+    type: "start",
+    nick: names[0],
+  }, startAt + 10 * 60 * 1000 + names.length + 1);
+  assert.equal(state.blindLevel, 2);
+  assert.equal(state.settings.smallBlind, 300);
+  assert.equal(state.settings.bigBlind, 600);
+});
+
 test("ring games keep one blind level, fixed entry chips, and server-only bust refills", () => {
   const names = ["owner", "guest"];
   let state = tableWithPlayers(names, {
     mode: "ring",
+    assetBacked: true,
     startingStack: 10000,
     smallBlind: 50,
     bigBlind: 100,
@@ -780,5 +822,124 @@ test("ring games keep one blind level, fixed entry chips, and server-only bust r
     seat: bustedSeat,
     requestId: "join:busted",
   }, 1005);
-  assert.equal(rejoinState.seats[bustedSeat].stack, 0, "rejoining cannot bypass refill");
+  assert.equal(rejoinState.seats[bustedSeat].stack, 10000);
+  assert.deepEqual(
+    rejoinState.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    [{ nickname: bustedNick, delta: -10000 }],
+    "rejoining uses a new asset-backed buy-in rather than a free refill",
+  );
+});
+
+test("100-chip ring tables debit buy-ins, cash out exits, and reject odd bet sizes", () => {
+  const options = {
+    mode: "ring",
+    assetBacked: true,
+    chipUnit: 100,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  };
+  let state = Engine.createTable({
+    roomId: "wallet-ring",
+    ownerNick: "owner",
+    ...options,
+  });
+  let joined = Engine.command(state, {
+    type: "join",
+    nick: "owner",
+    requestId: "wallet:join",
+  }, context(1));
+  assert.equal(joined.ok, true);
+  assert.equal(joined.state.economyVersion, 2);
+  assert.equal(joined.state.settings.chipUnit, 100);
+  assert.equal(joined.state.settings.smallBlind, 100);
+  assert.equal(joined.state.settings.bigBlind, 200);
+  assert.deepEqual(
+    joined.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    [{ nickname: "owner", delta: -20000 }],
+  );
+
+  const left = Engine.command(joined.state, {
+    type: "leave",
+    nick: "owner",
+    requestId: "wallet:leave",
+  }, context(2));
+  assert.equal(left.ok, true);
+  assert.deepEqual(
+    left.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    [{ nickname: "owner", delta: 20000 }],
+  );
+
+  state = tableWithPlayers(["owner", "guest"], options);
+  state = readyAndStart(state, ["owner", "guest"], 1000);
+  const actor = state.seats[state.actorSeat];
+  const legal = Engine.legalActions(state, actor.nick);
+  assert.equal(legal.step, 100);
+  const oddRaise = Engine.command(state, {
+    type: "act",
+    nick: actor.nick,
+    action: "raise",
+    amount: 450,
+    requestId: "wallet:odd-raise",
+  }, context(1001));
+  assert.equal(oddRaise.ok, false);
+  assert.equal(oddRaise.reason, "chip_unit");
+});
+
+test("a 200 BB ring room keeps the free bust refill at 20,000 chips", () => {
+  let state = tableWithPlayers(["owner", "guest"], {
+    mode: "ring",
+    assetBacked: true,
+    chipUnit: 100,
+    startingStack: 40000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  });
+  state.seats[0].stack = 0;
+  state.ringStacks.owner = 0;
+  const refill = Engine.command(state, {
+    type: "refill",
+    nick: "owner",
+    requestId: "wallet:fixed-refill",
+  }, {
+    now: 10,
+    randomInt: () => 0,
+    internalRefill: true,
+  });
+  assert.equal(refill.ok, true);
+  assert.equal(refill.state.settings.startingStack, 40000);
+  assert.equal(refill.state.settings.refillAmount, 20000);
+  assert.equal(refill.state.seats[0].stack, 20000);
+});
+
+test("legacy ring tables do not mint wallet credits during the asset migration", () => {
+  let state = Engine.createTable({
+    roomId: "legacy-ring",
+    ownerNick: "owner",
+    mode: "ring",
+    chipUnit: 100,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+  });
+  const joined = Engine.command(state, {
+    type: "join",
+    nick: "owner",
+    requestId: "legacy:join",
+  }, context(1));
+  assert.equal(joined.ok, true);
+  assert.equal(joined.state.settings.assetBacked, false);
+  assert.deepEqual(joined.state.walletAdjustments, []);
+
+  const left = Engine.command(joined.state, {
+    type: "leave",
+    nick: "owner",
+    requestId: "legacy:leave",
+  }, context(2));
+  assert.equal(left.ok, true);
+  assert.deepEqual(left.state.walletAdjustments, []);
 });

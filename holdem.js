@@ -238,6 +238,8 @@ window.TexasHoldem = (function () {
       handNumber: 0,
       mode: "tournament",
       tournamentSpeed: "normal",
+      chipUnit: 100,
+      startingStack: 20000,
       blindLevel: 0,
       nextBlindAt: 0,
       seats: seats,
@@ -263,7 +265,7 @@ window.TexasHoldem = (function () {
       minBet: 0,
       minRaise: 0,
       maxRaise: 0,
-      raiseStep: 1,
+      raiseStep: 100,
       heroReady: false,
       canReady: false,
       canStart: false,
@@ -680,6 +682,18 @@ window.TexasHoldem = (function () {
       handNumber: Math.max(0, integer(firstDefined(table.handNumber, table.handNo, table.hand), 0)),
       mode: mode,
       tournamentSpeed: tournamentSpeed,
+      chipUnit: Math.max(1, integer(firstDefined(
+        settings.chipUnit,
+        actionInfo.step,
+        actionInfo.raiseStep,
+        100
+      ), 100)),
+      startingStack: nonnegative(firstDefined(
+        settings.startingStack,
+        table.startingStack,
+        raw.startingStack,
+        20000
+      ), 20000),
       blindLevel: Math.max(0, integer(firstDefined(table.blindLevel, raw.blindLevel), 0)),
       nextBlindAt: toTimestamp(firstDefined(table.nextBlindAt, raw.nextBlindAt)),
       seats: seats,
@@ -753,10 +767,11 @@ window.TexasHoldem = (function () {
       raiseStep: Math.max(1, integer(firstDefined(
         actionInfo.step,
         actionInfo.raiseStep,
+        settings.chipUnit,
         table.bigBlind,
         table.blinds && table.blinds.big,
-        1
-      ), 1)),
+        100
+      ), 100)),
       heroReady: !!(hero && hero.ready),
       canReady: bool(canReadyValue, phase === "waiting" && !!hero),
       canStart: bool(canStartValue, false),
@@ -953,7 +968,13 @@ window.TexasHoldem = (function () {
         roomId: roomId() || "demo",
         ownerNick: person.nick || "나",
         mode: demoGame === "holdem_ring" ? "ring" : "tournament",
-        tournamentSpeed: demoGame === "holdem_turbo" ? "turbo" : "normal"
+        tournamentSpeed: demoGame === "holdem_turbo" ? "turbo" : "normal",
+        chipUnit: 100,
+        startingStack: 20000,
+        smallBlind: 100,
+        bigBlind: 200,
+        refillAmount: 20000,
+        dailyRefillLimit: demoGame === "holdem_ring" ? 3 : 0
       });
       demoVersion = 0;
     }
@@ -1042,6 +1063,7 @@ window.TexasHoldem = (function () {
       turn: "지금은 내 차례가 아니에요.",
       illegal_action: "현재 선택할 수 없는 액션이에요.",
       amount: "베팅 금액을 확인해 주세요.",
+      chip_unit: "베팅 금액은 100칩 단위로 선택해 주세요.",
       minimum_bet: "최소 베팅 금액 이상을 선택해 주세요.",
       minimum_raise: "최소 레이즈 금액 이상을 선택해 주세요.",
       raise_not_reopened: "숏 올인만으로는 아직 레이즈 권리가 다시 열리지 않았어요.",
@@ -1059,6 +1081,7 @@ window.TexasHoldem = (function () {
       ring_only: "자산안심 링게임에서만 충전할 수 있어요.",
       refill_not_needed: "보유한 플레이 칩이 남아 있어요.",
       refill_limit: "오늘 사용할 수 있는 충전 3회를 모두 사용했어요.",
+      wallet_insufficient: "홀덤 자산이 이 방의 바이인보다 부족해요.",
       stale: "상태가 바뀌어 새로 불러왔어요."
     };
     return messages[text(reason, 80)] || text(fallback, 140) || "요청을 처리하지 못했어요.";
@@ -1815,8 +1838,10 @@ window.TexasHoldem = (function () {
       ? "6-MAX · 자산안심 링게임"
       : "6-MAX · " + (state.tournamentSpeed === "turbo" ? "터보" : "일반") + " 토너먼트";
     var modeDescription = state.mode === "ring"
-      ? "계정 보유 자산에는 영향이 없는 방 전용 플레이 칩입니다. 전원 10,000칩으로 시작하고 블라인드는 50/100으로 고정됩니다."
-      : "전원 10,000칩으로 시작하며 " +
+      ? "홀덤 자산에서 " + formatChips(state.startingStack) +
+        "을 바이인합니다. 퇴장하면 남은 테이블 칩이 자산으로 돌아오며, 블라인드는 " +
+        formatChips(state.smallBlind) + "/" + formatChips(state.bigBlind) + "로 고정됩니다."
+      : "전원 " + formatChips(state.startingStack) + "으로 시작하며 " +
         (state.tournamentSpeed === "turbo" ? "5분" : "10분") +
         "마다 블라인드가 올라갑니다. 마지막 한 명이 남으면 우승합니다.";
     setText("holdem-mode-label", modeLabel);
@@ -1911,11 +1936,17 @@ window.TexasHoldem = (function () {
     return { min: minimum, max: maximum, step: Math.max(1, state.raiseStep || 1) };
   }
 
+  function snapRaiseValue(value, bounds) {
+    var numeric = finite(value, bounds.min);
+    var stepped = Math.round(numeric / bounds.step) * bounds.step;
+    return clamp(stepped, bounds.min, bounds.max);
+  }
+
   function setRaiseValue(value) {
     var slider = $("holdem-raise-slider");
     if (!slider) return;
     var bounds = raiseBounds();
-    raiseValue = clamp(Math.round(finite(value, bounds.min)), bounds.min, bounds.max);
+    raiseValue = snapRaiseValue(value, bounds);
     slider.value = String(raiseValue);
     setText("holdem-raise-amount", formatChips(raiseValue));
   }
@@ -1947,7 +1978,7 @@ window.TexasHoldem = (function () {
     else if (kind === "three-quarter") target = matchedBet + Math.round(potAfterCall * 0.75);
     else if (kind === "pot") target = matchedBet + Math.round(potAfterCall);
     else if (kind === "allin") target = bounds.max;
-    return clamp(target, bounds.min, bounds.max);
+    return snapRaiseValue(target, bounds);
   }
 
   function quickBetLabel(kind) {
@@ -2011,13 +2042,13 @@ window.TexasHoldem = (function () {
     show("holdem-refill-panel", needsRefill);
     var refillButton = $("holdem-refill-btn");
     if (refillButton) {
-      refillButton.textContent = formatChips(state.refillAmount || 10000) + " 충전";
+      refillButton.textContent = formatChips(state.refillAmount || 20000) + " 충전";
       refillButton.disabled = busy || !state.canRefill;
     }
     if (needsRefill) {
       var refillStatus = state.refillStatusKnown
         ? (state.refillsRemainingToday > 0
-          ? "오늘 " + state.refillsRemainingToday + "회 남음 · 충전해도 계정 자산에는 영향이 없어요"
+          ? "오늘 " + state.refillsRemainingToday + "회 남음 · 무료 리필 칩도 퇴장 시 함께 정산돼요"
           : "오늘 충전 3회를 모두 사용했어요")
         : "하루 최대 " + (state.dailyRefillLimit || 3) + "회 충전할 수 있어요";
       setText("holdem-refill-status", refillStatus);
@@ -2433,7 +2464,8 @@ window.TexasHoldem = (function () {
     var ready = state.seats.filter(function (seat) { return seat && seat.ready; }).length;
     return {
       status: "대기중",
-      summary: occupied + "/6명 참가 · " + ready + "명 준비"
+      summary: occupied + "/6명 참가 · " + ready + "명 준비" +
+        (state.mode === "ring" ? " · 바이인 " + formatChips(state.startingStack) : "")
     };
   }
 
@@ -2450,7 +2482,7 @@ window.TexasHoldem = (function () {
     return {
       title: "텍사스 홀덤 규칙",
       html: '<div class="cm-rules holdem-rules">' +
-        '<p class="rule-intro">Poker TDA 2024와 일반적인 국제 토너먼트 진행 원칙을 바탕으로 한 6인 노리밋 텍사스 홀덤입니다. 각자 받은 <b>홀 카드 2장</b>과 모두가 공유하는 커뮤니티 카드 5장 중 가장 좋은 5장 조합으로 승부하며, 실제 가치가 없는 플레이 칩만 사용합니다.</p>' +
+        '<p class="rule-intro">Poker TDA 2024와 일반적인 국제 토너먼트 진행 원칙을 바탕으로 한 6인 노리밋 텍사스 홀덤입니다. 각자 받은 <b>홀 카드 2장</b>과 모두가 공유하는 커뮤니티 카드 5장 중 가장 좋은 5장 조합으로 승부하며, 실제 가치가 없는 홀덤 전용 게임 자산만 사용합니다.</p>' +
         '<section class="cm-rule-section"><h3>1. 진행 순서</h3><ul class="cm-rule-list">' +
         '<li>딜러 버튼 왼쪽의 두 사람이 스몰 블라인드(SB)와 빅 블라인드(BB)를 냅니다.</li>' +
         '<li>프리플랍 → 플랍 3장 → 턴 1장 → 리버 1장 순서로 공개되며 각 단계마다 베팅합니다.</li>' +

@@ -2194,6 +2194,33 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.create-holdem-wallet {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px 12px;
+  margin: -3px 0 13px;
+  padding: 10px 2px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  color: #9fb5bf;
+  font-size: 12px;
+  font-weight: 800;
+}
+.create-holdem-wallet strong {
+  min-width: 0;
+  color: #7de1c4;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.create-holdem-wallet small {
+  grid-column: 1 / -1;
+  color: #7895a1;
+  font-size: 10px;
+  line-height: 1.4;
+}
 .create-mode-list { display: grid; gap: 9px; margin-bottom: 16px; }
 .create-mode-card {
   width: 100%;
@@ -2211,6 +2238,11 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-mode-card.active {
   background: rgba(243,97,42,.2);
 }
+.create-mode-card:disabled {
+  cursor: not-allowed;
+  opacity: .58;
+}
+.create-mode-card:disabled:active { transform: none; }
 .create-mode-card > img {
   width: 132px;
   height: 94px;
@@ -2234,6 +2266,14 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   word-break: keep-all;
 }
 .create-mode-card.active .create-mode-copy span { color: #d4b5a6; }
+.create-holdem-admin-lock {
+  display: none;
+  margin-top: 7px;
+  color: #f0b18f;
+  font-size: 10px;
+  font-weight: 900;
+}
+.create-holdem-mode-card:disabled .create-holdem-admin-lock { display: block; }
 .create-holdem-mode-card {
   grid-template-columns: 76px minmax(0, 1fr);
   min-height: 88px;
@@ -2277,6 +2317,62 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-holdem-speed span { display: block; }
 .create-holdem-speed strong { font-size: 13px; }
 .create-holdem-speed span { margin-top: 3px; font-size: 10px; line-height: 1.35; }
+.create-holdem-buyin-group {
+  margin: -2px 0 13px;
+  padding: 11px;
+  border: 1px solid rgba(125,225,196,.18);
+  border-radius: 7px;
+  background: rgba(9,31,41,.68);
+}
+.create-holdem-buyin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.create-holdem-buyin-head .setting-title { margin: 0; }
+.create-holdem-buyin-head output {
+  color: #7de1c4;
+  font-size: 15px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.create-holdem-buyin-group input[type="range"] {
+  width: 100%;
+  margin: 11px 0 9px;
+  accent-color: #2fb89e;
+}
+.create-holdem-buyin-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.create-holdem-buyin-presets button {
+  min-width: 0;
+  height: 34px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 6px;
+  background: #102f3b;
+  color: #a9bdc6;
+  font-size: 11px;
+  font-weight: 900;
+}
+.create-holdem-buyin-presets button.active {
+  border-color: rgba(47,184,158,.65);
+  background: rgba(47,184,158,.18);
+  color: #d8fff4;
+}
+.create-holdem-buyin-presets button:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+.create-holdem-buyin-group > small {
+  display: block;
+  margin-top: 8px;
+  color: #7895a1;
+  font-size: 10px;
+  line-height: 1.4;
+}
 .create-holdem-rule-summary {
   margin-bottom: 13px;
   padding: 10px 11px;
@@ -4282,7 +4378,13 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 #room-strip-holdem { display: none !important; }
 .room-badge.holdem,
-.rc-badge.holdem { background: #08717a; color: #fff; }
+.room-badge.holdem_tournament,
+.room-badge.holdem_turbo,
+.room-badge.holdem_ring,
+.rc-badge.holdem,
+.rc-badge.holdem_tournament,
+.rc-badge.holdem_turbo,
+.rc-badge.holdem_ring { background: #08717a; color: #fff; }
 .create-game-option[data-game="holdem"].active { background: rgba(8,113,122,.22); }
 .create-game-icon.holdem {
   position: relative;

@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260726-holdem-room-modes-v1">
+<meta name="app-build" content="20260727-holdem-wallet-buyin-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -809,7 +809,7 @@
         <strong>플레이 칩이 모두 소진됐어요</strong>
         <small id="holdem-refill-status">오늘 남은 충전 횟수를 확인하고 있어요</small>
       </div>
-      <button id="holdem-refill-btn" type="button">10,000 충전</button>
+      <button id="holdem-refill-btn" type="button">20,000 충전</button>
     </section>
 
     <section id="holdem-result" class="holdem-result-panel hidden" aria-labelledby="holdem-result-title">
@@ -843,7 +843,7 @@
           <label for="holdem-raise-slider">베팅 금액</label>
           <output id="holdem-raise-amount" for="holdem-raise-slider">100</output>
         </div>
-        <input id="holdem-raise-slider" type="range" min="100" max="10000" step="50" value="100">
+        <input id="holdem-raise-slider" type="range" min="100" max="40000" step="100" value="100">
         <div class="holdem-quick-bets" aria-label="빠른 베팅 금액">
           <button type="button" data-holdem-bet="allin">올인</button>
           <button type="button" data-holdem-bet="pot">팟</button>
@@ -1070,6 +1070,11 @@
         <span>방 이름</span>
         <strong id="create-holdem-summary-name"></strong>
       </div>
+      <div class="create-holdem-wallet" aria-live="polite">
+        <span>내 홀덤 총 자산</span>
+        <strong id="create-holdem-wallet-balance">불러오는 중</strong>
+        <small id="create-holdem-wallet-status">현금과 무관한 게임 전용 자산입니다.</small>
+      </div>
       <div class="setting-title">게임 방식 선택</div>
       <div id="create-holdem-mode" class="create-mode-list create-holdem-mode-list">
         <button class="create-mode-card create-holdem-mode-card active" type="button" data-holdem-mode="tournament" aria-pressed="true">
@@ -1077,13 +1082,14 @@
           <span class="create-mode-copy">
             <strong>토너먼트</strong>
             <span>블라인드가 올라가며 마지막 한 명이 남을 때까지 겨룹니다.</span>
+            <small class="create-holdem-admin-lock">관리자만 방을 만들 수 있어요</small>
           </span>
         </button>
         <button class="create-mode-card create-holdem-mode-card" type="button" data-holdem-mode="ring" aria-pressed="false">
           <span class="create-holdem-mode-icon ring" aria-hidden="true">₩</span>
           <span class="create-mode-copy">
             <strong>자산안심 링게임</strong>
-            <span>계정 자산과 무관한 방 전용 칩만 사용하며, 남은 칩은 다음 핸드로 이어집니다.</span>
+            <span>홀덤 자산에서 바이인하고, 퇴장할 때 남은 칩이 다시 자산으로 돌아옵니다.</span>
           </span>
         </button>
       </div>
@@ -1098,8 +1104,21 @@
           </button>
         </div>
       </div>
+      <div id="create-holdem-buyin-group" class="create-holdem-buyin-group hidden">
+        <div class="create-holdem-buyin-head">
+          <span class="setting-title">이 방의 시작 바이인</span>
+          <output id="create-holdem-buyin-output" for="create-holdem-buyin-slider">20,000칩</output>
+        </div>
+        <input id="create-holdem-buyin-slider" type="range" min="10000" max="40000" step="100" value="20000">
+        <div id="create-holdem-buyin-presets" class="create-holdem-buyin-presets" role="group" aria-label="바이인 빠른 선택">
+          <button type="button" data-holdem-buyin="10000">50 BB</button>
+          <button class="active" type="button" data-holdem-buyin="20000">100 BB</button>
+          <button type="button" data-holdem-buyin="40000">200 BB</button>
+        </div>
+        <small id="create-holdem-buyin-note">모든 참가자가 같은 바이인으로 시작합니다.</small>
+      </div>
       <div id="create-holdem-rule-summary" class="create-holdem-rule-summary">
-        시작 10,000칩 · 블라인드 50/100 · 마지막 1인 승리
+        시작 20,000칩 · 블라인드 100/200 · 마지막 1인 승리
       </div>
       <button id="create-holdem-mode-confirm" class="btn-primary create-confirm">일반 토너먼트 만들기</button>
     </div>

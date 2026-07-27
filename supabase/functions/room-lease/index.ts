@@ -6,6 +6,16 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const CHIP_UNIT = 100;
+const RING_MIN_BUY_IN = 10000;
+const RING_MAX_BUY_IN = 40000;
+const RING_DEFAULT_BUY_IN = 20000;
+const HOLDEM_TOURNAMENT_GAMES = new Set([
+  "holdem",
+  "holdem_tournament",
+  "holdem_turbo",
+]);
+
 function response(body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -15,6 +25,16 @@ function response(body: Record<string, unknown>) {
 
 function safeText(value: unknown, max: number) {
   return String(value ?? "").trim().slice(0, max);
+}
+
+function ringBuyIn(value: unknown) {
+  const amount = Number(value);
+  return Number.isSafeInteger(amount) &&
+      amount >= RING_MIN_BUY_IN &&
+      amount <= RING_MAX_BUY_IN &&
+      amount % CHIP_UNIT === 0
+    ? amount
+    : 0;
 }
 
 async function verifyAccount(client: ReturnType<typeof createClient>, auth: Record<string, unknown> | undefined) {
@@ -62,12 +82,45 @@ Deno.serve(async (request) => {
     const roomName = safeText(body.roomName, 80);
     const game = safeText(body.game, 30);
     if (!roomName || !game) return response({ ok: false, reason: "invalid_room" });
+    if (HOLDEM_TOURNAMENT_GAMES.has(game) && !account.isAdmin) {
+      return response({ ok: false, reason: "forbidden" });
+    }
+
+    const buyIn = game === "holdem_ring"
+      ? ringBuyIn(body.buyIn)
+      : 0;
+    if (game === "holdem_ring" && !buyIn) {
+      return response({ ok: false, reason: "invalid_buy_in" });
+    }
+    if (game === "holdem_ring") {
+      const { data: walletRows, error: walletError } = await client.rpc(
+        "holdem_wallet_get_or_create",
+        { p_nickname: nick },
+      );
+      const walletRow = Array.isArray(walletRows) ? walletRows[0] : null;
+      const balance = Number(walletRow?.current_balance);
+      if (walletError || !Number.isSafeInteger(balance)) {
+        return response({ ok: false, reason: "server", msg: walletError?.message });
+      }
+      if (balance < buyIn) {
+        return response({
+          ok: false,
+          reason: "wallet_insufficient",
+          balance,
+        });
+      }
+    }
+
+    const config = game === "holdem_ring"
+      ? { holdemBuyIn: buyIn || RING_DEFAULT_BUY_IN }
+      : {};
     const { data, error } = await client.rpc("claim_room_lease", {
       p_nickname: nick,
       p_room_id: roomId,
       p_room_name: roomName,
       p_game: game,
       p_lease_token: token,
+      p_config: config,
       p_ttl_seconds: 60,
     });
     if (error || !data?.length) return response({ ok: false, reason: "server", msg: error?.message });
@@ -78,6 +131,7 @@ Deno.serve(async (request) => {
       roomId: row.active_room_id,
       roomName: row.active_room_name,
       game: row.active_game,
+      buyIn: Number(row.active_config?.holdemBuyIn) || 0,
     });
   }
 

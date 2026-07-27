@@ -210,6 +210,7 @@ window.Db = (function () {
     if (action === "claim") {
       body.roomName = String(lease.roomName || "").slice(0, 80);
       body.game = String(lease.game || "").slice(0, 30);
+      if (lease.buyIn != null) body.buyIn = Math.max(0, Math.floor(Number(lease.buyIn) || 0));
     }
     if (!body.auth.nick || !body.auth.hash || !body.roomId || !body.token) return { ok: false, reason: "auth" };
     var result = await sb.functions.invoke("room-lease", { body: body });
@@ -233,7 +234,8 @@ window.Db = (function () {
     };
     if (body.roomId != null) body.roomId = String(body.roomId).trim().slice(0, 80);
     if (body.requestId != null) body.requestId = String(body.requestId).trim().slice(0, 100);
-    if (!body.auth.nick || !body.auth.hash || !body.action || !body.roomId) {
+    var roomRequired = body.action !== "wallet";
+    if (!body.auth.nick || !body.auth.hash || !body.action || (roomRequired && !body.roomId)) {
       return { ok: false, reason: "auth" };
     }
     var result = await sb.functions.invoke("holdem-table", { body: body });
@@ -249,6 +251,9 @@ window.Db = (function () {
     return result.data && typeof result.data === "object"
       ? result.data
       : { ok: false, reason: "invalid_response" };
+  }
+  async function getHoldemWallet(auth) {
+    return holdemInvoke(auth, "wallet", {});
   }
   var GAME_COLS = "id,black,white,winner,game,created_at";
   async function getGames() {
@@ -504,7 +509,7 @@ window.Db = (function () {
     equipCatchmindReward: equipCatchmindReward,
     saveRelayAlbum: saveRelayAlbum, getRelayAlbums: getRelayAlbums, getRelayAlbum: getRelayAlbum,
     claimRoomLease: claimRoomLease, renewRoomLease: renewRoomLease, releaseRoomLease: releaseRoomLease,
-    holdemInvoke: holdemInvoke,
+    holdemInvoke: holdemInvoke, getHoldemWallet: getHoldemWallet,
     getGames: getGames, getGamesByType: getGamesByType,
     getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves, deleteGame: deleteGame,
     addChatMsg: addChatMsg, getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,

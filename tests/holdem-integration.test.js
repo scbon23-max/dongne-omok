@@ -26,8 +26,8 @@ test("Hold'em is an available six-player controller game", () => {
   assert.equal(definition.maxPlayers, 6);
   assert.equal(definition.maxRoomMembers, 6);
   assert.equal(definition.rankable, false);
-  assert.equal(definition.createAdminOnly, true);
-  assert.equal(definition.discoverable, false);
+  assert.equal(definition.createAdminOnly, false);
+  assert.equal(definition.discoverable, true);
   assert.equal(definition.controller, "TexasHoldem");
   assert.equal(definition.screenId, "holdemgame");
   assert.match(game, /GameCatalog\.order\.filter\(function \(id\) \{ return id !== "alk_terr"; \}\)/);
@@ -37,31 +37,52 @@ test("Hold'em is an available six-player controller game", () => {
   assert.match(game, /id === "holdem" \? "토너먼트 · 자산안심 링게임"/);
 });
 
-test("Hold'em room creation offers tournament speed and an asset-safe ring game", () => {
+test("Hold'em room creation shows assets, locks tournaments to admins, and selects a ring buy-in", () => {
   const context = { window: {} };
   vm.createContext(context);
   vm.runInContext(catalogSource, context, { filename: "game-catalog.js" });
 
-  for (const id of ["holdem_tournament", "holdem_turbo", "holdem_ring"]) {
+  for (const id of ["holdem_tournament", "holdem_turbo"]) {
     const definition = context.window.GameCatalog.get(id);
     assert.equal(definition.family, "holdem");
     assert.equal(definition.createAdminOnly, true);
-    assert.equal(definition.discoverable, false);
+    assert.equal(definition.discoverable, true);
   }
-  assert.equal(context.window.GameCatalog.get("holdem_ring").name, "자산안심 링게임");
+  const ring = context.window.GameCatalog.get("holdem_ring");
+  assert.equal(ring.family, "holdem");
+  assert.equal(ring.createAdminOnly, false);
+  assert.equal(ring.discoverable, true);
+  assert.equal(ring.name, "자산안심 링게임");
   assert.match(index, /id="create-holdem-mode-step"/);
+  assert.match(index, /id="create-holdem-wallet-balance"/);
+  assert.match(index, /내 홀덤 총 자산/);
   assert.match(index, /data-holdem-mode="tournament"/);
   assert.match(index, /data-holdem-mode="ring"/);
   assert.match(index, /data-holdem-speed="normal"/);
   assert.match(index, /data-holdem-speed="turbo"/);
-  assert.match(index, /계정 자산과 무관한 방 전용 칩/);
+  assert.match(index, /id="create-holdem-buyin-slider"[^>]*step="100"/);
+  assert.match(index, /홀덤 자산에서 바이인하고/);
+  assert.match(game, /HOLDEM_INITIAL_ASSETS = 100000/);
+  assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 20000/);
+  assert.match(game, /totalAssets[\s\S]*tableBalance[\s\S]*현재 테이블에서 사용 중/);
+  assert.match(game, /mode = mode === "ring" \|\| !me\.isAdmin \? "ring" : "tournament"/);
+  assert.match(game, /토너먼트 방은 관리자만 만들 수 있어요/);
   assert.match(game, /function holdemCreateGameId\(mode, speed\)/);
   assert.match(game, /return "holdem_ring"/);
   assert.match(game, /speed === "turbo" \? "holdem_turbo" : "holdem_tournament"/);
-  assert.match(game, /createRoom\(holdemCreateGameId\(createHoldemMode, createHoldemSpeed\), nm\)/);
+  assert.match(game, /createRoom\([\s\S]*holdemCreateGameId\(createHoldemMode, createHoldemSpeed\)[\s\S]*buyIn: createHoldemBuyIn/);
+  assert.match(db, /async function getHoldemWallet\(auth\)/);
+  assert.match(styles, /\.room-badge\.holdem_ring/);
+  assert.match(styles, /\.room-badge\.holdem_tournament/);
 });
 
-test("Hold'em test rooms are neither announced nor rendered in other users' room lists", () => {
+test("room visibility follows the catalog and public Hold'em rooms can be listed", () => {
+  const context = { window: {} };
+  vm.createContext(context);
+  vm.runInContext(catalogSource, context, { filename: "game-catalog.js" });
+  for (const id of ["holdem", "holdem_tournament", "holdem_turbo", "holdem_ring"]) {
+    assert.notEqual(context.window.GameCatalog.get(id).discoverable, false);
+  }
   assert.match(
     game,
     /function roomIsDiscoverable\(id\)[\s\S]*def\.discoverable === false/

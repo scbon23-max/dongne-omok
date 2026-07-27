@@ -12,6 +12,7 @@
   var BOT_THINK_DELAY_MS = 900;
   var BOT_DISPLAY_NAME = "AI";
   var BLIND_LEVEL_MULTIPLIERS = [1, 1.5, 2, 3, 4, 6, 8, 12, 16, 20, 30, 40, 60, 80, 100];
+  var WHOLE_CHIP_BLIND_MULTIPLIERS = [1, 2, 3, 4, 6, 8, 10, 15, 20, 30, 40, 60, 80, 100, 150];
   var BOT_PERSONALITIES = {
     tight_passive: "타이트 패시브",
     tight_aggressive: "타이트 어그레시브",
@@ -55,6 +56,20 @@
   function clamp(value, min, max, fallback) {
     var n = integer(value, fallback);
     return Math.max(min, Math.min(max, n));
+  }
+
+  function normalizedChipUnit(value) {
+    return clamp(value, 1, 10000, 1);
+  }
+
+  function roundToChipUnit(value, unit) {
+    unit = normalizedChipUnit(unit);
+    return Math.max(unit, Math.round(Number(value || 0) / unit) * unit);
+  }
+
+  function isChipMultiple(value, unit) {
+    return integer(value, NaN) === Number(value) &&
+      integer(value, 0) % normalizedChipUnit(unit) === 0;
   }
 
   function text(value, max) {
@@ -321,22 +336,39 @@
     options = options || {};
     var mode = normalizeTableMode(options.mode);
     var tournamentSpeed = normalizeTournamentSpeed(options.tournamentSpeed);
-    var smallBlind = clamp(options.smallBlind, 1, 1000000, 50);
-    var bigBlind = clamp(options.bigBlind, smallBlind, 2000000, 100);
+    var chipUnit = normalizedChipUnit(options.chipUnit);
+    var smallBlind = roundToChipUnit(
+      clamp(options.smallBlind, chipUnit, 1000000, Math.max(chipUnit, 50)),
+      chipUnit
+    );
+    var bigBlind = roundToChipUnit(
+      clamp(options.bigBlind, smallBlind, 2000000, Math.max(smallBlind * 2, 100)),
+      chipUnit
+    );
     if (bigBlind < smallBlind * 2) bigBlind = smallBlind * 2;
     var defaultLevelMs = tournamentSpeed === "turbo" ? 5 * 60 * 1000 : 10 * 60 * 1000;
     var blindLevelMs = mode === "ring"
       ? 0
       : clamp(options.blindLevelMs, 60 * 1000, 60 * 60 * 1000, defaultLevelMs);
-    var startingStack = clamp(options.startingStack, bigBlind * 10, 100000000, 10000);
+    var startingStack = roundToChipUnit(
+      clamp(options.startingStack, bigBlind * 10, 100000000, 10000),
+      chipUnit
+    );
+    var refillAmount = roundToChipUnit(
+      clamp(options.refillAmount, bigBlind * 10, 100000000, startingStack),
+      chipUnit
+    );
     return {
       schemaVersion: SCHEMA_VERSION,
+      economyVersion: 2,
       roomId: text(options.roomId, 80),
       ownerNick: text(options.ownerNick, 40),
       phase: "waiting",
       settings: {
         mode: mode,
         tournamentSpeed: mode === "ring" ? "" : tournamentSpeed,
+        assetBacked: mode === "ring" && options.assetBacked === true,
+        chipUnit: chipUnit,
         maxPlayers: Math.min(MAX_SEATS, clamp(options.maxPlayers, 2, MAX_SEATS, MAX_SEATS)),
         startingStack: startingStack,
         initialSmallBlind: smallBlind,
@@ -346,13 +378,14 @@
         blindLevelMs: blindLevelMs,
         actionMs: clamp(options.actionMs, 5000, 120000, mode === "ring" ? 20000 : tournamentSpeed === "turbo" ? 15000 : 20000),
         refillAmount: mode === "ring"
-          ? clamp(options.refillAmount, startingStack, 100000000, startingStack)
+          ? refillAmount
           : 0,
         dailyRefillLimit: mode === "ring"
           ? clamp(options.dailyRefillLimit, 1, 10, 3)
           : 0
       },
       ringStacks: {},
+      walletAdjustments: [],
       seats: [null, null, null, null, null, null],
       handNo: 0,
       tournamentStartedAt: null,
@@ -392,33 +425,48 @@
     state.settings.tournamentSpeed = state.settings.mode === "ring"
       ? ""
       : normalizeTournamentSpeed(state.settings.tournamentSpeed);
-    state.settings.initialSmallBlind = clamp(
-      state.settings.initialSmallBlind,
-      1,
-      1000000,
-      clamp(state.settings.smallBlind, 1, 1000000, 50)
+    state.settings.assetBacked = state.settings.mode === "ring" &&
+      state.settings.assetBacked === true;
+    state.settings.chipUnit = normalizedChipUnit(state.settings.chipUnit);
+    state.settings.initialSmallBlind = roundToChipUnit(
+      clamp(
+        state.settings.initialSmallBlind,
+        state.settings.chipUnit,
+        1000000,
+        clamp(state.settings.smallBlind, state.settings.chipUnit, 1000000, 50)
+      ),
+      state.settings.chipUnit
     );
-    state.settings.initialBigBlind = clamp(
-      state.settings.initialBigBlind,
-      state.settings.initialSmallBlind * 2,
-      2000000,
-      clamp(state.settings.bigBlind, state.settings.initialSmallBlind * 2, 2000000, 100)
+    state.settings.initialBigBlind = roundToChipUnit(
+      clamp(
+        state.settings.initialBigBlind,
+        state.settings.initialSmallBlind * 2,
+        2000000,
+        clamp(state.settings.bigBlind, state.settings.initialSmallBlind * 2, 2000000, 100)
+      ),
+      state.settings.chipUnit
     );
-    state.settings.startingStack = clamp(
-      state.settings.startingStack,
-      state.settings.initialBigBlind * 10,
-      100000000,
-      10000
+    state.settings.startingStack = roundToChipUnit(
+      clamp(
+        state.settings.startingStack,
+        state.settings.initialBigBlind * 10,
+        100000000,
+        10000
+      ),
+      state.settings.chipUnit
     );
     if (state.settings.mode === "ring") {
       state.settings.smallBlind = state.settings.initialSmallBlind;
       state.settings.bigBlind = state.settings.initialBigBlind;
       state.settings.blindLevelMs = 0;
-      state.settings.refillAmount = clamp(
-        state.settings.refillAmount,
-        state.settings.startingStack,
-        100000000,
-        state.settings.startingStack
+      state.settings.refillAmount = roundToChipUnit(
+        clamp(
+          state.settings.refillAmount,
+          state.settings.initialBigBlind * 10,
+          100000000,
+          state.settings.startingStack
+        ),
+        state.settings.chipUnit
       );
       state.settings.dailyRefillLimit = clamp(state.settings.dailyRefillLimit, 1, 10, 3);
     } else {
@@ -431,6 +479,7 @@
       state.settings.refillAmount = 0;
       state.settings.dailyRefillLimit = 0;
     }
+    state.walletAdjustments = [];
     state.settings.actionMs = clamp(
       state.settings.actionMs,
       5000,
@@ -507,6 +556,20 @@
     return state;
   }
 
+  function addWalletAdjustment(state, nick, delta, reason) {
+    if (!state || !state.settings || state.settings.mode !== "ring" ||
+        state.settings.assetBacked !== true) return;
+    nick = text(nick, 40);
+    delta = integer(delta, 0);
+    if (!nick || !delta || !isChipMultiple(delta, state.settings.chipUnit)) return;
+    if (!Array.isArray(state.walletAdjustments)) state.walletAdjustments = [];
+    state.walletAdjustments.push({
+      nickname: nick,
+      delta: delta,
+      reason: text(reason, 24)
+    });
+  }
+
   function updateBlindLevel(state, now) {
     if (state.settings.mode === "ring") {
       state.settings.smallBlind = state.settings.initialSmallBlind;
@@ -518,18 +581,27 @@
     if (state.tournamentStartedAt == null) state.tournamentStartedAt = now;
     var levelMs = state.settings.blindLevelMs;
     var elapsed = Math.max(0, now - state.tournamentStartedAt);
+    var blindMultipliers = normalizedChipUnit(state.settings.chipUnit) > 1
+      ? WHOLE_CHIP_BLIND_MULTIPLIERS
+      : BLIND_LEVEL_MULTIPLIERS;
     var level = Math.min(
-      BLIND_LEVEL_MULTIPLIERS.length - 1,
+      blindMultipliers.length - 1,
       Math.floor(elapsed / levelMs)
     );
-    var multiplier = BLIND_LEVEL_MULTIPLIERS[level];
+    var multiplier = blindMultipliers[level];
     state.blindLevel = level;
-    state.settings.smallBlind = Math.max(1, Math.round(state.settings.initialSmallBlind * multiplier));
+    state.settings.smallBlind = roundToChipUnit(
+      state.settings.initialSmallBlind * multiplier,
+      state.settings.chipUnit
+    );
     state.settings.bigBlind = Math.max(
       state.settings.smallBlind * 2,
-      Math.round(state.settings.initialBigBlind * multiplier)
+      roundToChipUnit(
+        state.settings.initialBigBlind * multiplier,
+        state.settings.chipUnit
+      )
     );
-    state.nextBlindAt = level < BLIND_LEVEL_MULTIPLIERS.length - 1
+    state.nextBlindAt = level < blindMultipliers.length - 1
       ? state.tournamentStartedAt + (level + 1) * levelMs
       : null;
   }
@@ -689,7 +761,10 @@
       minBet: null,
       minRaiseTo: null,
       maxRaiseTo: null,
-      pot: potTotal(state)
+      pot: potTotal(state),
+      step: state && state.settings
+        ? normalizedChipUnit(state.settings.chipUnit)
+        : 1
     };
     if (!validState(state) || !PLAYING_PHASES[state.phase]) return empty;
     if (!player || player.seat !== state.actorSeat || player.folded || player.allIn || !player.inHand) return empty;
@@ -722,6 +797,7 @@
       currentBet: state.currentBet,
       streetBet: player.streetBet,
       stack: player.stack,
+      step: normalizedChipUnit(state.settings.chipUnit),
       raiseReopened: canPlayerRaise(state, player)
     };
   }
@@ -758,12 +834,17 @@
       else if (!player.leaving) player.ready = true;
       if (player.isBot && Array.isArray(player.cards) && player.cards.length === 2) player.revealed = true;
       if (state.settings.mode === "ring" && !player.isBot && player.nick) {
-        state.ringStacks[player.nick] = clamp(
-          player.stack,
-          0,
-          100000000,
-          state.settings.startingStack
-        );
+        if (player.leaving) {
+          addWalletAdjustment(state, player.nick, player.stack, "cash_out");
+          delete state.ringStacks[player.nick];
+        } else {
+          state.ringStacks[player.nick] = clamp(
+            player.stack,
+            0,
+            100000000,
+            state.settings.startingStack
+          );
+        }
       }
       player.waiting = true;
       if (player.leaving) state.seats[seat] = null;
@@ -803,17 +884,20 @@
           winners.push(player);
         }
       });
-      var share = winners.length ? Math.floor(pot.amount / winners.length) : 0;
+      var chipUnit = normalizedChipUnit(state.settings.chipUnit);
+      var share = winners.length
+        ? Math.floor(pot.amount / winners.length / chipUnit) * chipUnit
+        : 0;
       winners.forEach(function (winner) {
         winner.stack += share;
         winner.winAmount += share;
       });
       var remainder = winners.length ? pot.amount - share * winners.length : 0;
       var order = clockwiseWinnerOrder(winners.map(function (winner) { return winner.seat; }), state.buttonSeat, MAX_SEATS);
-      for (var i = 0; i < remainder; i++) {
+      for (var i = 0; i < Math.floor(remainder / chipUnit); i++) {
         var oddWinner = state.seats[order[i % order.length]];
-        oddWinner.stack += 1;
-        oddWinner.winAmount += 1;
+        oddWinner.stack += chipUnit;
+        oddWinner.winAmount += chipUnit;
       }
       pot.winners = winners.map(function (winner) { return winner.seat; });
     });
@@ -931,6 +1015,12 @@
       target = integer(amount, NaN);
       if (action === "allin") target = player.streetBet + player.stack;
       if (!isFinite(target)) return { ok: false, reason: "amount" };
+      if (
+        action !== "allin" &&
+        !isChipMultiple(target, state.settings.chipUnit)
+      ) {
+        return { ok: false, reason: "chip_unit" };
+      }
       var maxTo = player.streetBet + player.stack;
       if (target <= player.streetBet || target > maxTo) return { ok: false, reason: "amount" };
       if (target <= state.currentBet) {
@@ -1147,11 +1237,18 @@
           if (seat < 0) result = { ok: false, reason: "table_full" };
           else if (next.seats[seat]) result = { ok: false, reason: "seat_taken" };
           else {
-            var joinStack = next.settings.mode === "ring" && own(next.ringStacks, nick)
+            var hasSavedRingStack = next.settings.mode === "ring" &&
+              own(next.ringStacks, nick);
+            var joinStack = hasSavedRingStack
               ? clamp(next.ringStacks[nick], 0, 100000000, next.settings.startingStack)
               : next.settings.startingStack;
             next.seats[seat] = createPlayer(nick, seat, joinStack, now);
-            if (next.settings.mode === "ring") next.ringStacks[nick] = joinStack;
+            if (next.settings.mode === "ring") {
+              next.ringStacks[nick] = joinStack;
+              if (!hasSavedRingStack) {
+                addWalletAdjustment(next, nick, -joinStack, "buy_in");
+              }
+            }
             next.lastEvent = { type: "joined", nick: nick, seat: seat, at: now };
             result = { ok: true };
             changed = true;
@@ -1178,12 +1275,8 @@
           changed = result.ok;
         } else {
           if (next.settings.mode === "ring" && !player.isBot && player.nick) {
-            next.ringStacks[player.nick] = clamp(
-              player.stack,
-              0,
-              100000000,
-              next.settings.startingStack
-            );
+            addWalletAdjustment(next, player.nick, player.stack, "cash_out");
+            delete next.ringStacks[player.nick];
           }
           next.seats[player.seat] = null;
           next.lastEvent = { type: "left", nick: nick, at: now };
@@ -1241,13 +1334,32 @@
         else {
           var sb = next.settings.mode === "ring"
             ? next.settings.initialSmallBlind
-            : clamp(cmd.smallBlind, 1, 1000000, next.settings.initialSmallBlind);
+            : roundToChipUnit(
+              clamp(
+                cmd.smallBlind,
+                next.settings.chipUnit,
+                1000000,
+                next.settings.initialSmallBlind
+              ),
+              next.settings.chipUnit
+            );
           var bb = next.settings.mode === "ring"
             ? next.settings.initialBigBlind
-            : clamp(cmd.bigBlind, sb * 2, 2000000, next.settings.initialBigBlind);
+            : roundToChipUnit(
+              clamp(cmd.bigBlind, sb * 2, 2000000, next.settings.initialBigBlind),
+              next.settings.chipUnit
+            );
           next.settings.startingStack = next.settings.mode === "ring"
             ? next.settings.startingStack
-            : clamp(cmd.startingStack, bb * 10, 100000000, next.settings.startingStack);
+            : roundToChipUnit(
+              clamp(
+                cmd.startingStack,
+                bb * 10,
+                100000000,
+                next.settings.startingStack
+              ),
+              next.settings.chipUnit
+            );
           next.settings.initialSmallBlind = sb;
           next.settings.initialBigBlind = bb;
           next.settings.smallBlind = sb;

@@ -333,7 +333,7 @@ test("Alkkagi has a synchronized five-choice turn timer with short-game warnings
   assert.match(game, /A\.started && window\.Alkkagi && Alkkagi\.isMoving\(\) \? "…" : "∞"/);
 });
 
-test("room creation keeps CatchMind, Territory Rush, and private-test Hold'em available while unfinished modes stay hidden", () => {
+test("room creation exposes public Hold'em ring play while tournaments stay admin-created", () => {
   const catalog = fs.readFileSync(path.join(root, "game-catalog.js"), "utf8");
 
   assert.match(index, /id="create-game-step"/);
@@ -353,7 +353,12 @@ test("room creation keeps CatchMind, Territory Rush, and private-test Hold'em av
   assert.match(game, /function canCreateGame\(id\)[\s\S]*if \(!canEnterGame\(id\)\) return false[\s\S]*def\.createAdminOnly && !me\.isAdmin/);
   assert.match(game, /visibleGameIds\(createIds\)\.filter\(canCreateGame\)/);
   assert.match(catalog, /territory:\s*\{[\s\S]*createAdminOnly:\s*false/);
-  assert.match(catalog, /holdem:\s*\{[\s\S]*createAdminOnly:\s*true[\s\S]*discoverable:\s*false/);
+  assert.match(catalog, /holdem:\s*\{[\s\S]*createAdminOnly:\s*false[\s\S]*discoverable:\s*true/);
+  assert.match(catalog, /holdem_tournament:\s*\{[\s\S]*createAdminOnly:\s*true[\s\S]*discoverable:\s*true/);
+  assert.match(catalog, /holdem_turbo:\s*\{[\s\S]*createAdminOnly:\s*true[\s\S]*discoverable:\s*true/);
+  assert.match(catalog, /holdem_ring:\s*\{[\s\S]*createAdminOnly:\s*false[\s\S]*discoverable:\s*true/);
+  assert.match(index, /id="create-holdem-wallet-balance"/);
+  assert.match(index, /id="create-holdem-buyin-slider"[^>]*min="10000"[^>]*max="40000"[^>]*step="100"/);
   assert.match(game, /if \(!canEnterGame\(game\)\) \{[\s\S]*game === "catchmind" \? "캐치마인드는 점검 중이라 이용할 수 없어요"/);
   assert.match(game, /function renderRoomList\(\)[\s\S]*roomIsDiscoverable\(r\.game\)[\s\S]*canEnterGame\(r\.game\)/);
   assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);

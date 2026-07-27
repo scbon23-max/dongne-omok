@@ -18,6 +18,8 @@ type HoldemEngineApi = {
     ownerNick: string;
     mode?: string;
     tournamentSpeed?: string;
+    assetBacked?: boolean;
+    chipUnit?: number;
     startingStack?: number;
     smallBlind?: number;
     bigBlind?: number;
@@ -56,6 +58,7 @@ type HoldemAIApi = {
 
 type Account = {
   nick: string;
+  isAdmin: boolean;
 };
 
 type TableRow = {
@@ -76,6 +79,7 @@ type CasRow = {
 type LeaseInfo = {
   ownerNick: string;
   game: string;
+  buyIn: number;
 };
 
 const CORS = {
@@ -86,6 +90,7 @@ const CORS = {
 };
 
 const ACTIONS = new Set([
+  "wallet",
   "join",
   "leave",
   "ready",
@@ -123,6 +128,12 @@ const MAX_BODY_BYTES = 16 * 1024;
 const MAX_STATE_BYTES = 256 * 1024;
 const MAX_SNAPSHOT_BYTES = 64 * 1024;
 const MAX_CAS_RETRIES = 5;
+const CHIP_UNIT = 100;
+const INITIAL_WALLET_BALANCE = 100000;
+const RING_MIN_BUY_IN = 10000;
+const RING_MAX_BUY_IN = 40000;
+const RING_DEFAULT_BUY_IN = 20000;
+const RING_REFILL_AMOUNT = 20000;
 const HOLDEM_ROOM_GAMES = new Set([
   "holdem",
   "holdem_tournament",
@@ -368,6 +379,88 @@ function seoulDateKey(now = new Date()) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+function normalizedRingBuyIn(value: unknown) {
+  const amount = Number(value);
+  return Number.isSafeInteger(amount) &&
+      amount >= RING_MIN_BUY_IN &&
+      amount <= RING_MAX_BUY_IN &&
+      amount % CHIP_UNIT === 0
+    ? amount
+    : RING_DEFAULT_BUY_IN;
+}
+
+async function walletProfile(
+  client: ReturnType<typeof createClient>,
+  nick: string,
+) {
+  const { data, error } = await client.rpc("holdem_wallet_get_or_create", {
+    p_nickname: nick,
+  });
+  const row = Array.isArray(data) ? data[0] : null;
+  const availableBalance = Number(row?.current_balance);
+  const tableBalance = Number(row?.table_balance);
+  const totalAssets = Number(row?.total_assets);
+  if (
+    error ||
+    !Number.isSafeInteger(availableBalance) ||
+    !Number.isSafeInteger(tableBalance) ||
+    !Number.isSafeInteger(totalAssets) ||
+    availableBalance < 0 ||
+    tableBalance < 0 ||
+    totalAssets !== availableBalance + tableBalance
+  ) {
+    throw new Error("wallet_lookup");
+  }
+  return {
+    balance: availableBalance,
+    availableBalance,
+    tableBalance,
+    totalAssets,
+    initialBalance: INITIAL_WALLET_BALANCE,
+    chipUnit: CHIP_UNIT,
+    smallBlind: 100,
+    bigBlind: 200,
+    minBuyIn: RING_MIN_BUY_IN,
+    maxBuyIn: RING_MAX_BUY_IN,
+    defaultBuyIn: RING_DEFAULT_BUY_IN,
+    refillAmount: RING_REFILL_AMOUNT,
+    dailyRefillLimit: 3,
+  };
+}
+
+async function cleanupExpiredTables(
+  client: ReturnType<typeof createClient>,
+) {
+  await client.rpc("cleanup_expired_holdem_tables", {
+    p_ttl_seconds: 300,
+    p_limit: 50,
+  });
+}
+
+function takeWalletAdjustments(state: JsonRecord) {
+  const raw = Array.isArray(state.walletAdjustments)
+    ? state.walletAdjustments
+    : [];
+  const adjustments = raw.map((entry) => {
+    if (!isRecord(entry)) throw new Error("invalid_wallet_adjustment");
+    const nickname = safeText(entry.nickname, 40);
+    const delta = Number(entry.delta);
+    if (
+      !nickname ||
+      !Number.isSafeInteger(delta) ||
+      delta === 0 ||
+      Math.abs(delta) > 100000000 ||
+      delta % CHIP_UNIT !== 0
+    ) {
+      throw new Error("invalid_wallet_adjustment");
+    }
+    return { nickname, delta };
+  });
+  if (adjustments.length > 6) throw new Error("invalid_wallet_adjustment");
+  delete state.walletAdjustments;
+  return adjustments;
+}
+
 function ringSettings(state: unknown) {
   if (!isRecord(state) || !isRecord(state.settings)) return null;
   if (safeText(state.settings.mode, 24) !== "ring") return null;
@@ -485,13 +578,15 @@ async function verifyAccount(
 
   const { data, error } = await client
     .from("accounts")
-    .select("nickname")
+    .select("nickname,is_admin")
     .eq("nickname", nick)
     .eq("pw_hash", hash)
     .maybeSingle();
   if (error || !data) return null;
   const verifiedNick = safeText(data.nickname, 40);
-  return verifiedNick ? { nick: verifiedNick } : null;
+  return verifiedNick
+    ? { nick: verifiedNick, isAdmin: data.is_admin === true }
+    : null;
 }
 
 async function activeLease(
@@ -500,7 +595,7 @@ async function activeLease(
 ): Promise<LeaseInfo | null> {
   const { data, error } = await client
     .from("room_leases")
-    .select("nickname,game")
+    .select("nickname,game,config")
     .eq("room_id", roomId)
     .gt("expires_at", new Date().toISOString())
     .maybeSingle();
@@ -508,23 +603,37 @@ async function activeLease(
   if (!data) return null;
   const ownerNick = safeText(data.nickname, 40);
   const game = safeText(data.game, 30);
-  return ownerNick && game ? { ownerNick, game } : null;
+  const config = isRecord(data.config) ? data.config : {};
+  const buyIn = game === "holdem_ring"
+    ? normalizedRingBuyIn(config.holdemBuyIn)
+    : 0;
+  return ownerNick && game ? { ownerNick, game, buyIn } : null;
 }
 
-function createTableOptions(roomId: string, ownerNick: string, game: string) {
+function createTableOptions(
+  roomId: string,
+  ownerNick: string,
+  game: string,
+  buyIn = 0,
+) {
   const ring = game === "holdem_ring";
   const turbo = game === "holdem_turbo";
+  const startingStack = ring
+    ? normalizedRingBuyIn(buyIn)
+    : RING_DEFAULT_BUY_IN;
   return {
     roomId,
     ownerNick,
     mode: ring ? "ring" : "tournament",
     tournamentSpeed: turbo ? "turbo" : "normal",
-    startingStack: 10000,
-    smallBlind: 50,
-    bigBlind: 100,
+    assetBacked: ring,
+    chipUnit: CHIP_UNIT,
+    startingStack,
+    smallBlind: 100,
+    bigBlind: 200,
     actionMs: turbo ? 15000 : 20000,
     blindLevelMs: ring ? 0 : turbo ? 5 * 60 * 1000 : 10 * 60 * 1000,
-    refillAmount: ring ? 10000 : 0,
+    refillAmount: ring ? RING_REFILL_AMOUNT : 0,
     dailyRefillLimit: ring ? 3 : 0,
   };
 }
@@ -594,6 +703,29 @@ async function compareAndSwapRingRefill(
   return row as CasRow;
 }
 
+async function compareAndSwapRingWallet(
+  client: ReturnType<typeof createClient>,
+  roomId: string,
+  expectedVersion: number,
+  state: JsonRecord,
+  ownerNick: string,
+  adjustments: Array<{ nickname: string; delta: number }>,
+): Promise<CasRow> {
+  const { data, error } = await client.rpc(
+    "holdem_ring_table_compare_and_swap",
+    {
+      p_room_id: roomId,
+      p_expected_version: expectedVersion,
+      p_state: state,
+      p_owner_nickname: ownerNick,
+      p_adjustments: adjustments,
+    },
+  );
+  const row = Array.isArray(data) ? data[0] : null;
+  if (error || !row) throw new Error("ring_wallet_write");
+  return row as CasRow;
+}
+
 function rowFromConflict(roomId: string, row: CasRow): TableRow | null {
   const version = parseVersion(row.current_version);
   const ownerNickname = safeText(row.current_owner_nickname, 40);
@@ -624,24 +756,32 @@ Deno.serve(async (request) => {
     return jsonResponse({ ok: false, reason }, 400);
   }
 
-  const roomId = safeText(body.roomId, 81);
   const action = safeText(body.action, 17);
-  const requestId = safeText(body.requestId, 101);
-  if (!ROOM_ID_PATTERN.test(roomId)) {
-    return jsonResponse({ ok: false, reason: "invalid_room" }, 400);
-  }
   if (!ACTIONS.has(action)) {
     return jsonResponse({ ok: false, reason: "action" }, 400);
   }
-  if (!REQUEST_ID_PATTERN.test(requestId)) {
-    return jsonResponse({ ok: false, reason: "invalid_request_id" }, 400);
+  const walletAction = action === "wallet";
+  const roomId = walletAction ? "" : safeText(body.roomId, 81);
+  const requestId = walletAction ? "" : safeText(body.requestId, 101);
+  if (!walletAction) {
+    if (!ROOM_ID_PATTERN.test(roomId)) {
+      return jsonResponse({ ok: false, reason: "invalid_room" }, 400);
+    }
+    if (!REQUEST_ID_PATTERN.test(requestId)) {
+      return jsonResponse({ ok: false, reason: "invalid_request_id" }, 400);
+    }
   }
 
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const engine = getEngine();
   const ai = action === "bot_step" ? getAI() : null;
-  if (!url || !serviceKey || !engine || (action === "bot_step" && !ai)) {
+  if (
+    !url ||
+    !serviceKey ||
+    (!walletAction && !engine) ||
+    (action === "bot_step" && !ai)
+  ) {
     return jsonResponse({ ok: false, reason: "server_config" }, 500);
   }
 
@@ -655,6 +795,18 @@ Deno.serve(async (request) => {
   if (!account) return jsonResponse({ ok: false, reason: "auth" }, 401);
 
   try {
+    if (walletAction) {
+      await cleanupExpiredTables(client);
+      return jsonResponse({
+        ok: true,
+        wallet: await walletProfile(client, account.nick),
+      });
+    }
+    if (!engine) {
+      return jsonResponse({ ok: false, reason: "server_config" }, 500);
+    }
+
+    if (action === "join") await cleanupExpiredTables(client);
     const lease = await activeLease(client, roomId);
     let table = await loadTable(client, roomId);
     const requestedAt = Date.now();
@@ -705,7 +857,12 @@ Deno.serve(async (request) => {
         table?.owner_nickname ??
         account.nick;
       const baseState = table?.state ??
-        engine.createTable(createTableOptions(roomId, ownerNick, lease?.game ?? "holdem"));
+        engine.createTable(createTableOptions(
+          roomId,
+          ownerNick,
+          lease?.game ?? "holdem",
+          lease?.buyIn ?? 0,
+        ));
       const baseVersion = table?.version ?? 0;
 
       if (
@@ -843,6 +1000,14 @@ Deno.serve(async (request) => {
       }
 
       const nextState = normalizeState(resultState);
+      const ringTable = isRecord(nextState.settings) &&
+        safeText(nextState.settings.mode, 24) === "ring";
+      const walletAdjustments = ringTable
+        ? takeWalletAdjustments(nextState)
+        : [];
+      if (action === "refill" && walletAdjustments.length) {
+        throw new Error("unexpected_refill_wallet_adjustment");
+      }
       const cas = action === "refill"
         ? await compareAndSwapRingRefill(
           client,
@@ -851,6 +1016,15 @@ Deno.serve(async (request) => {
           nextState,
           ownerNick,
           account.nick,
+        )
+        : ringTable
+        ? await compareAndSwapRingWallet(
+          client,
+          roomId,
+          baseVersion,
+          nextState,
+          ownerNick,
+          walletAdjustments,
         )
         : await compareAndSwap(
           client,
@@ -879,6 +1053,17 @@ Deno.serve(async (request) => {
           parseVersion(cas.current_version),
           false,
           "refill_limit",
+        );
+      }
+      if (cas.reason === "wallet_insufficient") {
+        return publicTableResponse(
+          client,
+          engine,
+          isRecord(cas.current_state) ? cas.current_state : baseState,
+          account.nick,
+          parseVersion(cas.current_version) || baseVersion,
+          false,
+          "wallet_insufficient",
         );
       }
 

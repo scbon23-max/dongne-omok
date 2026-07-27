@@ -131,7 +131,8 @@
       pot: Math.max(0, integer(value.pot, 0)),
       currentBet: Math.max(0, integer(value.currentBet, 0)),
       streetBet: Math.max(0, integer(value.streetBet, 0)),
-      stack: Math.max(0, integer(value.stack, 0))
+      stack: Math.max(0, integer(value.stack, 0)),
+      step: Math.max(1, integer(value.step, 1))
     };
   }
 
@@ -473,6 +474,7 @@
       fractionIndex += 1;
     }
     var target = matched + Math.round(afterCallPot * fractions[fractionIndex]);
+    target = Math.round(target / legal.step) * legal.step;
     target = clamp(target, minimum, maximum);
     var stack = hero ? hero.stack : legal.stack;
     var spr = stack / Math.max(1, observation.pot);
@@ -480,7 +482,7 @@
         (target >= maximum || (equity > 0.83 && spr <= 1.2))) {
       return { action: "allin" };
     }
-    return { action: action, amount: Math.round(target) };
+    return { action: action, amount: Math.round(target / legal.step) * legal.step };
   }
 
   function preflopOpenThreshold(observation, personality) {

@@ -24,6 +24,15 @@ const ringRefillMigration = fs.readFileSync(
   ),
   "utf8"
 );
+const walletMigration = fs.readFileSync(
+  path.join(
+    root,
+    "supabase",
+    "migrations",
+    "202607270001_holdem_wallets_and_buyins.sql"
+  ),
+  "utf8"
+);
 const edge = fs.readFileSync(
   path.join(root, "supabase", "functions", "holdem-table", "index.ts"),
   "utf8"
@@ -166,14 +175,17 @@ test("the endpoint action, poker move, version, and hand identity stay distinct"
 test("room lease ownership and game mode configure the authoritative table", () => {
   assert.match(edge, /async function activeLease/);
   assert.match(edge, /\.from\("room_leases"\)/);
-  assert.match(edge, /\.select\("nickname,game"\)/);
+  assert.match(edge, /\.select\("nickname,game,config"\)/);
   assert.match(edge, /\.eq\("room_id", roomId\)/);
   assert.match(edge, /\.gt\("expires_at", new Date\(\)\.toISOString\(\)\)/);
   assert.match(
     edge,
     /const ownerNick = lease\?\.ownerNick \?\?\s*table\?\.owner_nickname \?\?\s*account\.nick/
   );
-  assert.match(edge, /engine\.createTable\(createTableOptions\(roomId, ownerNick, lease\?\.game \?\? "holdem"\)\)/);
+  assert.match(
+    edge,
+    /engine\.createTable\(createTableOptions\([\s\S]*lease\?\.game \?\? "holdem",[\s\S]*lease\?\.buyIn \?\? 0/
+  );
   assert.match(edge, /game === "holdem_ring"/);
   assert.match(edge, /game === "holdem_turbo"/);
   assert.match(
@@ -304,4 +316,91 @@ test("ring refills are account-wide, Korea-day limited, and atomic with the tabl
   assert.match(edge, /client\.rpc\(\s*"holdem_ring_refill_compare_and_swap"/s);
   assert.match(edge, /\.from\("holdem_ring_refills"\)/);
   assert.match(edge, /cas\.reason === "refill_limit"/);
+});
+
+test("Hold'em wallets use 100-chip accounting and update atomically with ring tables", () => {
+  assert.match(
+    walletMigration,
+    /delete from public\.holdem_tables[\s\S]*economyVersion[\s\S]*distinct from '2'/i
+  );
+  assert.match(
+    walletMigration,
+    /constraint holdem_tables_economy_version_check[\s\S]*coalesce\(state ->> 'economyVersion', ''\) = '2'/i
+  );
+  assert.match(
+    walletMigration,
+    /create table if not exists public\.holdem_wallets/i
+  );
+  assert.match(walletMigration, /balance bigint not null default 100000/i);
+  assert.match(walletMigration, /balance >= 0 and mod\(balance, 100\) = 0/i);
+  assert.match(
+    walletMigration,
+    /alter table public\.holdem_wallets enable row level security/i
+  );
+  assert.match(
+    walletMigration,
+    /revoke all on table public\.holdem_wallets from public, anon, authenticated/i
+  );
+  assert.match(
+    walletMigration,
+    /create or replace function public\.holdem_wallet_get_or_create/i
+  );
+  assert.match(
+    walletMigration,
+    /table_balance bigint[\s\S]*total_assets bigint[\s\S]*table_holdings[\s\S]*wallet\.balance \+ table_holdings\.amount/i
+  );
+  assert.match(
+    walletMigration,
+    /create or replace function public\.holdem_ring_table_compare_and_swap/i
+  );
+  assert.match(
+    walletMigration,
+    /wallet\.balance \+ totals\.delta < 0[\s\S]*'wallet_insufficient'/i
+  );
+  assert.match(
+    walletMigration,
+    /update public\.holdem_wallets[\s\S]*(?:insert into|update public\.)holdem_tables/i
+  );
+  assert.match(
+    walletMigration,
+    /grant execute on function public\.holdem_ring_table_compare_and_swap\([\s\S]*to service_role/i
+  );
+  assert.match(edge, /const CHIP_UNIT = 100/);
+  assert.match(edge, /const INITIAL_WALLET_BALANCE = 100000/);
+  assert.match(edge, /smallBlind: 100/);
+  assert.match(edge, /bigBlind: 200/);
+  assert.match(edge, /assetBacked: ring/);
+  assert.match(edge, /RING_REFILL_AMOUNT = 20000/);
+  assert.match(edge, /action === "wallet"/);
+  assert.match(edge, /holdem_wallet_get_or_create/);
+  assert.match(edge, /availableBalance[\s\S]*tableBalance[\s\S]*totalAssets/);
+  assert.match(edge, /function takeWalletAdjustments/);
+  assert.match(edge, /delete state\.walletAdjustments/);
+  assert.match(edge, /client\.rpc\(\s*"holdem_ring_table_compare_and_swap"/s);
+  assert.match(edge, /cas\.reason === "wallet_insufficient"/);
+  assert.match(
+    walletMigration,
+    /create or replace function public\.cleanup_expired_holdem_tables/i
+  );
+  assert.match(walletMigration, /settings,assetBacked/i);
+  assert.match(walletMigration, /jsonb_array_elements/i);
+  assert.match(walletMigration, /seat\.value ->> 'totalBet'/i);
+  assert.match(
+    walletMigration,
+    /wallet_updates as[\s\S]*update public\.holdem_wallets[\s\S]*refund_guard as[\s\S]*delete from public\.holdem_tables/i
+  );
+  assert.match(
+    walletMigration,
+    /not exists \([\s\S]*public\.room_leases[\s\S]*lease\.expires_at > clock_timestamp\(\)/i
+  );
+  assert.match(edge, /async function cleanupExpiredTables/);
+  assert.match(
+    edge,
+    /cleanup_expired_holdem_tables[\s\S]*p_ttl_seconds: 300[\s\S]*p_limit: 50/
+  );
+  assert.match(
+    edge,
+    /if \(walletAction\) \{[\s\S]*await cleanupExpiredTables\(client\)[\s\S]*walletProfile/
+  );
+  assert.match(edge, /if \(action === "join"\) await cleanupExpiredTables\(client\)/);
 });

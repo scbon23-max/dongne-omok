@@ -8,6 +8,7 @@ const vm = require("node:vm");
 
 const root = path.join(__dirname, "..");
 const migration = fs.readFileSync(path.join(root, "supabase", "migrations", "202607190001_room_leases.sql"), "utf8");
+const holdemMigration = fs.readFileSync(path.join(root, "supabase", "migrations", "202607270001_holdem_wallets_and_buyins.sql"), "utf8");
 const edge = fs.readFileSync(path.join(root, "supabase", "functions", "room-lease", "index.ts"), "utf8");
 const game = fs.readFileSync(path.join(root, "game.js"), "utf8");
 
@@ -33,6 +34,16 @@ test("room leases atomically limit each account to one owned room", () => {
   assert.match(edge, /\.select\("nickname,is_admin"\)/);
   assert.doesNotMatch(edge, /TERRITORY_ADMIN/);
   assert.doesNotMatch(edge, /game === "territory"/);
+  assert.match(edge, /HOLDEM_TOURNAMENT_GAMES/);
+  assert.match(edge, /HOLDEM_TOURNAMENT_GAMES\.has\(game\) && !account\.isAdmin/);
+  assert.match(edge, /reason: "forbidden"/);
+  assert.match(holdemMigration, /add column if not exists config jsonb/i);
+  assert.match(holdemMigration, /active_config jsonb/i);
+  assert.match(
+    holdemMigration,
+    /delete from public\.room_leases[\s\S]*holdem_tournament[\s\S]*account\.is_admin/i
+  );
+  assert.match(edge, /p_config: config/);
 });
 
 test("room creation claims, renews, and releases the account lease", () => {
@@ -128,4 +139,15 @@ test("database room lease calls include account proof and lease identity", async
   assert.equal(calls[0].body.token, lease.token);
   assert.equal(calls[0].body.roomName, lease.roomName);
   assert.equal(calls[0].body.game, lease.game);
+});
+
+test("ring room claims carry a validated 100-chip buy-in", async () => {
+  assert.match(edge, /const CHIP_UNIT = 100/);
+  assert.match(edge, /const RING_MIN_BUY_IN = 10000/);
+  assert.match(edge, /const RING_MAX_BUY_IN = 40000/);
+  assert.match(edge, /amount % CHIP_UNIT === 0/);
+  assert.match(edge, /holdem_wallet_get_or_create/);
+  assert.match(edge, /holdemBuyIn: buyIn/);
+  assert.match(game, /buyIn: game === "holdem_ring"/);
+  assert.match(game, /buyIn: createHoldemBuyIn/);
 });
