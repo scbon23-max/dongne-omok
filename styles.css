@@ -3818,6 +3818,8 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat:not(.is-me) .holdem-hole-cards .holdem-card.back {
   --holdem-card-width: clamp(16px, 4.6vw, 24px);
   --holdem-card-radius: 2px;
+  border-color: #a8bdc0;
+  box-shadow: inset 0 0 0 1px #ecede8, inset 0 0 0 2px #1f6470, 0 1px 3px rgba(0,0,0,.32);
 }
 .holdem-hole-cards .holdem-card + .holdem-card { margin-left: -1px; }
 .holdem-hole-cards .holdem-card:first-child {

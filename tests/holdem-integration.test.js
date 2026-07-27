@@ -171,6 +171,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-size-auto:[\s\S]*var\(--holdem-card-width/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card\s*\{[\s\S]*transform: none/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*--holdem-card-width:\s*clamp\(16px,\s*4\.6vw,\s*24px\)/);
+  assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*box-shadow:\s*inset 0 0 0 1px #ecede8/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -1px; \}/);
   assert.doesNotMatch(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ transform: rotate/);
   assert.match(styles, /@media \(min-width: 900px\)[\s\S]*\.holdem-table/);
