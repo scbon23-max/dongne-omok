@@ -375,8 +375,9 @@ test("Hold'em wallets use 100-chip accounting and update atomically with ring ta
   );
   assert.match(edge, /const CHIP_UNIT = 100/);
   assert.match(edge, /const INITIAL_WALLET_BALANCE = 100000/);
-  assert.match(edge, /smallBlind: 100/);
-  assert.match(edge, /bigBlind: 200/);
+  assert.match(edge, /function ringBlindForBuyIn\(buyIn: number\)/);
+  assert.match(edge, /smallBlind: blind\.smallBlind/);
+  assert.match(edge, /bigBlind: blind\.bigBlind/);
   assert.match(edge, /assetBacked: false/);
   assert.match(edge, /RING_REFILL_AMOUNT = 20000/);
   assert.match(edge, /action === "wallet"/);

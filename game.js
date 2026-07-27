@@ -511,9 +511,13 @@
   var HOLDEM_CHIP_UNIT = 100;
   var HOLDEM_INITIAL_ASSETS = 100000;
   var HOLDEM_MIN_BUY_IN = 10000;
-  var HOLDEM_MAX_BUY_IN = 40000;
-  var HOLDEM_DEFAULT_BUY_IN = 20000;
-  var HOLDEM_BIG_BLIND = 200;
+  var HOLDEM_MAX_BUY_IN = 100000;
+  var HOLDEM_DEFAULT_BUY_IN = 50000;
+  var HOLDEM_BUY_IN_OPTIONS = [
+    { amount: 10000, title: "라이트", minBuyIn: 10000, maxBuyIn: 20000, smallBlind: 50, bigBlind: 100 },
+    { amount: 50000, title: "스탠다드", minBuyIn: 30000, maxBuyIn: 50000, smallBlind: 250, bigBlind: 500 },
+    { amount: 100000, title: "하이롤러", minBuyIn: 50000, maxBuyIn: 100000, smallBlind: 500, bigBlind: 1000 }
+  ];
   var roomLease = null, roomLeaseTimer = null, roomCreatePending = false, roomLeaseRestorePending = false;
   var holdemWalletProfile = null, holdemWalletPending = false;
   var holdemWalletNick = "", holdemWalletRequestSeq = 0;
@@ -522,11 +526,35 @@
 
   function normalizeHoldemBuyIn(value, fallback) {
     var amount = Math.floor(Number(value) || 0);
-    if (amount < HOLDEM_MIN_BUY_IN || amount > HOLDEM_MAX_BUY_IN ||
-        amount % HOLDEM_CHIP_UNIT !== 0) {
-      return fallback == null ? HOLDEM_DEFAULT_BUY_IN : fallback;
+    for (var i = 0; i < HOLDEM_BUY_IN_OPTIONS.length; i++) {
+      if (amount === HOLDEM_BUY_IN_OPTIONS[i].amount) return amount;
     }
-    return amount;
+    return fallback == null ? HOLDEM_DEFAULT_BUY_IN : fallback;
+  }
+  function holdemBuyInOption(amount) {
+    amount = normalizeHoldemBuyIn(amount);
+    for (var i = 0; i < HOLDEM_BUY_IN_OPTIONS.length; i++) {
+      if (HOLDEM_BUY_IN_OPTIONS[i].amount === amount) return HOLDEM_BUY_IN_OPTIONS[i];
+    }
+    return HOLDEM_BUY_IN_OPTIONS[1];
+  }
+  function holdemBuyInForBalance(balance, preferred) {
+    var available = Math.max(0, Math.floor(Number(balance) || 0));
+    var selected = normalizeHoldemBuyIn(preferred);
+    if (selected <= available) return selected;
+    for (var i = HOLDEM_BUY_IN_OPTIONS.length - 1; i >= 0; i--) {
+      if (HOLDEM_BUY_IN_OPTIONS[i].amount <= available) return HOLDEM_BUY_IN_OPTIONS[i].amount;
+    }
+    return HOLDEM_MIN_BUY_IN;
+  }
+  function holdemBlindLabel(amount) {
+    var option = holdemBuyInOption(amount);
+    return "SB " + option.smallBlind.toLocaleString("ko-KR") +
+      "원 / BB " + option.bigBlind.toLocaleString("ko-KR") + "원";
+  }
+  function holdemBuyInRangeLabel(amount) {
+    var option = holdemBuyInOption(amount);
+    return formatHoldemAsset(option.minBuyIn) + "~" + formatHoldemAsset(option.maxBuyIn);
   }
 
   function readStoredRoomLease() {
@@ -5145,7 +5173,7 @@
         : id === "alk" ? "돌을 튕겨 겨루는 실시간 대결"
         : id === "catchmind" ? "그리고 맞히는 단체 그림 퀴즈"
         : id === "relay" ? "문장과 그림을 번갈아 이어가기"
-        : id === "holdem" ? "홀덤 · 토너먼트"
+        : id === "holdem" ? "홀덤 · 링게임"
         : "선을 이어 내 땅을 차지하는 실시간 대결";
       var iconSrc = id === "alk" ? "assets/game-icon-alkkagi.svg"
         : id === "catchmind" ? "assets/game-icon-catchmind.svg"
@@ -5224,42 +5252,38 @@
       : Math.min(HOLDEM_MAX_BUY_IN, availableBalance);
     var canBuyIn = availableBalance != null && availableMax >= HOLDEM_MIN_BUY_IN;
     if (canBuyIn) {
-      createHoldemBuyIn = Math.min(
-        availableMax,
-        Math.max(HOLDEM_MIN_BUY_IN, normalizeHoldemBuyIn(createHoldemBuyIn))
-      );
-      createHoldemBuyIn = Math.floor(createHoldemBuyIn / HOLDEM_CHIP_UNIT) *
-        HOLDEM_CHIP_UNIT;
+      createHoldemBuyIn = holdemBuyInForBalance(availableMax, createHoldemBuyIn);
     }
     if (slider) {
       slider.min = String(HOLDEM_MIN_BUY_IN);
-      slider.max = String(Math.max(HOLDEM_MIN_BUY_IN, availableMax));
+      slider.max = String(HOLDEM_MAX_BUY_IN);
       slider.step = String(HOLDEM_CHIP_UNIT);
       slider.value = String(canBuyIn ? createHoldemBuyIn : HOLDEM_MIN_BUY_IN);
       slider.disabled = mode !== "ring" || !canBuyIn || holdemWalletPending;
     }
     if ($("create-holdem-buyin-output")) {
-      $("create-holdem-buyin-output").textContent = formatHoldemAsset(
-        canBuyIn ? createHoldemBuyIn : 0
-      );
+      $("create-holdem-buyin-output").textContent = canBuyIn
+        ? holdemBuyInRangeLabel(createHoldemBuyIn)
+        : "선택 불가";
     }
     if ($("create-holdem-buyin-note")) {
       $("create-holdem-buyin-note").textContent = canBuyIn
-        ? "모든 참가자가 " + Math.round(createHoldemBuyIn / HOLDEM_BIG_BLIND) +
-          "BB로 시작하고, 퇴장 시 남은 금액이 자산으로 돌아옵니다."
+        ? "선택한 블라인드 테이블에 " + holdemBuyInRangeLabel(createHoldemBuyIn) +
+          " 범위로 입장합니다 · " +
+          holdemBlindLabel(createHoldemBuyIn)
         : "바이인에 필요한 홀덤 자산이 부족해요.";
     }
     if (mode === "ring" && $("create-holdem-rule-summary")) {
       $("create-holdem-rule-summary").textContent =
-        "전원 " + formatHoldemAsset(canBuyIn ? createHoldemBuyIn : 0) +
-        " · SB 100원 / BB 200원 · 최대 6명";
+        "참가비용 " + (canBuyIn ? holdemBuyInRangeLabel(createHoldemBuyIn) : "선택 불가") +
+        " · " + holdemBlindLabel(createHoldemBuyIn) + " · 최대 6명";
     }
     var presetBox = $("create-holdem-buyin-presets");
     if (presetBox) {
       var presets = presetBox.querySelectorAll("[data-holdem-buyin]");
       for (var i = 0; i < presets.length; i++) {
         var amount = Number(presets[i].getAttribute("data-holdem-buyin")) || 0;
-        presets[i].disabled = mode !== "ring" || !canBuyIn || amount > availableMax;
+        presets[i].disabled = mode !== "ring" || !canBuyIn || amount > availableMax || holdemWalletPending;
         presets[i].classList.toggle("active", canBuyIn && amount === createHoldemBuyIn);
       }
     }
@@ -5333,29 +5357,30 @@
       ? Math.max(0, Math.floor(Number(holdemWalletProfile.balance) || 0))
       : 0;
     var max = Math.min(HOLDEM_MAX_BUY_IN, balance);
-    var amount = Math.floor(Number(value) || 0);
-    amount = Math.floor(amount / HOLDEM_CHIP_UNIT) * HOLDEM_CHIP_UNIT;
+    var amount = normalizeHoldemBuyIn(value, createHoldemBuyIn);
     if (max >= HOLDEM_MIN_BUY_IN) {
-      createHoldemBuyIn = Math.max(HOLDEM_MIN_BUY_IN, Math.min(max, amount));
+      createHoldemBuyIn = holdemBuyInForBalance(max, amount);
     }
     renderHoldemWalletControls(activeCreateHoldemMode);
   }
   function renderCreateHoldemMode(mode, speed) {
-    mode = mode === "ring" || !me.isAdmin ? "ring" : "tournament";
+    mode = "ring";
     activeCreateHoldemMode = mode;
     speed = speed === "turbo" ? "turbo" : "normal";
     var modeBox = $("create-holdem-mode");
     if (modeBox) {
+      modeBox.hidden = true;
+      modeBox.classList.add("hidden");
+      modeBox.setAttribute("aria-hidden", "true");
       var modeCards = modeBox.querySelectorAll("[data-holdem-mode]");
       for (var i = 0; i < modeCards.length; i++) {
         var cardMode = modeCards[i].getAttribute("data-holdem-mode");
         var isTournamentCard = cardMode === "tournament";
         var modeActive = cardMode === mode;
-        var tournamentLocked = isTournamentCard && !me.isAdmin;
-        modeCards[i].hidden = false;
-        modeCards[i].classList.remove("hidden");
-        modeCards[i].disabled = tournamentLocked;
-        modeCards[i].setAttribute("aria-disabled", tournamentLocked ? "true" : "false");
+        modeCards[i].hidden = isTournamentCard;
+        modeCards[i].classList.toggle("hidden", isTournamentCard);
+        modeCards[i].disabled = isTournamentCard;
+        modeCards[i].setAttribute("aria-disabled", isTournamentCard ? "true" : "false");
         modeCards[i].classList.toggle("active", modeActive);
         modeCards[i].setAttribute("aria-pressed", modeActive ? "true" : "false");
       }
@@ -5376,17 +5401,12 @@
       $("create-holdem-buyin-group").classList.toggle("hidden", mode !== "ring");
     }
     if ($("create-holdem-rule-summary")) {
-      $("create-holdem-rule-summary").textContent = mode === "ring"
-        ? "바이인 " + formatHoldemAsset(createHoldemBuyIn) +
-          " · SB 100원 / BB 200원 · 최대 6명"
-        : "시작 20,000원 · 블라인드 100원/200원 · " +
-          (speed === "turbo" ? "5분" : "10분") +
-          "마다 상승 · 마지막 1인 승리";
+      $("create-holdem-rule-summary").textContent =
+        "참가비용 " + holdemBuyInRangeLabel(createHoldemBuyIn) +
+        " · " + holdemBlindLabel(createHoldemBuyIn) + " · 최대 6명";
     }
     if ($("create-holdem-mode-confirm")) {
-      $("create-holdem-mode-confirm").textContent = mode === "ring"
-        ? "홀덤 방 만들기"
-        : (speed === "turbo" ? "터보" : "일반") + " 토너먼트 만들기";
+      $("create-holdem-mode-confirm").textContent = "홀덤 방 만들기";
     }
     renderHoldemWalletControls(mode);
     return mode;
@@ -6258,7 +6278,6 @@
         return;
       }
       if (createGame === "holdem") {
-        if ($("create-holdem-summary-name")) $("create-holdem-summary-name").textContent = nm.trim() || (me.nick + "님의 방");
         createHoldemMode = renderCreateHoldemMode(createHoldemMode, createHoldemSpeed);
         showCreateRoomStep("holdem-mode");
         loadHoldemWallet(true);

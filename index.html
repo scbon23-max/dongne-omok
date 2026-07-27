@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260728-holdem-svg-cards-v1">
+<meta name="app-build" content="20260728-holdem-create-no-room-title-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -767,7 +767,6 @@
         <div id="holdem-pot" class="holdem-pot" aria-live="polite">
           <span>POT</span>
           <strong id="holdem-pot-amount">0</strong>
-          <small id="holdem-side-pots"></small>
         </div>
 
         <div id="holdem-board" class="holdem-board" aria-label="커뮤니티 카드"></div>
@@ -778,7 +777,7 @@
         참가자가 준비되면 게임을 시작할 수 있어요
       </div>
 
-      <section id="holdem-lobby" class="holdem-lobby-panel" aria-labelledby="holdem-lobby-title">
+      <section id="holdem-lobby" class="holdem-lobby-panel hidden" aria-labelledby="holdem-lobby-title">
         <div class="holdem-lobby-head">
           <div>
             <span id="holdem-mode-label">6-MAX · NO LIMIT</span>
@@ -1063,17 +1062,18 @@
     <div id="create-holdem-mode-step" class="hidden">
       <div class="create-head create-head-mode">
         <button id="create-holdem-step-back" class="create-icon-btn create-back" type="button" aria-label="이전">←</button>
-        <div class="create-head-title create-holdem-head-title">
-          <h2 id="create-holdem-summary-name"></h2>
-        </div>
         <button class="create-icon-btn modal-close" data-close aria-label="닫기">✕</button>
       </div>
       <div class="create-holdem-wallet create-holdem-wallet-full" aria-live="polite">
-        <span>내 홀덤 총 자산</span>
+        <div class="create-holdem-wallet-top">
+          <span>내 홀덤 총 자산</span>
+          <em>MY STACK</em>
+        </div>
         <strong id="create-holdem-wallet-balance">불러오는 중</strong>
+        <small id="create-holdem-wallet-status">자산을 확인하고 있어요</small>
       </div>
-      <div class="setting-title create-holdem-section-title">게임 방식</div>
-      <div id="create-holdem-mode" class="create-mode-list create-holdem-mode-list">
+      <div class="setting-title create-holdem-section-title hidden">게임 방식</div>
+      <div id="create-holdem-mode" class="create-mode-list create-holdem-mode-list hidden" hidden aria-hidden="true">
         <button class="create-mode-card create-holdem-mode-card active" type="button" data-holdem-mode="ring" aria-pressed="true">
           <span class="create-holdem-mode-icon ring" aria-hidden="true">₩</span>
           <span class="create-mode-copy">
@@ -1081,7 +1081,7 @@
             <span>바이인을 정하고 바로 시작 · 최대 6명</span>
           </span>
         </button>
-        <button class="create-mode-card create-holdem-mode-card create-holdem-tournament-card" type="button" data-holdem-mode="tournament" aria-pressed="false" aria-disabled="true" disabled>
+        <button class="create-mode-card create-holdem-mode-card create-holdem-tournament-card hidden" type="button" data-holdem-mode="tournament" aria-pressed="false" aria-disabled="true" disabled hidden>
           <span class="create-holdem-mode-icon tournament" aria-hidden="true">♠</span>
           <span class="create-mode-copy">
             <strong>토너먼트</strong>
@@ -1090,7 +1090,7 @@
           </span>
         </button>
       </div>
-      <div id="create-holdem-speed-group" class="create-holdem-speed-group">
+      <div id="create-holdem-speed-group" class="create-holdem-speed-group hidden" hidden aria-hidden="true">
         <div class="setting-title">토너먼트 속도</div>
         <div id="create-holdem-speed" class="create-holdem-speed" role="group" aria-label="토너먼트 속도">
           <button class="active" type="button" data-holdem-speed="normal" aria-pressed="true">
@@ -1103,19 +1103,31 @@
       </div>
       <div id="create-holdem-buyin-group" class="create-holdem-buyin-group hidden">
         <div class="create-holdem-buyin-head">
-          <span class="setting-title">이 방의 시작 바이인</span>
-          <output id="create-holdem-buyin-output" for="create-holdem-buyin-slider">20,000원</output>
+          <span class="setting-title">참가비용 범위</span>
+          <output id="create-holdem-buyin-output" for="create-holdem-buyin-slider">30,000원~50,000원</output>
         </div>
-        <input id="create-holdem-buyin-slider" type="range" min="10000" max="40000" step="100" value="20000">
+        <input id="create-holdem-buyin-slider" type="hidden" min="10000" max="100000" step="100" value="50000">
         <div id="create-holdem-buyin-presets" class="create-holdem-buyin-presets" role="group" aria-label="바이인 빠른 선택">
-          <button type="button" data-holdem-buyin="10000">50 BB</button>
-          <button class="active" type="button" data-holdem-buyin="20000">100 BB</button>
-          <button type="button" data-holdem-buyin="40000">200 BB</button>
+          <button type="button" data-holdem-buyin="10000">
+            <strong>라이트</strong>
+            <span>10,000원~20,000원</span>
+            <small>SB 50 / BB 100</small>
+          </button>
+          <button class="active" type="button" data-holdem-buyin="50000">
+            <strong>스탠다드</strong>
+            <span>30,000원~50,000원</span>
+            <small>SB 250 / BB 500</small>
+          </button>
+          <button type="button" data-holdem-buyin="100000">
+            <strong>하이롤러</strong>
+            <span>50,000원~100,000원</span>
+            <small>SB 500 / BB 1,000</small>
+          </button>
         </div>
-        <small id="create-holdem-buyin-note">모든 참가자가 같은 바이인으로 시작합니다.</small>
+        <small id="create-holdem-buyin-note">선택한 블라인드 테이블에 최소~최대 범위 안에서 입장합니다.</small>
       </div>
       <div id="create-holdem-rule-summary" class="create-holdem-rule-summary">
-        바이인 20,000원 · SB 100원 / BB 200원 · 최대 6명
+        참가비용 30,000원~50,000원 · SB 250원 / BB 500원 · 최대 6명
       </div>
       <button id="create-holdem-mode-confirm" class="btn-primary create-confirm">홀덤 방 만들기</button>
     </div>

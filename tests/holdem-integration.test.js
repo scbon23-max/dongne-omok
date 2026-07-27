@@ -34,7 +34,7 @@ test("Hold'em is an available six-player controller game", () => {
   assert.match(game, /visibleGameIds\(createIds\)\.filter\(canCreateGame\)/);
   assert.match(game, /def && def\.createAdminOnly && !me\.isAdmin/);
   assert.doesNotMatch(game, /createAdminOnly && !isGunaAdmin\(\)/);
-  assert.match(game, /id === "holdem" \? "홀덤 · 토너먼트"/);
+  assert.match(game, /id === "holdem" \? "홀덤 · 링게임"/);
 });
 
 test("Hold'em room creation shows assets, locks tournaments to admins, and selects a ring buy-in", () => {
@@ -65,25 +65,30 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
     index.indexOf('data-holdem-mode="ring"') <
       index.indexOf('data-holdem-mode="tournament"')
   );
-  assert.match(index, /data-holdem-mode="tournament"/);
-  assert.doesNotMatch(index, /create-holdem-tournament-card hidden/);
-  assert.doesNotMatch(index, /data-holdem-mode="tournament"[^>]*hidden/);
-  assert.match(index, /토너먼트를 하려면 관리자에게 문의해주세요/);
+  assert.match(index, /data-holdem-mode="tournament"[^>]*hidden/);
+  assert.match(index, /id="create-holdem-mode"[^>]*hidden/);
   assert.match(index, /data-holdem-mode="ring"/);
   assert.match(index, /data-holdem-speed="normal"/);
   assert.match(index, /data-holdem-speed="turbo"/);
-  assert.match(index, /id="create-holdem-buyin-slider"[^>]*step="100"/);
+  assert.match(index, /id="create-holdem-speed-group"[^>]*hidden/);
+  assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*max="100000"[^>]*step="100"/);
+  assert.match(index, /data-holdem-buyin="10000"[\s\S]*data-holdem-buyin="50000"[\s\S]*data-holdem-buyin="100000"/);
+  assert.match(index, /참가비용 범위/);
+  assert.match(index, /10,000원~20,000원[\s\S]*30,000원~50,000원[\s\S]*50,000원~100,000원/);
   assert.match(index, /<strong>홀덤<\/strong>/);
-  assert.match(index, /create-holdem-head-title[\s\S]*id="create-holdem-summary-name"/);
+  assert.doesNotMatch(index, /id="create-holdem-summary-name"/);
+  assert.doesNotMatch(index, /create-holdem-head-title/);
   assert.doesNotMatch(holdemCreateStep, /<span>방 이름<\/span>/);
   assert.match(holdemCreateStep, /create-holdem-wallet create-holdem-wallet-full/);
   assert.match(game, /renderCreateHoldemMode\("ring", "normal"\)/);
   assert.match(game, /HOLDEM_INITIAL_ASSETS = 100000/);
-  assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 20000/);
+  assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 50000/);
+  assert.match(game, /HOLDEM_BUY_IN_OPTIONS = \[[\s\S]*minBuyIn: 10000[\s\S]*maxBuyIn: 20000[\s\S]*minBuyIn: 30000[\s\S]*maxBuyIn: 50000[\s\S]*minBuyIn: 50000[\s\S]*maxBuyIn: 100000/);
+  assert.match(game, /function holdemBuyInRangeLabel\(amount\)/);
   assert.match(game, /totalAssets[\s\S]*tableBalance[\s\S]*현재 테이블에서 사용 중/);
-  assert.match(game, /mode = mode === "ring" \|\| !me\.isAdmin \? "ring" : "tournament"/);
-  assert.match(game, /modeCards\[i\]\.hidden = false/);
-  assert.match(game, /classList\.remove\("hidden"\)/);
+  assert.match(game, /mode = "ring"/);
+  assert.match(game, /modeBox\.hidden = true/);
+  assert.match(game, /modeCards\[i\]\.hidden = isTournamentCard/);
   assert.match(game, /토너먼트 방은 관리자만 만들 수 있어요/);
   assert.match(game, /function holdemCreateGameId\(mode, speed\)/);
   assert.match(game, /return "holdem_ring"/);
@@ -193,6 +198,9 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*box-shadow:\s*inset 0 0 0 1px #ecede8/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -1px; \}/);
   assert.doesNotMatch(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ transform: rotate/);
+  assert.match(controller, /class="holdem-seat-open-icon"/);
+  assert.match(controller, /role="button" tabindex="0"/);
+  assert.match(styles, /\.holdem-seat-open-icon\s*\{/);
   assert.match(styles, /@media \(min-width: 900px\)[\s\S]*\.holdem-table/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
 });
@@ -213,7 +221,8 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(index, /AI 연습은 방에 혼자 있을 때만 사용할 수 있고/);
   assert.match(index, /연습용 임시 원화 자산으로 진행됩니다/);
   assert.match(controller, /practiceMode: mode === "ring" && botCount > 0 && !assetBacked/);
-  assert.match(controller, /var humanCount = state\.seats\.filter/);
+  assert.match(controller, /function humanSeatCount\(\)[\s\S]*state\.seats\.filter/);
+  assert.match(controller, /var humanCount = humanSeatCount\(\)/);
   assert.match(controller, /state\.canManageBots && humanCount === 1/);
   assert.match(controller, /AI와 하는 연습용 임시 원화 자산/);
   assert.match(controller, /연습용 임시 원화 자산 충전/);
@@ -228,7 +237,13 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /var AUTO_NEXT_HAND_MS = 5000/);
   assert.match(controller, /function renderHandResult\(\)[\s\S]*panel\.classList\.add\("hidden"\)/);
   assert.doesNotMatch(controller, /panel\.classList\.toggle\("hidden", !announced\)/);
-  assert.match(controller, /show\("holdem-lobby", waiting\)/);
+  assert.match(controller, /show\("holdem-lobby", false\)/);
+  assert.match(controller, /refreshSnapshot\("enter", true\)/);
+  assert.doesNotMatch(controller, /startTimers\(\);\s*joinTable\(\);/);
+  assert.match(controller, /function chooseEmptySeat\(seatIndex\)[\s\S]*addBot\(\{ seat: targetSeat \}\)[\s\S]*joinTable\(targetSeat\)/);
+  assert.match(controller, /function autoReadyAfterSeatJoin\(\)[\s\S]*invoke\("ready"/);
+  assert.match(controller, /function ensureSeatControls\(\)[\s\S]*appendChild\(button\)/);
+  assert.match(styles, /\.holdem-seat-controls\s*\{/);
   assert.match(controller, /show\("holdem-ready-btn", waiting && state\.heroSeat >= 0 && state\.canReady\)/);
   assert.match(controller, /function scheduleAutoReadyForNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*invoke\("ready"/);
   assert.match(controller, /scheduleAutoReadyForNextHand\(\)[\s\S]*scheduleAutoNextHand\(\)/);

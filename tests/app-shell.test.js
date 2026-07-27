@@ -358,7 +358,11 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
   assert.match(catalog, /holdem_turbo:\s*\{[\s\S]*createAdminOnly:\s*true[\s\S]*discoverable:\s*false/);
   assert.match(catalog, /holdem_ring:\s*\{[\s\S]*createAdminOnly:\s*false[\s\S]*discoverable:\s*false/);
   assert.match(index, /id="create-holdem-wallet-balance"/);
-  assert.match(index, /id="create-holdem-buyin-slider"[^>]*min="10000"[^>]*max="40000"[^>]*step="100"/);
+  assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*min="10000"[^>]*max="100000"[^>]*step="100"/);
+  assert.match(index, /data-holdem-buyin="10000"[\s\S]*data-holdem-buyin="50000"[\s\S]*data-holdem-buyin="100000"/);
+  assert.match(index, /10,000원~20,000원[\s\S]*30,000원~50,000원[\s\S]*50,000원~100,000원/);
+  assert.match(index, /id="create-holdem-mode"[^>]*hidden/);
+  assert.match(index, /data-holdem-mode="tournament"[^>]*hidden/);
   assert.match(game, /if \(!canEnterGame\(game\)\) \{[\s\S]*game === "catchmind" \? "캐치마인드는 점검 중이라 이용할 수 없어요"/);
   assert.match(game, /function renderRoomList\(\)[\s\S]*roomIsDiscoverable\(r\.game\)[\s\S]*canEnterGame\(r\.game\)/);
   assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);
