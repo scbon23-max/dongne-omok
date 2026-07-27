@@ -187,6 +187,13 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-chat-input",
   ].forEach((id) => assert.match(index, new RegExp(`id="${id}"`)));
 
+  assert.doesNotMatch(index, /class="holdem-brand"/);
+  assert.doesNotMatch(index, /class="holdem-brand-cards"/);
+  assert.doesNotMatch(index, /id="holdem-status"/);
+  assert.doesNotMatch(index, /id="holdem-people-btn"/);
+  assert.match(index, /<nav class="holdem-utility"[\s\S]*id="holdem-leave-btn"[\s\S]*id="holdem-hands-btn"[\s\S]*id="holdem-settings-btn"/);
+  assert.match(styles, /\.holdem-topbar\s*\{[\s\S]*background:\s*transparent/);
+  assert.match(styles, /\.holdem-utility #holdem-leave-btn \{ margin-right: auto; \}/);
   assert.match(styles, /\.holdem-table\s*\{[\s\S]*aspect-ratio:\s*9\s*\/\s*14/);
   for (let seat = 0; seat < 6; seat += 1) {
     assert.match(

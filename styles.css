@@ -3468,36 +3468,10 @@ body.is-admin .feedback-user-compose { display: none; }
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  background: linear-gradient(180deg, rgba(4,8,10,.96), rgba(4,8,10,.22));
+  background: transparent;
 }
-.holdem-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.holdem-brand > span:last-child { display: flex; min-width: 0; flex-direction: column; }
-.holdem-brand strong { font-size: 14px; line-height: 1.15; letter-spacing: -.2px; white-space: nowrap; }
-.holdem-brand small { max-width: 118px; overflow: hidden; color: #85a5ad; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.holdem-brand-cards {
-  position: relative;
-  width: 34px;
-  height: 32px;
-  flex: 0 0 34px;
-}
-.holdem-brand-cards i,
-.holdem-brand-cards b {
-  position: absolute;
-  top: 2px;
-  display: grid;
-  width: 22px;
-  height: 28px;
-  place-items: center;
-  border: 1px solid #ced4d5;
-  border-radius: 4px;
-  background: #f7f7f3;
-  font-size: 15px;
-  font-style: normal;
-  box-shadow: 0 3px 8px rgba(0,0,0,.3);
-}
-.holdem-brand-cards i { left: 1px; color: #101517; transform: rotate(-8deg); }
-.holdem-brand-cards b { right: 1px; color: #d62f35; transform: rotate(7deg); }
-.holdem-utility { display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+.holdem-utility { display: flex; width: 100%; align-items: center; justify-content: flex-end; gap: 5px; }
+.holdem-utility #holdem-leave-btn { margin-right: auto; }
 .holdem-utility button,
 .holdem-chat-row button {
   min-height: 34px;
@@ -4831,8 +4805,6 @@ body.is-admin .feedback-user-compose { display: none; }
 
 @media (max-width: 370px), (max-height: 670px) {
   .holdem-topbar { min-height: 51px; padding-top: max(5px, env(safe-area-inset-top)); }
-  .holdem-brand strong { font-size: 12px; }
-  .holdem-brand-cards { width: 29px; flex-basis: 29px; transform: scale(.88); transform-origin: left center; }
   .holdem-utility { gap: 3px; }
   .holdem-utility button { min-height: 31px; padding: 0 7px; font-size: 10px; }
   .holdem-connection { top: max(51px, calc(env(safe-area-inset-top) + 43px)); }
@@ -4850,8 +4822,6 @@ body.is-admin .feedback-user-compose { display: none; }
 
 @media (min-width: 900px) {
   .holdem-topbar { min-height: 66px; padding: 12px 18px; }
-  .holdem-brand strong { font-size: 17px; }
-  .holdem-brand small { max-width: 220px; font-size: 11px; }
   .holdem-utility button { min-height: 39px; padding: 0 13px; font-size: 12px; }
   .holdem-connection { top: 70px; }
   .holdem-table-wrap { inset: 90px 0 58px; padding-bottom: 6px; }
