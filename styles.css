@@ -3777,8 +3777,8 @@ body.is-admin .feedback-user-compose { display: none; }
   box-shadow: inset 0 0 0 3px #ecede8, inset 0 0 0 5px #1f6470, 0 3px 8px rgba(0,0,0,.35);
 }
 .holdem-card.empty {
-  border: 1px dashed rgba(213,239,235,.22);
-  background: rgba(1,37,43,.24);
+  border: 1px dashed rgba(213,239,235,.09);
+  background: rgba(1,37,43,.10);
   box-shadow: none;
 }
 .holdem-board .holdem-card,
@@ -3803,14 +3803,14 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-board .holdem-card:first-child,
 .holdem-result-board .holdem-card:first-child,
 .holdem-result-cards .holdem-card:first-child {
-  border-top-left-radius: 8px;
-  border-bottom-left-radius: 8px;
+  border-top-left-radius: var(--holdem-card-radius, 3px);
+  border-bottom-left-radius: var(--holdem-card-radius, 3px);
 }
 .holdem-board .holdem-card:last-child,
 .holdem-result-board .holdem-card:last-child,
 .holdem-result-cards .holdem-card:last-child {
-  border-top-right-radius: 8px;
-  border-bottom-right-radius: 8px;
+  border-top-right-radius: var(--holdem-card-radius, 3px);
+  border-bottom-right-radius: var(--holdem-card-radius, 3px);
 }
 .holdem-seats { position: absolute; inset: 0; z-index: 12; pointer-events: none; }
 .holdem-seat {
