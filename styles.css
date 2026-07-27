@@ -1980,6 +1980,137 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .cm-rule-score-table td b { color: var(--orange-dark); font-weight: 800; }
 .cm-rule-example { margin-top: 10px !important; padding: 8px 9px; border-left: 3px solid var(--orange); background: #f4f7f8; color: #39525e; }
 .cm-rule-muted { margin-top: 8px !important; color: #718791; }
+.rules-dialog:has(.holdem-hand-rankings) {
+  max-width: 620px;
+  padding: 17px;
+  background: #f7f8f5;
+}
+.holdem-hand-rankings { color: #2f3434; }
+.holdem-hand-rankings-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: -2px 0 12px;
+}
+.holdem-hand-rankings-head strong {
+  color: #2a2f2f;
+  font-size: 22px;
+  font-weight: 1000;
+  line-height: 1;
+}
+.holdem-hand-rankings-head span {
+  color: #656f70;
+  font-size: 11px;
+  font-weight: 700;
+}
+.holdem-hand-rankings-body {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+}
+.holdem-hand-strength {
+  position: relative;
+  min-height: 620px;
+  border-left: 7px solid #9ad6cd;
+}
+.holdem-hand-strength::before {
+  content: "";
+  position: absolute;
+  left: -15px;
+  top: -1px;
+  border-right: 11px solid transparent;
+  border-left: 11px solid transparent;
+  border-bottom: 24px solid #9ad6cd;
+}
+.holdem-hand-strength span {
+  position: absolute;
+  left: -18px;
+  bottom: 4px;
+  color: #287c75;
+  font-size: 11px;
+  font-weight: 900;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+.holdem-hand-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.holdem-hand-row {
+  display: grid;
+  grid-template-columns: 22px auto minmax(160px, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+}
+.holdem-hand-order {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: #263232;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 1000;
+}
+.holdem-hand-example {
+  --holdem-card-width: clamp(31px, 7vw, 44px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.holdem-hand-example .holdem-card {
+  width: var(--holdem-card-width);
+  flex: 0 0 var(--holdem-card-width);
+  border-color: #bfc5c2;
+  box-shadow: 0 1px 2px rgba(0,0,0,.16);
+}
+.holdem-hand-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.holdem-hand-copy strong {
+  color: #202828;
+  font-size: 18px;
+  font-weight: 1000;
+  line-height: 1.05;
+}
+.holdem-hand-copy span {
+  color: #596364;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+@media (max-width: 520px) {
+  .rules-dialog:has(.holdem-hand-rankings) { max-width: 390px; padding: 14px; }
+  .holdem-hand-rankings-head { flex-direction: column; gap: 3px; margin-bottom: 10px; }
+  .holdem-hand-rankings-head strong { font-size: 20px; }
+  .holdem-hand-rankings-body { grid-template-columns: 14px minmax(0, 1fr); gap: 7px; }
+  .holdem-hand-strength { min-height: 720px; border-left-width: 5px; }
+  .holdem-hand-strength::before { left: -12px; border-right-width: 9px; border-left-width: 9px; border-bottom-width: 20px; }
+  .holdem-hand-strength span { left: -16px; font-size: 10px; }
+  .holdem-hand-row {
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 6px 8px;
+    min-height: 66px;
+  }
+  .holdem-hand-order { width: 20px; height: 20px; font-size: 10px; }
+  .holdem-hand-example {
+    --holdem-card-width: clamp(27px, 8.4vw, 33px);
+    gap: 3px;
+  }
+  .holdem-hand-copy { grid-column: 2; gap: 1px; }
+  .holdem-hand-copy strong { font-size: 15px; }
+  .holdem-hand-copy span { font-size: 10.5px; }
+}
 
 /* 땅따먹기 그림 규칙 */
 .territory-rules { color: #334b57; }
@@ -2220,9 +2351,9 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   position: relative;
   overflow: hidden;
   display: grid;
-  gap: 7px;
-  margin: -3px 0 13px;
-  padding: 15px 15px 14px;
+  gap: 6px;
+  margin: -3px 0 11px;
+  padding: 13px 14px 12px;
   border-radius: 14px;
   border: 1px solid rgba(125,225,196,.3);
   background:
@@ -2262,7 +2393,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   z-index: 1;
   min-width: 0;
   color: #fff7dc;
-  font-size: clamp(29px, 9vw, 42px);
+  font-size: clamp(28px, 8.4vw, 40px);
   line-height: 1;
   font-variant-numeric: tabular-nums;
   letter-spacing: -1.4px;
@@ -2399,7 +2530,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-holdem-speed span { margin-top: 3px; font-size: 10px; line-height: 1.35; }
 .create-holdem-buyin-group {
   margin: 0 0 10px;
-  padding: 11px;
+  padding: 10px;
   border: 1px solid rgba(125,225,196,.22);
   border-radius: 12px;
   background:
@@ -2410,13 +2541,16 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .create-holdem-buyin-head .setting-title { margin: 0; }
 .create-holdem-buyin-head output {
   color: #7de1c4;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 .create-holdem-buyin-group input[type="range"] {
   width: 100%;
@@ -2425,14 +2559,18 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-holdem-buyin-presets {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 6px;
   margin-top: 9px;
 }
 .create-holdem-buyin-presets button {
   min-width: 0;
-  min-height: 84px;
-  padding: 10px 7px;
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 9px 11px;
   border: 1px solid rgba(255,255,255,.1);
   border-radius: 11px;
   background:
@@ -2450,20 +2588,25 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-holdem-buyin-presets button strong {
   color: #f2c77d;
-  font-size: 12px;
+  font-size: 14px;
+  line-height: 1.15;
 }
 .create-holdem-buyin-presets button span {
-  margin-top: 7px;
+  grid-column: 1 / -1;
+  margin-top: 0;
   color: #eefbf8;
-  font-size: 11px;
-  line-height: 1.25;
+  font-size: 12px;
+  line-height: 1.22;
   word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 .create-holdem-buyin-presets button small {
-  margin-top: 6px;
+  margin-top: 0;
   color: #86b9b4;
-  font-size: 9.5px;
-  line-height: 1.25;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
 }
 .create-holdem-buyin-presets button.active {
   border-color: rgba(242,199,125,.82);
@@ -2488,13 +2631,15 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-holdem-rule-summary {
   margin-bottom: 11px;
-  padding: 8px 10px;
+  padding: 8px 9px;
   border-left: 3px solid #2fb89e;
   background: rgba(47,184,158,.09);
   color: #b9d7d3;
   font-size: 10.5px;
   font-weight: 750;
   line-height: 1.35;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 @media (max-height: 680px) {
   .create-room-dialog { padding: 15px; }
@@ -2505,6 +2650,11 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   .create-mode-card > img { height: 82px; }
   .create-holdem-mode-card { min-height: 62px; }
   .create-holdem-buyin-group > small { display: none; }
+  .create-holdem-buyin-presets button {
+    min-height: 56px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
 }
 @media (max-width: 380px) {
   .create-holdem-wallet {
@@ -2517,7 +2667,11 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
     gap: 5px;
   }
   .create-holdem-buyin-presets button {
-    padding: 9px 6px;
+    padding: 8px 9px;
+  }
+  .create-holdem-buyin-head output {
+    width: 100%;
+    text-align: left;
   }
 }
 

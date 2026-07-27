@@ -20,7 +20,7 @@
  *   #holdem-call-btn, #holdem-call-amount, #holdem-bet-btn,
  *   #holdem-raise-btn, #holdem-allin-btn
  * Utility/chat: #holdem-settings-btn, #holdem-people-btn,
- *   #holdem-rules-btn, #holdem-leave-btn, #holdem-chat-input,
+ *   #holdem-hands-btn, #holdem-leave-btn, #holdem-chat-input,
  *   #holdem-chat-send, #holdem-chat-overlay
  * Quick bet buttons: [data-holdem-bet="half|three-quarter|pot|allin"]
  *
@@ -525,23 +525,46 @@ window.TexasHoldem = (function () {
       : "";
   }
 
+  function hasAllInSidePot(table) {
+    var seatSource = Array.isArray(table.seats) ? table.seats :
+      Array.isArray(table.players) ? table.players : [];
+    var highestCommitted = 0;
+    var allInCaps = [];
+    seatSource.forEach(function (entry) {
+      if (!isObject(entry)) return;
+      var status = text(firstDefined(entry.status, entry.state), 32).toLowerCase();
+      var folded = !!firstDefined(entry.folded, status === "folded" || status === "fold");
+      var inHand = bool(firstDefined(entry.inHand, entry.playing), status !== "out");
+      var committed = nonnegative(firstDefined(entry.totalBet, entry.committed), 0);
+      if (!inHand || folded || committed <= 0) return;
+      highestCommitted = Math.max(highestCommitted, committed);
+      var stack = nonnegative(firstDefined(entry.stack, entry.chips, entry.balance), 0);
+      var allIn = !!firstDefined(entry.allIn, entry.allin, status === "allin" || status === "all_in" || stack === 0);
+      if (allIn) allInCaps.push(committed);
+    });
+    return allInCaps.some(function (cap) { return highestCommitted > cap; });
+  }
+
   function normalizePots(table) {
     var main = nonnegative(firstDefined(
       table.totalPot,
       isObject(table.pot) ? table.pot.amount : table.pot,
       table.potAmount
     ), NaN);
+    var explicitSideSource = Array.isArray(table.sidePots) ? table.sidePots : null;
     var source = Array.isArray(table.pots) ? table.pots :
-      Array.isArray(table.sidePots) ? table.sidePots : [];
+      explicitSideSource ? explicitSideSource : [];
     var amounts = source.map(function (pot) {
       return nonnegative(isObject(pot) ? firstDefined(pot.amount, pot.chips, pot.value) : pot, 0);
     }).filter(function (amount) { return amount > 0; });
     if (!Number.isFinite(main)) {
       main = amounts.reduce(function (sum, amount) { return sum + amount; }, 0);
     }
-    var sides = Array.isArray(table.sidePots)
-      ? amounts
-      : amounts.length > 1 ? amounts.slice(1) : [];
+    var sides = explicitSideSource
+      ? explicitSideSource.map(function (pot) {
+          return nonnegative(isObject(pot) ? firstDefined(pot.amount, pot.chips, pot.value) : pot, 0);
+        }).filter(function (amount) { return amount > 0; })
+      : amounts.length > 1 && hasAllInSidePot(table) ? amounts.slice(1) : [];
     return { total: Math.max(0, main), sides: sides };
   }
 
@@ -1266,8 +1289,20 @@ window.TexasHoldem = (function () {
       broadcast: true
     }).then(function (result) {
       if (result && result.stale) return result;
-      return refreshSnapshot(result && result.ok ? "joined" : "join_retry", true);
+      return refreshSnapshot(result && result.ok ? "joined" : "join_retry", true).then(function (refreshResult) {
+        if (result && result.ok) autoReadyAfterSeatJoin();
+        return refreshResult;
+      });
     });
+  }
+
+  function humanSeatCount() {
+    return state.seats.filter(function (seat) { return seat && !seat.isBot; }).length;
+  }
+
+  function seatedAloneWithBotsEnabled() {
+    return state.heroSeat >= 0 && state.phase === "waiting" &&
+      state.canManageBots && humanSeatCount() === 1;
   }
 
   function performMove(move, amount) {
@@ -1380,6 +1415,21 @@ window.TexasHoldem = (function () {
     autoNextTimer = setTimeout(function () { autoStartHand(key); }, AUTO_NEXT_HAND_MS);
   }
 
+  function autoReadyAfterSeatJoin() {
+    if (state.phase !== "waiting" || state.heroSeat < 0 || state.heroReady || !state.canReady || requests.ready) return;
+    invoke("ready", {
+      ready: true,
+      expectedVersion: state.version
+    }, {
+      key: "ready",
+      label: "auto_ready",
+      broadcast: true,
+      silent: true,
+      ui: false,
+      requestId: requestId("seatready", String(state.version) + ":" + state.heroSeat)
+    });
+  }
+
   function setReady() {
     invoke("ready", {
       ready: !state.heroReady,
@@ -1407,9 +1457,12 @@ window.TexasHoldem = (function () {
   function addBot(options) {
     options = options || {};
     if (!state.canManageBots || state.botCount >= MAX_SEATS) return;
-    return invoke("add_bot", {
+    var payload = {
       expectedVersion: state.version
-    }, {
+    };
+    var seat = safeSeat(options.seat);
+    if (seat >= 0) payload.seat = seat;
+    return invoke("add_bot", payload, {
       key: "bot_manage",
       label: "bot",
       broadcast: true
@@ -1419,6 +1472,16 @@ window.TexasHoldem = (function () {
       }
       return result;
     });
+  }
+
+  function chooseEmptySeat(seatIndex) {
+    var targetSeat = safeSeat(seatIndex);
+    if (targetSeat < 0 || state.seats[targetSeat] || isHandActive(state.phase)) return;
+    if (seatedAloneWithBotsEnabled()) {
+      if (!requests.bot_manage) addBot({ seat: targetSeat });
+      return;
+    }
+    if (!requests.join) joinTable(targetSeat);
   }
 
   function addFiveBots() {
@@ -1600,6 +1663,90 @@ window.TexasHoldem = (function () {
       '</span>';
   }
 
+  function handRankCard(rank, suit) {
+    return { rank: rank, suit: suit };
+  }
+
+  function handRankExample(cards) {
+    return cards.map(function (card) {
+      return cardHtml(handRankCard(card[0], card[1]));
+    }).join("");
+  }
+
+  function handRankings() {
+    var hands = [
+      {
+        name: "로열 플러시",
+        desc: "같은 무늬 A, K, Q, J, 10",
+        cards: [["A", "h"], ["K", "h"], ["Q", "h"], ["J", "h"], ["10", "h"]]
+      },
+      {
+        name: "스트레이트 플러시",
+        desc: "같은 무늬로 숫자가 연속된 5장",
+        cards: [["9", "s"], ["8", "s"], ["7", "s"], ["6", "s"], ["5", "s"]]
+      },
+      {
+        name: "포카드",
+        desc: "같은 숫자 4장",
+        cards: [["A", "h"], ["A", "d"], ["A", "c"], ["A", "s"], ["3", "c"]]
+      },
+      {
+        name: "풀하우스",
+        desc: "같은 숫자 3장과 같은 숫자 2장",
+        cards: [["K", "h"], ["K", "c"], ["K", "s"], ["8", "d"], ["8", "h"]]
+      },
+      {
+        name: "플러시",
+        desc: "같은 무늬 5장",
+        cards: [["K", "c"], ["Q", "c"], ["9", "c"], ["8", "c"], ["5", "c"]]
+      },
+      {
+        name: "스트레이트",
+        desc: "무늬와 상관없이 숫자가 연속된 5장",
+        cards: [["9", "h"], ["8", "s"], ["7", "d"], ["6", "c"], ["5", "d"]]
+      },
+      {
+        name: "트리플",
+        desc: "같은 숫자 3장",
+        cards: [["J", "h"], ["J", "d"], ["J", "c"], ["3", "s"], ["8", "h"]]
+      },
+      {
+        name: "투페어",
+        desc: "같은 숫자 2장짜리 두 묶음",
+        cards: [["Q", "h"], ["Q", "d"], ["7", "c"], ["7", "h"], ["3", "d"]]
+      },
+      {
+        name: "원페어",
+        desc: "같은 숫자 2장",
+        cards: [["A", "c"], ["A", "s"], ["3", "s"], ["8", "c"], ["10", "h"]]
+      },
+      {
+        name: "하이카드",
+        desc: "아무 조합이 없을 때 가장 높은 카드",
+        cards: [["K", "h"], ["7", "c"], ["5", "h"], ["3", "s"], ["2", "c"]]
+      }
+    ];
+    var html = '<div class="holdem-hand-rankings">' +
+      '<div class="holdem-hand-rankings-head">' +
+      '<strong>홀덤 족보</strong><span>A는 가장 낮은 1 또는 가장 높은 카드로 사용할 수 있어요.</span>' +
+      '</div>' +
+      '<div class="holdem-hand-rankings-body">' +
+      '<div class="holdem-hand-strength" aria-hidden="true"><span>강함</span></div>' +
+      '<ol class="holdem-hand-list">';
+    hands.forEach(function (hand, index) {
+      html += '<li class="holdem-hand-row">' +
+        '<span class="holdem-hand-order">' + (index + 1) + '</span>' +
+        '<div class="holdem-hand-example" aria-hidden="true">' + handRankExample(hand.cards) + '</div>' +
+        '<div class="holdem-hand-copy"><strong>' + esc(hand.name) + '</strong><span>' + esc(hand.desc) + '</span></div>' +
+        '</li>';
+    });
+    html += '</ol></div></div>';
+    return {
+      title: "홀덤 족보",
+      html: html
+    };
+  }
+
   function relativeSeat(absolute, perspective) {
     return ((absolute - perspective) % MAX_SEATS + MAX_SEATS) % MAX_SEATS;
   }
@@ -1740,7 +1887,7 @@ window.TexasHoldem = (function () {
         ? name + ", 보유액 " + formatChips(displayStack) +
           (seat.isBot ? ", AI, " + personalityLabel : "") +
           (status ? ", " + status : "") + (isActive ? ", 행동 차례" : "")
-        : "빈 자리";
+        : (seatedAloneWithBotsEnabled() ? "빈 좌석, AI 추가" : "빈 좌석, 앉기");
       var badges = "";
       if (absolute === state.dealerSeat) badges += "<span>D</span>";
       if (absolute === state.smallBlindSeat) badges += "<span>SB</span>";
@@ -1770,11 +1917,13 @@ window.TexasHoldem = (function () {
 
       html.push(
         '<article class="' + classes.join(" ") + '" data-seat="' + absolute +
-        '" data-relative-seat="' + relative + '" aria-label="' + esc(label) + '">' +
+        '" data-relative-seat="' + relative + '" aria-label="' + esc(label) + '"' +
+        (!seat && !isHandActive(state.phase) ? ' role="button" tabindex="0"' : "") + '>' +
           '<div class="holdem-hole-cards">' + holes + '</div>' +
           resultBadge +
           '<div class="holdem-seat-avatar" aria-hidden="true">' +
-            (avatarSrc ? '<img src="' + esc(avatarSrc) + '" alt="">' : seat ? esc(initialFor(name)) : "빈") +
+            (avatarSrc ? '<img src="' + esc(avatarSrc) + '" alt="">' : seat ? esc(initialFor(name)) :
+              '<span class="holdem-seat-open-icon"><span></span><i></i></span>') +
           '</div>' +
           '<div class="holdem-seat-badges" aria-hidden="true">' + badges + '</div>' +
           (seat ? '<strong class="holdem-seat-name">' + esc(name) + '</strong>' : "") +
@@ -1935,6 +2084,8 @@ window.TexasHoldem = (function () {
     if (state.message) return state.message;
     if (state.phase === "loading") return "안전한 테이블에 연결하고 있어요";
     if (state.phase === "waiting") {
+      if (state.heroSeat < 0) return "빈 좌석 아이콘을 누르면 그 자리에 앉아요.";
+      if (seatedAloneWithBotsEnabled()) return "다른 빈 좌석을 누르면 랜덤 성향 AI가 앉아요.";
       var readyCount = state.seats.filter(function (seat) { return seat && seat.ready; }).length;
       return readyCount + "명 준비 · 두 명 이상 준비하면 시작할 수 있어요";
     }
@@ -2040,7 +2191,7 @@ window.TexasHoldem = (function () {
     var hasMove = moves.some(function (move) { return !!state.legal[move]; });
     var busy = pendingUiCount > 0;
     var isOwner = !!(text(me().nick, 40) && text(me().nick, 40) === state.ownerNick);
-    var humanCount = state.seats.filter(function (seat) { return seat && !seat.isBot; }).length;
+    var humanCount = humanSeatCount();
     var canManageBots = isOwner && state.canManageBots && humanCount === 1;
     var occupiedSeats = state.seats.filter(Boolean).length;
     var canSize = !!(state.legal.bet || state.legal.raise);
@@ -2055,9 +2206,10 @@ window.TexasHoldem = (function () {
     }
     if (!hasMove || !canSize) raiseMenuOpen = false;
 
-    show("holdem-lobby", waiting);
-    show("holdem-bot-controls", canManageBots);
-    show("holdem-bot-note", canManageBots);
+    show("holdem-lobby", false);
+    show("holdem-seat-controls", waiting && state.heroSeat >= 0);
+    show("holdem-bot-controls", false);
+    show("holdem-bot-note", false);
     setText("holdem-bot-count", "AI " + state.botCount + "명");
     disable("holdem-bot-add-btn", busy || !canManageBots || occupiedSeats >= MAX_SEATS);
     disable("holdem-bot-fill-btn", busy || !canManageBots || state.botCount >= 5 || occupiedSeats >= MAX_SEATS);
@@ -2115,6 +2267,7 @@ window.TexasHoldem = (function () {
       screen.classList.toggle("is-requesting", busy);
       screen.classList.toggle("is-actioning", hasMove);
       screen.classList.toggle("is-raise-menu-open", hasMove && canSize && raiseMenuOpen);
+      screen.classList.toggle("is-seat-selection", waiting && state.heroSeat < 0);
     }
     renderConnection();
   }
@@ -2268,8 +2421,7 @@ window.TexasHoldem = (function () {
 
     var seatElement = event.target.closest(".holdem-seat.is-empty");
     if (seatElement && screen.contains(seatElement)) {
-      var targetSeat = safeSeat(seatElement.getAttribute("data-seat"));
-      if (targetSeat >= 0 && !isHandActive(state.phase) && !requests.join) joinTable(targetSeat);
+      chooseEmptySeat(seatElement.getAttribute("data-seat"));
       return;
     }
 
@@ -2286,8 +2438,9 @@ window.TexasHoldem = (function () {
       toggleMoneyUnitMode();
     } else if (id === "holdem-people-btn") {
       if (api && typeof api.openPlayers === "function") api.openPlayers();
-    } else if (id === "holdem-rules-btn") {
-      if (api && typeof api.openRules === "function") api.openRules();
+    } else if (id === "holdem-hands-btn") {
+      if (api && typeof api.openHoldemHands === "function") api.openHoldemHands();
+      else if (api && typeof api.openRules === "function") api.openRules();
       else if (api && typeof api.openMenu === "function") api.openMenu();
     } else if (id === "holdem-leave-btn") {
       if (api && typeof api.leaveRoom === "function") api.leaveRoom();
@@ -2344,6 +2497,15 @@ window.TexasHoldem = (function () {
       renderSettings();
       return;
     }
+    if ((event.key === "Enter" || event.key === " ") && event.target &&
+        event.target.closest && event.target.closest(".holdem-seat.is-empty")) {
+      var seatElement = event.target.closest(".holdem-seat.is-empty");
+      if (seatElement && root() && root().contains(seatElement)) {
+        event.preventDefault();
+        chooseEmptySeat(seatElement.getAttribute("data-seat"));
+        return;
+      }
+    }
     if (event.target && event.target.id === "holdem-chat-input" &&
         event.key === "Enter" && !event.isComposing) {
       event.preventDefault();
@@ -2351,9 +2513,28 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function ensureSeatControls() {
+    if (typeof document === "undefined") return;
+    var stage = $("holdem-stage");
+    if (!stage) return;
+    var controls = $("holdem-seat-controls");
+    if (!controls) {
+      controls = document.createElement("section");
+      controls.id = "holdem-seat-controls";
+      controls.className = "holdem-seat-controls hidden";
+      controls.setAttribute("aria-label", "홀덤 대기 컨트롤");
+      stage.appendChild(controls);
+    }
+    ["holdem-ready-btn", "holdem-start-btn", "holdem-next-btn"].forEach(function (id) {
+      var button = $(id);
+      if (button && button.parentNode !== controls) controls.appendChild(button);
+    });
+  }
+
   function bindDom() {
     var screen = root();
     if (!screen) return false;
+    ensureSeatControls();
     if (boundRoot === screen) return true;
     if (boundRoot) {
       boundRoot.removeEventListener("click", onRootClick);
@@ -2408,7 +2589,7 @@ window.TexasHoldem = (function () {
     if (!bindDom()) throw new Error("텍사스 홀덤 화면을 찾을 수 없습니다.");
     render();
     startTimers();
-    joinTable();
+    refreshSnapshot("enter", true);
   }
 
   function leave() {
@@ -2549,6 +2730,7 @@ window.TexasHoldem = (function () {
     renderPlayers: renderPlayers,
     render: render,
     rules: rules,
+    handRankings: handRankings,
     get state() { return state; }
   };
 
@@ -2559,10 +2741,13 @@ window.TexasHoldem = (function () {
       normalizeCard: normalizeCard,
       normalizeLegal: normalizeLegal,
       cardHtml: cardHtml,
+      handRankings: handRankings,
       resultBoardVisibleCount: resultBoardVisibleCount,
       relativeSeat: relativeSeat,
       requestId: requestId,
       joinTable: joinTable,
+      addBot: addBot,
+      chooseEmptySeat: chooseEmptySeat,
       applySnapshot: applySnapshot,
       invoke: invoke,
       setApi: function (nextApi) { api = nextApi; },

@@ -260,6 +260,7 @@
       getBoardFrameId: function () { return catchSelectedBoardFrameId; },
       showBoardFrame: showCatchBoardFrame,
       openRules: function () { showRules(curRoomGame || curGame); },
+      openHoldemHands: function () { showHoldemHands(); },
       leaveRoom: requestLeaveRoom,
       roomChanged: broadcastRoomOpen,
       galleryAuth: function () { return { nick: me.nick, hash: sessionAuthHash }; },
@@ -555,6 +556,11 @@
   function holdemBuyInRangeLabel(amount) {
     var option = holdemBuyInOption(amount);
     return formatHoldemAsset(option.minBuyIn) + "~" + formatHoldemAsset(option.maxBuyIn);
+  }
+  function holdemRingSummaryLabel(amount) {
+    var option = holdemBuyInOption(amount);
+    return option.title + " · " + holdemBuyInRangeLabel(amount) +
+      " · BB " + option.bigBlind.toLocaleString("ko-KR") + " · 최대 6명";
   }
 
   function readStoredRoomLease() {
@@ -4861,6 +4867,17 @@
     else buildRules();
     openModal("rules-modal");
   }
+  function showHoldemHands() {
+    var ctrl = gameController("holdem");
+    if (ctrl && ctrl.handRankings) {
+      var content = ctrl.handRankings();
+      if ($("rules-title")) $("rules-title").textContent = content.title || "홀덤 족보";
+      $("rules-body").innerHTML = content.html || "";
+      openModal("rules-modal");
+      return;
+    }
+    showRules("holdem");
+  }
 
   // ---------- 이벤트 ----------
   function openModal(id) { $(id).classList.remove("hidden"); }
@@ -5275,8 +5292,7 @@
     }
     if (mode === "ring" && $("create-holdem-rule-summary")) {
       $("create-holdem-rule-summary").textContent =
-        "참가비용 " + (canBuyIn ? holdemBuyInRangeLabel(createHoldemBuyIn) : "선택 불가") +
-        " · " + holdemBlindLabel(createHoldemBuyIn) + " · 최대 6명";
+        canBuyIn ? holdemRingSummaryLabel(createHoldemBuyIn) : "참가비용 선택 불가";
     }
     var presetBox = $("create-holdem-buyin-presets");
     if (presetBox) {
@@ -5402,8 +5418,7 @@
     }
     if ($("create-holdem-rule-summary")) {
       $("create-holdem-rule-summary").textContent =
-        "참가비용 " + holdemBuyInRangeLabel(createHoldemBuyIn) +
-        " · " + holdemBlindLabel(createHoldemBuyIn) + " · 최대 6명";
+        holdemRingSummaryLabel(createHoldemBuyIn);
     }
     if ($("create-holdem-mode-confirm")) {
       $("create-holdem-mode-confirm").textContent = "홀덤 방 만들기";

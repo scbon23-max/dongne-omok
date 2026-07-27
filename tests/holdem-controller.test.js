@@ -101,6 +101,33 @@ test("the controller consumes the engine's personalized snapshot contract", () =
   assert.equal(normalized.bigBlind, 100);
 });
 
+test("central pot readout omits the side pot subline", () => {
+  const controller = loadController();
+  const base = {
+    phase: "flop",
+    pot: 700,
+    pots: [{ amount: 300 }, { amount: 400 }],
+    seats: [
+      { seat: 0, nick: "alice", stack: 9700, totalBet: 300, inHand: true },
+      { seat: 1, nick: "bob", stack: 9700, totalBet: 300, inHand: true },
+      { seat: 2, nick: "chris", stack: 9900, totalBet: 100, inHand: true },
+    ],
+  };
+
+  const waitingForCalls = controller._test.normalizeSnapshot(base, 8);
+  assert.deepEqual(Array.from(waitingForCalls.sidePots), []);
+
+  const allInCapped = controller._test.normalizeSnapshot({
+    ...base,
+    seats: base.seats.map((seat) => seat.seat === 2
+      ? { ...seat, stack: 0, allIn: true }
+      : seat),
+  }, 9);
+  assert.deepEqual(Array.from(allInCapped.sidePots), [400]);
+  assert.doesNotMatch(indexSource, /id=["']holdem-side-pots["']/);
+  assert.doesNotMatch(source, /setText\(["']holdem-side-pots["']/);
+});
+
 test("engine bot metadata and turn-coordination fields survive controller normalization", () => {
   const controller = loadController();
   const { waiting, playing } = serverBotViews();
@@ -278,6 +305,11 @@ test("request ids and rendered cards stay bounded and accessible", () => {
   assert.match(renderedAce, /holdem-card-rank-svg/);
   assert.match(renderedAce, /holdem-card-suit-svg/);
   assert.doesNotMatch(renderedAce, />A<\/span>/);
+  const rankings = controller._test.handRankings();
+  assert.equal(rankings.title, "홀덤 족보");
+  assert.match(rankings.html, /로열 플러시/);
+  assert.match(rankings.html, /holdem-card-rank-svg/);
+  assert.match(rankings.html, /holdem-hand-row/);
   assert.match(controller._test.cardHtml(null, "back"), /aria-label="비공개 카드"/);
 });
 
@@ -373,6 +405,38 @@ test("join requests can carry a preferred seat", async () => {
   assert.equal(calls[0].payload.seat, 4);
 });
 
+test("bot add requests can target a clicked empty seat without choosing a personality", async () => {
+  const calls = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 2,
+        snapshot: null,
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const state = controller._test.emptyState();
+  state.phase = "waiting";
+  state.version = 1;
+  state.ownerNick = "alice";
+  state.heroSeat = 1;
+  state.canManageBots = true;
+  state.seats[1] = { seat: 1, nick: "alice", stack: 20000, ready: true };
+  controller._test.setState(state);
+  controller._test.setActive(true);
+
+  await controller._test.addBot({ seat: 4, silent: true });
+  controller.leave();
+
+  assert.equal(calls[0].action, "add_bot");
+  assert.equal(calls[0].payload.seat, 4);
+  assert.equal(Object.hasOwn(calls[0].payload, "botPersonality"), false);
+  assert.equal(Object.hasOwn(calls[0].payload, "personality"), false);
+});
+
 test("the page loads the strong AI before the controller and exposes exact personality names", () => {
   const aiScriptIndex = indexSource.indexOf('{ src: "holdem-ai.js" }');
   const controllerScriptIndex = indexSource.indexOf('{ src: "holdem.js" }');
@@ -412,12 +476,10 @@ test("the page loads the strong AI before the controller and exposes exact perso
     /function addBot\([^)]*\)\s*\{([\s\S]*?)\n  \}\n\n  function addFiveBots/,
   );
   assert.ok(addBotFunction, "addBot exists");
-  const addInvoke = addBotFunction[1].match(
-    /invoke\("add_bot",\s*\{([\s\S]*?)\}\s*,\s*\{/,
-  );
-  assert.ok(addInvoke, "addBot invokes add_bot");
-  assert.match(addInvoke[1], /expectedVersion\s*:/);
-  assert.doesNotMatch(addInvoke[1], /difficulty|level|personality/i);
+  assert.match(addBotFunction[1], /var payload = \{[\s\S]*expectedVersion\s*:/);
+  assert.match(addBotFunction[1], /if \(seat >= 0\) payload\.seat = seat/);
+  assert.match(addBotFunction[1], /invoke\("add_bot",\s*payload,/);
+  assert.doesNotMatch(addBotFunction[1], /difficulty|level|personality/i);
 });
 
 test("the bot-step request sends only optimistic-lock turn coordinates", () => {

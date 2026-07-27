@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260728-holdem-card-tilt-v1">
+<meta name="app-build" content="20260728-holdem-mobile-buyin-list-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -729,7 +729,7 @@
       </div>
       <nav class="holdem-utility" aria-label="홀덤 방 메뉴">
         <button id="holdem-people-btn" type="button"><span id="holdem-people-count">0</span>명</button>
-        <button id="holdem-rules-btn" type="button">규칙</button>
+        <button id="holdem-hands-btn" type="button" aria-label="홀덤 족보 보기">족보</button>
         <button id="holdem-settings-btn" type="button" aria-label="설정" aria-expanded="false">⚙</button>
         <button id="holdem-leave-btn" type="button">나가기</button>
       </nav>
@@ -1110,18 +1110,18 @@
         <div id="create-holdem-buyin-presets" class="create-holdem-buyin-presets" role="group" aria-label="바이인 빠른 선택">
           <button type="button" data-holdem-buyin="10000">
             <strong>라이트</strong>
-            <span>10,000원~20,000원</span>
             <small>SB 50 / BB 100</small>
+            <span>참가 가능 10,000원~20,000원</span>
           </button>
           <button class="active" type="button" data-holdem-buyin="50000">
             <strong>스탠다드</strong>
-            <span>30,000원~50,000원</span>
             <small>SB 250 / BB 500</small>
+            <span>참가 가능 30,000원~50,000원</span>
           </button>
           <button type="button" data-holdem-buyin="100000">
             <strong>하이롤러</strong>
-            <span>50,000원~100,000원</span>
             <small>SB 500 / BB 1,000</small>
+            <span>참가 가능 50,000원~100,000원</span>
           </button>
         </div>
         <small id="create-holdem-buyin-note">선택한 블라인드 테이블에 최소~최대 범위 안에서 입장합니다.</small>
