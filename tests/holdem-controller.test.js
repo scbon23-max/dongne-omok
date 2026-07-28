@@ -366,6 +366,8 @@ test("the result clock inserts the winner tag and next-hand button without anoth
 
     now += controller._test.constants.resultCardsFirstMs +
       controller._test.constants.resultBoardRevealStepMs * 2 +
+      (controller._test.constants.communityRiverFlipMs -
+        controller._test.constants.resultBoardRevealStepMs) +
       controller._test.constants.resultSettleMs;
     controller._test.renderSettlementAnimation();
 
@@ -475,6 +477,8 @@ test("an all-in result finishes every reveal before opening the rebuy dialog", a
       controller._test.constants.resultFinalActionMs +
       controller._test.constants.resultCardsFirstMs +
       controller._test.constants.resultBoardRevealStepMs * 2 +
+      (controller._test.constants.communityRiverFlipMs -
+        controller._test.constants.resultBoardRevealStepMs) +
       controller._test.constants.resultSettleMs +
       controller._test.constants.resultReviewMs;
 

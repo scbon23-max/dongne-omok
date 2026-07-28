@@ -280,6 +280,15 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-board\s*\{[\s\S]*perspective:\s*720px/);
   assert.match(styles, /\.holdem-board \.holdem-card\.is-community-flipping\s*\{[\s\S]*holdemCommunityCardFlip 620ms/);
   assert.match(styles, /@keyframes holdemCommunityCardBackFlip/);
+  assert.match(styles, /\.is-community-flipping\.is-community-river-flipping\s*\{[\s\S]*animation-name:\s*holdemCommunityRiverFlip[\s\S]*animation-duration:\s*1800ms/);
+  assert.match(styles, /@keyframes holdemCommunityRiverFlip\s*\{[\s\S]*74%\s*\{[^}]*rotateY\(158deg\)[\s\S]*78%\s*\{[^}]*rotateY\(92deg\)[\s\S]*100%\s*\{[^}]*rotateY\(0\)/);
+  assert.match(styles, /@keyframes holdemCommunityRiverBackFlip\s*\{[\s\S]*0%, 76%\s*\{\s*opacity:\s*1[\s\S]*78%, 100%\s*\{\s*opacity:\s*0/);
+  assert.match(controller, /COMMUNITY_RIVER_FLIP_MS = 1800/);
+  assert.match(controller, /COMMUNITY_RIVER_OPEN_CUE_MS = 1400/);
+  assert.match(controller, /var openCueMs = index === 4 \? COMMUNITY_RIVER_OPEN_CUE_MS : 0/);
+  assert.match(controller, /var revealDuration = isRiver \? COMMUNITY_RIVER_FLIP_MS : COMMUNITY_CARD_FLIP_MS/);
+  assert.match(controller, /is-community-river-flipping/);
+  assert.match(controller, /var riverRevealHoldMs = nextBoardCount === 5 && initialBoardCount < 5[\s\S]*COMMUNITY_RIVER_FLIP_MS - RESULT_BOARD_REVEAL_STEP_MS/);
   assert.match(controller, /COMMUNITY_CARD_OPEN_SFX_SRC = "assets\/holdem\/community-card-open\.mp3"/);
   assert.match(controller, /COMMUNITY_CARD_OPEN_SFX_VOLUME = 0\.78/);
   assert.match(controller, /TIMER_WARNING_SFX_SRC = "assets\/warn\.mp3"/);

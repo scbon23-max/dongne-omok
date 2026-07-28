@@ -57,6 +57,8 @@ window.TexasHoldem = (function () {
   var RESULT_CARDS_FIRST_MS = 900;
   var RESULT_BOARD_REVEAL_STEP_MS = 900;
   var COMMUNITY_CARD_FLIP_MS = 620;
+  var COMMUNITY_RIVER_FLIP_MS = 1800;
+  var COMMUNITY_RIVER_OPEN_CUE_MS = 1400;
   var COMMUNITY_CARD_FLIP_STAGGER_MS = 120;
   var HOLDEM_SFX_POOL_SIZE = 2;
   var COMMUNITY_CARD_OPEN_SFX_SRC = "assets/holdem/community-card-open.mp3";
@@ -1001,11 +1003,12 @@ window.TexasHoldem = (function () {
       : [];
     if (boardRevealState.soundKeys.indexOf(soundKey) >= 0) return;
     boardRevealState.soundKeys.push(soundKey);
+    var openCueMs = index === 4 ? COMMUNITY_RIVER_OPEN_CUE_MS : 0;
     var timer = setTimeout(function () {
       var timerIndex = communityCardOpenSoundTimers.indexOf(timer);
       if (timerIndex >= 0) communityCardOpenSoundTimers.splice(timerIndex, 1);
       playCommunityCardOpenSfx();
-    }, Math.max(0, integer(delayMs, 0)));
+    }, Math.max(0, integer(delayMs, 0) + openCueMs));
     communityCardOpenSoundTimers.push(timer);
   }
 
@@ -1803,7 +1806,11 @@ window.TexasHoldem = (function () {
     var previousBoardCount = previous && Array.isArray(previous.board) ? clamp(previous.board.length, 0, 5) : 0;
     var initialBoardCount = Math.min(nextBoardCount, Math.max(previousBoardCount, Math.min(3, nextBoardCount)));
     var hiddenCommunityCards = Math.max(0, nextBoardCount - initialBoardCount);
-    var cardsFirstMs = RESULT_CARDS_FIRST_MS + (RESULT_BOARD_REVEAL_STEP_MS * hiddenCommunityCards);
+    var riverRevealHoldMs = nextBoardCount === 5 && initialBoardCount < 5
+      ? Math.max(0, COMMUNITY_RIVER_FLIP_MS - RESULT_BOARD_REVEAL_STEP_MS)
+      : 0;
+    var cardsFirstMs = RESULT_CARDS_FIRST_MS +
+      (RESULT_BOARD_REVEAL_STEP_MS * hiddenCommunityCards) + riverRevealHoldMs;
     var finalActionMs = previous && isHandActive(previous.phase) && hasSeatAction(next)
       ? RESULT_FINAL_ACTION_MS
       : 0;
@@ -3663,12 +3670,16 @@ window.TexasHoldem = (function () {
       boardRevealState.revealAt[index] = now + boardRevealState.delayMs[index];
       scheduleCommunityCardOpenSfx(card, index, boardRevealState.delayMs[index]);
     }
-    var revealEnd = boardRevealState.revealAt[index] + COMMUNITY_CARD_FLIP_MS;
+    var isRiver = index === 4;
+    var revealDuration = isRiver ? COMMUNITY_RIVER_FLIP_MS : COMMUNITY_CARD_FLIP_MS;
+    var flipClass = "is-community-flipping" +
+      (isRiver ? " is-community-river-flipping" : "");
+    var revealEnd = boardRevealState.revealAt[index] + revealDuration;
     if (now <= revealEnd) {
       return cardHtml(
         card,
         null,
-        ("is-community-flipping " + highlightClass).trim(),
+        (flipClass + " " + highlightClass).trim(),
         ' style="--holdem-community-flip-delay: ' + boardRevealState.delayMs[index] + 'ms;"'
       );
     }
@@ -4760,6 +4771,7 @@ window.TexasHoldem = (function () {
         resultFinalActionMs: RESULT_FINAL_ACTION_MS,
         resultCardsFirstMs: RESULT_CARDS_FIRST_MS,
         resultBoardRevealStepMs: RESULT_BOARD_REVEAL_STEP_MS,
+        communityRiverFlipMs: COMMUNITY_RIVER_FLIP_MS,
         resultSettleMs: RESULT_SETTLE_MS,
         resultReviewMs: RESULT_REVIEW_MS
       }
