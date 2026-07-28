@@ -265,7 +265,15 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /ALLIN_BGM_SFX_SRC = "assets\/holdem\/allin-bgm\.mp3"/);
   assert.match(controller, /ALLIN_BGM_SFX_VOLUME = 0\.72/);
   assert.match(controller, /function holdemSoundMuted\(\)[\s\S]*localStorage\.getItem\("omok_mute"\) === "1"/);
+  assert.match(controller, /HOLDEM_SFX_POOL_SIZE = 4/);
+  assert.match(controller, /function ensureHoldemAudioContext\(\)[\s\S]*window\.AudioContext \|\| window\.webkitAudioContext/);
+  assert.match(controller, /function preloadHoldemAudioBuffers\(\)[\s\S]*loadHoldemAudioBuffer\("timer-warning", TIMER_WARNING_SFX_SRC\)/);
+  assert.match(controller, /function playHoldemAudioBuffer\(key, volume\)[\s\S]*context\.createBufferSource\(\)/);
+  assert.match(controller, /function ensureHoldemAudioPool\([\s\S]*while \(pool\.length < size\)/);
+  assert.match(controller, /function playHoldemAudioPool\([\s\S]*nextHoldemPoolAudio/);
+  assert.match(controller, /function playTimerWarningSfx\(\)[\s\S]*playHoldemAudioBuffer\("timer-warning", TIMER_WARNING_SFX_VOLUME\)/);
   assert.match(controller, /function unlockHoldemAudio\(\)[\s\S]*el\.muted = true[\s\S]*el\.play\(\)/);
+  assert.match(controller, /function unlockHoldemAudio\(\)[\s\S]*resumeHoldemAudioContext\(\);[\s\S]*preloadHoldemAudioBuffers\(\);/);
   assert.match(controller, /function bindHoldemAudioUnlock\(\)[\s\S]*document\.addEventListener\(eventName, unlockHoldemAudio, true\)/);
   assert.match(controller, /function enter\(nextApi\)[\s\S]*bindHoldemAudioUnlock\(\);[\s\S]*syncAudio\(\);/);
   assert.match(controller, /function onRootClick\(event\)[\s\S]*unlockHoldemAudio\(\)/);
@@ -280,6 +288,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /scheduleCommunityCardOpenSfx\(card, index, boardRevealState\.delayMs\[index\]\)/);
   assert.match(controller, /syncAudio: syncAudio/);
   assert.match(controller, /ensureTimerWarningSfx\(\)/);
+  assert.match(controller, /function timerWarningKey\(info\)[\s\S]*info\.seconds < 1 \|\| info\.seconds > 10[\s\S]*info\.seconds[\s\S]*\.join\(":"\)/);
   assert.match(controller, /COMMUNITY_CARD_FLIP_STAGGER_MS = 120/);
   assert.match(controller, /lastBoardHtml !== html[\s\S]*board\.innerHTML = html/);
   assert.match(controller, /function tableHint\(\)[\s\S]*빈 좌석을 눌러 착석하세요/);
