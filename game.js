@@ -5181,7 +5181,13 @@
     if (selected === "alk_terr") selected = "alk";
     var createIds = window.GameCatalog
       ? GameCatalog.order.filter(function (id) { return id !== "alk_terr"; })
-      : ["omok", "alk", "catchmind", "relay", "territory", "holdem"];
+      : ["omok", "alk", "territory", "relay", "catchmind", "holdem"];
+    var catchIndex = createIds.indexOf("catchmind");
+    var territoryIndex = createIds.indexOf("territory");
+    if (catchIndex >= 0 && territoryIndex >= 0) {
+      createIds[catchIndex] = "territory";
+      createIds[territoryIndex] = "catchmind";
+    }
     var ids = visibleGameIds(createIds).filter(canCreateGame);
     if (ids.indexOf(selected) < 0) selected = ids[0] || "omok";
     box.innerHTML = ids.map(function (id) {

@@ -374,12 +374,15 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
   assert.match(styles, /\.create-game-list\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(styles, /\.create-game-option\s*\{[^}]*flex-direction:\s*column/);
   assert.match(styles, /\.create-game-icon\s*\{[^}]*width:\s*78px[\s\S]*height:\s*78px/);
-  assert.match(styles, /\.create-game-option::before\s*\{[^}]*radial-gradient\(circle, rgba\(255,155,88,\.42\)/);
-  assert.match(styles, /\.create-game-option\.active::before\s*\{[^}]*opacity:\s*1/);
+  assert.match(styles, /\.create-game-option::before\s*\{[^}]*radial-gradient\(ellipse at 50% 18%, rgba\(255,230,188,\.62\)/);
+  assert.match(styles, /\.create-game-option::before\s*\{[^}]*filter:\s*blur\(3px\)/);
+  assert.match(styles, /\.create-game-option\.active::before\s*\{[^}]*opacity:\s*1(?:\.0)?/);
   assert.match(styles, /\.create-game-option\.active \.create-game-icon\s*\{[^}]*filter:\s*brightness\(1\.08\) saturate\(1\.06\)/);
   assert.match(styles, /\.create-game-option\s*\{[^}]*border:\s*0/);
   assert.doesNotMatch(game, /create-game-desc|var desc = id ===/);
   assert.doesNotMatch(index, /<div class="setting-title">게임 선택<\/div>/);
+  assert.match(game, /\["omok", "alk", "territory", "relay", "catchmind", "holdem"\]/);
+  assert.match(game, /var catchIndex = createIds\.indexOf\("catchmind"\);[\s\S]*var territoryIndex = createIds\.indexOf\("territory"\);[\s\S]*createIds\[catchIndex\] = "territory";[\s\S]*createIds\[territoryIndex\] = "catchmind";/);
   assert.match(game, /assets\/create-room-icons\/omok\.png[\s\S]*assets\/create-room-icons\/alk\.png[\s\S]*assets\/create-room-icons\/catchmind\.png[\s\S]*assets\/create-room-icons\/holdem\.png[\s\S]*assets\/create-room-icons\/territory\.png/);
   assert.match(game, /class="' \+ iconClass \+ '"/);
   assert.doesNotMatch(styles, /\.create-game-option\[data-game="territory"\]\.active\s*\{[^}]*rgba/);
