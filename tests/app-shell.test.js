@@ -373,12 +373,18 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
   assert.match(styles, /\.create-room-dialog\s*\{[^}]*background:\s*var\(--navy-2\)/);
   assert.match(styles, /\.create-game-list\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(styles, /\.create-game-option\s*\{[^}]*flex-direction:\s*column/);
-  assert.match(styles, /\.create-game-option\.active \.create-game-icon\s*\{[^}]*box-shadow:\s*0 0 0 3px rgba\(243,97,42,\.78\)/);
+  assert.match(styles, /\.create-game-icon\s*\{[^}]*width:\s*78px[\s\S]*height:\s*78px/);
+  assert.match(styles, /\.create-game-option\.active \.create-game-icon\s*\{[^}]*filter:\s*brightness\(1\.08\) saturate\(1\.06\)/);
   assert.match(styles, /\.create-game-option\s*\{[^}]*border:\s*0/);
   assert.doesNotMatch(game, /create-game-desc|var desc = id ===/);
-  assert.match(game, /class="create-game-icon holdem"[\s\S]*assets\/holdem\/create-room-icon\.png/);
+  assert.doesNotMatch(index, /<div class="setting-title">게임 선택<\/div>/);
+  assert.match(game, /assets\/create-room-icons\/omok\.png[\s\S]*assets\/create-room-icons\/alk\.png[\s\S]*assets\/create-room-icons\/catchmind\.png[\s\S]*assets\/create-room-icons\/holdem\.png[\s\S]*assets\/create-room-icons\/territory\.png/);
+  assert.match(game, /class="' \+ iconClass \+ '"/);
+  assert.doesNotMatch(styles, /\.create-game-option\[data-game="territory"\]\.active\s*\{[^}]*rgba/);
+  assert.doesNotMatch(styles, /\.create-game-option\[data-game="holdem"\]\.active\s*\{[^}]*rgba/);
   assert.match(styles, /\.create-game-icon\.holdem\s*\{[\s\S]*overflow:\s*hidden/);
   assert.match(styles, /\.create-game-icon\.holdem\s*\{[\s\S]*object-fit:\s*cover/);
+  assert.doesNotMatch(styles, /\.create-game-icon\.holdem\s*\{[^}]*border:/);
   assert.doesNotMatch(styles, /\.create-game-icon\.holdem::before/);
   assert.match(styles, /\.create-mode-card\s*\{[^}]*border:\s*0/);
   assert.match(styles, /\.create-name-input\s*\{[^}]*border:\s*0/);
@@ -386,6 +392,11 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
   assert.doesNotMatch(index, /알까기-일반|알까기-점령전/);
 
   [
+    "assets/create-room-icons/omok.png",
+    "assets/create-room-icons/alk.png",
+    "assets/create-room-icons/catchmind.png",
+    "assets/create-room-icons/territory.png",
+    "assets/create-room-icons/holdem.png",
     "assets/game-icon-alkkagi.svg",
     "assets/game-icon-catchmind.svg",
     "assets/game-icon-relay.svg",

@@ -5186,15 +5186,14 @@
     if (ids.indexOf(selected) < 0) selected = ids[0] || "omok";
     box.innerHTML = ids.map(function (id) {
       var label = gameName(id);
-      var iconSrc = id === "alk" ? "assets/game-icon-alkkagi.svg"
-        : id === "catchmind" ? "assets/game-icon-catchmind.svg"
+      var iconSrc = id === "omok" ? "assets/create-room-icons/omok.png"
+        : id === "alk" ? "assets/create-room-icons/alk.png"
+        : id === "catchmind" ? "assets/create-room-icons/catchmind.png"
+        : id === "holdem" ? "assets/create-room-icons/holdem.png"
         : id === "relay" ? "assets/game-icon-relay.svg"
-        : "assets/game-icon-territory.svg";
-      var icon = id === "omok"
-        ? '<span class="create-game-icon omok" aria-hidden="true"></span>'
-        : id === "holdem"
-          ? '<img class="create-game-icon holdem" src="' + localAssetUrl("assets/holdem/create-room-icon.png") + '" alt="">'
-        : '<img class="create-game-icon" src="' + localAssetUrl(iconSrc) + '" alt="">';
+        : "assets/create-room-icons/territory.png";
+      var iconClass = "create-game-icon" + (id === "holdem" ? " holdem" : "");
+      var icon = '<img class="' + iconClass + '" src="' + localAssetUrl(iconSrc) + '" alt="">';
       return '<button class="create-game-option' + (id === selected ? ' active' : '') + '" data-game="' + esc(id) + '" type="button" aria-pressed="' + (id === selected ? 'true' : 'false') + '">'
         + icon + '<span class="create-game-name">' + esc(label) + '</span></button>';
     }).join("");

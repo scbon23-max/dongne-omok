@@ -2177,8 +2177,8 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 
 /* 방 만들기 */
 .create-room-dialog {
-  max-width: 390px;
-  padding: 19px;
+  max-width: 430px;
+  padding: 22px 18px 18px;
   background: var(--navy-2);
   color: #fff;
   box-shadow: 0 22px 64px rgba(0,0,0,.48);
@@ -2235,7 +2235,8 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-head .modal-close { grid-column: 3; grid-row: 1; }
 .create-back { grid-column: 1; grid-row: 1; font-size: 21px; }
-.create-room-dialog .setting-group { margin-bottom: 17px; }
+.create-room-dialog .setting-group { margin-bottom: 18px; }
+.create-room-dialog .create-game-group { margin-bottom: 22px; }
 .create-room-dialog .setting-title {
   display: block;
   margin-bottom: 9px;
@@ -2246,21 +2247,21 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-game-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 17px 10px;
-  padding: 4px 2px 2px;
+  gap: 22px 12px;
+  padding: 6px 4px 1px;
 }
 .create-game-option {
   min-width: 0;
   width: 100%;
-  min-height: 98px;
+  min-height: 116px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: 7px;
+  gap: 9px;
   padding: 0 2px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 18px;
   background: transparent;
   color: #fff;
   text-align: center;
@@ -2270,59 +2271,33 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-game-option.active { background: transparent; }
 .create-game-icon {
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: 78px;
+  height: 78px;
   display: block;
   overflow: hidden;
-  border-radius: 17px;
+  border-radius: 20px;
   object-fit: cover;
-  box-shadow: 0 7px 15px rgba(5,16,22,.35);
-  transition: transform .15s ease, box-shadow .15s ease;
-}
-.create-game-icon.omok {
-  background-color: #d8aa63;
-  background-image:
-    linear-gradient(rgba(89,57,22,.52) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(89,57,22,.52) 1px, transparent 1px);
-  background-size: 12px 12px;
-  background-position: 7px 7px;
-}
-.create-game-icon.omok::before,
-.create-game-icon.omok::after {
-  content: "";
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  box-shadow: 0 2px 3px rgba(20,22,23,.28);
-}
-.create-game-icon.omok::before {
-  left: 15px;
-  top: 16px;
-  background: radial-gradient(circle at 35% 28%, #56616a, #0b1115 58%);
-}
-.create-game-icon.omok::after {
-  right: 10px;
-  bottom: 10px;
-  background: radial-gradient(circle at 35% 28%, #fff, #dcd9d1 66%);
+  box-shadow: 0 8px 17px rgba(5,16,22,.34);
+  transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
 }
 .create-game-option.active .create-game-icon {
-  transform: translateY(-1px);
-  box-shadow: 0 0 0 3px rgba(243,97,42,.78), 0 9px 19px rgba(5,16,22,.45);
+  transform: translateY(-2px) scale(1.055);
+  filter: brightness(1.08) saturate(1.06);
+  box-shadow: 0 12px 24px rgba(5,16,22,.48);
 }
 .create-game-name {
   display: block;
   width: 100%;
-  min-height: 31px;
+  min-height: 36px;
   overflow: hidden;
   color: #d9e8ee;
-  font-size: 12.5px;
-  font-weight: 850;
+  font-size: 14px;
+  font-weight: 900;
   line-height: 1.25;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
-.create-game-option.active .create-game-name { color: #fff; }
+.create-game-option.active .create-game-name { color: #ffcfb8; }
 .create-name-input {
   width: 100%;
   height: 49px;
@@ -2665,10 +2640,10 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 @media (max-height: 680px) {
   .create-room-dialog { padding: 15px; }
   .create-head { margin-bottom: 12px; }
-  .create-game-list { gap: 13px 8px; }
-  .create-game-option { min-height: 88px; }
-  .create-game-icon { width: 56px; height: 56px; border-radius: 15px; }
-  .create-game-name { min-height: 29px; font-size: 12px; }
+  .create-game-list { gap: 16px 8px; }
+  .create-game-option { min-height: 101px; }
+  .create-game-icon { width: 68px; height: 68px; border-radius: 18px; }
+  .create-game-name { min-height: 32px; font-size: 13px; }
   .create-room-dialog .setting-group { margin-bottom: 12px; }
   .create-mode-card > img { height: 82px; }
   .create-holdem-mode-card { min-height: 62px; }
@@ -3433,7 +3408,7 @@ body.is-admin .feedback-user-compose { display: none; }
 #room-strip-territory { display: none !important; }
 .room-badge.territory { background: var(--teal); color: var(--navy); }
 .rc-badge.territory { background: var(--teal); color: var(--navy); }
-.create-game-option[data-game="territory"].active { background: rgba(47,184,158,.18); }
+.create-game-option[data-game="territory"].active { background: transparent; }
 
 /* ---------- 텍사스 홀덤 ---------- */
 .holdem-screen {
@@ -4300,42 +4275,42 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-seat.is-winner .holdem-seat-avatar {
   border-color: #f4cc75;
-  box-shadow: 0 0 0 4px rgba(244,204,117,.22), 0 0 24px rgba(244,204,117,.55);
+  box-shadow: 0 0 0 6px rgba(244,204,117,.27), 0 0 34px rgba(244,204,117,.68);
 }
 .holdem-winner-result {
   position: absolute;
-  z-index: 8;
-  top: -64px;
+  z-index: 28;
+  top: calc(var(--holdem-seat-avatar-size) * -0.56);
   left: 50%;
-  min-width: 92px;
+  min-width: 118px;
   display: grid;
   justify-items: center;
-  gap: 1px;
+  gap: 3px;
   transform: translateX(-50%);
   pointer-events: none;
   text-align: center;
-  filter: drop-shadow(0 5px 10px rgba(0,0,0,.62));
+  filter: drop-shadow(0 7px 14px rgba(0,0,0,.68));
 }
 .holdem-winner-result strong {
-  padding: 2px 13px 3px;
-  border: 1px solid rgba(255,216,92,.82);
+  padding: 4px 18px 5px;
+  border: 2px solid rgba(255,224,104,.88);
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(44,35,7,.96), rgba(10,9,6,.98));
   color: #ffe481;
-  font-size: clamp(10px, 2.8vw, 13px);
+  font-size: clamp(13px, 3.6vw, 17px);
   font-weight: 1000;
   line-height: 1;
   text-shadow: 0 0 8px rgba(255,192,44,.8), 0 1px 2px #000;
-  box-shadow: 0 0 13px rgba(255,188,44,.46), inset 0 1px 0 rgba(255,255,255,.18);
+  box-shadow: 0 0 19px rgba(255,188,44,.58), inset 0 1px 0 rgba(255,255,255,.22);
 }
 .holdem-winner-result small {
-  max-width: 132px;
-  padding: 2px 7px;
+  max-width: 156px;
+  padding: 3px 9px;
   overflow: hidden;
   border-radius: 999px;
   background: rgba(4,15,18,.88);
   color: #f6e9bd;
-  font-size: clamp(8px, 2.2vw, 10px);
+  font-size: clamp(9px, 2.5vw, 12px);
   font-weight: 900;
   line-height: 1.12;
   text-overflow: ellipsis;
@@ -4343,21 +4318,23 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-win-gain {
   color: #fff3bf;
-  font-size: clamp(10px, 2.8vw, 13px);
+  font-size: clamp(12px, 3.3vw, 16px);
   font-weight: 1000;
   line-height: 1;
   text-shadow: 0 0 9px rgba(255,205,81,.85), 0 1px 2px #000;
 }
 .holdem-seat[data-relative-seat="3"] .holdem-winner-result {
-  top: calc(100% + 3px);
+  top: calc(var(--holdem-seat-avatar-size) * -0.56);
 }
 .holdem-seat[data-relative-seat="1"] .holdem-winner-result,
 .holdem-seat[data-relative-seat="2"] .holdem-winner-result {
-  left: calc(50% + 42px);
+  top: calc(var(--holdem-seat-avatar-size) * -0.58);
+  left: 50%;
 }
 .holdem-seat[data-relative-seat="4"] .holdem-winner-result,
 .holdem-seat[data-relative-seat="5"] .holdem-winner-result {
-  left: calc(50% - 42px);
+  top: calc(var(--holdem-seat-avatar-size) * -0.58);
+  left: 50%;
 }
 .holdem-screen.is-settling-pot .holdem-seat.is-winner .holdem-seat-avatar {
   animation: holdemWinnerPulse .42s ease-in-out infinite;
@@ -5203,13 +5180,11 @@ body.is-admin .feedback-user-compose { display: none; }
 .rc-badge.holdem_tournament,
 .rc-badge.holdem_turbo,
 .rc-badge.holdem_ring { background: #08717a; color: #fff; }
-.create-game-option[data-game="holdem"].active { background: rgba(8,113,122,.22); }
+.create-game-option[data-game="holdem"].active { background: transparent; }
 .create-game-icon.holdem {
   display: block;
   overflow: hidden;
   object-fit: cover;
-  border: 1px solid rgba(116,226,211,.28);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 5px 14px rgba(0,0,0,.28);
 }
 
 @media (max-width: 370px), (max-height: 670px) {
