@@ -228,7 +228,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(index, /class="create-holdem-wallet holdem-profile-wallet"/);
   assert.match(controller, /Db\.getHoldemWallet\(currentAuth\)/);
   assert.match(controller, /localStorage\.setItem\(profileAvatarStorageKey\(nick\), dataUrl\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{\s*top:\s*99%;\s*left:\s*50%;\s*\}/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{\s*top:\s*95%;\s*left:\s*50%;\s*\}/);
   assert.match(styles, /\.holdem-card\.back/);
   assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-width-auto:[\s\S]*var\(--holdem-card-width/);
   assert.match(styles, /\.holdem-card-rank svg,[\s\S]*\.holdem-card > \.rank svg\s*\{[\s\S]*fill: currentColor/);
@@ -280,7 +280,10 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /big_blind:\s*formatChips\(seat\.bet \|\| state\.bigBlind\)/);
   assert.doesNotMatch(controller, /badges \+= "<span>SB<\/span>"|badges \+= "<span>BB<\/span>"/);
   assert.match(styles, /\.holdem-seat-action\.action-small-blind,[\s\S]*\.holdem-seat-action\.action-big-blind\s*\{/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*-14px/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{ top: 95%; left: 50%; \}/);
+  assert.match(styles, /\.holdem-board\s*\{[\s\S]*top:\s*62%/);
+  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards\s*\{[\s\S]*top:\s*-20px[\s\S]*z-index:\s*10[\s\S]*translate\(-50%, -68%\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*-7px[\s\S]*z-index:\s*18/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% \+ 70px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 50px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - 70px\)/);
@@ -325,9 +328,9 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-seat-action\s*\{/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);
   assert.match(controller, /timer\.setAttribute\("data-seconds", seconds\)/);
-  assert.match(styles, /\.holdem-seat-turn-timer\s*\{[\s\S]*width:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 16px\)/);
+  assert.match(styles, /\.holdem-seat-turn-timer\s*\{[\s\S]*width:\s*var\(--holdem-seat-avatar-size\)/);
   assert.match(styles, /\.holdem-seat-turn-timer::before\s*\{[\s\S]*conic-gradient\(#4df5d9 calc\(var\(--holdem-seat-timer-ratio\) \* 1turn\)/);
-  assert.match(styles, /\.holdem-seat-turn-timer::after\s*\{[\s\S]*content:\s*attr\(data-seconds\)/);
+  assert.match(styles, /\.holdem-seat-turn-timer::after\s*\{[\s\S]*content:\s*attr\(data-seconds\)[\s\S]*inset:\s*0/);
   assert.match(styles, /\.holdem-seat-turn-timer\.urgent::before\s*\{[\s\S]*#ff433d/);
   assert.match(styles, /@keyframes holdemSeatTimerUrgent/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-action-summary \{ display: none; \}/);
@@ -368,6 +371,7 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*min-width:\s*118px/);
   assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*max-width:\s*min\(168px,\s*calc\(100vw - 22px\)\)/);
   assert.match(styles, /\.holdem-winner-result strong\s*\{[\s\S]*font-size:\s*clamp\(13px,\s*3\.6vw,\s*17px\)/);
+  assert.match(styles, /\.holdem-win-gain\s*\{[\s\S]*font-size:\s*clamp\(16px,\s*4\.8vw,\s*23px\)[\s\S]*font-weight:\s*1000/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-winner-edge-nudge\)\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-winner-edge-nudge\)\)/);

@@ -4216,9 +4216,9 @@ body.is-admin .feedback-user-compose { display: none; }
   position: absolute;
   top: calc(var(--holdem-seat-avatar-size) / 2);
   left: 50%;
-  z-index: 6;
-  width: calc(var(--holdem-seat-avatar-size) + 16px);
-  height: calc(var(--holdem-seat-avatar-size) + 16px);
+  z-index: 26;
+  width: var(--holdem-seat-avatar-size);
+  height: var(--holdem-seat-avatar-size);
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -4241,21 +4241,18 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat-turn-timer::after {
   content: attr(data-seconds);
   position: absolute;
-  right: -1px;
-  bottom: -2px;
-  min-width: 23px;
-  height: 23px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   display: grid;
   place-items: center;
-  border: 2px solid rgba(223,255,248,.88);
-  border-radius: 999px;
-  background: rgba(3,19,24,.96);
+  border-radius: inherit;
+  background: rgba(3,19,24,.42);
   color: #dffff8;
-  font-size: 11px;
+  font-size: clamp(18px, 5.2vw, 25px);
   font-weight: 1000;
   line-height: 1;
-  text-shadow: 0 1px 2px rgba(0,0,0,.78);
-  box-shadow: 0 3px 10px rgba(0,0,0,.5);
+  text-shadow: 0 2px 5px rgba(0,0,0,.9);
 }
 .holdem-seat-turn-timer.urgent::before {
   background: conic-gradient(#ff433d calc(var(--holdem-seat-timer-ratio) * 1turn), rgba(80,10,10,.62) 0);
@@ -4263,8 +4260,7 @@ body.is-admin .feedback-user-compose { display: none; }
   animation: holdemSeatTimerUrgent .5s ease-in-out infinite alternate;
 }
 .holdem-seat-turn-timer.urgent::after {
-  border-color: #ffd0be;
-  background: #b72824;
+  background: rgba(183,40,36,.72);
   color: #fff4e8;
   animation: holdemSeatTimerUrgentBadge .5s ease-in-out infinite alternate;
 }
@@ -5268,7 +5264,7 @@ body.is-admin .feedback-user-compose { display: none; }
     aspect-ratio: 1.6 / 1;
     border-radius: 48% / 46%;
   }
-  .holdem-seat[data-relative-seat="0"] { top: 99%; left: 50%; }
+  .holdem-seat[data-relative-seat="0"] { top: 95%; left: 50%; }
   .holdem-seat[data-relative-seat="1"] { top: 59%; left: 2%; }
   .holdem-seat[data-relative-seat="2"] { top: 21%; left: 14%; }
   .holdem-seat[data-relative-seat="3"] { top: 1%; left: 50%; }
@@ -5276,7 +5272,6 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-seat[data-relative-seat="5"] { top: 59%; left: 98%; }
   .holdem-table-info { top: 27%; }
   .holdem-pot { top: 42%; }
-  .holdem-seat[data-relative-seat="0"] { top: 95%; left: 50%; }
   .holdem-board { top: 64%; }
   .holdem-lobby-panel { width: 390px; }
   .holdem-action-panel { right: 50%; left: auto; width: 720px; transform: translateX(50%); }
