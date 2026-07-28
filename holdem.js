@@ -60,6 +60,22 @@ window.TexasHoldem = (function () {
   var COMMUNITY_CARD_FLIP_STAGGER_MS = 120;
   var COMMUNITY_CARD_OPEN_SFX_SRC = "assets/holdem/community-card-open.mp3";
   var COMMUNITY_CARD_OPEN_SFX_VOLUME = 0.78;
+  var ACTION_SFX_SOURCES = {
+    fold: "assets/holdem/fold.mp3",
+    call: "assets/holdem/call.mp3",
+    bet: "assets/holdem/bet.mp3",
+    raise: "assets/holdem/raise.mp3",
+    allin: "assets/holdem/bet.mp3",
+    winner: "assets/holdem/winner.mp3"
+  };
+  var ACTION_SFX_VOLUMES = {
+    fold: 0.86,
+    call: 0.86,
+    bet: 0.82,
+    raise: 0.84,
+    allin: 0.88,
+    winner: 0.9
+  };
   var RESULT_SETTLE_MS = 1600;
   var PROFILE_AVATAR_STORAGE_PREFIX = "dongne_holdem_profile_avatar:";
   var PROFILE_AVATAR_SIZE = 192;
@@ -128,7 +144,11 @@ window.TexasHoldem = (function () {
   var resultFlow = null;
   var boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [] };
   var communityCardOpenSfxEl = null;
+  var actionSfxEls = Object.create(null);
   var communityCardOpenSoundTimers = [];
+  var actionSoundTimers = [];
+  var lastActionSoundKey = "";
+  var lastWinnerSoundKey = "";
   var lastBoardHtml = "";
 
   var boundRoot = null;
@@ -525,11 +545,52 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function ensureActionSfx(kind) {
+    var src = ACTION_SFX_SOURCES[kind];
+    if (!src || typeof Audio === "undefined") return null;
+    if (!actionSfxEls[kind]) {
+      actionSfxEls[kind] = new Audio(holdemAssetUrl(src));
+      actionSfxEls[kind].preload = "auto";
+      actionSfxEls[kind].volume = ACTION_SFX_VOLUMES[kind] || 0.85;
+    }
+    return actionSfxEls[kind];
+  }
+
+  function playActionSfx(kind) {
+    kind = ACTION_SFX_SOURCES[kind] ? kind : "";
+    if (!active || !kind || holdemSoundMuted()) return false;
+    var base = ensureActionSfx(kind);
+    if (!base) return false;
+    try {
+      var el = base.cloneNode ? base.cloneNode(true) : new Audio(holdemAssetUrl(ACTION_SFX_SOURCES[kind]));
+      el.volume = ACTION_SFX_VOLUMES[kind] || 0.85;
+      var played = el.play();
+      if (played && typeof played.catch === "function") played.catch(function () {});
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function scheduleActionSfx(kind, delayMs) {
+    var timer = setTimeout(function () {
+      playActionSfx(kind);
+    }, Math.max(0, integer(delayMs, 0)));
+    actionSoundTimers.push(timer);
+  }
+
   function clearCommunityCardOpenSoundTimers() {
     for (var i = 0; i < communityCardOpenSoundTimers.length; i++) {
       clearTimeout(communityCardOpenSoundTimers[i]);
     }
     communityCardOpenSoundTimers = [];
+  }
+
+  function clearActionSoundTimers() {
+    for (var i = 0; i < actionSoundTimers.length; i++) {
+      clearTimeout(actionSoundTimers[i]);
+    }
+    actionSoundTimers = [];
   }
 
   function scheduleCommunityCardOpenSfx(card, index, delayMs) {
@@ -548,7 +609,13 @@ window.TexasHoldem = (function () {
   }
 
   function syncAudio() {
-    if (!holdemSoundMuted()) ensureCommunityCardOpenSfx();
+    if (holdemSoundMuted()) return;
+    ensureCommunityCardOpenSfx();
+    ensureActionSfx("fold");
+    ensureActionSfx("call");
+    ensureActionSfx("bet");
+    ensureActionSfx("raise");
+    ensureActionSfx("winner");
   }
 
   function boardRevealKey(snapshot) {
@@ -1085,9 +1152,11 @@ window.TexasHoldem = (function () {
     if ((!next.version || next.version === state.version) &&
         responseOrder && responseOrder < lastAppliedResponse) return false;
 
+    var hadSnapshot = hasSnapshot;
     var previousDeadlineKey = state.version + ":" + state.deadlineAt;
     var nextDeadlineKey = next.version + ":" + next.deadlineAt;
     syncResultFlow(state, next);
+    syncActionSounds(state, next, hadSnapshot);
     state = next;
     rawSnapshot = snapshot;
     hasSnapshot = true;
@@ -1109,6 +1178,55 @@ window.TexasHoldem = (function () {
       snapshot.handNumber || 0,
       snapshot.winners.join("|")
     ].join(":");
+  }
+
+  function actionSoundKind(action) {
+    action = canonicalSeatAction(action);
+    if (action === "fold" || action === "call" || action === "bet" ||
+        action === "raise" || action === "allin") return action;
+    return "";
+  }
+
+  function latestActionSoundEntry(snapshot) {
+    if (!snapshot || !Array.isArray(snapshot.actionHistory) || !snapshot.actionHistory.length) return null;
+    for (var i = snapshot.actionHistory.length - 1; i >= 0; i--) {
+      var entry = snapshot.actionHistory[i];
+      if (entry && actionSoundKind(entry.action)) return entry;
+    }
+    return null;
+  }
+
+  function actionSoundEntryKey(entry, snapshot) {
+    if (!entry) return "";
+    return [
+      entry.handNo || snapshot && snapshot.handNumber || snapshot && snapshot.handId || 0,
+      entry.seq || 0,
+      entry.seat,
+      entry.action,
+      entry.amount || 0
+    ].join(":");
+  }
+
+  function syncActionSounds(previous, next, hadSnapshot) {
+    var latest = latestActionSoundEntry(next);
+    var latestKey = actionSoundEntryKey(latest, next);
+    if (!hadSnapshot) {
+      lastActionSoundKey = latestKey;
+      lastWinnerSoundKey = resultKeyOf(next);
+      return;
+    }
+    if (latest && latestKey && latestKey !== lastActionSoundKey) {
+      lastActionSoundKey = latestKey;
+      playActionSfx(actionSoundKind(latest.action));
+    }
+    var winnerKey = resultKeyOf(next);
+    if (winnerKey && winnerKey !== lastWinnerSoundKey) {
+      lastWinnerSoundKey = winnerKey;
+      var delay = resultFlow ? Math.max(0, resultFlow.cardsUntil - Date.now()) : 0;
+      scheduleActionSfx("winner", delay);
+    } else if (!winnerKey) {
+      lastWinnerSoundKey = "";
+    }
   }
 
   function winnerSeatMap(snapshot) {
@@ -3533,6 +3651,7 @@ window.TexasHoldem = (function () {
     clearAutoReadyForNextHand();
     clearBotTimer();
     clearCommunityCardOpenSoundTimers();
+    clearActionSoundTimers();
     resultFlow = null;
     boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [], soundKeys: [] };
     lastBoardHtml = "";
@@ -3561,6 +3680,8 @@ window.TexasHoldem = (function () {
     demoVersion = 0;
     resultFlow = null;
     boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [], soundKeys: [] };
+    lastActionSoundKey = "";
+    lastWinnerSoundKey = "";
     lastBoardHtml = "";
     if (!bindDom()) throw new Error("텍사스 홀덤 화면을 찾을 수 없습니다.");
     render();
@@ -3611,6 +3732,8 @@ window.TexasHoldem = (function () {
     demoVersion = 0;
     botSentKey = "";
     botRetryAt = 0;
+    lastActionSoundKey = "";
+    lastWinnerSoundKey = "";
   }
 
   function onReady() {

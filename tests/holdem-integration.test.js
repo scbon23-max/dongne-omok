@@ -251,7 +251,14 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /@keyframes holdemCommunityCardBackFlip/);
   assert.match(controller, /COMMUNITY_CARD_OPEN_SFX_SRC = "assets\/holdem\/community-card-open\.mp3"/);
   assert.match(controller, /COMMUNITY_CARD_OPEN_SFX_VOLUME = 0\.78/);
+  assert.match(controller, /fold:\s*"assets\/holdem\/fold\.mp3"/);
+  assert.match(controller, /call:\s*"assets\/holdem\/call\.mp3"/);
+  assert.match(controller, /bet:\s*"assets\/holdem\/bet\.mp3"/);
+  assert.match(controller, /raise:\s*"assets\/holdem\/raise\.mp3"/);
+  assert.match(controller, /winner:\s*"assets\/holdem\/winner\.mp3"/);
   assert.match(controller, /function holdemSoundMuted\(\)[\s\S]*localStorage\.getItem\("omok_mute"\) === "1"/);
+  assert.match(controller, /function syncActionSounds\(previous, next, hadSnapshot\)[\s\S]*playActionSfx\(actionSoundKind\(latest\.action\)\)/);
+  assert.match(controller, /scheduleActionSfx\("winner", delay\)/);
   assert.match(controller, /function scheduleCommunityCardOpenSfx\(card, index, delayMs\)[\s\S]*setTimeout\(function \(\) \{[\s\S]*playCommunityCardOpenSfx\(\)/);
   assert.match(controller, /scheduleCommunityCardOpenSfx\(card, index, boardRevealState\.delayMs\[index\]\)/);
   assert.match(controller, /syncAudio: syncAudio/);
