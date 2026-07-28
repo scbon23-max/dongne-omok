@@ -2559,7 +2559,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-holdem-buyin-presets button {
   min-width: 0;
-  min-height: 92px;
+  min-height: 118px;
   display: grid;
   justify-items: center;
   align-content: center;
@@ -2588,7 +2588,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-holdem-buyin-range {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   border-radius: 8px;
   background: rgba(2,17,22,.28);
   overflow: hidden;
@@ -2600,7 +2600,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   padding: 6px 4px;
 }
 .create-holdem-buyin-range > span + span {
-  border-left: 1px solid rgba(255,255,255,.08);
+  border-top: 1px solid rgba(255,255,255,.08);
 }
 .create-holdem-buyin-range small,
 .create-holdem-buyin-range b {
@@ -2647,7 +2647,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   .create-mode-card > img { height: 82px; }
   .create-holdem-mode-card { min-height: 62px; }
   .create-holdem-buyin-presets button {
-    min-height: 86px;
+    min-height: 112px;
     padding-top: 8px;
     padding-bottom: 8px;
   }

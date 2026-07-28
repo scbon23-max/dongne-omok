@@ -79,7 +79,9 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.match(index, /<small>최소<\/small><b>10,000원<\/b>[\s\S]*<small>최대<\/small><b>20,000원<\/b>/);
   assert.match(index, /<small>최소<\/small><b>20,000원<\/b>[\s\S]*<small>최대<\/small><b>30,000원<\/b>/);
   assert.match(index, /<small>최소<\/small><b>30,000원<\/b>[\s\S]*<small>최대<\/small><b>40,000원<\/b>/);
-  assert.match(styles, /\.create-holdem-buyin-range\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(styles, /\.create-holdem-buyin-range\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  assert.match(styles, /\.create-holdem-buyin-range > span \+ span\s*\{[\s\S]*border-top:\s*1px solid/);
+  assert.doesNotMatch(styles, /\.create-holdem-buyin-range > span \+ span\s*\{[\s\S]*border-left:/);
   assert.match(styles, /\.create-holdem-buyin-range b\s*\{[^}]*white-space:\s*nowrap/);
   assert.doesNotMatch(styles, /\.create-holdem-buyin-range b\s*\{[^}]*overflow-wrap:\s*anywhere/);
   assert.match(index, /<strong>홀덤<\/strong>/);
