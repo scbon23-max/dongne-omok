@@ -491,6 +491,9 @@ async function assetRanking(
   const [{ data: walletRows, error: walletError }, {
     data: tableRows,
     error: tableError,
+  }, {
+    data: accountRows,
+    error: accountError,
   }] = await Promise.all([
     client
       .from("holdem_wallets")
@@ -500,12 +503,23 @@ async function assetRanking(
       .from("holdem_tables")
       .select("state")
       .limit(500),
+    client
+      .from("accounts")
+      .select("nickname,is_admin")
+      .eq("is_admin", true)
+      .limit(500),
   ]);
-  if (walletError || tableError) throw new Error("ranking_lookup");
+  if (walletError || tableError || accountError) throw new Error("ranking_lookup");
 
+  const adminNicknames = new Set(
+    (Array.isArray(accountRows) ? accountRows : [])
+      .map((row) => safeText(row?.nickname, 40))
+      .filter((nickname) => nickname),
+  );
   const holdings = tableHoldingsByNickname(Array.isArray(tableRows) ? tableRows : []);
   const ranked = (Array.isArray(walletRows) ? walletRows : []).map((row) => {
     const nickname = safeText(row?.nickname, 40);
+    if (adminNicknames.has(nickname)) return null;
     const balance = Number(row?.balance);
     if (
       !nickname ||

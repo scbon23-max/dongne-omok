@@ -73,6 +73,9 @@ test("the authenticated server ranking includes live table chips but exposes onl
   assert.match(edge, /includeCommittedBets \? Number\(rawSeat\.totalBet\) : 0/);
   assert.match(edge, /\.from\("holdem_wallets"\)[\s\S]*\.select\("nickname,balance,updated_at"\)/);
   assert.match(edge, /\.from\("holdem_tables"\)[\s\S]*\.select\("state"\)/);
+  assert.match(edge, /\.from\("accounts"\)[\s\S]*\.select\("nickname,is_admin"\)[\s\S]*\.eq\("is_admin", true\)/);
+  assert.match(edge, /const adminNicknames = new Set\([\s\S]*safeText\(row\?\.nickname, 40\)/);
+  assert.match(edge, /if \(adminNicknames\.has\(nickname\)\) return null/);
   assert.match(edge, /right\.totalAssets - left\.totalAssets/);
   assert.match(edge, /rows:\s*ranked\.slice\(0, 100\)\.map\(publicRow\)/);
   assert.match(edge, /const publicRow = \(row:[\s\S]*rank:\s*row\.rank,[\s\S]*nickname:\s*row\.nickname,[\s\S]*totalAssets:\s*row\.totalAssets/);
