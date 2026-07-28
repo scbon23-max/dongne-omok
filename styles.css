@@ -3947,17 +3947,21 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat[data-relative-seat="4"] { top: 24%; left: 104%; }
 .holdem-seat[data-relative-seat="5"] { top: 58%; left: 104%; }
 .holdem-seat[data-relative-seat="0"].is-me {
-  --holdem-seat-timer-x: calc(var(--holdem-seat-avatar-size) / 2);
-  --holdem-seat-timer-y: 50%;
+  --holdem-hero-profile-column: clamp(86px, 24vw, 124px);
+  --holdem-hero-hand-column: 116px;
+  --holdem-hero-column-gap: clamp(14px, 4vw, 26px);
+  --holdem-hero-profile-center-x: calc(50% - (var(--holdem-hero-hand-column) + var(--holdem-hero-column-gap)) / 2);
+  --holdem-seat-timer-x: var(--holdem-hero-profile-center-x);
+  --holdem-seat-timer-y: calc(var(--holdem-seat-avatar-size) / 2);
   width: min(88vw, 360px);
   min-height: calc(var(--holdem-seat-avatar-size) + 18px);
   display: grid;
-  grid-template-columns: minmax(var(--holdem-seat-avatar-size), max-content) minmax(116px, max-content);
+  grid-template-columns: var(--holdem-hero-profile-column) minmax(var(--holdem-hero-hand-column), max-content);
   grid-template-rows: auto auto auto;
   align-items: center;
   justify-content: center;
   justify-items: center;
-  column-gap: clamp(14px, 4vw, 26px);
+  column-gap: var(--holdem-hero-column-gap);
   padding: 0 clamp(6px, 2vw, 12px);
   left: 50%;
   text-align: center;
@@ -4211,8 +4215,8 @@ body.is-admin .feedback-user-compose { display: none; }
   padding: 3px 8px;
 }
 .holdem-seat[data-relative-seat="0"] .holdem-seat-action {
-  top: calc(var(--holdem-seat-avatar-size) / 2);
-  left: calc(var(--holdem-seat-avatar-size) / 2);
+  top: var(--holdem-seat-timer-y);
+  left: var(--holdem-seat-timer-x);
   z-index: 18;
 }
 .holdem-seat[data-relative-seat="1"] .holdem-seat-action,
@@ -5431,9 +5435,11 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-table { width: min(75vw, 350px); border-width: 8px; }
   .holdem-seat { --holdem-seat-avatar-size: 47px; width: 96px; }
   .holdem-seat[data-relative-seat="0"].is-me {
+    --holdem-hero-profile-column: 92px;
+    --holdem-hero-hand-column: 88px;
+    --holdem-hero-column-gap: 9px;
     width: min(92vw, 300px);
-    grid-template-columns: minmax(var(--holdem-seat-avatar-size), max-content) minmax(88px, max-content);
-    column-gap: 9px;
+    grid-template-columns: var(--holdem-hero-profile-column) minmax(var(--holdem-hero-hand-column), max-content);
     padding: 0 4px;
   }
   .holdem-seat[data-relative-seat="0"].is-me .holdem-seat-name {
