@@ -22,7 +22,7 @@
  * Utility/chat: #holdem-settings-btn, #holdem-people-btn,
  *   #holdem-hands-btn, #holdem-leave-btn, #holdem-chat-input,
  *   #holdem-chat-send, #holdem-chat-overlay
- * Quick bet buttons: [data-holdem-bet="half|three-quarter|pot|allin"]
+ * Quick bet buttons: [data-holdem-bet="half|three-quarter|pot|two-pot|four-pot|eight-pot|allin"]
  *
  * Seat/card classes intentionally match the Hold'em stylesheet:
  *   .holdem-seat[data-relative-seat="0".."5"], .holdem-seat-avatar,
@@ -2229,7 +2229,7 @@ window.TexasHoldem = (function () {
     }
   }
 
-  function quickBetTarget(kind) {
+  function quickBetRawTarget(kind) {
     var bounds = raiseBounds();
     var target = bounds.min;
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
@@ -2239,11 +2239,22 @@ window.TexasHoldem = (function () {
     if (kind === "half") target = matchedBet + Math.round(potAfterCall * 0.5);
     else if (kind === "three-quarter") target = matchedBet + Math.round(potAfterCall * 0.75);
     else if (kind === "pot") target = matchedBet + Math.round(potAfterCall);
-    else if (kind === "one-half-pot") target = matchedBet + Math.round(potAfterCall * 1.5);
     else if (kind === "two-pot") target = matchedBet + Math.round(potAfterCall * 2);
-    else if (kind === "three-pot") target = matchedBet + Math.round(potAfterCall * 3);
+    else if (kind === "four-pot") target = matchedBet + Math.round(potAfterCall * 4);
+    else if (kind === "eight-pot") target = matchedBet + Math.round(potAfterCall * 8);
     else if (kind === "allin") target = bounds.max;
-    return snapRaiseValue(target, bounds);
+    return target;
+  }
+
+  function quickBetTarget(kind) {
+    var bounds = raiseBounds();
+    return snapRaiseValue(quickBetRawTarget(kind), bounds);
+  }
+
+  function quickBetAvailable(kind) {
+    if (kind === "allin") return true;
+    var bounds = raiseBounds();
+    return quickBetRawTarget(kind) <= bounds.max;
   }
 
   function quickBetLabel(kind) {
@@ -2251,9 +2262,9 @@ window.TexasHoldem = (function () {
       half: "1/2 팟",
       "three-quarter": "3/4 팟",
       pot: "팟",
-      "one-half-pot": "1.5 팟",
       "two-pot": "2 팟",
-      "three-pot": "3 팟",
+      "four-pot": "4 팟",
+      "eight-pot": "8 팟",
       allin: "올인"
     }[kind] || "레이즈";
   }
@@ -2262,6 +2273,9 @@ window.TexasHoldem = (function () {
     var buttons = root() ? root().querySelectorAll("[data-holdem-bet]") : [];
     for (var i = 0; i < buttons.length; i++) {
       var kind = buttons[i].getAttribute("data-holdem-bet");
+      var available = quickBetAvailable(kind);
+      buttons[i].classList.toggle("hidden", !available);
+      buttons[i].disabled = !available;
       var amount = formatChips(quickBetTarget(kind));
       buttons[i].innerHTML = '<span>' + esc(quickBetLabel(kind)) + '</span>' +
         (amount ? '<strong>' + esc(amount) + '</strong>' : "");
@@ -2488,6 +2502,7 @@ window.TexasHoldem = (function () {
       performMove("allin");
       return;
     }
+    if (!quickBetAvailable(kind)) return;
     setRaiseValue(quickBetTarget(kind));
     performSizedMove(raiseValue);
   }
