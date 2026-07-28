@@ -347,7 +347,9 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /class="holdem-hero-hand-badge"/);
   assert.doesNotMatch(controller, /holdem-hero-hand-badge">현재 /);
   assert.match(controller, /is-hero-made-hand-card/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-hero-hand-badge\s*\{[\s\S]*grid-column:\s*2[\s\S]*transform:\s*translateY\(calc\(-100% - 6px\)\)/);
+  assert.match(controller, /class="' \+ holesClass \+ '">' \+ holes \+ currentHandHtml/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-hole-cards \.holdem-hero-hand-badge\s*\{[\s\S]*bottom:\s*calc\(100% \+ 3px\)[\s\S]*transform:\s*translateX\(-50%\)/);
+  assert.doesNotMatch(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-hole-cards \.holdem-hero-hand-badge\s*\{[^}]*\b(?:background|border|box-shadow|padding):/);
   assert.match(styles, /\.holdem-board \.holdem-card\.is-hero-made-hand-card\s*\{[\s\S]*inset 0 0 0 1px/);
   assert.match(styles, /#holdem-call-btn\s*\{[\s\S]*flex-direction:\s*column/);
   assert.match(controller, /function actionAmountFitClass\(value\)[\s\S]*is-xl-amount[\s\S]*is-long-amount/);
@@ -374,14 +376,15 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back \+ \.holdem-card\.back \{ margin-left: -10px; \}/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\.is-revealed-cards \.holdem-card:not\(\.back\):not\(\.empty\) \+ \.holdem-card:not\(\.back\):not\(\.empty\) \{ margin-left: -12px; \}/);
   assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -14px; \}/);
-  assert.match(styles, /\.holdem-hole-cards \.holdem-card:first-child\s*\{[\s\S]*rotate\(-7deg\)/);
-  assert.match(styles, /\.holdem-hole-cards \.holdem-card:last-child\s*\{[\s\S]*rotate\(7deg\)/);
+  assert.match(styles, /\.holdem-hole-cards \.holdem-card:first-of-type\s*\{[\s\S]*rotate\(-7deg\)/);
+  assert.match(styles, /\.holdem-hole-cards \.holdem-card:last-of-type\s*\{[\s\S]*rotate\(7deg\)/);
   assert.match(controller, /small_blind:\s*formatChips\(seat\.bet \|\| state\.smallBlind\)/);
   assert.match(controller, /big_blind:\s*formatChips\(seat\.bet \|\| state\.bigBlind\)/);
   assert.doesNotMatch(controller, /badges \+= "<span>SB<\/span>"|badges \+= "<span>BB<\/span>"/);
   assert.match(styles, /\.holdem-seat-action\.action-small-blind,[\s\S]*\.holdem-seat-action\.action-big-blind\s*\{/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{ top: 95%; left: 50%; \}/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me\s*\{[\s\S]*--holdem-hero-profile-center-x:\s*calc\(50% - \(var\(--holdem-hero-hand-column\) \+ var\(--holdem-hero-column-gap\)\) \/ 2\)[\s\S]*--holdem-seat-timer-x:\s*var\(--holdem-hero-profile-center-x\)[\s\S]*--holdem-seat-timer-y:\s*calc\(var\(--holdem-seat-avatar-size\) \/ 2\)[\s\S]*grid-template-columns:\s*var\(--holdem-hero-profile-column\) minmax\(var\(--holdem-hero-hand-column\),\s*max-content\)[\s\S]*grid-template-rows:\s*auto auto auto[\s\S]*justify-content:\s*center/);
+  assert.match(styles, /--holdem-hero-column-gap:\s*clamp\(5px,\s*1\.8vw,\s*10px\)/);
   assert.doesNotMatch(styles, /--holdem-hero-card-zone|padding-right:\s*var\(--holdem-hero-card-zone\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-seat-avatar\s*\{[\s\S]*grid-column:\s*1[\s\S]*grid-row:\s*1/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-seat-name\s*\{[\s\S]*grid-column:\s*1[\s\S]*grid-row:\s*2[\s\S]*text-align:\s*center/);

@@ -3511,8 +3511,7 @@ window.TexasHoldem = (function () {
         '<article class="' + classes.join(" ") + '" data-seat="' + absolute +
         '" data-relative-seat="' + relative + '" aria-label="' + esc(label) + '"' +
         (seat || (!seat && !isHandActive(state.phase)) ? ' role="button" tabindex="0"' : "") + '>' +
-          currentHandHtml +
-          '<div class="' + holesClass + '">' + holes + '</div>' +
+          '<div class="' + holesClass + '">' + holes + currentHandHtml + '</div>' +
           resultBadge +
           '<div class="holdem-seat-avatar" aria-hidden="true">' +
             (avatarSrc ? '<img src="' + esc(avatarSrc) + '" alt="">' : seat ? avatarNameHtml(name) :

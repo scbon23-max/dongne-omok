@@ -4322,7 +4322,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat[data-relative-seat="0"].is-me {
   --holdem-hero-profile-column: clamp(86px, 24vw, 124px);
   --holdem-hero-hand-column: 116px;
-  --holdem-hero-column-gap: clamp(14px, 4vw, 26px);
+  --holdem-hero-column-gap: clamp(5px, 1.8vw, 10px);
   --holdem-hero-profile-center-x: calc(50% - (var(--holdem-hero-hand-column) + var(--holdem-hero-column-gap)) / 2);
   --holdem-seat-timer-x: var(--holdem-hero-profile-center-x);
   --holdem-seat-timer-y: calc(var(--holdem-seat-avatar-size) / 2);
@@ -4897,29 +4897,20 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-hero-hand-badge {
   display: none;
 }
-.holdem-seat[data-relative-seat="0"].is-me .holdem-hero-hand-badge {
-  position: relative;
+.holdem-seat[data-relative-seat="0"].is-me .holdem-hole-cards .holdem-hero-hand-badge {
+  position: absolute;
   z-index: 16;
-  grid-column: 2;
-  grid-row: 1;
-  justify-self: center;
-  align-self: start;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 74px;
+  bottom: calc(100% + 3px);
+  left: 50%;
+  display: block;
   max-width: 116px;
-  padding: 4px 9px 5px;
-  border: 1px solid rgba(255,213,105,.72);
-  border-radius: 999px;
-  background: rgba(12,37,42,.88);
   color: #fff2b5;
   font-size: clamp(11px, 3.1vw, 14px);
   font-weight: 1000;
   line-height: 1.05;
   white-space: nowrap;
-  box-shadow: 0 0 10px rgba(255,213,105,.22), 0 3px 8px rgba(0,0,0,.38);
-  transform: translateY(calc(-100% - 6px));
+  text-shadow: 0 2px 4px rgba(0,0,0,.9);
+  transform: translateX(-50%);
   pointer-events: none;
 }
 .holdem-seat[data-relative-seat="0"].is-me .holdem-hole-cards {
@@ -4963,12 +4954,12 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat:not(.is-me) .holdem-hole-cards .holdem-card.back + .holdem-card.back { margin-left: -10px; }
 .holdem-seat:not(.is-me) .holdem-hole-cards.is-revealed-cards .holdem-card:not(.back):not(.empty) + .holdem-card:not(.back):not(.empty) { margin-left: -12px; }
 .holdem-seat.is-me .holdem-hole-cards .holdem-card + .holdem-card { margin-left: -14px; }
-.holdem-hole-cards .holdem-card:first-child {
+.holdem-hole-cards .holdem-card:first-of-type {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   transform: translateX(-1px) rotate(-7deg);
 }
-.holdem-hole-cards .holdem-card:last-child {
+.holdem-hole-cards .holdem-card:last-of-type {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
   transform: translateX(1px) rotate(7deg);
@@ -5891,7 +5882,7 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-seat[data-relative-seat="0"].is-me {
     --holdem-hero-profile-column: 92px;
     --holdem-hero-hand-column: 88px;
-    --holdem-hero-column-gap: 9px;
+    --holdem-hero-column-gap: 4px;
     width: min(92vw, 300px);
     grid-template-columns: var(--holdem-hero-profile-column) minmax(var(--holdem-hero-hand-column), max-content);
     padding: 0 4px;
