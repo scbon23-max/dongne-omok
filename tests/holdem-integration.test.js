@@ -282,8 +282,8 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat-action\.action-small-blind,[\s\S]*\.holdem-seat-action\.action-big-blind\s*\{/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{ top: 95%; left: 50%; \}/);
   assert.match(styles, /\.holdem-board\s*\{[\s\S]*top:\s*62%/);
-  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards\s*\{[\s\S]*top:\s*-20px[\s\S]*z-index:\s*10[\s\S]*translate\(-50%, -68%\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*-7px[\s\S]*z-index:\s*18/);
+  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards\s*\{[\s\S]*top:\s*-6px[\s\S]*z-index:\s*10[\s\S]*translate\(-50%, -52%\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \/ 2\)[\s\S]*left:\s*50%[\s\S]*z-index:\s*18/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-seat-avatar-size\) \/ 2 \+ 24px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 50px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-seat-avatar-size\) \/ 2 - 24px\)/);

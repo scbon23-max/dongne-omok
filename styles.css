@@ -4188,7 +4188,7 @@ body.is-admin .feedback-user-compose { display: none; }
   padding: 3px 8px;
 }
 .holdem-seat[data-relative-seat="0"] .holdem-seat-action {
-  top: -7px;
+  top: calc(var(--holdem-seat-avatar-size) / 2);
   left: 50%;
   z-index: 18;
 }
@@ -4431,9 +4431,9 @@ body.is-admin .feedback-user-compose { display: none; }
   transform: translate(-50%, -55%);
 }
 .holdem-seat.is-me .holdem-hole-cards {
-  top: -20px;
+  top: -6px;
   z-index: 10;
-  transform: translate(-50%, -68%);
+  transform: translate(-50%, -52%);
 }
 .holdem-seat:not(.is-me) .holdem-hole-cards {
   top: 1px;
