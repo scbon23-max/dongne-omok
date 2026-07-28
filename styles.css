@@ -3854,8 +3854,8 @@ body.is-admin .feedback-user-compose { display: none; }
   z-index: 2;
   border-color: #ffd569;
   box-shadow:
-    0 0 0 2px rgba(255,213,105,.95),
-    0 0 14px rgba(255,213,105,.52),
+    inset 0 0 0 1px rgba(255,213,105,.92),
+    0 0 8px rgba(255,213,105,.38),
     0 1px 4px rgba(0,0,0,.24);
 }
 .holdem-board .holdem-card.is-community-flipping {

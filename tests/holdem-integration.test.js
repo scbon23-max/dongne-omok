@@ -310,11 +310,13 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-style:\s*dashed/);
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-color:\s*rgba\(213,239,235,\.12\)/);
   assert.match(styles, /\.holdem-board \.holdem-card \+ \.holdem-card\s*\{\s*margin-left:\s*0;\s*\}/);
-  assert.match(controller, /function heroCurrentHand\(\)[\s\S]*engine\.evaluateSeven/);
+  assert.match(controller, /function relevantBestCardCodes\(evaluation\)[\s\S]*if \(category <= 0\) return relevant/);
+  assert.match(controller, /function heroCurrentHand\(\)[\s\S]*relevantBestCardCodes\(evaluation\)/);
   assert.match(controller, /class="holdem-hero-hand-badge"/);
+  assert.doesNotMatch(controller, /holdem-hero-hand-badge">현재 /);
   assert.match(controller, /is-hero-made-hand-card/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-hero-hand-badge\s*\{[\s\S]*grid-column:\s*2[\s\S]*transform:\s*translateY\(calc\(-100% - 6px\)\)/);
-  assert.match(styles, /\.holdem-board \.holdem-card\.is-hero-made-hand-card\s*\{[\s\S]*border-color:\s*#ffd569/);
+  assert.match(styles, /\.holdem-board \.holdem-card\.is-hero-made-hand-card\s*\{[\s\S]*inset 0 0 0 1px/);
   assert.match(styles, /#holdem-call-btn\s*\{[\s\S]*flex-direction:\s*column/);
   assert.match(controller, /function actionAmountFitClass\(value\)[\s\S]*is-xl-amount[\s\S]*is-long-amount/);
   assert.match(controller, /class="holdem-action-amount-fit/);

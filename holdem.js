@@ -2518,6 +2518,34 @@ window.TexasHoldem = (function () {
     return code.charAt(0).toUpperCase() + code.charAt(1).toLowerCase();
   }
 
+  function engineCardRankValue(code) {
+    code = normalizeEngineCardCode(code);
+    var index = "23456789TJQKA".indexOf(code.charAt(0));
+    return index >= 0 ? index + 2 : 0;
+  }
+
+  function relevantBestCardCodes(evaluation) {
+    var relevant = Object.create(null);
+    if (!evaluation || !Array.isArray(evaluation.cards)) return relevant;
+    var category = Number(evaluation.category) || 0;
+    if (category <= 0) return relevant;
+    var groupedRanks = [];
+    if (category === 1 || category === 3 || category === 7) {
+      groupedRanks = [evaluation.tiebreak[0]];
+    } else if (category === 2 || category === 6) {
+      groupedRanks = [evaluation.tiebreak[0], evaluation.tiebreak[1]];
+    }
+    evaluation.cards.forEach(function (rawCode) {
+      var code = normalizeEngineCardCode(rawCode);
+      if (!code) return;
+      if (category === 4 || category === 5 || category === 8 ||
+          groupedRanks.indexOf(engineCardRankValue(code)) >= 0) {
+        relevant[code] = true;
+      }
+    });
+    return relevant;
+  }
+
   function heroCurrentHand() {
     if (!isHandActive(state.phase)) return null;
     if (!Array.isArray(state.heroCards) || state.heroCards.length < 2) return null;
@@ -2529,11 +2557,7 @@ window.TexasHoldem = (function () {
     try {
       var evaluation = engine.evaluateSeven(cards);
       if (!evaluation || !evaluation.name) return null;
-      var bestCards = Object.create(null);
-      (evaluation.cards || []).forEach(function (code) {
-        code = normalizeEngineCardCode(code);
-        if (code) bestCards[code] = true;
-      });
+      var bestCards = relevantBestCardCodes(evaluation);
       var communityCards = Object.create(null);
       state.board.forEach(function (card, index) {
         var code = engineCardCode(card);
@@ -3263,7 +3287,7 @@ window.TexasHoldem = (function () {
       var holesClass = "holdem-hole-cards";
       var currentHand = isMe ? heroCurrentHand() : null;
       var currentHandHtml = currentHand
-        ? '<span class="holdem-hero-hand-badge">현재 ' + esc(currentHand.name) + '</span>'
+        ? '<span class="holdem-hero-hand-badge">' + esc(currentHand.name) + '</span>'
         : "";
       if (seat) {
         if (isMe && state.heroCards.length) {
