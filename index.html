@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260728-holdem-blind-amount-badges-v1">
+<meta name="app-build" content="20260728-holdem-table-hint-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -745,9 +745,7 @@
       </section>
     </header>
 
-    <div id="holdem-connection" class="holdem-connection" role="status" aria-live="polite">
-      안전한 테이블에 연결하고 있어요
-    </div>
+    <div id="holdem-connection" class="holdem-connection hidden" role="status" aria-live="polite"></div>
 
     <main id="holdem-table-wrap" class="holdem-table-wrap">
       <div id="holdem-table" class="holdem-table" aria-label="6인 텍사스 홀덤 테이블">
@@ -764,14 +762,13 @@
           <strong id="holdem-pot-amount">0</strong>
         </div>
 
+        <div id="holdem-table-hint" class="holdem-table-hint" role="status" aria-live="polite"></div>
         <div id="holdem-board" class="holdem-board" aria-label="커뮤니티 카드"></div>
         <button id="holdem-table-start-btn" class="holdem-table-start-btn hidden" type="button">시작하기</button>
         <div id="holdem-seats" class="holdem-seats" aria-label="플레이어 좌석"></div>
       </div>
 
-      <div id="holdem-announcer" class="holdem-announcer" role="status" aria-live="polite">
-        참가자가 준비되면 게임을 시작할 수 있어요
-      </div>
+      <div id="holdem-announcer" class="holdem-announcer" role="status" aria-live="polite"></div>
 
       <section id="holdem-lobby" class="holdem-lobby-panel hidden" aria-labelledby="holdem-lobby-title">
         <div class="holdem-lobby-head">

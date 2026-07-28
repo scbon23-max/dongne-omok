@@ -160,6 +160,7 @@ test("the six-seat table exposes every required game control", () => {
     "holdemgame",
     "holdem-stage",
     "holdem-table",
+    "holdem-table-hint",
     "holdem-board",
     "holdem-table-start-btn",
     "holdem-seats",
@@ -190,6 +191,10 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-chat-input",
   ].forEach((id) => assert.match(index, new RegExp(`id="${id}"`)));
   assert.match(index, /id="holdem-call-btn"[\s\S]*id="holdem-call-amount" class="holdem-action-call-amount"[\s\S]*class="holdem-action-call-label"/);
+  assert.match(index, /id="holdem-connection" class="holdem-connection hidden"[\s\S]*><\/div>/);
+  assert.match(index, /id="holdem-announcer" class="holdem-announcer"[\s\S]*><\/div>/);
+  assert.doesNotMatch(index, /안전한 테이블에 연결하고 있어요/);
+  assert.doesNotMatch(controller, /안전한 서버 테이블에 연결하고 있어요|안전한 테이블에 연결하고 있어요/);
 
   assert.doesNotMatch(index, /class="holdem-brand"/);
   assert.doesNotMatch(index, /class="holdem-brand-cards"/);
@@ -217,6 +222,11 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /@keyframes holdemCommunityCardBackFlip/);
   assert.match(controller, /COMMUNITY_CARD_FLIP_STAGGER_MS = 120/);
   assert.match(controller, /lastBoardHtml !== html[\s\S]*board\.innerHTML = html/);
+  assert.match(controller, /function tableHint\(\)[\s\S]*빈 좌석을 눌러 착석하세요/);
+  assert.match(controller, /function renderTableHint\(\)[\s\S]*setText\("holdem-table-hint", tableHint\(\)\)/);
+  assert.match(controller, /renderBoard\(\);\s*renderTableHint\(\);/);
+  assert.match(styles, /\.holdem-table-hint\s*\{[\s\S]*top:\s*58%/);
+  assert.match(styles, /\.holdem-table-hint:empty \{ display: none; \}/);
   assert.match(styles, /\.holdem-board \.holdem-card\s*\{[\s\S]*--holdem-card-width:\s*clamp\(38px,\s*10vw,\s*52px\)/);
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-style:\s*dashed/);
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-color:\s*rgba\(213,239,235,\.12\)/);

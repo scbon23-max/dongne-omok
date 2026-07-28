@@ -6,8 +6,9 @@
  * Screen/root: #holdemgame, #holdem-stage
  * Readouts: #holdem-status, #holdem-connection, #holdem-phase,
  *   #holdem-blinds, #holdem-hand-number, #holdem-pot,
- *   #holdem-pot-amount, #holdem-board, #holdem-table-start-btn,
- *   #holdem-seats, #holdem-announcer, #holdem-people-count
+ *   #holdem-pot-amount, #holdem-table-hint, #holdem-board,
+ *   #holdem-table-start-btn, #holdem-seats, #holdem-announcer,
+ *   #holdem-people-count
  * Waiting UI: #holdem-lobby, #holdem-lobby-title,
  *   #holdem-lobby-roster, #holdem-ready-btn, #holdem-start-btn,
  *   #holdem-next-btn, #holdem-bot-controls,
@@ -2132,23 +2133,8 @@ window.TexasHoldem = (function () {
     var element = $("holdem-connection");
     if (!element) return;
     element.classList.remove("ready", "error");
-    var message;
-    if (demoMode()) {
-      message = "이 기기에서 홀덤 UI를 연습 중이에요";
-      element.classList.add("ready");
-    } else if (!connected) {
-      message = "실시간 연결이 끊겼어요 · 서버 상태를 확인 중";
-      element.classList.add("error");
-    } else if (lastError) {
-      message = lastError;
-      element.classList.add("error");
-    } else if (!hasSnapshot || pendingAction === "join") {
-      message = "안전한 서버 테이블에 연결하고 있어요";
-    } else {
-      message = "";
-    }
-    element.classList.toggle("hidden", !message);
-    if (element.textContent !== message) element.textContent = message;
+    element.classList.add("hidden");
+    if (element.textContent) element.textContent = "";
 
     var status = state.phase === "loading"
       ? "테이블 연결 중"
@@ -2156,11 +2142,16 @@ window.TexasHoldem = (function () {
     setText("holdem-status", status);
   }
 
-  function announcement() {
+  function tableHint() {
+    if (!connected) return "서버 연결을 확인 중이에요";
+    if (lastError) return lastError;
+    if (demoMode()) return "이 기기에서 홀덤 UI를 연습 중이에요";
     if (state.message) return state.message;
-    if (state.phase === "loading") return "안전한 테이블에 연결하고 있어요";
+    if (state.phase === "loading" || !hasSnapshot || pendingAction === "join") {
+      return "테이블을 불러오는 중이에요";
+    }
     if (state.phase === "waiting") {
-      if (state.heroSeat < 0) return "빈 좌석 아이콘을 누르면 그 자리에 앉아요.";
+      if (state.heroSeat < 0) return "빈 좌석을 눌러 착석하세요";
       if (seatedAloneWithBotsEnabled()) return "다른 빈 좌석을 누르면 랜덤 성향 AI가 앉아요.";
       var readyCount = state.seats.filter(function (seat) { return seat && seat.ready; }).length;
       return readyCount + "명 준비 · 두 명 이상 준비하면 시작할 수 있어요";
@@ -2172,6 +2163,14 @@ window.TexasHoldem = (function () {
         : "오늘 사용할 수 있는 충전 횟수를 모두 사용했어요";
     }
     return "";
+  }
+
+  function announcement() {
+    return "";
+  }
+
+  function renderTableHint() {
+    setText("holdem-table-hint", tableHint());
   }
 
   function renderAnnouncer() {
@@ -2484,6 +2483,7 @@ window.TexasHoldem = (function () {
     syncResultClasses();
     renderHeader();
     renderBoard();
+    renderTableHint();
     renderSeats();
     renderLobbyRoster();
     renderHandResult();
