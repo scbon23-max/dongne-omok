@@ -316,7 +316,7 @@
       botId: isBot ? text(options.botId, 40) : null,
       botPersonality: isBot ? personality : null,
       stack: stack,
-      ready: isBot,
+      ready: stack > 0,
       joinedAt: now,
       waiting: true,
       leaving: false,
@@ -1143,7 +1143,7 @@
   function startHand(state, now, context) {
     updateBlindLevel(state, now);
     var active = state.seats.filter(function (player) {
-      return !!player && !player.leaving && player.stack > 0 && player.ready;
+      return !!player && !player.leaving && player.stack > 0;
     });
     var eligible = state.seats.filter(function (player) {
       return !!player && !player.leaving && player.stack > 0;
@@ -1153,8 +1153,8 @@
     var headsUp = active.length === 2;
     state.smallBlindSeat = headsUp
       ? state.buttonSeat
-      : nextSeatMatching(state, state.buttonSeat, function (player) { return !player.leaving && player.stack > 0 && player.ready; });
-    state.bigBlindSeat = nextSeatMatching(state, state.smallBlindSeat, function (player) { return !player.leaving && player.stack > 0 && player.ready; });
+      : nextSeatMatching(state, state.buttonSeat, function (player) { return !player.leaving && player.stack > 0; });
+    state.bigBlindSeat = nextSeatMatching(state, state.smallBlindSeat, function (player) { return !player.leaving && player.stack > 0; });
     if (state.smallBlindSeat == null || state.bigBlindSeat == null) return { ok: false, reason: "blinds" };
     state.previousBigBlindSeat = state.bigBlindSeat;
     state.handNo += 1;
@@ -1170,7 +1170,7 @@
     state.botDueAt = null;
     state.seats.forEach(function (player) {
       if (!player) return;
-      player.inHand = !player.leaving && player.stack > 0 && player.ready;
+      player.inHand = !player.leaving && player.stack > 0;
       player.waiting = !player.inHand;
       player.folded = false;
       player.allIn = false;
@@ -1644,7 +1644,7 @@
     var layers = PLAYING_PHASES[state.phase] ? buildSidePots(handPlayers(state)).pots : state.pots;
     var occupied = occupiedPlayers(state);
     var readyEligible = occupied.filter(function (player) {
-      return player.stack > 0 && player.ready;
+      return player.stack > 0 && !player.leaving;
     });
     var viewerLegal = legalActionsForPlayer(state, viewerPlayer);
     var viewerHand = null;
@@ -1652,7 +1652,8 @@
       viewerHand = evaluateSeven(viewerPlayer.cards.concat(state.board));
     }
     var canStart = !PLAYING_PHASES[state.phase] && state.phase !== "tournament_end" &&
-      !!viewerPlayer && !viewerPlayer.isBot && viewerPlayer.ready && readyEligible.length >= 2;
+      !!viewerPlayer && !viewerPlayer.isBot && !viewerPlayer.leaving &&
+      viewerPlayer.stack > 0 && readyEligible.length >= 2;
     var actorPlayer = state.actorSeat == null ? null : state.seats[state.actorSeat];
     var actorIsBot = !!(actorPlayer && actorPlayer.isBot);
     var winnerNicks = [];
@@ -1721,8 +1722,7 @@
         actionDurationMs: state.settings.actionMs,
         handName: viewerHand ? viewerHand.name : ""
       },
-      canReady: !PLAYING_PHASES[state.phase] && state.phase !== "tournament_end" && !!playerByNick(state, viewerNick) &&
-        playerByNick(state, viewerNick).stack > 0,
+      canReady: false,
       canStart: canStart,
       canNext: state.phase === "hand_end" && canStart,
       canManageBots: canManageBots === true && state.phase === "waiting" && state.handNo === 0,

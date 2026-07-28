@@ -14,6 +14,7 @@ const catalogSource = read("game-catalog.js");
 const game = read("game.js");
 const db = read("db.js");
 const controller = read("holdem.js");
+const engine = read("holdem-engine.js");
 const config = read(path.join("supabase", "config.toml"));
 
 test("Hold'em is an available six-player controller game", () => {
@@ -160,6 +161,7 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-stage",
     "holdem-table",
     "holdem-board",
+    "holdem-table-start-btn",
     "holdem-seats",
     "holdem-pot",
     "holdem-lobby",
@@ -187,6 +189,7 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-raise-slider",
     "holdem-chat-input",
   ].forEach((id) => assert.match(index, new RegExp(`id="${id}"`)));
+  assert.match(index, /id="holdem-call-btn"[\s\S]*id="holdem-call-amount" class="holdem-action-call-amount"[\s\S]*class="holdem-action-call-label"/);
 
   assert.doesNotMatch(index, /class="holdem-brand"/);
   assert.doesNotMatch(index, /class="holdem-brand-cards"/);
@@ -218,6 +221,12 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-style:\s*dashed/);
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-color:\s*rgba\(213,239,235,\.12\)/);
   assert.match(styles, /\.holdem-board \.holdem-card \+ \.holdem-card\s*\{\s*margin-left:\s*0;\s*\}/);
+  assert.match(styles, /#holdem-call-btn\s*\{[\s\S]*flex-direction:\s*column/);
+  assert.match(styles, /#holdem-call-btn \.holdem-action-call-amount\s*\{[\s\S]*font-size:\s*clamp\(18px,\s*5\.4vw,\s*27px\)/);
+  assert.match(styles, /#holdem-call-btn \.holdem-action-call-label\s*\{[\s\S]*font-size:\s*clamp\(10px,\s*2\.7vw,\s*13px\)/);
+  assert.match(styles, /\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%[\s\S]*시작하기|\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%/);
+  assert.match(controller, /show\("holdem-table-start-btn", tableStartVisible\)/);
+  assert.match(controller, /id === "holdem-start-btn" \|\| id === "holdem-next-btn" \|\| id === "holdem-table-start-btn"/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\s*\{[\s\S]*top: 1px[\s\S]*translate\(-50%, -45%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\.is-revealed-cards\s*\{[\s\S]*z-index:\s*24[\s\S]*translate\(-50%, -72%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*--holdem-card-width:\s*clamp\(16px,\s*4\.6vw,\s*24px\)/);
@@ -246,6 +255,12 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /id === "holdem-unit-toggle"[\s\S]*toggleMoneyUnitMode\(\)/);
   assert.match(controller, /show\("holdem-raise-panel", hasMove && canSize && raiseMenuOpen\)/);
   assert.match(controller, /id === "holdem-raise-btn"[\s\S]*raiseMenuOpen = true[\s\S]*renderControls\(\)/);
+  assert.match(controller, /kind === "one-half-pot"[\s\S]*potAfterCall \* 1\.5/);
+  assert.match(controller, /kind === "two-pot"[\s\S]*potAfterCall \* 2/);
+  assert.match(controller, /kind === "three-pot"[\s\S]*potAfterCall \* 3/);
+  assert.match(index, /data-holdem-bet="one-half-pot" data-holdem-bet-tier="over"/);
+  assert.match(index, /data-holdem-bet="two-pot" data-holdem-bet-tier="over"/);
+  assert.match(index, /data-holdem-bet="three-pot" data-holdem-bet-tier="over"/);
   assert.match(controller, /function quickBet\(kind\)[\s\S]*performSizedMove\(raiseValue\)/);
   assert.match(controller, /function seatActionLabel\(seat\)[\s\S]*레이즈/);
   assert.match(controller, /class="holdem-seat-action /);
@@ -262,6 +277,8 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-action-summary \{ display: none; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel \{[\s\S]*position: absolute[\s\S]*bottom: calc\(100% \+ 9px\)/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); gap: 7px; \}/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet-tier="over"\] \{[\s\S]*grid-column: 1/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-chat-row \{[\s\S]*opacity: 0/);
 });
 
@@ -273,11 +290,12 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /refreshSnapshot\("enter", true\)/);
   assert.doesNotMatch(controller, /startTimers\(\);\s*joinTable\(\);/);
   assert.match(controller, /function chooseEmptySeat\(seatIndex\)[\s\S]*addBot\(\{ seat: targetSeat \}\)[\s\S]*joinTable\(targetSeat\)/);
-  assert.match(controller, /function autoReadyAfterSeatJoin\(\)[\s\S]*invoke\("ready"/);
+  assert.match(engine, /ready:\s*stack > 0/);
+  assert.match(engine, /function startHand\(state, now, context\)[\s\S]*!player\.leaving && player\.stack > 0/);
   assert.match(controller, /function ensureSeatControls\(\)[\s\S]*appendChild\(button\)/);
   assert.match(styles, /\.holdem-seat-controls\s*\{/);
-  assert.match(controller, /show\("holdem-ready-btn", waiting && state\.heroSeat >= 0 && state\.canReady\)/);
-  assert.match(controller, /function scheduleAutoReadyForNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*invoke\("ready"/);
+  assert.match(controller, /show\("holdem-ready-btn", false\)/);
+  assert.match(engine, /canReady: false/);
   assert.match(controller, /scheduleAutoReadyForNextHand\(\)[\s\S]*scheduleAutoNextHand\(\)/);
   assert.match(controller, /function scheduleAutoNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*setTimeout\(function \(\) \{ autoStartHand\(key\); \}, AUTO_NEXT_HAND_MS\)/);
   assert.match(styles, /\.holdem-result-panel\s*\{[\s\S]*display: none !important/);

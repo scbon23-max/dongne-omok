@@ -97,19 +97,11 @@ test("heads-up uses the button as small blind and swaps pre/post-flop action", (
   assert.equal(state.actorSeat, 1, "big blind acts first after the flop");
 });
 
-test("any two ready players can start while unready seats safely sit out", () => {
+test("any two seated players can start without a separate ready step", () => {
   const names = ["owner", "guest", "away"];
   let state = tableWithPlayers(names);
-  state = apply(state, {
-    type: "ready",
-    nick: "owner",
-    ready: true,
-  }, 20);
-  state = apply(state, {
-    type: "ready",
-    nick: "guest",
-    ready: true,
-  }, 21);
+  state.seats[2].stack = 0;
+  state.seats[2].ready = false;
 
   assert.equal(Engine.view(state, "guest").canStart, true);
   assert.equal(Engine.view(state, "away").canStart, false);

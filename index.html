@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260728-holdem-community-flip-v1">
+<meta name="app-build" content="20260728-holdem-overpot-raise-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -765,6 +765,7 @@
         </div>
 
         <div id="holdem-board" class="holdem-board" aria-label="커뮤니티 카드"></div>
+        <button id="holdem-table-start-btn" class="holdem-table-start-btn hidden" type="button">시작하기</button>
         <div id="holdem-seats" class="holdem-seats" aria-label="플레이어 좌석"></div>
       </div>
 
@@ -839,8 +840,11 @@
         </div>
         <input id="holdem-raise-slider" type="range" min="100" max="40000" step="100" value="100">
         <div class="holdem-quick-bets" aria-label="빠른 베팅 금액">
+          <button type="button" data-holdem-bet="three-pot" data-holdem-bet-tier="over">3 팟</button>
           <button type="button" data-holdem-bet="allin">올인</button>
+          <button type="button" data-holdem-bet="two-pot" data-holdem-bet-tier="over">2 팟</button>
           <button type="button" data-holdem-bet="pot">팟</button>
+          <button type="button" data-holdem-bet="one-half-pot" data-holdem-bet-tier="over">1.5 팟</button>
           <button type="button" data-holdem-bet="three-quarter">¾ 팟</button>
           <button type="button" data-holdem-bet="half">½ 팟</button>
         </div>
@@ -849,7 +853,7 @@
       <div id="holdem-action-buttons" class="holdem-action-buttons">
         <button id="holdem-fold-btn" class="holdem-action fold" type="button">폴드</button>
         <button id="holdem-check-btn" class="holdem-action call hidden" type="button">체크</button>
-        <button id="holdem-call-btn" class="holdem-action call hidden" type="button">콜 <span id="holdem-call-amount"></span></button>
+        <button id="holdem-call-btn" class="holdem-action call hidden" type="button"><span id="holdem-call-amount" class="holdem-action-call-amount"></span><span class="holdem-action-call-label">콜</span></button>
         <button id="holdem-bet-btn" class="holdem-action raise hidden" type="button">벳</button>
         <button id="holdem-raise-btn" class="holdem-action raise hidden" type="button">레이즈</button>
         <button id="holdem-allin-btn" class="holdem-action allin hidden" type="button">올인</button>

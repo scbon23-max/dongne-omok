@@ -6,7 +6,7 @@
  * Screen/root: #holdemgame, #holdem-stage
  * Readouts: #holdem-status, #holdem-connection, #holdem-phase,
  *   #holdem-blinds, #holdem-hand-number, #holdem-pot,
- *   #holdem-pot-amount, #holdem-board,
+ *   #holdem-pot-amount, #holdem-board, #holdem-table-start-btn,
  *   #holdem-seats, #holdem-announcer, #holdem-people-count
  * Waiting UI: #holdem-lobby, #holdem-lobby-title,
  *   #holdem-lobby-roster, #holdem-ready-btn, #holdem-start-btn,
@@ -2239,6 +2239,9 @@ window.TexasHoldem = (function () {
     if (kind === "half") target = matchedBet + Math.round(potAfterCall * 0.5);
     else if (kind === "three-quarter") target = matchedBet + Math.round(potAfterCall * 0.75);
     else if (kind === "pot") target = matchedBet + Math.round(potAfterCall);
+    else if (kind === "one-half-pot") target = matchedBet + Math.round(potAfterCall * 1.5);
+    else if (kind === "two-pot") target = matchedBet + Math.round(potAfterCall * 2);
+    else if (kind === "three-pot") target = matchedBet + Math.round(potAfterCall * 3);
     else if (kind === "allin") target = bounds.max;
     return snapRaiseValue(target, bounds);
   }
@@ -2248,6 +2251,9 @@ window.TexasHoldem = (function () {
       half: "1/2 팟",
       "three-quarter": "3/4 팟",
       pot: "팟",
+      "one-half-pot": "1.5 팟",
+      "two-pot": "2 팟",
+      "three-pot": "3 팟",
       allin: "올인"
     }[kind] || "레이즈";
   }
@@ -2256,9 +2262,9 @@ window.TexasHoldem = (function () {
     var buttons = root() ? root().querySelectorAll("[data-holdem-bet]") : [];
     for (var i = 0; i < buttons.length; i++) {
       var kind = buttons[i].getAttribute("data-holdem-bet");
-      var amount = kind === "allin" && state.legal.allin ? "" : formatChips(quickBetTarget(kind));
-      buttons[i].innerHTML = (amount ? '<span>' + esc(amount) + '</span>' : "") +
-        '<strong>' + esc(quickBetLabel(kind)) + '</strong>';
+      var amount = formatChips(quickBetTarget(kind));
+      buttons[i].innerHTML = '<span>' + esc(quickBetLabel(kind)) + '</span>' +
+        (amount ? '<strong>' + esc(amount) + '</strong>' : "");
     }
   }
 
@@ -2292,9 +2298,15 @@ window.TexasHoldem = (function () {
     disable("holdem-bot-add-btn", busy || !canManageBots || occupiedSeats >= MAX_SEATS);
     disable("holdem-bot-fill-btn", busy || !canManageBots || state.botCount >= 5 || occupiedSeats >= MAX_SEATS);
     disable("holdem-bot-remove-btn", busy || !canManageBots || state.botCount <= 0);
-    show("holdem-ready-btn", waiting && state.heroSeat >= 0 && state.canReady);
-    show("holdem-start-btn", waiting && state.canStart);
+    var tableStartVisible = !isHandActive(state.phase) && state.canStart;
+    show("holdem-ready-btn", false);
+    show("holdem-start-btn", false);
     show("holdem-next-btn", false);
+    show("holdem-table-start-btn", tableStartVisible);
+    var tableStartButton = $("holdem-table-start-btn");
+    if (tableStartButton) {
+      tableStartButton.textContent = completed ? "다음 핸드 시작" : "시작하기";
+    }
     var readyButton = $("holdem-ready-btn");
     if (readyButton) {
       readyButton.setAttribute("aria-pressed", state.heroReady ? "true" : "false");
@@ -2303,6 +2315,7 @@ window.TexasHoldem = (function () {
     disable("holdem-ready-btn", busy);
     disable("holdem-start-btn", busy);
     disable("holdem-next-btn", busy);
+    disable("holdem-table-start-btn", busy);
     show("holdem-refill-panel", needsRefill);
     var refillButton = $("holdem-refill-btn");
     if (refillButton) {
@@ -2534,7 +2547,7 @@ window.TexasHoldem = (function () {
       addFiveBots();
     } else if (id === "holdem-bot-remove-btn") {
       removeBot();
-    } else if (id === "holdem-start-btn" || id === "holdem-next-btn") {
+    } else if (id === "holdem-start-btn" || id === "holdem-next-btn" || id === "holdem-table-start-btn") {
       startHand();
     } else if (id === "holdem-fold-btn") {
       performMove("fold");
