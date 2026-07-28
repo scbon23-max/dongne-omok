@@ -170,6 +170,8 @@ window.TexasHoldem = (function () {
   var lastWinnerSoundKey = "";
   var lastTimerWarningKey = "";
   var lastTurnSoundKey = "";
+  var actionTagAnimationKeys = Object.create(null);
+  var suppressActionTagAnimations = false;
   var lastBoardHtml = "";
 
   var boundRoot = null;
@@ -1459,9 +1461,15 @@ window.TexasHoldem = (function () {
     var hadSnapshot = hasSnapshot;
     var previousDeadlineKey = state.version + ":" + state.deadlineAt;
     var nextDeadlineKey = next.version + ":" + next.deadlineAt;
+    var previousHandKey = String(state.handId || state.handNumber || "");
+    var nextHandKey = String(next.handId || next.handNumber || "");
     syncResultFlow(state, next);
     syncActionSounds(state, next, hadSnapshot);
     syncTurnStartSound(state, next, hadSnapshot);
+    if (previousHandKey && nextHandKey && previousHandKey !== nextHandKey) {
+      actionTagAnimationKeys = Object.create(null);
+    }
+    suppressActionTagAnimations = !hadSnapshot;
     state = next;
     rawSnapshot = snapshot;
     hasSnapshot = true;
@@ -3057,6 +3065,19 @@ window.TexasHoldem = (function () {
     return action ? "action-" + action.replace(/_/g, "-") : "";
   }
 
+  function seatActionAnimationKey(seat, absolute) {
+    var action = seatDisplayAction(seat);
+    if (!seat || !action) return "";
+    var latest = latestSeatActionHistory(seat);
+    return [
+      state.handId || state.handNumber || "hand",
+      latest && latest.seq ? latest.seq : action,
+      absolute,
+      action,
+      seatDisplayActionAmount(seat) || 0
+    ].join(":");
+  }
+
   function timerSnapshot() {
     if (!state.deadlineAt || state.actingSeat < 0) {
       return { seconds: 0, ratio: 0, urgent: false, active: false };
@@ -3174,6 +3195,14 @@ window.TexasHoldem = (function () {
       var actionLabel = seatActionLabel(seat);
       var actionHtml = seatActionHtml(seat);
       var actionClass = seatActionClass(seat);
+      var actionAnimationKey = seatActionAnimationKey(seat, absolute);
+      var actionEnterClass = "";
+      if (actionAnimationKey) {
+        if (!suppressActionTagAnimations && !actionTagAnimationKeys[actionAnimationKey]) {
+          actionEnterClass = " is-action-enter";
+        }
+        actionTagAnimationKeys[actionAnimationKey] = true;
+      }
       var personalityLabel = seat && seat.isBot
         ? botPersonalityLabel(seat.botPersonality)
         : "";
@@ -3229,11 +3258,12 @@ window.TexasHoldem = (function () {
           (isActive && state.deadlineAt
             ? '<span class="holdem-seat-turn-timer" data-holdem-seat-timer="' + absolute + '"></span>'
             : "") +
-          (actionLabel ? '<span class="holdem-seat-action ' + esc(actionClass) + '">' + actionHtml + '</span>' : "") +
+          (actionLabel ? '<span class="holdem-seat-action ' + esc(actionClass + actionEnterClass) + '">' + actionHtml + '</span>' : "") +
         '</article>'
       );
     }
     box.innerHTML = html.join("");
+    suppressActionTagAnimations = false;
   }
 
   function communityCardHtml(card, index, newRevealIndex, now) {
@@ -4049,6 +4079,8 @@ window.TexasHoldem = (function () {
     stopAllinBgmSfx();
     resultFlow = null;
     boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [], soundKeys: [] };
+    actionTagAnimationKeys = Object.create(null);
+    suppressActionTagAnimations = false;
     lastBoardHtml = "";
   }
 
@@ -4080,6 +4112,8 @@ window.TexasHoldem = (function () {
     lastActionSoundKey = "";
     lastAllinBgmKey = "";
     lastWinnerSoundKey = "";
+    actionTagAnimationKeys = Object.create(null);
+    suppressActionTagAnimations = false;
     lastBoardHtml = "";
     if (!bindDom()) throw new Error("텍사스 홀덤 화면을 찾을 수 없습니다.");
     bindHoldemAudioUnlock();
@@ -4123,6 +4157,8 @@ window.TexasHoldem = (function () {
     pendingAction = "";
     lastTimerWarningKey = "";
     lastTurnSoundKey = "";
+    actionTagAnimationKeys = Object.create(null);
+    suppressActionTagAnimations = false;
     profileDialogOpen = false;
     profileWalletPending = false;
     profileTargetSeat = -1;

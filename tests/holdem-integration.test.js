@@ -395,8 +395,12 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /AI와 하는 연습용 임시 원화 자산/);
   assert.match(controller, /연습용 임시 원화 자산 충전/);
   assert.match(styles, /\.holdem-seat-action\s*\{/);
-  assert.match(styles, /\.holdem-seat-action\s*\{[\s\S]*animation:\s*holdemActionTagPop/);
-  assert.match(styles, /\.holdem-seat-action::before\s*\{[\s\S]*animation:\s*holdemActionTagShine/);
+  assert.match(controller, /function seatActionAnimationKey\(seat, absolute\)[\s\S]*latestSeatActionHistory\(seat\)[\s\S]*seatDisplayActionAmount\(seat\)/);
+  assert.match(controller, /actionEnterClass = " is-action-enter"/);
+  assert.match(controller, /suppressActionTagAnimations = !hadSnapshot/);
+  assert.doesNotMatch(styles, /\.holdem-seat-action\s*\{[^}]*animation:/);
+  assert.match(styles, /\.holdem-seat-action\.is-action-enter\s*\{[\s\S]*animation:\s*holdemActionTagPop/);
+  assert.match(styles, /\.holdem-seat-action\.is-action-enter::before\s*\{[\s\S]*animation:\s*holdemActionTagShine/);
   assert.match(styles, /@keyframes holdemActionTagPop[\s\S]*scale\(1\.18\)[\s\S]*scale\(1\)/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);
   assert.match(controller, /timer\.setAttribute\("data-seconds", seconds\)/);
