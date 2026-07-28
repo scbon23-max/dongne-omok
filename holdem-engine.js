@@ -1079,7 +1079,6 @@
         player.ready = true;
       } else if (player.stack <= 0) player.ready = false;
       else if (!player.leaving) player.ready = true;
-      if (player.isBot && Array.isArray(player.cards) && player.cards.length === 2) player.revealed = true;
       if (state.settings.mode === "ring" && !player.isBot && player.nick) {
         if (player.leaving) {
           addWalletAdjustment(state, player.nick, player.stack, "cash_out");
@@ -1893,7 +1892,7 @@
       cardCount: player.inHand && player.cards.length ? player.cards.length : 0
     };
     if ((viewerPlayer && player.seat === viewerPlayer.seat) ||
-        (revealAll && player.revealed && (!player.folded || player.isBot))) {
+        (revealAll && player.revealed && !player.folded)) {
       out.cards = player.cards.slice();
     }
     if (player.revealed && player.evaluation) {
@@ -1940,27 +1939,7 @@
 
   function publicShowdown(state, revealAll) {
     if (!revealAll) return [];
-    var out = Array.isArray(state.showdown) ? clone(state.showdown) : [];
-    var includedSeats = {};
-    out.forEach(function (entry) {
-      if (entry && entry.seat != null) includedSeats[integer(entry.seat, -1)] = true;
-    });
-    state.seats.forEach(function (player) {
-      if (!player || !player.isBot || !Array.isArray(player.cards) ||
-          player.cards.length !== 2 || includedSeats[player.seat]) return;
-      out.push({
-        seat: player.seat,
-        nick: player.nick,
-        displayName: text(player.displayName || player.nick, 40),
-        isBot: true,
-        botPersonality: normalizeBotPersonality(player.botPersonality) || legacyBotPersonality(player, player.seat),
-        cards: player.cards.slice(),
-        folded: !!player.folded,
-        testReveal: true,
-        aiReveal: true
-      });
-    });
-    return out;
+    return Array.isArray(state.showdown) ? clone(state.showdown) : [];
   }
 
   function buildView(state, viewerPlayer, viewerNick, canManageBots) {

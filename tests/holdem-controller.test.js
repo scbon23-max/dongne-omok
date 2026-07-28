@@ -290,7 +290,7 @@ test("completed all-in boards reveal flop, turn, and river in order", () => {
   }
 });
 
-test("the completed UI receives an AI winner's cards even without a showdown", () => {
+test("the completed UI does not receive an AI winner's cards without a showdown", () => {
   const controller = loadController();
   const ctx = { now: 1_800_000_000_000, randomInt: () => 0 };
   let state = Engine.createTable({
@@ -317,11 +317,11 @@ test("the completed UI receives an AI winner's cards even without a showdown", (
   }, ctx).state;
 
   const snapshot = Engine.view(state, "alice");
-  assert.equal(snapshot.showdown.some((entry) => entry.seat === bot.seat), true);
+  assert.equal(snapshot.showdown.some((entry) => entry.seat === bot.seat), false);
   const normalized = controller._test.normalizeSnapshot(snapshot, 14);
   assert.equal(normalized.phase, "complete");
-  assert.equal(normalized.revealedCards[bot.seat].length, 2);
-  assert.equal(normalized.showdown.some((entry) => entry.seat === bot.seat && entry.testReveal), true);
+  assert.equal(normalized.revealedCards[bot.seat], null);
+  assert.equal(normalized.showdown.some((entry) => entry.seat === bot.seat), false);
 });
 
 test("completed AI tables are immediately eligible for automatic next hand", () => {
