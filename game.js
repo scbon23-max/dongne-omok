@@ -1114,8 +1114,13 @@
   function requestLeaveRoom() {
     var ctrl = activeController();
     if (ctrl && ctrl.isBusy && ctrl.isBusy()) {
-      if ($("leaveroom-text")) $("leaveroom-text").innerHTML = gameName(curRoomGame) + "가 진행 중이에요.<br>나가면 이번 게임에 계속 참여할 수 없어요.";
-      if ($("leaveroom-yes")) $("leaveroom-yes").textContent = "게임에서 나가기";
+      if (ctrl.requestLeaveAfterHand) {
+        if ($("leaveroom-text")) $("leaveroom-text").innerHTML = "현재 핸드가 진행 중이에요.<br>예약하면 핸드가 끝난 뒤 자동으로 나갑니다.";
+        if ($("leaveroom-yes")) $("leaveroom-yes").textContent = "나가기 예약";
+      } else {
+        if ($("leaveroom-text")) $("leaveroom-text").innerHTML = gameName(curRoomGame) + "가 진행 중이에요.<br>나가면 이번 게임에 계속 참여할 수 없어요.";
+        if ($("leaveroom-yes")) $("leaveroom-yes").textContent = "게임에서 나가기";
+      }
       openModal("leaveroom-modal");
       return;
     }
@@ -6727,7 +6732,15 @@
     $("alk-menu-btn").addEventListener("click", openMenu);
     $("leave-room-btn").addEventListener("click", requestLeaveRoom);
     $("alk-leave-room-btn").addEventListener("click", requestLeaveRoom);
-    $("leaveroom-yes").addEventListener("click", function () { $("leaveroom-modal").classList.add("hidden"); leaveRoomToLobby(); });
+    $("leaveroom-yes").addEventListener("click", function () {
+      $("leaveroom-modal").classList.add("hidden");
+      var ctrl = activeController();
+      if (ctrl && ctrl.requestLeaveAfterHand && ctrl.isBusy && ctrl.isBusy()) {
+        ctrl.requestLeaveAfterHand();
+        return;
+      }
+      leaveRoomToLobby();
+    });
     $("leaveroom-no").addEventListener("click", function () { $("leaveroom-modal").classList.add("hidden"); });
     $("instant-replay-first").addEventListener("click", function () { setInstantReplayIndex(0); });
     $("instant-replay-prev").addEventListener("click", function () { if (instantReplay) setInstantReplayIndex(instantReplay.index - 1); });

@@ -1621,22 +1621,15 @@
       } else if (type === "leave") {
         player = playerByNick(next, nick);
         if (!player) result = { ok: true, reason: "not_joined" };
-        else if (PLAYING_PHASES[next.phase] && player.inHand && !player.folded) {
-          player.leaving = true;
-          if (player.seat === next.actorSeat) {
-            result = applyPlayerAction(next, player, "fold", null, now);
-          } else {
-            player.folded = true;
-            player.lastAction = "fold";
-            removePending(next, player.seat);
-            next.lastEvent = { type: "left", nick: nick, at: now };
-            settleProgress(next, now);
+        else if (PLAYING_PHASES[next.phase] && player.inHand) {
+          if (player.leaving) result = { ok: true, reason: "already_leaving" };
+          else {
+            player.leaving = true;
+            player.ready = false;
+            next.lastEvent = { type: "leave_requested", nick: nick, seat: player.seat, at: now };
             result = { ok: true };
+            changed = true;
           }
-          if (!PLAYING_PHASES[next.phase] && next.seats[player.seat] === player) {
-            next.seats[player.seat] = null;
-          }
-          changed = result.ok;
         } else {
           if (next.settings.mode === "ring" && !player.isBot && player.nick) {
             addWalletAdjustment(next, player.nick, player.stack, "cash_out");

@@ -117,6 +117,54 @@ test("any two seated players can start without a separate ready step", () => {
   assert.equal(state.seats[2].waiting, true);
 });
 
+test("leaving during an active hand reserves exit without folding immediately", () => {
+  const names = ["alice", "bob"];
+  let state = tableWithPlayers(names);
+  state = readyAndStart(state, names);
+
+  const actorSeat = state.actorSeat;
+  const actorNick = state.seats[actorSeat].nick;
+  const result = Engine.command(state, {
+    type: "leave",
+    nick: actorNick,
+    requestId: "leave:reserve",
+  }, context(120));
+
+  assert.equal(result.ok, true, result.reason);
+  state = result.state;
+  assert.equal(state.seats[actorSeat].leaving, true);
+  assert.equal(state.seats[actorSeat].folded, false);
+  assert.equal(state.seats[actorSeat].inHand, true);
+  assert.equal(state.actorSeat, actorSeat);
+  assert.equal(state.lastEvent.type, "leave_requested");
+
+  state = apply(state, { type: "act", nick: actorNick, action: "fold" }, 121);
+  assert.equal(state.seats[actorSeat], null);
+});
+
+test("a folded player can still reserve leaving until the active hand ends", () => {
+  const names = ["alice", "bob", "carol"];
+  let state = tableWithPlayers(names);
+  state = readyAndStart(state, names);
+
+  const actorSeat = state.actorSeat;
+  const actorNick = state.seats[actorSeat].nick;
+  state = apply(state, { type: "act", nick: actorNick, action: "fold" }, 121);
+  assert.equal(state.phase, "preflop");
+  assert.equal(state.seats[actorSeat].folded, true);
+  assert.equal(state.seats[actorSeat].inHand, true);
+
+  const result = Engine.command(state, {
+    type: "leave",
+    nick: actorNick,
+    requestId: "leave:folded-reserve",
+  }, context(122));
+
+  assert.equal(result.ok, true, result.reason);
+  assert.equal(result.state.seats[actorSeat].leaving, true);
+  assert.equal(result.state.seats[actorSeat].folded, true);
+});
+
 test("a full raise sets the minimum and cumulative short all-ins reopen action", () => {
   const names = ["d", "b", "c", "a"];
   let state = tableWithPlayers(names);

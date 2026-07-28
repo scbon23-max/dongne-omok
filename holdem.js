@@ -162,6 +162,7 @@ window.TexasHoldem = (function () {
   var autoNextDueAt = 0;
   var autoReadyTimer = null;
   var autoReadyKey = "";
+  var leaveAfterHandRequested = false;
   var resultFlow = null;
   var boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [], soundKeys: [] };
   var communityCardOpenSfxEls = [];
@@ -1625,6 +1626,7 @@ window.TexasHoldem = (function () {
     }
     refreshProfileAvatars(next, false);
     render();
+    maybeLeaveRoomAfterHand();
     return true;
   }
 
@@ -2245,6 +2247,46 @@ window.TexasHoldem = (function () {
       if (result && result.stale) return result;
       return refreshSnapshot(result && result.ok ? "spectating" : "spectate_retry", true);
     });
+  }
+
+  function requestLeaveAfterHand() {
+    if (state.heroSeat < 0 || requests.leave_after_hand) return Promise.resolve({ ok: false, reason: "not_joined" });
+    var hero = state.seats[state.heroSeat];
+    if (!hero || !isHandActive(state.phase) || !hero.inHand) {
+      if (api && typeof api.leaveRoom === "function") api.leaveRoom();
+      return Promise.resolve({ ok: true, reason: "leave_now" });
+    }
+    leaveAfterHandRequested = true;
+    if (hero.leaving) {
+      if (api && typeof api.toast === "function") {
+        api.toast("나가기 예약 중이에요. 현재 핸드가 끝나면 나갑니다.", 2400);
+      }
+      return Promise.resolve({ ok: true, reason: "already_leaving" });
+    }
+    return invoke("leave", {
+      expectedVersion: state.version
+    }, {
+      key: "leave_after_hand",
+      label: "leave_after_hand",
+      broadcast: true
+    }).then(function (result) {
+      if (result && result.stale) return result;
+      if (result && result.ok && api && typeof api.toast === "function") {
+        api.toast("나가기 예약됐어요. 현재 핸드가 끝나면 나갑니다.", 2600);
+      }
+      return refreshSnapshot(result && result.ok ? "leave_reserved" : "leave_retry", true);
+    });
+  }
+
+  function maybeLeaveRoomAfterHand() {
+    if (!leaveAfterHandRequested || !active || !api || typeof api.leaveRoom !== "function") return;
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    if (hero && hero.leaving && isHandActive(state.phase)) return;
+    if (isBusy()) return;
+    leaveAfterHandRequested = false;
+    setTimeout(function () {
+      if (active && api && typeof api.leaveRoom === "function") api.leaveRoom();
+    }, 0);
   }
 
   function humanSeatCount() {
@@ -3475,6 +3517,7 @@ window.TexasHoldem = (function () {
 
   function seatStatus(seat) {
     if (!seat) return "빈 자리";
+    if (seat.leaving) return "나가기 예약";
     if (seat.isBot && seat.seat === state.actingSeat) return "생각 중";
     if (seat.folded) return "폴드";
     if (seat.allIn) return "올인";
@@ -4489,7 +4532,8 @@ window.TexasHoldem = (function () {
     } else if (id === "holdem-rank-btn") {
       if (api && typeof api.openHoldemRank === "function") api.openHoldemRank();
     } else if (id === "holdem-leave-btn") {
-      if (api && typeof api.leaveRoom === "function") api.leaveRoom();
+      if (isBusy()) requestLeaveAfterHand();
+      else if (api && typeof api.leaveRoom === "function") api.leaveRoom();
     } else if (id === "holdem-chat-send") {
       sendChat();
     } else if (id === "holdem-join-request-btn") {
@@ -4701,6 +4745,7 @@ window.TexasHoldem = (function () {
     suppressActionTagAnimations = false;
     lastBoardHtml = "";
     lastSeatsHtml = "";
+    leaveAfterHandRequested = false;
     if (!bindDom()) throw new Error("텍사스 홀덤 화면을 찾을 수 없습니다.");
     bindHoldemAudioUnlock();
     syncAudio();
@@ -4764,6 +4809,7 @@ window.TexasHoldem = (function () {
     lastActionSoundKey = "";
     lastAllinBgmKey = "";
     lastWinnerSoundKey = "";
+    leaveAfterHandRequested = false;
   }
 
   function onReady() {
@@ -4823,7 +4869,7 @@ window.TexasHoldem = (function () {
 
   function isBusy() {
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
-    return !!(hero && isHandActive(state.phase) && hero.inHand && !hero.folded);
+    return !!(hero && isHandActive(state.phase) && hero.inHand);
   }
 
   function canChat() {
@@ -4864,6 +4910,7 @@ window.TexasHoldem = (function () {
     onMessage: onMessage,
     onPresence: onPresence,
     roomMeta: roomMeta,
+    requestLeaveAfterHand: requestLeaveAfterHand,
     isBusy: isBusy,
     canChat: canChat,
     renderPlayers: renderPlayers,
@@ -4905,6 +4952,8 @@ window.TexasHoldem = (function () {
       maybeAutoSeatJoin: maybeAutoSeatJoin,
       maybeAutoOpenRebuyDialog: maybeAutoOpenRebuyDialog,
       leaveTableForSpectate: leaveTableForSpectate,
+      requestLeaveAfterHand: requestLeaveAfterHand,
+      maybeLeaveRoomAfterHand: maybeLeaveRoomAfterHand,
       applySnapshot: applySnapshot,
       invoke: invoke,
       setApi: function (nextApi) { api = nextApi; },
