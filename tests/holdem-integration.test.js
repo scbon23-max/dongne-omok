@@ -251,6 +251,8 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /@keyframes holdemCommunityCardBackFlip/);
   assert.match(controller, /COMMUNITY_CARD_OPEN_SFX_SRC = "assets\/holdem\/community-card-open\.mp3"/);
   assert.match(controller, /COMMUNITY_CARD_OPEN_SFX_VOLUME = 0\.78/);
+  assert.match(controller, /TIMER_WARNING_SFX_SRC = "assets\/warn\.mp3"/);
+  assert.match(controller, /TIMER_WARNING_SFX_VOLUME = 1/);
   assert.match(controller, /fold:\s*"assets\/holdem\/fold\.mp3"/);
   assert.match(controller, /call:\s*"assets\/holdem\/call\.mp3"/);
   assert.match(controller, /bet:\s*"assets\/holdem\/bet\.mp3"/);
@@ -267,6 +269,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /function scheduleCommunityCardOpenSfx\(card, index, delayMs\)[\s\S]*setTimeout\(function \(\) \{[\s\S]*playCommunityCardOpenSfx\(\)/);
   assert.match(controller, /scheduleCommunityCardOpenSfx\(card, index, boardRevealState\.delayMs\[index\]\)/);
   assert.match(controller, /syncAudio: syncAudio/);
+  assert.match(controller, /ensureTimerWarningSfx\(\)/);
   assert.match(controller, /COMMUNITY_CARD_FLIP_STAGGER_MS = 120/);
   assert.match(controller, /lastBoardHtml !== html[\s\S]*board\.innerHTML = html/);
   assert.match(controller, /function tableHint\(\)[\s\S]*빈 좌석을 눌러 착석하세요/);
@@ -371,6 +374,9 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-seat-turn-timer\.urgent\s*\{[\s\S]*width:\s*var\(--holdem-seat-avatar-size\)[\s\S]*height:\s*var\(--holdem-seat-avatar-size\)/);
   assert.match(styles, /\.holdem-seat-turn-timer\.urgent::after\s*\{[\s\S]*inset:\s*0[\s\S]*width:\s*100%[\s\S]*height:\s*100%/);
   assert.match(styles, /\.holdem-seat-turn-timer\.urgent::before\s*\{[\s\S]*#ff433d/);
+  assert.match(controller, /function timerWarningKey\(info\)[\s\S]*info\.seconds > 10[\s\S]*state\.actingSeat !== state\.heroSeat/);
+  assert.match(controller, /function syncTimerWarning\(info\)[\s\S]*playTimerWarningSfx\(\)/);
+  assert.match(controller, /syncTimerWarning\(info\)/);
   assert.match(styles, /@keyframes holdemSeatTimerUrgent/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-action-summary \{ display: none; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel \{[\s\S]*position: absolute[\s\S]*bottom: 0[\s\S]*pointer-events: none/);

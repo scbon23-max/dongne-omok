@@ -60,6 +60,8 @@ window.TexasHoldem = (function () {
   var COMMUNITY_CARD_FLIP_STAGGER_MS = 120;
   var COMMUNITY_CARD_OPEN_SFX_SRC = "assets/holdem/community-card-open.mp3";
   var COMMUNITY_CARD_OPEN_SFX_VOLUME = 0.78;
+  var TIMER_WARNING_SFX_SRC = "assets/warn.mp3";
+  var TIMER_WARNING_SFX_VOLUME = 1;
   var ACTION_SFX_SOURCES = {
     fold: "assets/holdem/fold.mp3",
     call: "assets/holdem/call.mp3",
@@ -148,11 +150,13 @@ window.TexasHoldem = (function () {
   var communityCardOpenSfxEl = null;
   var actionSfxEls = Object.create(null);
   var allinBgmSfxEl = null;
+  var timerWarningSfxEl = null;
   var communityCardOpenSoundTimers = [];
   var actionSoundTimers = [];
   var lastActionSoundKey = "";
   var lastAllinBgmKey = "";
   var lastWinnerSoundKey = "";
+  var lastTimerWarningKey = "";
   var lastBoardHtml = "";
 
   var boundRoot = null;
@@ -571,6 +575,16 @@ window.TexasHoldem = (function () {
     return allinBgmSfxEl;
   }
 
+  function ensureTimerWarningSfx() {
+    if (typeof Audio === "undefined") return null;
+    if (!timerWarningSfxEl) {
+      timerWarningSfxEl = new Audio(holdemAssetUrl(TIMER_WARNING_SFX_SRC));
+      timerWarningSfxEl.preload = "auto";
+      timerWarningSfxEl.volume = TIMER_WARNING_SFX_VOLUME;
+    }
+    return timerWarningSfxEl;
+  }
+
   function playActionSfx(kind) {
     kind = ACTION_SFX_SOURCES[kind] ? kind : "";
     if (!active || !kind || holdemSoundMuted()) return false;
@@ -596,6 +610,22 @@ window.TexasHoldem = (function () {
       el.currentTime = 0;
       el.loop = false;
       el.volume = ALLIN_BGM_SFX_VOLUME;
+      var played = el.play();
+      if (played && typeof played.catch === "function") played.catch(function () {});
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function playTimerWarningSfx() {
+    if (!active || holdemSoundMuted()) return false;
+    var el = ensureTimerWarningSfx();
+    if (!el) return false;
+    try {
+      el.pause();
+      el.currentTime = 0;
+      el.volume = TIMER_WARNING_SFX_VOLUME;
       var played = el.play();
       if (played && typeof played.catch === "function") played.catch(function () {});
       return true;
@@ -658,6 +688,7 @@ window.TexasHoldem = (function () {
     ensureActionSfx("allin");
     ensureActionSfx("winner");
     ensureAllinBgmSfx();
+    ensureTimerWarningSfx();
   }
 
   function boardRevealKey(snapshot) {
@@ -2774,6 +2805,30 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function timerWarningKey(info) {
+    if (!info || !info.active || info.seconds < 1 || info.seconds > 10) return "";
+    if (!isHandActive(state.phase) || state.heroSeat < 0 || state.actingSeat !== state.heroSeat) return "";
+    return [
+      state.handId || state.handNumber || "hand",
+      state.actionSeq || 0,
+      state.actingSeat,
+      state.deadlineAt
+    ].join(":");
+  }
+
+  function syncTimerWarning(info) {
+    var key = timerWarningKey(info);
+    if (!key) {
+      if (!info || !info.active || info.seconds > 10 || state.actingSeat !== state.heroSeat) {
+        lastTimerWarningKey = "";
+      }
+      return;
+    }
+    if (key === lastTimerWarningKey) return;
+    lastTimerWarningKey = key;
+    playTimerWarningSfx();
+  }
+
   function renderSettings() {
     show("holdem-settings-panel", settingsOpen);
     var settingsButton = $("holdem-settings-btn");
@@ -3347,12 +3402,14 @@ window.TexasHoldem = (function () {
     if (!state.deadlineAt) {
       timer.textContent = "--";
       timer.classList.remove("urgent");
+      lastTimerWarningKey = "";
       return;
     }
     var info = timerSnapshot();
     var remaining = Math.max(0, state.deadlineAt - Date.now());
     timer.textContent = String(info.seconds);
     timer.classList.toggle("urgent", info.urgent);
+    syncTimerWarning(info);
     var ring = $("holdem-timer-ring");
     if (ring) ring.style.setProperty("--holdem-timer-ratio", String(info.ratio));
     if (remaining <= 0) requestDeadlineTick();
@@ -3726,6 +3783,7 @@ window.TexasHoldem = (function () {
     rawSnapshot = null;
     lastAppliedResponse = 0;
     lastAnnouncementKey = "";
+    lastTimerWarningKey = "";
     profileDialogOpen = false;
     profileTargetSeat = -1;
     autoSeatKey = "";
@@ -3779,6 +3837,7 @@ window.TexasHoldem = (function () {
     pendingCount = 0;
     pendingUiCount = 0;
     pendingAction = "";
+    lastTimerWarningKey = "";
     profileDialogOpen = false;
     profileWalletPending = false;
     profileTargetSeat = -1;
