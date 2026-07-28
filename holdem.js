@@ -2310,14 +2310,14 @@ window.TexasHoldem = (function () {
     disable("holdem-bot-add-btn", busy || !canManageBots || occupiedSeats >= MAX_SEATS);
     disable("holdem-bot-fill-btn", busy || !canManageBots || state.botCount >= 5 || occupiedSeats >= MAX_SEATS);
     disable("holdem-bot-remove-btn", busy || !canManageBots || state.botCount <= 0);
-    var tableStartVisible = !isHandActive(state.phase) && state.canStart;
+    var tableStartVisible = waiting && state.canStart;
     show("holdem-ready-btn", false);
     show("holdem-start-btn", false);
     show("holdem-next-btn", false);
     show("holdem-table-start-btn", tableStartVisible);
     var tableStartButton = $("holdem-table-start-btn");
     if (tableStartButton) {
-      tableStartButton.textContent = completed ? "다음 핸드 시작" : "시작하기";
+      tableStartButton.textContent = "시작하기";
     }
     var readyButton = $("holdem-ready-btn");
     if (readyButton) {

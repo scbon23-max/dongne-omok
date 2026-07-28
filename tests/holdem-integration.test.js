@@ -225,6 +225,8 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /#holdem-call-btn \.holdem-action-call-amount\s*\{[\s\S]*font-size:\s*clamp\(18px,\s*5\.4vw,\s*27px\)/);
   assert.match(styles, /#holdem-call-btn \.holdem-action-call-label\s*\{[\s\S]*font-size:\s*clamp\(10px,\s*2\.7vw,\s*13px\)/);
   assert.match(styles, /\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%[\s\S]*시작하기|\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%/);
+  assert.match(controller, /var tableStartVisible = waiting && state\.canStart/);
+  assert.doesNotMatch(controller, /다음 핸드 시작/);
   assert.match(controller, /show\("holdem-table-start-btn", tableStartVisible\)/);
   assert.match(controller, /id === "holdem-start-btn" \|\| id === "holdem-next-btn" \|\| id === "holdem-table-start-btn"/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\s*\{[\s\S]*top: 1px[\s\S]*translate\(-50%, -45%\)/);
@@ -286,6 +288,9 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /연습용 임시 원화 자산 충전/);
   assert.match(styles, /\.holdem-seat-action\s*\{/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-turn-timer,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-turn-timer\s*\{[\s\S]*left:\s*calc\(50% \+ 28px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-turn-timer\s*\{[\s\S]*top:\s*calc\(50% \+ 24px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-turn-timer,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-turn-timer\s*\{[\s\S]*left:\s*calc\(50% - 58px\)/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-action-summary \{ display: none; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel \{[\s\S]*position: absolute[\s\S]*bottom: calc\(100% \+ 9px\)/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); gap: 7px; \}/);
