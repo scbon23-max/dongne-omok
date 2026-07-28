@@ -414,6 +414,7 @@
       showdown: [],
       lastRake: 0,
       pendingJoinRequests: [],
+      newGameBuyInRequired: false,
       lastEvent: { type: "table_created" },
       recentRequestIds: [],
       actionSeq: 0,
@@ -437,6 +438,8 @@
       : normalizeTournamentSpeed(state.settings.tournamentSpeed);
     state.settings.assetBacked = state.settings.mode === "ring" &&
       state.settings.assetBacked === true;
+    state.newGameBuyInRequired = state.settings.mode === "ring" &&
+      state.newGameBuyInRequired === true;
     state.settings.chipUnit = normalizedChipUnit(state.settings.chipUnit);
     state.settings.initialSmallBlind = roundToChipUnit(
       clamp(
@@ -622,6 +625,23 @@
     if (!Number.isFinite(amount)) amount = bounds.defaultAmount;
     amount = roundToChipUnit(amount, bounds.unit);
     return clamp(amount, bounds.min, bounds.max, bounds.defaultAmount);
+  }
+
+  function resetPracticeSessionStacks(state, cmd) {
+    var amount = requestedRingBuyIn(state, cmd);
+    state.settings.assetBacked = false;
+    state.settings.practice = true;
+    occupiedPlayers(state).forEach(function (player) {
+      player.stack = amount;
+      player.streetBet = 0;
+      player.totalBet = 0;
+      player.winAmount = 0;
+      player.lastAction = "";
+      player.lastActionBet = null;
+      state.ringStacks[player.nick] = amount;
+    });
+    state.newGameBuyInRequired = false;
+    return amount;
   }
 
   function updateBlindLevel(state, now) {
@@ -1546,6 +1566,10 @@
               }
               next.seats[acceptedSeat] = acceptedPlayer;
               if (next.settings.mode === "ring") next.ringStacks[requester] = acceptedPlayer.stack;
+              if (next.settings.mode === "ring" && botPlayers(next).length > 0 &&
+                  humanPlayers(next).length >= 2) {
+                next.newGameBuyInRequired = true;
+              }
               next.lastEvent = {
                 type: "join_accepted",
                 nick: requester,
@@ -1767,7 +1791,15 @@
       } else if (type === "start") {
         if (PLAYING_PHASES[next.phase]) result = { ok: false, reason: "hand_active" };
         else if (next.phase === "tournament_end") result = { ok: false, reason: "tournament_end" };
-        else {
+        else if (next.newGameBuyInRequired && humanPlayers(next).length >= 2 && nick !== next.ownerNick) {
+          result = { ok: false, reason: "owner" };
+        } else if (next.newGameBuyInRequired && humanPlayers(next).length >= 2 && cmd.buyIn == null && cmd.amount == null) {
+          result = { ok: false, reason: "buy_in_required" };
+        } else {
+          if (next.newGameBuyInRequired) {
+            if (humanPlayers(next).length >= 2) resetPracticeSessionStacks(next, cmd);
+            else next.newGameBuyInRequired = false;
+          }
           result = startHand(next, now, context);
           changed = result.ok;
         }
@@ -1946,6 +1978,10 @@
     var canStart = !PLAYING_PHASES[state.phase] && state.phase !== "tournament_end" &&
       !!viewerPlayer && !viewerPlayer.isBot && !viewerPlayer.leaving &&
       viewerPlayer.stack > 0 && readyEligible.length >= 2;
+    if (state.newGameBuyInRequired && viewerNick === state.ownerNick &&
+        humanPlayers(state).length >= 2 && occupied.length >= 2) {
+      canStart = true;
+    }
     var actorPlayer = state.actorSeat == null ? null : state.seats[state.actorSeat];
     var actorIsBot = !!(actorPlayer && actorPlayer.isBot);
     var buyInBounds = state.settings.mode === "ring"
@@ -2024,6 +2060,7 @@
       canReady: false,
       canStart: canStart,
       canNext: state.phase === "hand_end" && canStart,
+      newGameBuyInRequired: state.newGameBuyInRequired === true,
       canManageBots: canManageBots === true && state.phase === "waiting" && state.handNo === 0,
       pendingJoinRequests: state.pendingJoinRequests.map(function (request) {
         return {

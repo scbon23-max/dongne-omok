@@ -352,6 +352,7 @@ window.TexasHoldem = (function () {
       canReady: false,
       canStart: false,
       canNext: false,
+      newGameBuyInRequired: false,
       canManageBots: false,
       pendingJoinRequests: [],
       assetBacked: false,
@@ -1462,6 +1463,10 @@ window.TexasHoldem = (function () {
       canReady: bool(canReadyValue, phase === "waiting" && !!hero),
       canStart: bool(canStartValue, false),
       canNext: bool(canNextValue, false),
+      newGameBuyInRequired: bool(firstDefined(
+        table.newGameBuyInRequired,
+        raw.newGameBuyInRequired
+      ), false),
       canManageBots: bool(canManageBotsValue, false),
       pendingJoinRequests: normalizeJoinRequests(firstDefined(
         table.pendingJoinRequests,
@@ -2314,7 +2319,8 @@ window.TexasHoldem = (function () {
 
   function autoStartHand(key) {
     autoNextTimer = null;
-    if (!active || state.phase !== "complete" || !state.canStart || autoNextKey !== key) return;
+    if (!active || state.phase !== "complete" || !state.canStart ||
+        state.newGameBuyInRequired || autoNextKey !== key) return;
     if (text(me().nick, 40) !== autoStartNick()) return;
     invoke("start", {
       expectedVersion: state.version
@@ -2327,7 +2333,8 @@ window.TexasHoldem = (function () {
   }
 
   function scheduleAutoNextHand() {
-    if (state.phase !== "complete" || !state.canStart || text(me().nick, 40) !== autoStartNick()) {
+    if (state.phase !== "complete" || !state.canStart || state.newGameBuyInRequired ||
+        text(me().nick, 40) !== autoStartNick()) {
       clearAutoNextHand();
       return;
     }
@@ -2362,6 +2369,14 @@ window.TexasHoldem = (function () {
   }
 
   function startHand() {
+    if (state.newGameBuyInRequired) {
+      if (text(me().nick, 40) !== state.ownerNick) {
+        if (api && typeof api.toast === "function") api.toast("방장이 새 게임 참가금액을 정하고 있어요.", 2200);
+        return;
+      }
+      openBuyInDialog("new_game", state.heroSeat);
+      return;
+    }
     invoke("start", {
       expectedVersion: state.version
     }, { key: "start", label: "start", broadcast: true });
@@ -2950,13 +2965,14 @@ window.TexasHoldem = (function () {
   }
 
   function openBuyInDialog(mode, seat) {
-    buyInMode = mode === "rebuy" ? "rebuy" : "join";
+    buyInMode = mode === "rebuy" || mode === "new_game" ? mode : "join";
     buyInSeat = safeSeat(seat);
     buyInDialogOpen = true;
     buyInWallet = null;
+    buyInWalletPending = false;
     buyInValue = tableBuyInBounds(null).defaultAmount;
     renderBuyInDialog();
-    loadBuyInWallet();
+    if (buyInMode !== "new_game") loadBuyInWallet();
   }
 
   function closeBuyInDialog(options) {
@@ -2988,7 +3004,16 @@ window.TexasHoldem = (function () {
     var action = buyInMode;
     var seat = buyInSeat;
     closeBuyInDialog();
-    if (action === "rebuy") {
+    if (action === "new_game") {
+      invoke("start", {
+        buyIn: amount,
+        expectedVersion: state.version
+      }, {
+        key: "start",
+        label: "new_game",
+        broadcast: true
+      });
+    } else if (action === "rebuy") {
       rebuyRingChips(amount);
     } else if (!requests.join) {
       joinTable(seat, amount);
@@ -3023,18 +3048,24 @@ window.TexasHoldem = (function () {
     if (!backdrop) return;
     var bounds = tableBuyInBounds(buyInWallet);
     var lacksAssets = !!buyInWallet && bounds.selectableMax < bounds.min;
-    var title = buyInMode === "rebuy" ? "다시 참여할 금액" : "착석 금액 선택";
+    var newGame = buyInMode === "new_game";
+    var title = newGame ? "새 게임 참가금액" :
+      buyInMode === "rebuy" ? "다시 참여할 금액" : "착석 금액 선택";
     backdrop.classList.toggle("hidden", !buyInDialogOpen);
     backdrop.setAttribute("aria-hidden", buyInDialogOpen ? "false" : "true");
     setText("holdem-buyin-title", title);
     setText("holdem-buyin-range", formatChips(bounds.min) + " ~ " + formatChips(bounds.max));
-    setText("holdem-buyin-balance", buyInWalletPending
+    setText("holdem-buyin-balance", newGame
+      ? "실제 자산 미사용"
+      : buyInWalletPending
       ? "확인 중"
       : buyInWallet
         ? formatAsset(buyInWallet.balance)
         : "확인 불가");
     setText("holdem-buyin-amount", formatChips(buyInValue || bounds.defaultAmount));
-    setText("holdem-buyin-note", lacksAssets
+    setText("holdem-buyin-note", newGame
+      ? "선택한 금액으로 모든 참가자와 AI가 동일하게 새 게임을 시작해요."
+      : lacksAssets
       ? "보유 자산이 이 방의 최소 참가금보다 부족해요."
       : "선택한 금액만 테이블에 가져가고 나머지는 보유 자산에 남아요.");
     var slider = $("holdem-buyin-slider");
@@ -3047,6 +3078,7 @@ window.TexasHoldem = (function () {
     }
     disable("holdem-buyin-confirm", buyInWalletPending || lacksAssets || (buyInMode === "join" && buyInSeat < 0));
     disable("holdem-buyin-spectate", buyInWalletPending && buyInMode === "rebuy");
+    show("holdem-buyin-spectate", !newGame);
   }
 
   function maybeAutoOpenRebuyDialog() {
@@ -3874,14 +3906,15 @@ window.TexasHoldem = (function () {
     disable("holdem-bot-add-btn", busy || !canManageBots || occupiedSeats >= MAX_SEATS);
     disable("holdem-bot-fill-btn", busy || !canManageBots || state.botCount >= 5 || occupiedSeats >= MAX_SEATS);
     disable("holdem-bot-remove-btn", busy || !canManageBots || state.botCount <= 0);
-    var tableStartVisible = waiting && state.canStart;
+    var isNewGameStart = state.phase === "complete" && state.newGameBuyInRequired && isOwner;
+    var tableStartVisible = (waiting && state.canStart) || isNewGameStart;
     show("holdem-ready-btn", false);
     show("holdem-start-btn", false);
     show("holdem-next-btn", false);
     show("holdem-table-start-btn", tableStartVisible);
     var tableStartButton = $("holdem-table-start-btn");
     if (tableStartButton) {
-      tableStartButton.textContent = "시작하기";
+      tableStartButton.textContent = isNewGameStart ? "새 게임 시작" : "시작하기";
     }
     var readyButton = $("holdem-ready-btn");
     if (readyButton) {
@@ -3979,6 +4012,12 @@ window.TexasHoldem = (function () {
     if (!countdown) return;
     if (state.phase !== "complete") {
       countdown.textContent = "";
+      return;
+    }
+    if (state.newGameBuyInRequired) {
+      countdown.textContent = text(me().nick, 40) === state.ownerNick
+        ? "새 게임 참가금액을 선택해주세요."
+        : "방장이 새 게임 참가금액을 정하고 있어요.";
       return;
     }
     if (!state.canStart) {

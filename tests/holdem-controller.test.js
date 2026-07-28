@@ -211,9 +211,11 @@ test("practice join request controls are present and normalized", () => {
       requestedAt: 1_800_000_000_000,
       expiresAt: 1_800_000_060_000,
     }],
+    newGameBuyInRequired: true,
   }, 14);
 
   assert.equal(normalized.practiceMode, true);
+  assert.equal(normalized.newGameBuyInRequired, true);
   assert.deepEqual(JSON.parse(JSON.stringify(normalized.pendingJoinRequests)), [{
     nick: "guest",
     targetNick: "owner",
@@ -224,6 +226,7 @@ test("practice join request controls are present and normalized", () => {
   assert.match(indexSource, /id="holdem-join-request-alert"/);
   assert.match(source, /function requestPracticeJoin\(\)/);
   assert.match(source, /function resolvePracticeJoin\(accepted\)/);
+  assert.match(source, /openBuyInDialog\("new_game", state\.heroSeat\)/);
 });
 
 test("hand-end snapshots map to the completed UI and expose only server showdown cards", () => {

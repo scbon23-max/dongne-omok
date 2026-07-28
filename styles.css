@@ -4608,6 +4608,11 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-screen.is-result-cards-first .holdem-seat .holdem-hole-cards .holdem-card:not(.back):not(.empty) {
   animation: holdemCardRevealPop .34s ease-out both;
 }
+
+.holdem-screen.is-result-final-action #holdem-table-start-btn,
+.holdem-screen.is-result-cards-first #holdem-table-start-btn {
+  display: none !important;
+}
 @keyframes holdemCommunityCardFlip {
   0% { transform: rotateY(180deg) scale(.96); filter: brightness(.86); }
   46% { transform: rotateY(92deg) scale(1.035); filter: brightness(.92); }

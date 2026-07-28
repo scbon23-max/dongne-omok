@@ -361,7 +361,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /#holdem-call-btn \.holdem-action-call-amount\.is-xl-amount\s*\{[\s\S]*font-size:\s*clamp\(10px,\s*2\.8vw,\s*14px\)/);
   assert.match(styles, /#holdem-call-btn \.holdem-action-call-label\s*\{[\s\S]*font-size:\s*clamp\(10px,\s*2\.7vw,\s*13px\)/);
   assert.match(styles, /\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%[\s\S]*시작하기|\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%/);
-  assert.match(controller, /var tableStartVisible = waiting && state\.canStart/);
+  assert.match(controller, /var tableStartVisible = \(waiting && state\.canStart\) \|\| isNewGameStart/);
   assert.doesNotMatch(controller, /다음 핸드 시작/);
   assert.match(controller, /show\("holdem-table-start-btn", tableStartVisible\)/);
   assert.match(controller, /id === "holdem-start-btn" \|\| id === "holdem-next-btn" \|\| id === "holdem-table-start-btn"/);
@@ -431,6 +431,11 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /function humanSeatCount\(\)[\s\S]*state\.seats\.filter/);
   assert.match(controller, /var humanCount = humanSeatCount\(\)/);
   assert.match(controller, /state\.canManageBots && humanCount === 1/);
+  assert.match(controller, /state\.newGameBuyInRequired[\s\S]*openBuyInDialog\("new_game", state\.heroSeat\)/);
+  assert.match(controller, /state\.phase !== "complete" \|\| !state\.canStart \|\| state\.newGameBuyInRequired/);
+  assert.match(controller, /buyIn:\s*amount[\s\S]*label:\s*"new_game"/);
+  assert.match(engine, /function resetPracticeSessionStacks\(state, cmd\)/);
+  assert.match(engine, /reason:\s*"buy_in_required"/);
   assert.match(controller, /AI와 하는 연습용 임시 원화 자산/);
   assert.match(controller, /연습용 금액을 자동으로 충전/);
   assert.match(styles, /\.holdem-seat-action\s*\{/);

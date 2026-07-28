@@ -1261,6 +1261,48 @@ test("AI practice guests can request and be accepted into a random empty seat", 
   assert.equal(accepted.state.phase, "preflop");
   assert.deepEqual(accepted.state.pendingJoinRequests, []);
   assert.equal(accepted.state.settings.assetBacked, false);
+  assert.equal(accepted.state.newGameBuyInRequired, true);
+  assert.equal(Engine.view(accepted.state, "owner").newGameBuyInRequired, true);
+
+  accepted.state.phase = "hand_end";
+  accepted.state.seats.forEach((player, seat) => {
+    if (!player) return;
+    player.stack = 3000 + (seat * 1000);
+    player.streetBet = 0;
+    player.totalBet = 0;
+    player.inHand = false;
+  });
+
+  const missingBuyIn = Engine.command(accepted.state, {
+    type: "start",
+    nick: "owner",
+    requestId: "request:new-game-without-buyin",
+  }, context(7));
+  assert.equal(missingBuyIn.ok, false);
+  assert.equal(missingBuyIn.reason, "buy_in_required");
+
+  const guestStart = Engine.command(accepted.state, {
+    type: "start",
+    nick: "guest",
+    buyIn: 15000,
+    requestId: "request:new-game-by-guest",
+  }, context(8));
+  assert.equal(guestStart.ok, false);
+  assert.equal(guestStart.reason, "owner");
+
+  const newGame = Engine.command(accepted.state, {
+    type: "start",
+    nick: "owner",
+    buyIn: 15000,
+    requestId: "request:new-game",
+  }, context(9));
+  assert.equal(newGame.ok, true, newGame.reason);
+  assert.equal(newGame.state.phase, "preflop");
+  assert.equal(newGame.state.newGameBuyInRequired, false);
+  newGame.state.seats.filter(Boolean).forEach((player) => {
+    assert.equal(player.stack + player.totalBet, 15000);
+  });
+  assert.deepEqual(newGame.state.walletAdjustments, []);
 });
 
 test("stale AI ring tables are forced back to practice before wallet changes", () => {
