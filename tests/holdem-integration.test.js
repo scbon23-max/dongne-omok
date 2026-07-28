@@ -36,7 +36,7 @@ test("Hold'em is an available six-player controller game", () => {
   assert.match(game, /visibleGameIds\(createIds\)\.filter\(canCreateGame\)/);
   assert.match(game, /def && def\.createAdminOnly && !me\.isAdmin/);
   assert.doesNotMatch(game, /createAdminOnly && !isGunaAdmin\(\)/);
-  assert.match(game, /id === "holdem" \? "assets\/create-room-icons\/holdem\.png"/);
+  assert.match(game, /id === "holdem" \? "assets\/create-room-icons\/holdem\.webp"/);
   assert.match(game, /var iconClass = "create-game-icon" \+ \(id === "holdem" \? " holdem" : ""\)/);
 });
 

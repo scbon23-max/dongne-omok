@@ -388,7 +388,8 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
   assert.doesNotMatch(index, /<div class="setting-title">게임 선택<\/div>/);
   assert.match(game, /\["omok", "alk", "territory", "relay", "catchmind", "holdem"\]/);
   assert.match(game, /var catchIndex = createIds\.indexOf\("catchmind"\);[\s\S]*var territoryIndex = createIds\.indexOf\("territory"\);[\s\S]*createIds\[catchIndex\] = "territory";[\s\S]*createIds\[territoryIndex\] = "catchmind";/);
-  assert.match(game, /assets\/create-room-icons\/omok\.png[\s\S]*assets\/create-room-icons\/alk\.png[\s\S]*assets\/create-room-icons\/catchmind\.png[\s\S]*assets\/create-room-icons\/holdem\.png[\s\S]*assets\/create-room-icons\/territory\.png/);
+  assert.match(game, /assets\/create-room-icons\/omok\.webp[\s\S]*assets\/create-room-icons\/alk\.webp[\s\S]*assets\/create-room-icons\/catchmind\.webp[\s\S]*assets\/create-room-icons\/holdem\.webp[\s\S]*assets\/create-room-icons\/territory\.webp/);
+  assert.match(index, /assets\/create-room-icons\/omok\.webp[\s\S]*rel = "preload"[\s\S]*image\.type = "image\/webp"/);
   assert.match(game, /class="' \+ iconClass \+ '"/);
   assert.doesNotMatch(styles, /\.create-game-option\[data-game="territory"\]\.active\s*\{[^}]*rgba/);
   assert.doesNotMatch(styles, /\.create-game-option\[data-game="holdem"\]\.active\s*\{[^}]*rgba/);
@@ -402,11 +403,11 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
   assert.doesNotMatch(index, /알까기-일반|알까기-점령전/);
 
   [
-    "assets/create-room-icons/omok.png",
-    "assets/create-room-icons/alk.png",
-    "assets/create-room-icons/catchmind.png",
-    "assets/create-room-icons/territory.png",
-    "assets/create-room-icons/holdem.png",
+    "assets/create-room-icons/omok.webp",
+    "assets/create-room-icons/alk.webp",
+    "assets/create-room-icons/catchmind.webp",
+    "assets/create-room-icons/territory.webp",
+    "assets/create-room-icons/holdem.webp",
     "assets/game-icon-alkkagi.svg",
     "assets/game-icon-catchmind.svg",
     "assets/game-icon-relay.svg",
@@ -414,6 +415,15 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
     "assets/alkkagi-mode-normal.svg",
     "assets/alkkagi-mode-territory.svg"
   ].forEach((asset) => assert.equal(fs.existsSync(path.join(root, asset)), true));
+  [
+    "assets/create-room-icons/omok.webp",
+    "assets/create-room-icons/alk.webp",
+    "assets/create-room-icons/catchmind.webp",
+    "assets/create-room-icons/territory.webp",
+    "assets/create-room-icons/holdem.webp"
+  ].forEach((asset) => {
+    assert.ok(fs.statSync(path.join(root, asset)).size < 40000, `${asset} should stay lightweight`);
+  });
 });
 
 test("Territory Rush is wired as a public non-ranked controller game", () => {
