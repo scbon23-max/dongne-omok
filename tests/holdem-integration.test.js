@@ -80,6 +80,8 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.match(index, /<small>최소<\/small><b>20,000원<\/b>[\s\S]*<small>최대<\/small><b>30,000원<\/b>/);
   assert.match(index, /<small>최소<\/small><b>30,000원<\/b>[\s\S]*<small>최대<\/small><b>40,000원<\/b>/);
   assert.match(styles, /\.create-holdem-buyin-range\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(styles, /\.create-holdem-buyin-range b\s*\{[^}]*white-space:\s*nowrap/);
+  assert.doesNotMatch(styles, /\.create-holdem-buyin-range b\s*\{[^}]*overflow-wrap:\s*anywhere/);
   assert.match(index, /<strong>홀덤<\/strong>/);
   assert.doesNotMatch(index, /id="create-holdem-summary-name"/);
   assert.doesNotMatch(index, /create-holdem-head-title/);
@@ -263,9 +265,15 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /ALLIN_BGM_SFX_SRC = "assets\/holdem\/allin-bgm\.mp3"/);
   assert.match(controller, /ALLIN_BGM_SFX_VOLUME = 0\.72/);
   assert.match(controller, /function holdemSoundMuted\(\)[\s\S]*localStorage\.getItem\("omok_mute"\) === "1"/);
-  assert.match(controller, /function syncActionSounds\(previous, next, hadSnapshot\)[\s\S]*var kind = actionSoundKind\(latest\.action\);[\s\S]*playActionSfx\(kind\)/);
+  assert.match(controller, /function unlockHoldemAudio\(\)[\s\S]*el\.muted = true[\s\S]*el\.play\(\)/);
+  assert.match(controller, /function bindHoldemAudioUnlock\(\)[\s\S]*document\.addEventListener\(eventName, unlockHoldemAudio, true\)/);
+  assert.match(controller, /function enter\(nextApi\)[\s\S]*bindHoldemAudioUnlock\(\);[\s\S]*syncAudio\(\);/);
+  assert.match(controller, /function onRootClick\(event\)[\s\S]*unlockHoldemAudio\(\)/);
+  assert.match(controller, /function actionSoundEntries\(snapshot\)[\s\S]*snapshot\.actionHistory\.filter/);
+  assert.match(controller, /for \(var entryIndex = firstNewIndex;[\s\S]*scheduleActionSfx\(kind, \(entryIndex - firstNewIndex\) \* 90\)/);
+  assert.match(controller, /lastActionSoundKey = entryKey/);
   assert.match(controller, /function actionSoundKind\(action\)[\s\S]*action === "check"/);
-  assert.match(controller, /if \(kind === "allin"\)[\s\S]*bgmKey !== lastAllinBgmKey[\s\S]*playAllinBgmSfx\(\)/);
+  assert.match(controller, /if \(kind === "allin"\)[\s\S]*bgmKey !== lastAllinBgmKey[\s\S]*setTimeout\(playAllinBgmSfx/);
   assert.match(controller, /allinBgmSfxEl\.loop = false/);
   assert.match(controller, /scheduleActionSfx\("winner", delay\)/);
   assert.match(controller, /function scheduleCommunityCardOpenSfx\(card, index, delayMs\)[\s\S]*setTimeout\(function \(\) \{[\s\S]*playCommunityCardOpenSfx\(\)/);
