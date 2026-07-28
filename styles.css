@@ -4198,7 +4198,7 @@ body.is-admin .feedback-user-compose { display: none; }
   left: calc(50% + var(--holdem-seat-avatar-size) / 2 + 24px);
 }
 .holdem-seat[data-relative-seat="3"] .holdem-seat-action {
-  top: calc(var(--holdem-seat-avatar-size) + 50px);
+  top: calc(var(--holdem-seat-avatar-size) + 68px);
   left: 50%;
 }
 .holdem-seat[data-relative-seat="4"] .holdem-seat-action,

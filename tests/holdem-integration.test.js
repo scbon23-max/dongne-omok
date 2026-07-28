@@ -285,7 +285,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards\s*\{[\s\S]*top:\s*-6px[\s\S]*z-index:\s*10[\s\S]*translate\(-50%, -52%\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \/ 2\)[\s\S]*left:\s*50%[\s\S]*z-index:\s*18/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-seat-avatar-size\) \/ 2 \+ 24px\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 50px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 68px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-seat-avatar-size\) \/ 2 - 24px\)/);
   assert.match(controller, /is-visible-cards is-revealed-cards/);
   assert.match(controller, /class="holdem-seat-open-icon"/);
