@@ -381,8 +381,8 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
   assert.match(styles, /\.create-game-option\s*\{[^}]*border:\s*0/);
   assert.doesNotMatch(game, /create-game-desc|var desc = id ===/);
   assert.doesNotMatch(index, /<div class="setting-title">게임 선택<\/div>/);
-  assert.match(game, /\["omok", "alk", "territory", "relay", "catchmind", "holdem"\]/);
-  assert.match(game, /var catchIndex = createIds\.indexOf\("catchmind"\);[\s\S]*var territoryIndex = createIds\.indexOf\("territory"\);[\s\S]*createIds\[catchIndex\] = "territory";[\s\S]*createIds\[territoryIndex\] = "catchmind";/);
+  assert.match(game, /\["omok", "alk", "catchmind", "relay", "territory", "holdem"\]/);
+  assert.doesNotMatch(game, /createIds\[catchIndex\] = "territory"|createIds\[territoryIndex\] = "catchmind"/);
   assert.match(game, /assets\/create-room-icons\/omok\.png[\s\S]*assets\/create-room-icons\/alk\.png[\s\S]*assets\/create-room-icons\/catchmind\.png[\s\S]*assets\/create-room-icons\/holdem\.png[\s\S]*assets\/create-room-icons\/territory\.png/);
   assert.match(game, /class="' \+ iconClass \+ '"/);
   assert.doesNotMatch(styles, /\.create-game-option\[data-game="territory"\]\.active\s*\{[^}]*rgba/);
