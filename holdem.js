@@ -3910,9 +3910,10 @@ window.TexasHoldem = (function () {
       chip.removeAttribute("title");
       return;
     }
-    var label = "미착석 관전 " + count + "명";
-    if (spectators[0]) label += " · " + spectators[0] + (count > 1 ? " 외 " + (count - 1) : "");
-    chip.textContent = label;
+    chip.innerHTML = '<strong>관전자 ' + count + '명</strong>' +
+      spectators.map(function (nick) {
+        return '<span>' + esc(nick) + '</span>';
+      }).join("");
     chip.title = spectators.join(", ");
   }
 

@@ -26,7 +26,7 @@ test("Hold'em is an available six-player controller game", () => {
 
   assert.equal(definition.family, "holdem");
   assert.equal(definition.maxPlayers, 6);
-  assert.equal(definition.maxRoomMembers, 6);
+  assert.equal(definition.maxRoomMembers, 0);
   assert.equal(definition.rankable, false);
   assert.equal(definition.createAdminOnly, false);
   assert.equal(definition.discoverable, true);
@@ -229,8 +229,9 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(index, /<nav class="holdem-utility"[\s\S]*class="holdem-exit-stack"[\s\S]*id="holdem-leave-btn"[\s\S]*id="holdem-spectator-chip"[\s\S]*id="holdem-hands-btn"[\s\S]*id="holdem-settings-btn"/);
   assert.match(styles, /\.holdem-topbar\s*\{[\s\S]*background:\s*transparent/);
   assert.match(styles, /\.holdem-exit-stack\s*\{[\s\S]*margin-right:\s*auto/);
-  assert.match(styles, /\.holdem-spectator-chip\s*\{[\s\S]*font-size:\s*9px/);
-  assert.match(controller, /function renderSpectatorChip\(\)[\s\S]*미착석 관전/);
+  assert.match(styles, /\.holdem-spectator-chip\s*\{[\s\S]*flex-direction:\s*column/);
+  assert.match(controller, /function renderSpectatorChip\(\)[\s\S]*관전자 /);
+  assert.match(controller, /spectators\.map\(function \(nick\)/);
   assert.match(styles, /\.holdem-table\s*\{[\s\S]*aspect-ratio:\s*9\s*\/\s*14/);
   for (let seat = 0; seat < 6; seat += 1) {
     assert.match(
