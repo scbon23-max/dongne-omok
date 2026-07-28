@@ -4216,9 +4216,9 @@ body.is-admin .feedback-user-compose { display: none; }
   position: absolute;
   top: calc(var(--holdem-seat-avatar-size) / 2);
   left: 50%;
-  z-index: 26;
-  width: var(--holdem-seat-avatar-size);
-  height: var(--holdem-seat-avatar-size);
+  z-index: 6;
+  width: calc(var(--holdem-seat-avatar-size) + 16px);
+  height: calc(var(--holdem-seat-avatar-size) + 16px);
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -4241,18 +4241,26 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat-turn-timer::after {
   content: attr(data-seconds);
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  right: -1px;
+  bottom: -2px;
+  min-width: 23px;
+  height: 23px;
   display: grid;
   place-items: center;
-  border-radius: inherit;
-  background: rgba(3,19,24,.42);
+  border: 2px solid rgba(223,255,248,.88);
+  border-radius: 999px;
+  background: rgba(3,19,24,.96);
   color: #dffff8;
-  font-size: clamp(18px, 5.2vw, 25px);
+  font-size: 11px;
   font-weight: 1000;
   line-height: 1;
-  text-shadow: 0 2px 5px rgba(0,0,0,.9);
+  text-shadow: 0 1px 2px rgba(0,0,0,.78);
+  box-shadow: 0 3px 10px rgba(0,0,0,.5);
+}
+.holdem-seat-turn-timer.urgent {
+  z-index: 26;
+  width: var(--holdem-seat-avatar-size);
+  height: var(--holdem-seat-avatar-size);
 }
 .holdem-seat-turn-timer.urgent::before {
   background: conic-gradient(#ff433d calc(var(--holdem-seat-timer-ratio) * 1turn), rgba(80,10,10,.62) 0);
@@ -4260,8 +4268,19 @@ body.is-admin .feedback-user-compose { display: none; }
   animation: holdemSeatTimerUrgent .5s ease-in-out infinite alternate;
 }
 .holdem-seat-turn-timer.urgent::after {
+  inset: 0;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: inherit;
   background: rgba(183,40,36,.72);
   color: #fff4e8;
+  font-size: clamp(18px, 5.2vw, 25px);
+  text-shadow: 0 2px 5px rgba(0,0,0,.9);
+  box-shadow: none;
   animation: holdemSeatTimerUrgentBadge .5s ease-in-out infinite alternate;
 }
 @keyframes holdemSeatTimerUrgent {
