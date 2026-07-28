@@ -1022,17 +1022,20 @@ test("AI practice guests can request and be accepted into a random empty seat", 
   assert.equal(directJoin.ok, false);
   assert.equal(directJoin.reason, "practice_ai_only");
 
+  state = apply(state, { type: "start", nick: "owner", requestId: "request:start" }, 4);
+  assert.equal(state.phase, "preflop");
+
   let requested = Engine.command(state, {
     type: "join_request",
     nick: "guest",
     requestId: "request:ask",
-  }, context(4));
+  }, context(5));
   assert.equal(requested.ok, true, requested.reason);
   assert.deepEqual(Engine.view(requested.state, "owner").pendingJoinRequests, [{
     nick: "guest",
     targetNick: "owner",
-    requestedAt: 4,
-    expiresAt: 60004,
+    requestedAt: 5,
+    expiresAt: 60005,
   }]);
 
   const accepted = Engine.command(requested.state, {
@@ -1042,7 +1045,7 @@ test("AI practice guests can request and be accepted into a random empty seat", 
     accepted: true,
     requestId: "request:accept",
   }, {
-    now: 5,
+    now: 6,
     randomInt: (max) => max - 1,
   });
   assert.equal(accepted.ok, true, accepted.reason);
@@ -1050,6 +1053,10 @@ test("AI practice guests can request and be accepted into a random empty seat", 
   assert.ok(guest);
   assert.equal(guest.seat, 5);
   assert.equal(guest.ready, true);
+  assert.equal(guest.waiting, false);
+  assert.equal(guest.inHand, false);
+  assert.deepEqual(guest.cards, []);
+  assert.equal(accepted.state.phase, "preflop");
   assert.deepEqual(accepted.state.pendingJoinRequests, []);
   assert.equal(accepted.state.settings.assetBacked, false);
 });

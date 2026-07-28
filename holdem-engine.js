@@ -1416,7 +1416,7 @@
               var acceptedPlayer = createPlayer(requester, acceptedSeat, next.settings.startingStack, now);
               acceptedPlayer.ready = true;
               if (PLAYING_PHASES[next.phase]) {
-                acceptedPlayer.waiting = true;
+                acceptedPlayer.waiting = false;
                 acceptedPlayer.inHand = false;
                 acceptedPlayer.folded = false;
                 acceptedPlayer.cards = [];
