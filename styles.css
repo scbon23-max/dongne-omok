@@ -2251,6 +2251,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   padding: 6px 4px 1px;
 }
 .create-game-option {
+  position: relative;
   min-width: 0;
   width: 100%;
   min-height: 116px;
@@ -2269,8 +2270,28 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-game-option:active, .create-mode-card:active { transform: scale(.985); }
 .create-game-option.active { background: transparent; }
+.create-game-option::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: -9px;
+  left: 50%;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,155,88,.42) 0%, rgba(47,184,158,.2) 42%, rgba(47,184,158,0) 72%);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) scale(.78);
+  transition: opacity .16s ease, transform .16s ease;
+}
+.create-game-option.active::before {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
 .create-game-icon {
   position: relative;
+  z-index: 1;
   width: 78px;
   height: 78px;
   display: block;
@@ -2286,6 +2307,8 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   box-shadow: 0 12px 24px rgba(5,16,22,.48);
 }
 .create-game-name {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   min-height: 36px;
@@ -2642,6 +2665,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   .create-head { margin-bottom: 12px; }
   .create-game-list { gap: 16px 8px; }
   .create-game-option { min-height: 101px; }
+  .create-game-option::before { top: -8px; width: 92px; height: 92px; }
   .create-game-icon { width: 68px; height: 68px; border-radius: 18px; }
   .create-game-name { min-height: 32px; font-size: 13px; }
   .create-room-dialog .setting-group { margin-bottom: 12px; }

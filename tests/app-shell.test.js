@@ -374,6 +374,8 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
   assert.match(styles, /\.create-game-list\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(styles, /\.create-game-option\s*\{[^}]*flex-direction:\s*column/);
   assert.match(styles, /\.create-game-icon\s*\{[^}]*width:\s*78px[\s\S]*height:\s*78px/);
+  assert.match(styles, /\.create-game-option::before\s*\{[^}]*radial-gradient\(circle, rgba\(255,155,88,\.42\)/);
+  assert.match(styles, /\.create-game-option\.active::before\s*\{[^}]*opacity:\s*1/);
   assert.match(styles, /\.create-game-option\.active \.create-game-icon\s*\{[^}]*filter:\s*brightness\(1\.08\) saturate\(1\.06\)/);
   assert.match(styles, /\.create-game-option\s*\{[^}]*border:\s*0/);
   assert.doesNotMatch(game, /create-game-desc|var desc = id ===/);
