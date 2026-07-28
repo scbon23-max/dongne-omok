@@ -2853,13 +2853,6 @@ window.TexasHoldem = (function () {
     if (profileTargetIsMe(profileTarget())) loadProfileWallet(true);
   }
 
-  function openOwnProfileDialog() {
-    profileTargetSeat = -2;
-    profileDialogOpen = true;
-    renderProfileDialog();
-    loadProfileWallet(true);
-  }
-
   function joinFromProfileDialog() {
     if (state.heroSeat >= 0) return;
     var targetSeat = firstEmptySeat();
@@ -3810,8 +3803,6 @@ window.TexasHoldem = (function () {
     if (id === "holdem-settings-btn") {
       settingsOpen = !settingsOpen;
       renderSettings();
-    } else if (id === "holdem-profile-btn") {
-      openOwnProfileDialog();
     } else if (id === "holdem-buyin-close" || id === "holdem-buyin-cancel") {
       closeBuyInDialog({ suppressAutoSeat: true });
     } else if (id === "holdem-buyin-spectate") {

@@ -214,6 +214,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.doesNotMatch(index, /class="holdem-brand-cards"/);
   assert.doesNotMatch(index, /id="holdem-status"/);
   assert.doesNotMatch(index, /id="holdem-people-btn"/);
+  assert.doesNotMatch(index, /id="holdem-profile-btn"/);
   assert.match(index, /<nav class="holdem-utility"[\s\S]*id="holdem-leave-btn"[\s\S]*id="holdem-hands-btn"[\s\S]*id="holdem-settings-btn"/);
   assert.match(styles, /\.holdem-topbar\s*\{[\s\S]*background:\s*transparent/);
   assert.match(styles, /\.holdem-utility #holdem-leave-btn \{ margin-right: auto; \}/);
