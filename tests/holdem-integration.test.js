@@ -338,9 +338,9 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets\s*\{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[\s\S]*grid-auto-rows: minmax\(52px, auto\);[\s\S]*gap: 8px/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet-tier="over"\] \{[\s\S]*grid-column: 1/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\s*\{[\s\S]*pointer-events: auto/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="allin"\] \{[\s\S]*grid-column: 1[\s\S]*grid-row: 3/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="eight-pot"\] \{ grid-row: 1; \}/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="four-pot"\] \{ grid-row: 2; \}/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="allin"\] \{[\s\S]*grid-column: 1[\s\S]*grid-row: 1/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="eight-pot"\] \{ grid-row: 2; \}/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="four-pot"\] \{ grid-row: 3; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="two-pot"\]\s*\{[\s\S]*grid-column: 3;[\s\S]*grid-row: 1/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="pot"\] \{ grid-row: 2; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="three-quarter"\] \{ grid-row: 3; \}/);
