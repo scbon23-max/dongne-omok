@@ -35,6 +35,28 @@ function apply(state, command, now, context = {}) {
   return result.state;
 }
 
+function testPlayer(nick, seat, stack, now) {
+  return {
+    nick,
+    seat,
+    stack,
+    ready: true,
+    joinedAt: now,
+    waiting: true,
+    leaving: false,
+    inHand: false,
+    folded: false,
+    allIn: false,
+    streetBet: 0,
+    totalBet: 0,
+    cards: [],
+    revealed: false,
+    lastAction: "",
+    lastActionBet: null,
+    winAmount: 0,
+  };
+}
+
 /*
  * Build the observation through the real table engine and its bot-only view.
  * Individual tests then alter only public poker-state fields to create duplicate
@@ -48,34 +70,25 @@ function startedSixMaxBotTable(seed = 1) {
     smallBlind: 100,
     bigBlind: 200,
   });
-  const humans = [
-    ["owner", 0],
-    ["seat-1", 1],
-    ["seat-2", 2],
-    ["seat-4", 4],
-    ["seat-5", 5],
-  ];
-  humans.forEach(([nick, seat], index) => {
-    state = apply(state, {
-      type: "join",
-      nick,
-      seat,
-      requestId: `join:${seed}:${seat}`,
-    }, 10 + index);
-  });
+  state = apply(state, {
+    type: "join",
+    nick: "owner",
+    seat: 0,
+    requestId: `join:${seed}:0`,
+  }, 10);
   state = apply(state, {
     type: "add_bot",
     nick: "owner",
     seat: 3,
     requestId: `add-bot:${seed}`,
   }, 20);
-  humans.forEach(([nick], index) => {
-    state = apply(state, {
-      type: "ready",
-      nick,
-      ready: true,
-      requestId: `ready:${seed}:${index}`,
-    }, 30 + index);
+  [
+    ["seat-1", 1],
+    ["seat-2", 2],
+    ["seat-4", 4],
+    ["seat-5", 5],
+  ].forEach(([nick, seat], index) => {
+    state.seats[seat] = testPlayer(nick, seat, state.settings.startingStack, 30 + index);
   });
   state = apply(state, {
     type: "start",

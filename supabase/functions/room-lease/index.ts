@@ -7,8 +7,8 @@ const CORS = {
 };
 
 const CHIP_UNIT = 100;
-const RING_ROOM_BUY_INS = new Set([20000, 40000, 100000]);
-const RING_DEFAULT_BUY_IN = 40000;
+const RING_ROOM_BUY_INS = new Set([15000, 30000, 75000]);
+const RING_DEFAULT_BUY_IN = 30000;
 const HOLDEM_TOURNAMENT_GAMES = new Set([
   "holdem",
   "holdem_tournament",

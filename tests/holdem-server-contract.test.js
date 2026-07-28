@@ -385,8 +385,8 @@ test("Hold'em wallets use 100-chip accounting and update atomically with ring ta
   );
   assert.match(edge, /const CHIP_UNIT = 100/);
   assert.match(edge, /const INITIAL_WALLET_BALANCE = 100000/);
-  assert.match(edge, /const RING_ROOM_BUY_INS = new Set\(\[20000, 40000, 100000\]\)/);
-  assert.match(edge, /const RING_DEFAULT_BUY_IN = 40000/);
+  assert.match(edge, /const RING_ROOM_BUY_INS = new Set\(\[15000, 30000, 75000\]\)/);
+  assert.match(edge, /const RING_DEFAULT_BUY_IN = 30000/);
   assert.match(edge, /amount % CHIP_UNIT === 0[\s\S]*RING_ROOM_BUY_INS\.has\(amount\)/);
   assert.match(edge, /function ringBlindForBuyIn\(buyIn: number\)/);
   assert.match(edge, /return \{ smallBlind: 100, bigBlind: 200 \}/);

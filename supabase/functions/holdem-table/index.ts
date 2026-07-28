@@ -136,8 +136,8 @@ const CHIP_UNIT = 100;
 const INITIAL_WALLET_BALANCE = 100000;
 const RING_MIN_BUY_IN = 10000;
 const RING_MAX_BUY_IN = 100000;
-const RING_ROOM_BUY_INS = new Set([20000, 40000, 100000]);
-const RING_DEFAULT_BUY_IN = 40000;
+const RING_ROOM_BUY_INS = new Set([15000, 30000, 75000]);
+const RING_DEFAULT_BUY_IN = 30000;
 const RING_REFILL_AMOUNT = 20000;
 const HOLDEM_ROOM_GAMES = new Set([
   "holdem",
@@ -394,9 +394,15 @@ function normalizedRingBuyIn(value: unknown) {
 }
 
 function ringBlindForBuyIn(buyIn: number) {
-  if (buyIn >= 100000) return { smallBlind: 500, bigBlind: 1000 };
-  if (buyIn >= 40000) return { smallBlind: 200, bigBlind: 400 };
+  if (buyIn >= 75000) return { smallBlind: 500, bigBlind: 1000 };
+  if (buyIn >= 30000) return { smallBlind: 200, bigBlind: 400 };
   return { smallBlind: 100, bigBlind: 200 };
+}
+
+function ringTableBoundsForBuyIn(buyIn: number) {
+  if (buyIn >= 75000) return { minBuyIn: 50000, maxBuyIn: 100000, defaultBuyIn: 75000 };
+  if (buyIn >= 30000) return { minBuyIn: 20000, maxBuyIn: 40000, defaultBuyIn: 30000 };
+  return { minBuyIn: 10000, maxBuyIn: 20000, defaultBuyIn: 15000 };
 }
 
 async function walletProfile(
@@ -659,10 +665,12 @@ function createTableOptions(
 ) {
   const ring = game === "holdem_ring";
   const turbo = game === "holdem_turbo";
+  const selectedBuyIn = ring ? normalizedRingBuyIn(buyIn) : 0;
+  const ringBounds = ring ? ringTableBoundsForBuyIn(selectedBuyIn) : null;
   const startingStack = ring
-    ? normalizedRingBuyIn(buyIn)
+    ? ringBounds?.maxBuyIn ?? RING_DEFAULT_BUY_IN
     : RING_DEFAULT_BUY_IN;
-  const blind = ring ? ringBlindForBuyIn(startingStack) : {
+  const blind = ring ? ringBlindForBuyIn(selectedBuyIn) : {
     smallBlind: 100,
     bigBlind: 200,
   };

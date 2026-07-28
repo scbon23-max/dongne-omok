@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260728-holdem-economy-v3-new-game-buyin-v1">
+<meta name="app-build" content="20260728-holdem-new-game-buyin-room-fix-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -726,6 +726,7 @@
       <nav class="holdem-utility" aria-label="홀덤 방 메뉴">
         <button id="holdem-leave-btn" type="button">나가기</button>
         <button id="holdem-hands-btn" type="button" aria-label="홀덤 족보 보기">족보</button>
+        <button id="holdem-rank-btn" type="button" aria-label="홀덤 자산 랭킹 보기">랭킹</button>
         <button id="holdem-settings-btn" type="button" aria-label="설정" aria-expanded="false">⚙</button>
       </nav>
       <section id="holdem-settings-panel" class="holdem-settings-panel hidden" aria-labelledby="holdem-settings-title">
@@ -1171,23 +1172,23 @@
         <div class="create-holdem-buyin-head">
           <span class="setting-title">참가비용 범위</span>
         </div>
-        <input id="create-holdem-buyin-slider" type="hidden" min="10000" max="100000" step="100" value="40000">
+        <input id="create-holdem-buyin-slider" type="hidden" min="10000" max="100000" step="100" value="30000">
         <div id="create-holdem-buyin-presets" class="create-holdem-buyin-presets" role="group" aria-label="바이인 빠른 선택">
-          <button type="button" data-holdem-buyin="20000">
+          <button type="button" data-holdem-buyin="15000">
             <strong>라이트</strong>
             <span class="create-holdem-buyin-range">
               <span><small>최소</small><b>10,000원</b></span>
               <span><small>최대</small><b>20,000원</b></span>
             </span>
           </button>
-          <button class="active" type="button" data-holdem-buyin="40000">
+          <button class="active" type="button" data-holdem-buyin="30000">
             <strong>스탠다드</strong>
             <span class="create-holdem-buyin-range">
               <span><small>최소</small><b>20,000원</b></span>
               <span><small>최대</small><b>40,000원</b></span>
             </span>
           </button>
-          <button type="button" data-holdem-buyin="100000">
+          <button type="button" data-holdem-buyin="75000">
             <strong>하이롤러</strong>
             <span class="create-holdem-buyin-range">
               <span><small>최소</small><b>50,000원</b></span>
@@ -1233,6 +1234,30 @@
       </div>
     </dl>
     <p id="holdem-asset-record-note" class="holdem-asset-record-note">오늘 처음 확인한 총자산을 기준으로 기록합니다.</p>
+  </section>
+</div>
+
+<div id="holdem-asset-ranking-backdrop" class="holdem-asset-ranking-backdrop hidden" aria-hidden="true">
+  <section class="holdem-asset-ranking-dialog" role="dialog" aria-modal="true" aria-labelledby="holdem-asset-ranking-title">
+    <header class="holdem-asset-ranking-head">
+      <div>
+        <span>HOLDEM ASSET RANKING</span>
+        <h2 id="holdem-asset-ranking-title">자산 랭킹</h2>
+      </div>
+      <button id="holdem-asset-ranking-close" type="button" aria-label="자산 랭킹 닫기">×</button>
+    </header>
+    <div id="holdem-asset-ranking-mine" class="holdem-asset-ranking-mine hidden" aria-live="polite">
+      <span>내 순위</span>
+      <strong id="holdem-asset-ranking-mine-rank">-</strong>
+      <small id="holdem-asset-ranking-mine-assets">총자산 확인 중</small>
+    </div>
+    <div class="holdem-asset-ranking-columns" aria-hidden="true">
+      <span>순위</span><span>플레이어</span><span>총자산</span>
+    </div>
+    <div id="holdem-asset-ranking-list" class="holdem-asset-ranking-list" role="list" aria-live="polite">
+      <p class="holdem-asset-ranking-status">랭킹을 불러오는 중입니다.</p>
+    </div>
+    <p class="holdem-asset-ranking-note">현재 테이블에 가져간 칩까지 모두 합친 총자산 기준입니다.</p>
   </section>
 </div>
 

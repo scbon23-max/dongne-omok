@@ -80,7 +80,7 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.match(index, /data-holdem-speed="turbo"/);
   assert.match(index, /id="create-holdem-speed-group"[^>]*hidden/);
   assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*max="100000"[^>]*step="100"/);
-  assert.match(index, /data-holdem-buyin="20000"[\s\S]*data-holdem-buyin="40000"[\s\S]*data-holdem-buyin="100000"/);
+  assert.match(index, /data-holdem-buyin="15000"[\s\S]*data-holdem-buyin="30000"[\s\S]*data-holdem-buyin="75000"/);
   assert.match(index, /참가비용 범위/);
   assert.match(index, /<small>최소<\/small><b>10,000원<\/b>[\s\S]*<small>최대<\/small><b>20,000원<\/b>/);
   assert.match(index, /<small>최소<\/small><b>20,000원<\/b>[\s\S]*<small>최대<\/small><b>40,000원<\/b>/);
@@ -99,8 +99,8 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.doesNotMatch(holdemCreateStep, /SB 100|SB 200|SB 300|BB 200|BB 400|BB 600|李멸? 媛??/);
   assert.match(game, /renderCreateHoldemMode\("ring", "normal"\)/);
   assert.match(game, /HOLDEM_INITIAL_ASSETS = 100000/);
-  assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 40000/);
-  assert.match(game, /HOLDEM_BUY_IN_OPTIONS = \[[\s\S]*minBuyIn: 10000[\s\S]*maxBuyIn: 20000[\s\S]*minBuyIn: 20000[\s\S]*maxBuyIn: 40000[\s\S]*minBuyIn: 50000[\s\S]*maxBuyIn: 100000/);
+  assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 30000/);
+  assert.match(game, /HOLDEM_BUY_IN_OPTIONS = \[[\s\S]*amount: 15000[\s\S]*minBuyIn: 10000[\s\S]*maxBuyIn: 20000[\s\S]*amount: 30000[\s\S]*minBuyIn: 20000[\s\S]*maxBuyIn: 40000[\s\S]*amount: 75000[\s\S]*minBuyIn: 50000[\s\S]*maxBuyIn: 100000/);
   assert.match(game, /smallBlind: 100[\s\S]*bigBlind: 200/);
   assert.match(game, /smallBlind: 200[\s\S]*bigBlind: 400/);
   assert.match(game, /smallBlind: 500[\s\S]*bigBlind: 1000/);
