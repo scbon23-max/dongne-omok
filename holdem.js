@@ -2504,6 +2504,47 @@ window.TexasHoldem = (function () {
       '</span>';
   }
 
+  function engineCardCode(card) {
+    if (!card || !card.rank || !card.suit) return "";
+    var rank = card.rank === "10" ? "T" : String(card.rank || "").toUpperCase();
+    var suit = String(card.suit || "").toLowerCase();
+    var code = rank + suit;
+    return /^[2-9TJQKA][cdhs]$/.test(code) ? code : "";
+  }
+
+  function normalizeEngineCardCode(code) {
+    code = String(code || "").trim();
+    if (code.length !== 2) return "";
+    return code.charAt(0).toUpperCase() + code.charAt(1).toLowerCase();
+  }
+
+  function heroCurrentHand() {
+    if (!isHandActive(state.phase)) return null;
+    if (!Array.isArray(state.heroCards) || state.heroCards.length < 2) return null;
+    if (!Array.isArray(state.board) || state.board.length < 3) return null;
+    var engine = window.HoldemEngine;
+    if (!engine || typeof engine.evaluateSeven !== "function") return null;
+    var cards = state.heroCards.concat(state.board).map(engineCardCode).filter(Boolean);
+    if (cards.length < 5) return null;
+    try {
+      var evaluation = engine.evaluateSeven(cards);
+      if (!evaluation || !evaluation.name) return null;
+      var bestCards = Object.create(null);
+      (evaluation.cards || []).forEach(function (code) {
+        code = normalizeEngineCardCode(code);
+        if (code) bestCards[code] = true;
+      });
+      var communityCards = Object.create(null);
+      state.board.forEach(function (card, index) {
+        var code = engineCardCode(card);
+        if (code && bestCards[code]) communityCards[index] = true;
+      });
+      return { name: evaluation.name, communityCards: communityCards };
+    } catch (error) {
+      return null;
+    }
+  }
+
   function handRankCard(rank, suit) {
     return { rank: rank, suit: suit };
   }
@@ -3220,6 +3261,10 @@ window.TexasHoldem = (function () {
 
       var holes = "";
       var holesClass = "holdem-hole-cards";
+      var currentHand = isMe ? heroCurrentHand() : null;
+      var currentHandHtml = currentHand
+        ? '<span class="holdem-hero-hand-badge">현재 ' + esc(currentHand.name) + '</span>'
+        : "";
       if (seat) {
         if (isMe && state.heroCards.length) {
           holesClass += " is-visible-cards";
@@ -3246,6 +3291,7 @@ window.TexasHoldem = (function () {
         '<article class="' + classes.join(" ") + '" data-seat="' + absolute +
         '" data-relative-seat="' + relative + '" aria-label="' + esc(label) + '"' +
         (seat || (!seat && !isHandActive(state.phase)) ? ' role="button" tabindex="0"' : "") + '>' +
+          currentHandHtml +
           '<div class="' + holesClass + '">' + holes + '</div>' +
           resultBadge +
           '<div class="holdem-seat-avatar" aria-hidden="true">' +
@@ -3266,8 +3312,11 @@ window.TexasHoldem = (function () {
     suppressActionTagAnimations = false;
   }
 
-  function communityCardHtml(card, index, newRevealIndex, now) {
+  function communityCardHtml(card, index, newRevealIndex, now, currentHand) {
     if (!card) return cardHtml(null);
+    var highlightClass = currentHand && currentHand.communityCards[index]
+      ? "is-hero-made-hand-card"
+      : "";
     var key = communityCardKey(card);
     if (boardRevealState.cards[index] !== key) {
       boardRevealState.cards[index] = key;
@@ -3280,11 +3329,11 @@ window.TexasHoldem = (function () {
       return cardHtml(
         card,
         null,
-        "is-community-flipping",
+        ("is-community-flipping " + highlightClass).trim(),
         ' style="--holdem-community-flip-delay: ' + boardRevealState.delayMs[index] + 'ms;"'
       );
     }
-    return cardHtml(card);
+    return cardHtml(card, null, highlightClass);
   }
 
   function renderBoard() {
@@ -3295,13 +3344,14 @@ window.TexasHoldem = (function () {
     var visibleCount = resultBoardVisibleCount();
     var now = Date.now();
     var newRevealIndex = 0;
+    var currentHand = heroCurrentHand();
     for (var i = 0; i < 5; i++) {
       var card = i < visibleCount ? state.board[i] : null;
       if (card && boardRevealState.cards[i] !== communityCardKey(card)) {
-        html += communityCardHtml(card, i, newRevealIndex, now);
+        html += communityCardHtml(card, i, newRevealIndex, now, currentHand);
         newRevealIndex += 1;
       } else {
-        html += card ? communityCardHtml(card, i, 0, now) : cardHtml(null);
+        html += card ? communityCardHtml(card, i, 0, now, currentHand) : cardHtml(null);
       }
     }
     if (lastBoardHtml !== html) {
