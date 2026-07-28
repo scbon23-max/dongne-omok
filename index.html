@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260728-create-room-icon-border-v1">
+<meta name="app-build" content="20260728-holdem-create-clean-buyin-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -1138,30 +1138,22 @@
       <div id="create-holdem-buyin-group" class="create-holdem-buyin-group hidden">
         <div class="create-holdem-buyin-head">
           <span class="setting-title">참가비용 범위</span>
-          <output id="create-holdem-buyin-output" for="create-holdem-buyin-slider">20,000원~30,000원</output>
         </div>
         <input id="create-holdem-buyin-slider" type="hidden" min="10000" max="40000" step="100" value="30000">
         <div id="create-holdem-buyin-presets" class="create-holdem-buyin-presets" role="group" aria-label="바이인 빠른 선택">
           <button type="button" data-holdem-buyin="10000">
             <strong>라이트</strong>
-            <small>SB 100 / BB 200</small>
-            <span>참가 가능 10,000원~20,000원</span>
+            <span>10,000원~20,000원</span>
           </button>
           <button class="active" type="button" data-holdem-buyin="30000">
             <strong>스탠다드</strong>
-            <small>SB 200 / BB 400</small>
-            <span>참가 가능 20,000원~30,000원</span>
+            <span>20,000원~30,000원</span>
           </button>
           <button type="button" data-holdem-buyin="40000">
             <strong>하이롤러</strong>
-            <small>SB 300 / BB 600</small>
-            <span>참가 가능 30,000원~40,000원</span>
+            <span>30,000원~40,000원</span>
           </button>
         </div>
-        <small id="create-holdem-buyin-note">선택한 블라인드 테이블에 최소~최대 범위 안에서 입장합니다.</small>
-      </div>
-      <div id="create-holdem-rule-summary" class="create-holdem-rule-summary">
-        스탠다드 · 20,000원~30,000원 · BB 400 · 최대 6명
       </div>
       <button id="create-holdem-mode-confirm" class="btn-primary create-confirm">홀덤 방 만들기</button>
     </div>

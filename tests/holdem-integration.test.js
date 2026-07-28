@@ -82,6 +82,8 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.doesNotMatch(index, /create-holdem-head-title/);
   assert.doesNotMatch(holdemCreateStep, /<span>방 이름<\/span>/);
   assert.match(holdemCreateStep, /create-holdem-wallet create-holdem-wallet-full/);
+  assert.doesNotMatch(holdemCreateStep, /create-holdem-buyin-output|create-holdem-buyin-note|create-holdem-rule-summary/);
+  assert.doesNotMatch(holdemCreateStep, /SB 100|SB 200|SB 300|BB 200|BB 400|BB 600|李멸? 媛??/);
   assert.match(game, /renderCreateHoldemMode\("ring", "normal"\)/);
   assert.match(game, /HOLDEM_INITIAL_ASSETS = 100000/);
   assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 30000/);

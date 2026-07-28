@@ -2537,29 +2537,15 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-holdem-speed strong { font-size: 13px; }
 .create-holdem-speed span { margin-top: 3px; font-size: 10px; line-height: 1.35; }
 .create-holdem-buyin-group {
-  margin: 0 0 10px;
-  padding: 10px;
+  margin: 0 0 12px;
+  padding: 11px 10px 10px;
   border: 1px solid rgba(125,225,196,.22);
   border-radius: 12px;
   background:
     linear-gradient(180deg, rgba(9,31,41,.78), rgba(8,24,32,.64));
 }
-.create-holdem-buyin-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
+.create-holdem-buyin-head { display: block; }
 .create-holdem-buyin-head .setting-title { margin: 0; }
-.create-holdem-buyin-head output {
-  color: #7de1c4;
-  font-size: 14px;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-  text-align: right;
-}
 .create-holdem-buyin-group input[type="range"] {
   width: 100%;
   margin: 9px 0 8px;
@@ -2567,18 +2553,19 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-holdem-buyin-presets {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 6px;
-  margin-top: 9px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 10px;
 }
 .create-holdem-buyin-presets button {
   min-width: 0;
-  min-height: 62px;
+  min-height: 68px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  justify-items: center;
+  align-content: center;
   align-items: center;
-  gap: 4px 10px;
-  padding: 9px 11px;
+  gap: 6px;
+  padding: 10px 6px;
   border: 1px solid rgba(255,255,255,.1);
   border-radius: 11px;
   background:
@@ -2586,35 +2573,25 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   color: #a9bdc6;
   font-size: 11px;
   font-weight: 900;
-  text-align: left;
+  text-align: center;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
 }
 .create-holdem-buyin-presets button strong,
-.create-holdem-buyin-presets button span,
-.create-holdem-buyin-presets button small {
+.create-holdem-buyin-presets button span {
   display: block;
 }
 .create-holdem-buyin-presets button strong {
   color: #f2c77d;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.15;
 }
 .create-holdem-buyin-presets button span {
-  grid-column: 1 / -1;
   margin-top: 0;
   color: #eefbf8;
-  font-size: 12px;
-  line-height: 1.22;
+  font-size: 11px;
+  line-height: 1.18;
   word-break: keep-all;
   overflow-wrap: anywhere;
-}
-.create-holdem-buyin-presets button small {
-  margin-top: 0;
-  color: #86b9b4;
-  font-size: 11px;
-  line-height: 1.2;
-  text-align: right;
-  white-space: nowrap;
 }
 .create-holdem-buyin-presets button.active {
   border-color: rgba(242,199,125,.82);
@@ -2630,25 +2607,6 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   opacity: .36;
   cursor: not-allowed;
 }
-.create-holdem-buyin-group > small {
-  display: block;
-  margin-top: 8px;
-  color: #7895a1;
-  font-size: 10px;
-  line-height: 1.4;
-}
-.create-holdem-rule-summary {
-  margin-bottom: 11px;
-  padding: 8px 9px;
-  border-left: 3px solid #2fb89e;
-  background: rgba(47,184,158,.09);
-  color: #b9d7d3;
-  font-size: 10.5px;
-  font-weight: 750;
-  line-height: 1.35;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
 @media (max-height: 680px) {
   .create-room-dialog { padding: 15px; }
   .create-head { margin-bottom: 12px; }
@@ -2660,9 +2618,8 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   .create-room-dialog .setting-group { margin-bottom: 12px; }
   .create-mode-card > img { height: 82px; }
   .create-holdem-mode-card { min-height: 62px; }
-  .create-holdem-buyin-group > small { display: none; }
   .create-holdem-buyin-presets button {
-    min-height: 56px;
+    min-height: 62px;
     padding-top: 8px;
     padding-bottom: 8px;
   }
@@ -2678,11 +2635,10 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
     gap: 5px;
   }
   .create-holdem-buyin-presets button {
-    padding: 8px 9px;
+    padding: 8px 5px;
   }
-  .create-holdem-buyin-head output {
-    width: 100%;
-    text-align: left;
+  .create-holdem-buyin-presets button span {
+    font-size: 10px;
   }
 }
 
