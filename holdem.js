@@ -330,6 +330,7 @@ window.TexasHoldem = (function () {
       revealedCards: [null, null, null, null, null, null],
       board: [],
       pot: 0,
+      lastRake: 0,
       sidePots: [],
       dealerSeat: -1,
       smallBlindSeat: -1,
@@ -1388,6 +1389,7 @@ window.TexasHoldem = (function () {
       revealedCards: revealedCards,
       board: normalizeCards(firstDefined(table.board, table.communityCards, table.community), 5),
       pot: pots.total,
+      lastRake: nonnegative(firstDefined(table.lastRake, raw.lastRake), 0),
       sidePots: pots.sides,
       dealerSeat: dealerSeat,
       smallBlindSeat: safeSeat(firstDefined(table.smallBlindSeat, table.sbSeat)),
@@ -1963,8 +1965,8 @@ window.TexasHoldem = (function () {
       nick_reserved: "AI와 같은 이름은 이 테이블에서 사용할 수 없어요.",
       reserved_nick: "AI 전용 이름은 참가자 이름으로 사용할 수 없어요.",
       tournament_end: "마지막 플레이어가 남아 테이블이 종료됐어요.",
-      refill_required: "원화 자산을 충전한 뒤 다시 준비할 수 있어요.",
-      ring_only: "자산안심 링게임에서만 충전할 수 있어요.",
+      refill_required: "자동 충전 또는 재참가 후 다음 핸드에 참여할 수 있어요.",
+      ring_only: "링게임에서만 충전할 수 있어요.",
       refill_not_needed: "보유한 테이블 금액이 남아 있어요.",
       refill_limit: "오늘 사용할 수 있는 충전 3회를 모두 사용했어요.",
       wallet_insufficient: "홀덤 자산이 이 방의 바이인보다 부족해요.",
@@ -2366,8 +2368,10 @@ window.TexasHoldem = (function () {
   }
 
   function refillRingChips() {
-    if (!state.canRefill || requests.refill) return;
-    invoke("refill", {
+    if (!state.canRefill || requests.refill) {
+      return Promise.resolve({ ok: false, reason: "unavailable" });
+    }
+    return invoke("refill", {
       expectedVersion: state.version
     }, {
       key: "refill",
@@ -3031,7 +3035,7 @@ window.TexasHoldem = (function () {
         : "확인 불가");
     setText("holdem-buyin-amount", formatChips(buyInValue || bounds.defaultAmount));
     setText("holdem-buyin-note", lacksAssets
-      ? "보유 자산이 부족해 무료 충전을 사용할 수 있어요."
+      ? "보유 자산이 이 방의 최소 참가금보다 부족해요."
       : "선택한 금액만 테이블에 가져가고 나머지는 보유 자산에 남아요.");
     var slider = $("holdem-buyin-slider");
     if (slider) {
@@ -3052,9 +3056,17 @@ window.TexasHoldem = (function () {
       if (!needsRebuy) autoBuyInKey = "";
       return;
     }
-    var key = String(state.version) + ":" + String(state.heroSeat) + ":" + String(state.handId || state.handNumber);
+    var resolution = state.canRefill ? "free" : "rebuy";
+    var key = String(state.version) + ":" + String(state.heroSeat) + ":" +
+      String(state.handId || state.handNumber) + ":" + resolution;
     if (autoBuyInKey === key) return;
     autoBuyInKey = key;
+    if (state.canRefill) {
+      refillRingChips().then(function (result) {
+        if (!result || !result.ok) autoBuyInKey = "";
+      });
+      return;
+    }
     openBuyInDialog("rebuy", state.heroSeat);
   }
 
@@ -3672,8 +3684,12 @@ window.TexasHoldem = (function () {
     if (state.mode === "ring" && state.heroSeat >= 0 &&
         state.seats[state.heroSeat] && state.seats[state.heroSeat].stack <= 0) {
       return state.canRefill
-        ? "원화 자산을 충전하면 다음 핸드에 참여할 수 있어요"
-        : "오늘 사용할 수 있는 충전 횟수를 모두 사용했어요";
+        ? formatChips(state.refillAmount || 20000) + "을 자동으로 충전하고 있어요"
+        : "무료 충전을 모두 사용했어요. 보유 자산으로 다시 참가할 수 있어요";
+    }
+    if (isBetweenHands(state.phase) && state.lastRake > 0) {
+      return "이번 핸드 수수료 " + formatChips(state.lastRake) +
+        " · 플랍 이후 2%, 최대 1BB";
     }
     return "";
   }
@@ -3880,20 +3896,24 @@ window.TexasHoldem = (function () {
     renderPracticeJoinControls(busy);
     var refillButton = $("holdem-refill-btn");
     if (refillButton) {
-      var knownFreeRefill = buyInWallet && buyInWallet.balance <= 0;
-      refillButton.textContent = knownFreeRefill
-        ? formatChips(state.refillAmount || 20000) + " 무료 충전"
-        : "금액 선택";
-      refillButton.disabled = busy || (knownFreeRefill && !state.canRefill);
+      var walletCannotRebuy = buyInWallet &&
+        buyInWallet.balance < Math.max(100, state.buyInMin || 10000);
+      refillButton.textContent = state.canRefill
+        ? formatChips(state.refillAmount || 20000) + " 자동 충전"
+        : "재참가 금액 선택";
+      refillButton.disabled = busy || state.canRefill ||
+        (!state.canRefill && walletCannotRebuy);
     }
     if (needsRefill) {
       var refillStatus = state.practiceMode
-        ? "연습용 임시 원화 자산 충전 · 자산에는 반영되지 않아요"
+        ? "연습용 금액을 자동으로 충전하고 있어요"
         : state.refillStatusKnown
         ? (state.refillsRemainingToday > 0
-          ? "오늘 " + state.refillsRemainingToday + "회 남음 · 무료 리필 금액도 퇴장 시 함께 정산돼요"
-          : "오늘 충전 3회를 모두 사용했어요")
-        : "하루 최대 " + (state.dailyRefillLimit || 3) + "회 충전할 수 있어요";
+          ? "스택이 0원이 되어 " + formatChips(state.refillAmount || 20000) +
+            "을 지급해요 · 오늘 " + state.refillsRemainingToday + "회 남음"
+          : "오늘 무료 충전 " + (state.dailyRefillLimit || 3) + "회를 모두 사용했어요")
+        : "스택이 0원이 되면 " + formatChips(state.refillAmount || 20000) +
+          "을 자동 지급해요";
       setText("holdem-refill-status", refillStatus);
     }
 
@@ -4162,10 +4182,10 @@ window.TexasHoldem = (function () {
       setReady();
     } else if (id === "holdem-refill-btn") {
       var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
-      if (state.mode === "ring" && hero && hero.stack <= 0 && (!buyInWallet || buyInWallet.balance > 0)) {
-        openBuyInDialog("rebuy", state.heroSeat);
-      } else {
+      if (state.mode === "ring" && hero && hero.stack <= 0 && state.canRefill) {
         refillRingChips();
+      } else if (state.mode === "ring" && hero && hero.stack <= 0) {
+        openBuyInDialog("rebuy", state.heroSeat);
       }
     } else if (id === "holdem-bot-add-btn") {
       addBot();
@@ -4497,6 +4517,11 @@ window.TexasHoldem = (function () {
         '<li>숏 올인은 허용되지만 정상 최소 레이즈에 못 미치면 단독으로 베팅 권리를 다시 열지 않습니다. 여러 숏 올인의 누적액이 정상 레이즈 폭에 이르면 다시 레이즈할 수 있습니다.</li>' +
         '<li>완전히 같은 패는 팟을 나누며, 나눌 수 없는 남는 금액은 규칙상 먼저 받을 위치의 참가자에게 갑니다.</li>' +
         '</ul></section>' +
+        '<section class="cm-rule-section"><h3>4. 충전과 수수료</h3><ul class="cm-rule-list">' +
+        '<li>핸드 종료 후 스택이 0원이 되면 20,000원을 즉시 지급하며, 계정당 하루 3회까지 받을 수 있습니다.</li>' +
+        '<li>실제 자산 테이블은 플랍이 공개된 핸드에만 팟의 2%를 수수료로 차감하며, 최대 금액은 해당 방의 1BB입니다.</li>' +
+        '<li>수수료는 100원 단위로 내림 처리하고, AI 연습 테이블에는 적용하지 않습니다.</li>' +
+        '</ul></section>' +
         '<p class="cm-rule-muted">공개 알림에는 카드 정보가 포함되지 않으며, 내 홀 카드는 인증된 개인 스냅샷에서만 표시됩니다.</p>' +
         '</div>'
     };
@@ -4540,6 +4565,7 @@ window.TexasHoldem = (function () {
       addBot: addBot,
       chooseEmptySeat: chooseEmptySeat,
       maybeAutoSeatJoin: maybeAutoSeatJoin,
+      maybeAutoOpenRebuyDialog: maybeAutoOpenRebuyDialog,
       leaveTableForSpectate: leaveTableForSpectate,
       applySnapshot: applySnapshot,
       invoke: invoke,

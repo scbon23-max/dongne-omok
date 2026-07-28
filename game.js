@@ -512,12 +512,12 @@
   var HOLDEM_CHIP_UNIT = 100;
   var HOLDEM_INITIAL_ASSETS = 100000;
   var HOLDEM_MIN_BUY_IN = 10000;
-  var HOLDEM_MAX_BUY_IN = 40000;
-  var HOLDEM_DEFAULT_BUY_IN = 30000;
+  var HOLDEM_MAX_BUY_IN = 100000;
+  var HOLDEM_DEFAULT_BUY_IN = 40000;
   var HOLDEM_BUY_IN_OPTIONS = [
-    { amount: 10000, title: "라이트", minBuyIn: 10000, maxBuyIn: 20000, smallBlind: 100, bigBlind: 200 },
-    { amount: 30000, title: "스탠다드", minBuyIn: 20000, maxBuyIn: 30000, smallBlind: 200, bigBlind: 400 },
-    { amount: 40000, title: "하이롤러", minBuyIn: 30000, maxBuyIn: 40000, smallBlind: 300, bigBlind: 600 }
+    { amount: 20000, title: "라이트", minBuyIn: 10000, maxBuyIn: 20000, smallBlind: 100, bigBlind: 200 },
+    { amount: 40000, title: "스탠다드", minBuyIn: 20000, maxBuyIn: 40000, smallBlind: 200, bigBlind: 400 },
+    { amount: 100000, title: "하이롤러", minBuyIn: 50000, maxBuyIn: 100000, smallBlind: 500, bigBlind: 1000 }
   ];
   var roomLease = null, roomLeaseTimer = null, roomCreatePending = false, roomLeaseRestorePending = false;
   var holdemWalletProfile = null, holdemWalletPending = false;
@@ -542,11 +542,11 @@
   function holdemBuyInForBalance(balance, preferred) {
     var available = Math.max(0, Math.floor(Number(balance) || 0));
     var selected = normalizeHoldemBuyIn(preferred);
-    if (selected <= available) return selected;
+    if (holdemBuyInOption(selected).minBuyIn <= available) return selected;
     for (var i = HOLDEM_BUY_IN_OPTIONS.length - 1; i >= 0; i--) {
-      if (HOLDEM_BUY_IN_OPTIONS[i].amount <= available) return HOLDEM_BUY_IN_OPTIONS[i].amount;
+      if (HOLDEM_BUY_IN_OPTIONS[i].minBuyIn <= available) return HOLDEM_BUY_IN_OPTIONS[i].amount;
     }
-    return HOLDEM_MIN_BUY_IN;
+    return HOLDEM_BUY_IN_OPTIONS[0].amount;
   }
   function holdemBlindLabel(amount) {
     var option = holdemBuyInOption(amount);
@@ -5405,7 +5405,7 @@
       slider.min = String(HOLDEM_MIN_BUY_IN);
       slider.max = String(HOLDEM_MAX_BUY_IN);
       slider.step = String(HOLDEM_CHIP_UNIT);
-      slider.value = String(canBuyIn ? createHoldemBuyIn : HOLDEM_MIN_BUY_IN);
+      slider.value = String(canBuyIn ? createHoldemBuyIn : HOLDEM_BUY_IN_OPTIONS[0].amount);
       slider.disabled = mode !== "ring" || !canBuyIn || holdemWalletPending;
     }
     if ($("create-holdem-buyin-output")) {
@@ -5429,7 +5429,9 @@
       var presets = presetBox.querySelectorAll("[data-holdem-buyin]");
       for (var i = 0; i < presets.length; i++) {
         var amount = Number(presets[i].getAttribute("data-holdem-buyin")) || 0;
-        presets[i].disabled = mode !== "ring" || !canBuyIn || amount > availableMax || holdemWalletPending;
+        var option = holdemBuyInOption(amount);
+        presets[i].disabled = mode !== "ring" || !canBuyIn ||
+          option.minBuyIn > availableMax || holdemWalletPending;
         presets[i].classList.toggle("active", canBuyIn && amount === createHoldemBuyIn);
       }
     }
@@ -6483,7 +6485,8 @@
       }
       if (createHoldemMode === "ring" &&
           (!holdemWalletProfile ||
-            Number(holdemWalletProfile.balance) < createHoldemBuyIn)) {
+            Number(holdemWalletProfile.balance) <
+              holdemBuyInOption(createHoldemBuyIn).minBuyIn)) {
         toast("선택한 바이인에 필요한 홀덤 자산이 부족해요");
         loadHoldemWallet(true);
         return;

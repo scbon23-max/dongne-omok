@@ -33,6 +33,15 @@ const walletMigration = fs.readFileSync(
   ),
   "utf8"
 );
+const economyV3Migration = fs.readFileSync(
+  path.join(
+    root,
+    "supabase",
+    "migrations",
+    "202607280002_holdem_economy_v3.sql"
+  ),
+  "utf8"
+);
 const edge = fs.readFileSync(
   path.join(root, "supabase", "functions", "holdem-table", "index.ts"),
   "utf8"
@@ -322,7 +331,7 @@ test("ring refills are account-wide, Korea-day limited, and atomic with the tabl
   assert.match(edge, /"refill"/);
   assert.match(edge, /"rebuy"/);
   assert.match(edge, /internalRefill: action === "refill"/);
-  assert.match(edge, /client\.rpc\(\s*"holdem_ring_refill_compare_and_swap"/s);
+  assert.match(edge, /client\.rpc\(\s*"holdem_ring_refill_v3_compare_and_swap"/s);
   assert.match(edge, /\.from\("holdem_ring_refills"\)/);
   assert.match(edge, /cas\.reason === "refill_limit"/);
 });
@@ -376,11 +385,13 @@ test("Hold'em wallets use 100-chip accounting and update atomically with ring ta
   );
   assert.match(edge, /const CHIP_UNIT = 100/);
   assert.match(edge, /const INITIAL_WALLET_BALANCE = 100000/);
-  assert.doesNotMatch(edge, /RING_BUY_IN_OPTIONS/);
-  assert.match(edge, /amount >= RING_MIN_BUY_IN[\s\S]*amount <= RING_MAX_BUY_IN[\s\S]*amount % CHIP_UNIT === 0/);
+  assert.match(edge, /const RING_ROOM_BUY_INS = new Set\(\[20000, 40000, 100000\]\)/);
+  assert.match(edge, /const RING_DEFAULT_BUY_IN = 40000/);
+  assert.match(edge, /amount % CHIP_UNIT === 0[\s\S]*RING_ROOM_BUY_INS\.has\(amount\)/);
   assert.match(edge, /function ringBlindForBuyIn\(buyIn: number\)/);
   assert.match(edge, /return \{ smallBlind: 100, bigBlind: 200 \}/);
-  assert.match(edge, /smallBlind: 300, bigBlind: 600/);
+  assert.match(edge, /smallBlind: 200, bigBlind: 400/);
+  assert.match(edge, /smallBlind: 500, bigBlind: 1000/);
   assert.match(edge, /smallBlind: blind\.smallBlind/);
   assert.match(edge, /bigBlind: blind\.bigBlind/);
   assert.match(edge, /assetBacked: false/);
@@ -393,7 +404,7 @@ test("Hold'em wallets use 100-chip accounting and update atomically with ring ta
   assert.match(edge, /const assetBackedRingTable = ringTable/);
   assert.match(edge, /assetBackedRingTable \|\| walletAdjustments\.length > 0/);
   assert.match(edge, /action === "refill" && assetBackedRingTable/);
-  assert.match(edge, /client\.rpc\(\s*"holdem_ring_table_compare_and_swap"/s);
+  assert.match(edge, /client\.rpc\(\s*"holdem_ring_table_v3_compare_and_swap"/s);
   assert.match(edge, /cas\.reason === "wallet_insufficient"/);
   assert.match(
     walletMigration,
@@ -420,4 +431,39 @@ test("Hold'em wallets use 100-chip accounting and update atomically with ring ta
     /if \(walletAction\) \{[\s\S]*await cleanupExpiredTables\(client\)[\s\S]*walletProfile/
   );
   assert.match(edge, /if \(action === "join"\) await cleanupExpiredTables\(client\)/);
+});
+
+test("economy v3 records refills and rake atomically while refunding legacy tables", () => {
+  assert.match(
+    economyV3Migration,
+    /create table if not exists public\.holdem_economy_events/i
+  );
+  assert.match(economyV3Migration, /event_type in \('rake', 'refill'\)/i);
+  assert.match(
+    economyV3Migration,
+    /alter table public\.holdem_economy_events enable row level security/i
+  );
+  assert.match(
+    economyV3Migration,
+    /create temporary table holdem_v2_refunds[\s\S]*update public\.holdem_wallets[\s\S]*delete from public\.holdem_tables/i
+  );
+  assert.match(
+    economyV3Migration,
+    /holdem_tables_economy_version_check[\s\S]*economyVersion'?, ''\) = '3'/i
+  );
+  assert.match(
+    economyV3Migration,
+    /create or replace function public\.holdem_ring_table_v3_compare_and_swap\([\s\S]*p_economy_events jsonb[\s\S]*insert into public\.holdem_economy_events/i
+  );
+  assert.match(
+    economyV3Migration,
+    /create or replace function public\.holdem_ring_refill_v3_compare_and_swap[\s\S]*refill_amount is distinct from 20000[\s\S]*insert into public\.holdem_economy_events/i
+  );
+  assert.match(edge, /function takeEconomyEvents/);
+  assert.match(edge, /delete state\.economyEvents/);
+  assert.match(edge, /p_economy_events: economyEvents/);
+  assert.match(engine, /economyVersion:\s*3/);
+  assert.match(engine, /RING_RAKE_BASIS_POINTS = 200/);
+  assert.match(engine, /state\.board\.length < 3/);
+  assert.match(engine, /addEconomyEvent\(state, "rake", -rake, now\)/);
 });

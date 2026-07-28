@@ -136,7 +136,8 @@ const CHIP_UNIT = 100;
 const INITIAL_WALLET_BALANCE = 100000;
 const RING_MIN_BUY_IN = 10000;
 const RING_MAX_BUY_IN = 100000;
-const RING_DEFAULT_BUY_IN = 50000;
+const RING_ROOM_BUY_INS = new Set([20000, 40000, 100000]);
+const RING_DEFAULT_BUY_IN = 40000;
 const RING_REFILL_AMOUNT = 20000;
 const HOLDEM_ROOM_GAMES = new Set([
   "holdem",
@@ -386,16 +387,15 @@ function seoulDateKey(now = new Date()) {
 function normalizedRingBuyIn(value: unknown) {
   const amount = Number(value);
   return Number.isSafeInteger(amount) &&
-      amount >= RING_MIN_BUY_IN &&
-      amount <= RING_MAX_BUY_IN &&
-      amount % CHIP_UNIT === 0
+      amount % CHIP_UNIT === 0 &&
+      RING_ROOM_BUY_INS.has(amount)
     ? amount
     : RING_DEFAULT_BUY_IN;
 }
 
 function ringBlindForBuyIn(buyIn: number) {
   if (buyIn >= 100000) return { smallBlind: 500, bigBlind: 1000 };
-  if (buyIn >= 50000) return { smallBlind: 300, bigBlind: 600 };
+  if (buyIn >= 40000) return { smallBlind: 200, bigBlind: 400 };
   return { smallBlind: 100, bigBlind: 200 };
 }
 
@@ -469,6 +469,37 @@ function takeWalletAdjustments(state: JsonRecord) {
   if (adjustments.length > 6) throw new Error("invalid_wallet_adjustment");
   delete state.walletAdjustments;
   return adjustments;
+}
+
+function takeEconomyEvents(state: JsonRecord) {
+  const raw = Array.isArray(state.economyEvents)
+    ? state.economyEvents
+    : [];
+  const events = raw.map((entry) => {
+    if (!isRecord(entry)) throw new Error("invalid_economy_event");
+    const eventType = safeText(entry.type, 24);
+    const amount = Number(entry.amount);
+    const handNo = Number(entry.handNo);
+    if (
+      eventType !== "rake" ||
+      !Number.isSafeInteger(amount) ||
+      amount >= 0 ||
+      Math.abs(amount) > 100000000 ||
+      amount % CHIP_UNIT !== 0 ||
+      !Number.isSafeInteger(handNo) ||
+      handNo < 1
+    ) {
+      throw new Error("invalid_economy_event");
+    }
+    return {
+      event_type: eventType,
+      amount,
+      hand_no: handNo,
+    };
+  });
+  if (events.length > 1) throw new Error("invalid_economy_event");
+  delete state.economyEvents;
+  return events;
 }
 
 function ringSettings(state: unknown) {
@@ -703,7 +734,7 @@ async function compareAndSwapRingRefill(
   nick: string,
 ): Promise<CasRow> {
   const { data, error } = await client.rpc(
-    "holdem_ring_refill_compare_and_swap",
+    "holdem_ring_refill_v3_compare_and_swap",
     {
       p_room_id: roomId,
       p_expected_version: expectedVersion,
@@ -724,15 +755,21 @@ async function compareAndSwapRingWallet(
   state: JsonRecord,
   ownerNick: string,
   adjustments: Array<{ nickname: string; delta: number }>,
+  economyEvents: Array<{
+    event_type: string;
+    amount: number;
+    hand_no: number;
+  }>,
 ): Promise<CasRow> {
   const { data, error } = await client.rpc(
-    "holdem_ring_table_compare_and_swap",
+    "holdem_ring_table_v3_compare_and_swap",
     {
       p_room_id: roomId,
       p_expected_version: expectedVersion,
       p_state: state,
       p_owner_nickname: ownerNick,
       p_adjustments: adjustments,
+      p_economy_events: economyEvents,
     },
   );
   const row = Array.isArray(data) ? data[0] : null;
@@ -1021,8 +1058,12 @@ Deno.serve(async (request) => {
       const walletAdjustments = ringTable
         ? takeWalletAdjustments(nextState)
         : [];
+      const economyEvents = takeEconomyEvents(nextState);
       if (action === "refill" && walletAdjustments.length) {
         throw new Error("unexpected_refill_wallet_adjustment");
+      }
+      if (economyEvents.length && !assetBackedRingTable) {
+        throw new Error("unexpected_economy_event");
       }
       const cas = action === "refill" && assetBackedRingTable
         ? await compareAndSwapRingRefill(
@@ -1041,6 +1082,7 @@ Deno.serve(async (request) => {
           nextState,
           ownerNick,
           walletAdjustments,
+          economyEvents,
         )
         : await compareAndSwap(
           client,

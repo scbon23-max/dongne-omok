@@ -423,6 +423,47 @@ test("ring refill status survives controller normalization", () => {
   assert.equal(normalized.canRefill, true);
 });
 
+test("a busted ring player receives the free refill without opening a wallet dialog", async () => {
+  const calls = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 2,
+        snapshot: {
+          phase: "hand_end",
+          mode: "ring",
+          handId: "7",
+          canRefill: false,
+          seats: [{ seat: 0, nick: "alice", stack: 20000 }],
+        },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const state = controller._test.emptyState();
+  state.mode = "ring";
+  state.phase = "complete";
+  state.version = 1;
+  state.handId = "7";
+  state.heroSeat = 0;
+  state.seats[0] = { seat: 0, nick: "alice", stack: 0 };
+  state.canRefill = true;
+  state.refillAmount = 20000;
+  controller._test.setState(state);
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+
+  controller._test.maybeAutoOpenRebuyDialog();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.deepEqual(calls.map((call) => call.action), ["refill"]);
+  assert.equal(calls[0].payload.expectedVersion, 1);
+  controller.leave();
+});
+
 test("an in-flight join cannot leak an old-room snapshot and cleans its seat after exit", async () => {
   let resolveJoin;
   const calls = [];

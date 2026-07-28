@@ -7,9 +7,8 @@ const CORS = {
 };
 
 const CHIP_UNIT = 100;
-const RING_MIN_BUY_IN = 10000;
-const RING_MAX_BUY_IN = 100000;
-const RING_DEFAULT_BUY_IN = 50000;
+const RING_ROOM_BUY_INS = new Set([20000, 40000, 100000]);
+const RING_DEFAULT_BUY_IN = 40000;
 const HOLDEM_TOURNAMENT_GAMES = new Set([
   "holdem",
   "holdem_tournament",
@@ -30,9 +29,8 @@ function safeText(value: unknown, max: number) {
 function ringBuyIn(value: unknown) {
   const amount = Number(value);
   return Number.isSafeInteger(amount) &&
-      amount >= RING_MIN_BUY_IN &&
-      amount <= RING_MAX_BUY_IN &&
-      amount % CHIP_UNIT === 0
+      amount % CHIP_UNIT === 0 &&
+      RING_ROOM_BUY_INS.has(amount)
     ? amount
     : 0;
 }

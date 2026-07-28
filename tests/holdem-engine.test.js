@@ -844,13 +844,13 @@ test("100-chip ring tables debit buy-ins, cash out exits, and reject odd bet siz
     requestId: "wallet:join",
   }, context(1));
   assert.equal(joined.ok, true);
-  assert.equal(joined.state.economyVersion, 2);
+  assert.equal(joined.state.economyVersion, 3);
   assert.equal(joined.state.settings.chipUnit, 100);
   assert.equal(joined.state.settings.smallBlind, 100);
   assert.equal(joined.state.settings.bigBlind, 200);
   assert.deepEqual(
     joined.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
-    [{ nickname: "owner", delta: -20000 }],
+    [{ nickname: "owner", delta: -15000 }],
   );
 
   const left = Engine.command(joined.state, {
@@ -861,7 +861,7 @@ test("100-chip ring tables debit buy-ins, cash out exits, and reject odd bet siz
   assert.equal(left.ok, true);
   assert.deepEqual(
     left.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
-    [{ nickname: "owner", delta: 20000 }],
+    [{ nickname: "owner", delta: 15000 }],
   );
 
   state = tableWithPlayers(["owner", "guest"], options);
@@ -880,14 +880,163 @@ test("100-chip ring tables debit buy-ins, cash out exits, and reject odd bet siz
   assert.equal(oddRaise.reason, "chip_unit");
 });
 
+test("ring rake uses no-flop-no-drop and rounds 2 percent down to 100 chips", () => {
+  const options = {
+    mode: "ring",
+    assetBacked: true,
+    chipUnit: 100,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  };
+  let state = tableWithPlayers(["owner", "guest"], options);
+  state = readyAndStart(state, ["owner", "guest"], 1000);
+  state = apply(state, {
+    type: "act",
+    nick: state.seats[state.actorSeat].nick,
+    action: "fold",
+  }, 1001);
+  assert.equal(state.lastRake, 0);
+  assert.deepEqual(state.economyEvents, []);
+  assert.equal(
+    state.seats.reduce((sum, player) => sum + (player ? player.stack : 0), 0),
+    30000,
+  );
+
+  state = tableWithPlayers(["owner", "guest"], options);
+  state = readyAndStart(state, ["owner", "guest"], 1500);
+  state = apply(state, { type: "act", nick: "owner", action: "call" }, 1501);
+  state = apply(state, { type: "act", nick: "guest", action: "check" }, 1502);
+  state = apply(state, {
+    type: "act",
+    nick: "guest",
+    action: "bet",
+    amount: 6000,
+  }, 1503);
+  state = apply(state, { type: "act", nick: "owner", action: "fold" }, 1504);
+  assert.equal(state.pots[0].amount, 400, "the uncalled 6,000 is returned");
+  assert.equal(state.lastRake, 0, "uncalled chips are excluded from rake");
+  assert.equal(
+    state.seats.reduce((sum, player) => sum + (player ? player.stack : 0), 0),
+    30000,
+  );
+
+  state = tableWithPlayers(["owner", "guest"], options);
+  state = readyAndStart(state, ["owner", "guest"], 2000);
+  state = apply(state, { type: "act", nick: "owner", action: "call" }, 2001);
+  state = apply(state, { type: "act", nick: "guest", action: "check" }, 2002);
+  assert.equal(state.phase, "flop");
+  state = apply(state, {
+    type: "act",
+    nick: "guest",
+    action: "bet",
+    amount: 3000,
+  }, 2003);
+  state = apply(state, { type: "act", nick: "owner", action: "call" }, 2004);
+  assert.equal(state.phase, "turn");
+  state = apply(state, { type: "act", nick: "guest", action: "check" }, 2005);
+  state = apply(state, { type: "act", nick: "owner", action: "fold" }, 2006);
+
+  assert.equal(state.lastRake, 100, "2% of 6,400 rounds down to 100");
+  assert.equal(state.pots[0].amount, 6300);
+  assert.deepEqual(state.economyEvents, [{
+    type: "rake",
+    amount: -100,
+    handNo: 1,
+    at: 2006,
+  }]);
+  assert.equal(Engine.view(state, "owner").lastRake, 100);
+  assert.equal(
+    state.seats.reduce((sum, player) => sum + (player ? player.stack : 0), 0),
+    29900,
+  );
+});
+
+test("ring rake is capped at one big blind on an all-in showdown", () => {
+  let state = tableWithPlayers(["owner", "guest"], {
+    mode: "ring",
+    assetBacked: true,
+    chipUnit: 100,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  });
+  state = readyAndStart(state, ["owner", "guest"], 3000);
+  state.seats[0].cards = ["Ah", "Ad"];
+  state.seats[1].cards = ["Kh", "Kd"];
+  state.deck = ["Tc", "2c", "3d", "4h", "Jc", "5s", "Qc", "9c"];
+  state = apply(state, { type: "act", nick: "owner", action: "allin" }, 3001);
+  state = apply(state, { type: "act", nick: "guest", action: "call" }, 3002);
+
+  assert.equal(state.phase, "hand_end");
+  assert.equal(state.board.length, 5);
+  assert.equal(state.lastRake, 200);
+  assert.equal(state.economyEvents[0].amount, -200);
+  const busted = state.seats.find((player) => player && player.stack === 0);
+  assert.ok(busted);
+  assert.equal(Engine.view(state, busted.nick).canRefill, true);
+  assert.equal(
+    state.seats.reduce((sum, player) => sum + (player ? player.stack : 0), 0),
+    29800,
+  );
+});
+
+test("AI practice all-ins do not pay rake", () => {
+  let state = Engine.createTable({
+    roomId: "practice-rake",
+    ownerNick: "owner",
+    mode: "ring",
+    assetBacked: false,
+    chipUnit: 100,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  });
+  state = apply(state, { type: "join", nick: "owner" }, 4000);
+  state = apply(state, { type: "add_bot", nick: "owner" }, 4001);
+  const startingTotal = state.seats.reduce(
+    (sum, player) => sum + (player ? player.stack : 0),
+    0,
+  );
+  state = apply(state, { type: "start", nick: "owner" }, 4002);
+  state = apply(state, { type: "act", nick: "owner", action: "allin" }, 4003);
+  const bot = state.seats[state.actorSeat];
+  const botCall = Engine.command(state, {
+    type: "bot_act",
+    botId: bot.botId,
+    action: "call",
+  }, {
+    now: 5000,
+    randomInt: () => 0,
+    internalBot: true,
+  });
+  assert.equal(botCall.ok, true, botCall.reason);
+  state = botCall.state;
+
+  assert.equal(state.phase, "hand_end");
+  assert.equal(state.settings.assetBacked, false);
+  assert.equal(state.lastRake, 0);
+  assert.deepEqual(state.economyEvents, []);
+  assert.equal(
+    state.seats.reduce((sum, player) => sum + (player ? player.stack : 0), 0),
+    startingTotal,
+  );
+});
+
 test("ring joins and bust rebuys can choose an in-room buy-in amount", () => {
   const options = {
     mode: "ring",
     assetBacked: true,
     chipUnit: 100,
-    startingStack: 50000,
-    smallBlind: 300,
-    bigBlind: 600,
+    startingStack: 40000,
+    smallBlind: 200,
+    bigBlind: 400,
     refillAmount: 20000,
     dailyRefillLimit: 3,
   };
@@ -928,19 +1077,19 @@ test("ring joins and bust rebuys can choose an in-room buy-in amount", () => {
     [{ nickname: "owner", delta: -40000 }],
   );
   const view = Engine.view(rebuy.state, "owner");
-  assert.equal(view.buyInMin, 10000);
-  assert.equal(view.buyInMax, 50000);
-  assert.equal(view.buyInDefault, 50000);
+  assert.equal(view.buyInMin, 20000);
+  assert.equal(view.buyInMax, 40000);
+  assert.equal(view.buyInDefault, 30000);
 });
 
-test("a 200 BB ring room keeps the free bust refill at 20,000 chips", () => {
+test("a standard ring room keeps the free bust refill at 20,000 chips", () => {
   let state = tableWithPlayers(["owner", "guest"], {
     mode: "ring",
     assetBacked: true,
     chipUnit: 100,
     startingStack: 40000,
-    smallBlind: 100,
-    bigBlind: 200,
+    smallBlind: 200,
+    bigBlind: 400,
     refillAmount: 20000,
     dailyRefillLimit: 3,
   });
@@ -1013,7 +1162,7 @@ test("AI practice ring tables use temporary chips and stay solo-only", () => {
   assert.equal(joined.ok, true);
   assert.deepEqual(
     joined.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
-    [{ nickname: "owner", delta: -20000 }],
+    [{ nickname: "owner", delta: -15000 }],
   );
   joined.state.walletAdjustments = [];
 
@@ -1027,7 +1176,7 @@ test("AI practice ring tables use temporary chips and stay solo-only", () => {
   assert.equal(botAdded.state.settings.practice, true);
   assert.deepEqual(
     botAdded.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
-    [{ nickname: "owner", delta: 20000 }],
+    [{ nickname: "owner", delta: 15000 }],
     "adding AI refunds any asset-backed buy-in before practice starts",
   );
 
@@ -1156,7 +1305,7 @@ test("stale AI ring tables are forced back to practice before wallet changes", (
   assert.equal(left.state.settings.practice, true);
   assert.deepEqual(
     left.state.walletAdjustments.map(({ nickname, delta, reason }) => ({ nickname, delta, reason })),
-    [{ nickname: "owner", delta: 20000, reason: "practice_refund" }],
+    [{ nickname: "owner", delta: 15000, reason: "practice_refund" }],
   );
 });
 
@@ -1192,8 +1341,8 @@ test("ring tables switch to asset-backed chips only when a second human joins", 
   assert.deepEqual(
     guestJoined.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
     [
-      { nickname: "owner", delta: -20000 },
-      { nickname: "guest", delta: -20000 },
+      { nickname: "owner", delta: -15000 },
+      { nickname: "guest", delta: -15000 },
     ],
   );
 });

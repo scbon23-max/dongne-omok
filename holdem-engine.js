@@ -12,6 +12,8 @@
   var BOT_THINK_DELAY_MS = 900;
   var JOIN_REQUEST_TTL_MS = 60 * 1000;
   var BOT_DISPLAY_NAME = "AI";
+  var RING_RAKE_BASIS_POINTS = 200;
+  var RING_RAKE_CAP_BIG_BLINDS = 1;
   var BLIND_LEVEL_MULTIPLIERS = [1, 1.5, 2, 3, 4, 6, 8, 12, 16, 20, 30, 40, 60, 80, 100];
   var WHOLE_CHIP_BLIND_MULTIPLIERS = [1, 2, 3, 4, 6, 8, 10, 15, 20, 30, 40, 60, 80, 100, 150];
   var BOT_PERSONALITIES = {
@@ -362,7 +364,7 @@
     );
     return {
       schemaVersion: SCHEMA_VERSION,
-      economyVersion: 2,
+      economyVersion: 3,
       roomId: text(options.roomId, 80),
       ownerNick: text(options.ownerNick, 40),
       phase: "waiting",
@@ -384,10 +386,13 @@
           : 0,
         dailyRefillLimit: mode === "ring"
           ? clamp(options.dailyRefillLimit, 1, 10, 3)
-          : 0
+          : 0,
+        rakeBasisPoints: mode === "ring" ? RING_RAKE_BASIS_POINTS : 0,
+        rakeCapBigBlinds: mode === "ring" ? RING_RAKE_CAP_BIG_BLINDS : 0
       },
       ringStacks: {},
       walletAdjustments: [],
+      economyEvents: [],
       seats: [null, null, null, null, null, null],
       handNo: 0,
       tournamentStartedAt: null,
@@ -407,6 +412,7 @@
       pendingSeats: [],
       pots: [],
       showdown: [],
+      lastRake: 0,
       pendingJoinRequests: [],
       lastEvent: { type: "table_created" },
       recentRequestIds: [],
@@ -423,6 +429,7 @@
   }
 
   function ensureAdditiveState(state, now) {
+    state.economyVersion = 3;
     state.settings = state.settings && typeof state.settings === "object" ? state.settings : {};
     state.settings.mode = normalizeTableMode(state.settings.mode);
     state.settings.tournamentSpeed = state.settings.mode === "ring"
@@ -472,6 +479,8 @@
         state.settings.chipUnit
       );
       state.settings.dailyRefillLimit = clamp(state.settings.dailyRefillLimit, 1, 10, 3);
+      state.settings.rakeBasisPoints = RING_RAKE_BASIS_POINTS;
+      state.settings.rakeCapBigBlinds = RING_RAKE_CAP_BIG_BLINDS;
     } else {
       state.settings.blindLevelMs = clamp(
         state.settings.blindLevelMs,
@@ -481,8 +490,12 @@
       );
       state.settings.refillAmount = 0;
       state.settings.dailyRefillLimit = 0;
+      state.settings.rakeBasisPoints = 0;
+      state.settings.rakeCapBigBlinds = 0;
     }
     state.walletAdjustments = [];
+    state.economyEvents = [];
+    state.lastRake = Math.max(0, integer(state.lastRake, 0));
     state.settings.actionMs = clamp(
       state.settings.actionMs,
       5000,
@@ -588,19 +601,18 @@
       ),
       unit
     );
-    var blindMin = roundToChipUnit(
-      clamp(
-        state && state.settings && state.settings.bigBlind
-          ? state.settings.bigBlind * 10
-          : unit,
-        unit,
-        max,
-        Math.min(max, 10000)
-      ),
+    var bigBlind = roundToChipUnit(
+      state && state.settings && state.settings.bigBlind
+        ? state.settings.bigBlind
+        : unit,
       unit
     );
-    var min = Math.min(max, Math.max(unit, 10000, blindMin));
-    return { min: min, max: max, defaultAmount: max, unit: unit };
+    var min = Math.min(max, roundToChipUnit(bigBlind * 50, unit));
+    var defaultAmount = Math.max(
+      min,
+      Math.min(max, roundToChipUnit(bigBlind * 75, unit))
+    );
+    return { min: min, max: max, defaultAmount: defaultAmount, unit: unit };
   }
 
   function requestedRingBuyIn(state, cmd) {
@@ -832,6 +844,57 @@
     return handPlayers(state).reduce(function (sum, player) { return sum + player.totalBet; }, 0);
   }
 
+  function addEconomyEvent(state, type, amount, now) {
+    if (!state || !state.settings || state.settings.mode !== "ring" ||
+        state.settings.assetBacked !== true) return;
+    amount = integer(amount, 0);
+    if (!amount || !isChipMultiple(amount, state.settings.chipUnit)) return;
+    if (!Array.isArray(state.economyEvents)) state.economyEvents = [];
+    state.economyEvents.push({
+      type: text(type, 24),
+      amount: amount,
+      handNo: Math.max(0, integer(state.handNo, 0)),
+      at: Math.max(0, integer(now, 0))
+    });
+  }
+
+  function ringRake(state, grossPot) {
+    if (!state || !state.settings || state.settings.mode !== "ring" ||
+        state.settings.assetBacked !== true || state.board.length < 3) return 0;
+    var unit = normalizedChipUnit(state.settings.chipUnit);
+    var gross = Math.max(0, integer(grossPot, 0));
+    var basisPoints = clamp(
+      state.settings.rakeBasisPoints,
+      0,
+      10000,
+      RING_RAKE_BASIS_POINTS
+    );
+    var raw = Math.floor(gross * basisPoints / 10000 / unit) * unit;
+    var cap = Math.max(
+      unit,
+      integer(state.settings.bigBlind, unit) *
+        clamp(state.settings.rakeCapBigBlinds, 1, 10, RING_RAKE_CAP_BIG_BLINDS)
+    );
+    return Math.min(gross, raw, cap);
+  }
+
+  function applyRingRake(state, pots, now) {
+    pots = Array.isArray(pots) ? pots : [];
+    var gross = pots.reduce(function (sum, pot) {
+      return sum + Math.max(0, integer(pot && pot.amount, 0));
+    }, 0);
+    var rake = ringRake(state, gross);
+    var remaining = rake;
+    for (var i = 0; i < pots.length && remaining > 0; i++) {
+      var taken = Math.min(remaining, Math.max(0, integer(pots[i].amount, 0)));
+      pots[i].amount -= taken;
+      remaining -= taken;
+    }
+    state.lastRake = rake;
+    if (rake > 0) addEconomyEvent(state, "rake", -rake, now);
+    return rake;
+  }
+
   function postChips(player, amount) {
     amount = Math.max(0, Math.min(player.stack, integer(amount, 0)));
     player.stack -= amount;
@@ -951,10 +1014,22 @@
   }
 
   function finishByFold(state, winner, now) {
-    var amount = potTotal(state);
+    var layers = buildSidePots(handPlayers(state));
+    layers.refunds.forEach(function (refund) {
+      var player = state.seats[refund.seat];
+      if (player) player.stack += refund.amount;
+    });
+    var grossAmount = layers.pots.reduce(function (sum, pot) {
+      return sum + pot.amount;
+    }, 0);
+    var rake = applyRingRake(state, layers.pots, now);
+    var amount = layers.pots.reduce(function (sum, pot) {
+      pot.winners = [winner.seat];
+      return sum + pot.amount;
+    }, 0);
     winner.stack += amount;
     winner.winAmount += amount;
-    state.pots = [{ amount: amount, eligible: [winner.seat], winners: [winner.seat] }];
+    state.pots = layers.pots;
     state.showdown = [];
     state.actorSeat = null;
     state.actionDeadline = null;
@@ -963,7 +1038,15 @@
       state.seats.filter(function (player) { return !!player && !player.leaving && player.stack > 0; }).length <= 1
       ? "tournament_end"
       : "hand_end";
-    state.lastEvent = { type: "hand_won", nick: winner.nick, amount: amount, reason: "folds", at: now };
+    state.lastEvent = {
+      type: "hand_won",
+      nick: winner.nick,
+      amount: amount,
+      grossAmount: grossAmount,
+      rake: rake,
+      reason: "folds",
+      at: now
+    };
     finishHandPlayers(state);
   }
 
@@ -1006,6 +1089,7 @@
       var player = state.seats[refund.seat];
       if (player) player.stack += refund.amount;
     });
+    var rake = applyRingRake(state, layers.pots, now);
     var showdown = live.map(function (player) {
       return {
         seat: player.seat,
@@ -1057,6 +1141,7 @@
     state.lastEvent = {
       type: "showdown",
       winners: layers.pots.map(function (pot) { return pot.winners.slice(); }),
+      rake: rake,
       at: now
     };
     finishHandPlayers(state);
@@ -1269,6 +1354,7 @@
     state.lastFullRaiseSize = state.settings.bigBlind;
     state.pots = [];
     state.showdown = [];
+    state.lastRake = 0;
     state.actionHistory = [];
     state.botDueAt = null;
     state.seats.forEach(function (player) {
@@ -1789,7 +1875,7 @@
     if (!event || typeof event !== "object") return null;
     var allowed = [
       "type", "nick", "seat", "ready", "handNo", "action", "amount",
-      "fullRaise", "timeout", "winners", "reason", "at", "botId",
+      "grossAmount", "rake", "fullRaise", "timeout", "winners", "reason", "at", "botId",
       "botPersonality", "displayName", "targetNick"
     ];
     var out = {};
@@ -1912,6 +1998,7 @@
       currentBet: state.currentBet,
       lastFullRaiseSize: state.lastFullRaiseSize,
       pot: potTotal(state),
+      lastRake: Math.max(0, integer(state.lastRake, 0)),
       pots: layers.map(function (pot) {
         return {
           amount: pot.amount,
