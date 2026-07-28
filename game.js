@@ -5186,12 +5186,6 @@
     if (ids.indexOf(selected) < 0) selected = ids[0] || "omok";
     box.innerHTML = ids.map(function (id) {
       var label = gameName(id);
-      var desc = id === "omok" ? "렌주룰로 즐기는 1:1 대국"
-        : id === "alk" ? "돌을 튕겨 겨루는 실시간 대결"
-        : id === "catchmind" ? "그리고 맞히는 단체 그림 퀴즈"
-        : id === "relay" ? "문장과 그림을 번갈아 이어가기"
-        : id === "holdem" ? "홀덤 · 링게임"
-        : "선을 이어 내 땅을 차지하는 실시간 대결";
       var iconSrc = id === "alk" ? "assets/game-icon-alkkagi.svg"
         : id === "catchmind" ? "assets/game-icon-catchmind.svg"
         : id === "relay" ? "assets/game-icon-relay.svg"
@@ -5202,7 +5196,7 @@
           ? '<img class="create-game-icon holdem" src="' + localAssetUrl("assets/holdem/create-room-icon.png") + '" alt="">'
         : '<img class="create-game-icon" src="' + localAssetUrl(iconSrc) + '" alt="">';
       return '<button class="create-game-option' + (id === selected ? ' active' : '') + '" data-game="' + esc(id) + '" type="button" aria-pressed="' + (id === selected ? 'true' : 'false') + '">'
-        + icon + '<span class="create-game-copy"><span class="create-game-name">' + esc(label) + '</span><span class="create-game-desc">' + esc(desc) + '</span></span></button>';
+        + icon + '<span class="create-game-name">' + esc(label) + '</span></button>';
     }).join("");
     return selected;
   }

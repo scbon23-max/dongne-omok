@@ -371,8 +371,11 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
   assert.match(game, /createRoom\(createAlkMode, nm\)/);
   assert.match(game, /holdemCreateGameId\(createHoldemMode, createHoldemSpeed\)/);
   assert.match(styles, /\.create-room-dialog\s*\{[^}]*background:\s*var\(--navy-2\)/);
-  assert.match(styles, /\.create-game-option\.active\s*\{[^}]*background:\s*rgba\(243,97,42,\.2\)/);
+  assert.match(styles, /\.create-game-list\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(styles, /\.create-game-option\s*\{[^}]*flex-direction:\s*column/);
+  assert.match(styles, /\.create-game-option\.active \.create-game-icon\s*\{[^}]*box-shadow:\s*0 0 0 3px rgba\(243,97,42,\.78\)/);
   assert.match(styles, /\.create-game-option\s*\{[^}]*border:\s*0/);
+  assert.doesNotMatch(game, /create-game-desc|var desc = id ===/);
   assert.match(game, /class="create-game-icon holdem"[\s\S]*assets\/holdem\/create-room-icon\.png/);
   assert.match(styles, /\.create-game-icon\.holdem\s*\{[\s\S]*overflow:\s*hidden/);
   assert.match(styles, /\.create-game-icon\.holdem\s*\{[\s\S]*object-fit:\s*cover/);
