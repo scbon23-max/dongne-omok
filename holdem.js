@@ -64,6 +64,7 @@ window.TexasHoldem = (function () {
   var TIMER_WARNING_SFX_VOLUME = 1;
   var ACTION_SFX_SOURCES = {
     fold: "assets/holdem/fold.mp3",
+    check: "assets/holdem/check.mp3",
     call: "assets/holdem/call.mp3",
     bet: "assets/holdem/bet.mp3",
     raise: "assets/holdem/raise.mp3",
@@ -74,6 +75,7 @@ window.TexasHoldem = (function () {
   var ALLIN_BGM_SFX_VOLUME = 0.72;
   var ACTION_SFX_VOLUMES = {
     fold: 0.86,
+    check: 0.86,
     call: 0.86,
     bet: 0.82,
     raise: 0.84,
@@ -682,6 +684,7 @@ window.TexasHoldem = (function () {
     if (holdemSoundMuted()) return;
     ensureCommunityCardOpenSfx();
     ensureActionSfx("fold");
+    ensureActionSfx("check");
     ensureActionSfx("call");
     ensureActionSfx("bet");
     ensureActionSfx("raise");
@@ -1255,7 +1258,7 @@ window.TexasHoldem = (function () {
 
   function actionSoundKind(action) {
     action = canonicalSeatAction(action);
-    if (action === "fold" || action === "call" || action === "bet" ||
+    if (action === "fold" || action === "check" || action === "call" || action === "bet" ||
         action === "raise" || action === "allin") return action;
     return "";
   }

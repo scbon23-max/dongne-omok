@@ -254,6 +254,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /TIMER_WARNING_SFX_SRC = "assets\/warn\.mp3"/);
   assert.match(controller, /TIMER_WARNING_SFX_VOLUME = 1/);
   assert.match(controller, /fold:\s*"assets\/holdem\/fold\.mp3"/);
+  assert.match(controller, /check:\s*"assets\/holdem\/check\.mp3"/);
   assert.match(controller, /call:\s*"assets\/holdem\/call\.mp3"/);
   assert.match(controller, /bet:\s*"assets\/holdem\/bet\.mp3"/);
   assert.match(controller, /raise:\s*"assets\/holdem\/raise\.mp3"/);
@@ -263,6 +264,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /ALLIN_BGM_SFX_VOLUME = 0\.72/);
   assert.match(controller, /function holdemSoundMuted\(\)[\s\S]*localStorage\.getItem\("omok_mute"\) === "1"/);
   assert.match(controller, /function syncActionSounds\(previous, next, hadSnapshot\)[\s\S]*var kind = actionSoundKind\(latest\.action\);[\s\S]*playActionSfx\(kind\)/);
+  assert.match(controller, /function actionSoundKind\(action\)[\s\S]*action === "check"/);
   assert.match(controller, /if \(kind === "allin"\)[\s\S]*bgmKey !== lastAllinBgmKey[\s\S]*playAllinBgmSfx\(\)/);
   assert.match(controller, /allinBgmSfxEl\.loop = false/);
   assert.match(controller, /scheduleActionSfx\("winner", delay\)/);
