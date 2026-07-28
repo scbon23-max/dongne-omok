@@ -385,6 +385,9 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /AI와 하는 연습용 임시 원화 자산/);
   assert.match(controller, /연습용 임시 원화 자산 충전/);
   assert.match(styles, /\.holdem-seat-action\s*\{/);
+  assert.match(styles, /\.holdem-seat-action\s*\{[\s\S]*animation:\s*holdemActionTagPop/);
+  assert.match(styles, /\.holdem-seat-action::before\s*\{[\s\S]*animation:\s*holdemActionTagShine/);
+  assert.match(styles, /@keyframes holdemActionTagPop[\s\S]*scale\(1\.18\)[\s\S]*scale\(1\)/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);
   assert.match(controller, /timer\.setAttribute\("data-seconds", seconds\)/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{[\s\S]*top:\s*var\(--holdem-seat-timer-y\)[\s\S]*left:\s*var\(--holdem-seat-timer-x\)[\s\S]*width:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 16px\)/);
