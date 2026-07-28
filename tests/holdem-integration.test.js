@@ -249,6 +249,12 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-board\s*\{[\s\S]*perspective:\s*720px/);
   assert.match(styles, /\.holdem-board \.holdem-card\.is-community-flipping\s*\{[\s\S]*holdemCommunityCardFlip 620ms/);
   assert.match(styles, /@keyframes holdemCommunityCardBackFlip/);
+  assert.match(controller, /COMMUNITY_CARD_OPEN_SFX_SRC = "assets\/holdem\/community-card-open\.mp3"/);
+  assert.match(controller, /COMMUNITY_CARD_OPEN_SFX_VOLUME = 0\.78/);
+  assert.match(controller, /function holdemSoundMuted\(\)[\s\S]*localStorage\.getItem\("omok_mute"\) === "1"/);
+  assert.match(controller, /function scheduleCommunityCardOpenSfx\(card, index, delayMs\)[\s\S]*setTimeout\(function \(\) \{[\s\S]*playCommunityCardOpenSfx\(\)/);
+  assert.match(controller, /scheduleCommunityCardOpenSfx\(card, index, boardRevealState\.delayMs\[index\]\)/);
+  assert.match(controller, /syncAudio: syncAudio/);
   assert.match(controller, /COMMUNITY_CARD_FLIP_STAGGER_MS = 120/);
   assert.match(controller, /lastBoardHtml !== html[\s\S]*board\.innerHTML = html/);
   assert.match(controller, /function tableHint\(\)[\s\S]*빈 좌석을 눌러 착석하세요/);

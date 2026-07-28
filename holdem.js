@@ -58,6 +58,8 @@ window.TexasHoldem = (function () {
   var RESULT_BOARD_REVEAL_STEP_MS = 900;
   var COMMUNITY_CARD_FLIP_MS = 620;
   var COMMUNITY_CARD_FLIP_STAGGER_MS = 120;
+  var COMMUNITY_CARD_OPEN_SFX_SRC = "assets/holdem/community-card-open.mp3";
+  var COMMUNITY_CARD_OPEN_SFX_VOLUME = 0.78;
   var RESULT_SETTLE_MS = 1600;
   var PROFILE_AVATAR_STORAGE_PREFIX = "dongne_holdem_profile_avatar:";
   var PROFILE_AVATAR_SIZE = 192;
@@ -123,6 +125,8 @@ window.TexasHoldem = (function () {
   var autoReadyKey = "";
   var resultFlow = null;
   var boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [] };
+  var communityCardOpenSfxEl = null;
+  var communityCardOpenSoundTimers = [];
   var lastBoardHtml = "";
 
   var boundRoot = null;
@@ -482,6 +486,69 @@ window.TexasHoldem = (function () {
     return card && card.rank && card.suit ? String(card.rank) + String(card.suit) : "";
   }
 
+  function holdemAssetUrl(path) {
+    return window.AppShell && AppShell.assetUrl ? AppShell.assetUrl(path) : path;
+  }
+
+  function holdemSoundMuted() {
+    try {
+      return localStorage.getItem("omok_mute") === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function ensureCommunityCardOpenSfx() {
+    if (typeof Audio === "undefined") return null;
+    if (!communityCardOpenSfxEl) {
+      communityCardOpenSfxEl = new Audio(holdemAssetUrl(COMMUNITY_CARD_OPEN_SFX_SRC));
+      communityCardOpenSfxEl.preload = "auto";
+      communityCardOpenSfxEl.volume = COMMUNITY_CARD_OPEN_SFX_VOLUME;
+    }
+    return communityCardOpenSfxEl;
+  }
+
+  function playCommunityCardOpenSfx() {
+    if (!active || holdemSoundMuted()) return false;
+    var base = ensureCommunityCardOpenSfx();
+    if (!base) return false;
+    try {
+      var el = base.cloneNode ? base.cloneNode(true) : new Audio(holdemAssetUrl(COMMUNITY_CARD_OPEN_SFX_SRC));
+      el.volume = COMMUNITY_CARD_OPEN_SFX_VOLUME;
+      var played = el.play();
+      if (played && typeof played.catch === "function") played.catch(function () {});
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function clearCommunityCardOpenSoundTimers() {
+    for (var i = 0; i < communityCardOpenSoundTimers.length; i++) {
+      clearTimeout(communityCardOpenSoundTimers[i]);
+    }
+    communityCardOpenSoundTimers = [];
+  }
+
+  function scheduleCommunityCardOpenSfx(card, index, delayMs) {
+    var key = communityCardKey(card);
+    if (!key) return;
+    var soundKey = String(index) + ":" + key;
+    boardRevealState.soundKeys = Array.isArray(boardRevealState.soundKeys)
+      ? boardRevealState.soundKeys
+      : [];
+    if (boardRevealState.soundKeys.indexOf(soundKey) >= 0) return;
+    boardRevealState.soundKeys.push(soundKey);
+    var timer = setTimeout(function () {
+      playCommunityCardOpenSfx();
+    }, Math.max(0, integer(delayMs, 0)));
+    communityCardOpenSoundTimers.push(timer);
+  }
+
+  function syncAudio() {
+    if (!holdemSoundMuted()) ensureCommunityCardOpenSfx();
+  }
+
   function boardRevealKey(snapshot) {
     if (!snapshot) return "";
     return String(snapshot.handId || snapshot.handNumber || (snapshot.board && snapshot.board.length ? snapshot.version : snapshot.phase) || "");
@@ -490,7 +557,8 @@ window.TexasHoldem = (function () {
   function syncBoardRevealKey() {
     var key = boardRevealKey(state);
     if (boardRevealState.key === key) return;
-    boardRevealState = { key: key, cards: [], revealAt: [], delayMs: [] };
+    clearCommunityCardOpenSoundTimers();
+    boardRevealState = { key: key, cards: [], revealAt: [], delayMs: [], soundKeys: [] };
     lastBoardHtml = "";
   }
 
@@ -2550,6 +2618,7 @@ window.TexasHoldem = (function () {
       boardRevealState.cards[index] = key;
       boardRevealState.delayMs[index] = newRevealIndex * COMMUNITY_CARD_FLIP_STAGGER_MS;
       boardRevealState.revealAt[index] = now + boardRevealState.delayMs[index];
+      scheduleCommunityCardOpenSfx(card, index, boardRevealState.delayMs[index]);
     }
     var revealEnd = boardRevealState.revealAt[index] + COMMUNITY_CARD_FLIP_MS;
     if (now <= revealEnd) {
@@ -3342,8 +3411,9 @@ window.TexasHoldem = (function () {
     clearAutoNextHand();
     clearAutoReadyForNextHand();
     clearBotTimer();
+    clearCommunityCardOpenSoundTimers();
     resultFlow = null;
-    boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [] };
+    boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [], soundKeys: [] };
     lastBoardHtml = "";
   }
 
@@ -3367,7 +3437,7 @@ window.TexasHoldem = (function () {
     demoState = null;
     demoVersion = 0;
     resultFlow = null;
-    boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [] };
+    boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [], soundKeys: [] };
     lastBoardHtml = "";
     if (!bindDom()) throw new Error("텍사스 홀덤 화면을 찾을 수 없습니다.");
     render();
@@ -3515,6 +3585,7 @@ window.TexasHoldem = (function () {
     canChat: canChat,
     renderPlayers: renderPlayers,
     render: render,
+    syncAudio: syncAudio,
     rules: rules,
     handRankings: handRankings,
     get state() { return state; }
