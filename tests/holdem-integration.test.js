@@ -254,10 +254,10 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /big_blind:\s*formatChips\(seat\.bet \|\| state\.bigBlind\)/);
   assert.doesNotMatch(controller, /badges \+= "<span>SB<\/span>"|badges \+= "<span>BB<\/span>"/);
   assert.match(styles, /\.holdem-seat-action\.action-small-blind,[\s\S]*\.holdem-seat-action\.action-big-blind\s*\{/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\] \.holdem-seat-action\.action-small-blind/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action\.action-small-blind/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\.action-small-blind/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action\.action-small-blind/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*-14px/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% \+ 58px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 44px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - 58px\)/);
   assert.match(controller, /is-visible-cards is-revealed-cards/);
   assert.match(controller, /class="holdem-seat-open-icon"/);
   assert.match(controller, /role="button" tabindex="0"/);
