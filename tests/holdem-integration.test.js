@@ -530,7 +530,10 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*max-width:\s*min\(154px,\s*calc\(100vw - 18px\)\)/);
   assert.match(styles, /\.holdem-winner-result strong\s*\{[\s\S]*padding:\s*4px 14px 5px[\s\S]*font-size:\s*clamp\(12px,\s*3\.35vw,\s*16px\)/);
   assert.match(styles, /\.holdem-winner-result small\s*\{[\s\S]*max-width:\s*min\(142px,\s*calc\(100vw - 24px\)\)[\s\S]*padding:\s*3px 7px/);
-  assert.match(styles, /\.holdem-win-gain\s*\{[\s\S]*padding:\s*2px 7px 3px[\s\S]*font-size:\s*clamp\(15px,\s*4\.4vw,\s*21px\)[\s\S]*font-weight:\s*1000/);
+  assert.match(styles, /\.holdem-win-gain\s*\{[\s\S]*max-width:\s*min\(148px,\s*calc\(100vw - 28px\)\)[\s\S]*padding:\s*2px 7px 3px[\s\S]*font-size:\s*clamp\(15px,\s*4\.4vw,\s*21px\)[\s\S]*font-weight:\s*1000[\s\S]*white-space:\s*nowrap/);
+  assert.match(styles, /\.holdem-win-gain\.is-compact\s*\{[\s\S]*font-size:\s*clamp\(13px,\s*3\.65vw,\s*17px\)/);
+  assert.match(styles, /\.holdem-win-gain\.is-tiny\s*\{[\s\S]*font-size:\s*clamp\(11px,\s*3\.05vw,\s*14px\)/);
+  assert.match(controller, /if \(wonText\.length >= 12\) winGainClass \+= " is-tiny";[\s\S]*else if \(wonText\.length >= 9\) winGainClass \+= " is-compact"/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-winner-edge-nudge\)\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-winner-edge-nudge\)\)/);

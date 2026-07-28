@@ -3723,8 +3723,12 @@ window.TexasHoldem = (function () {
       var resultBadge = "";
       if (seat && isWinner && state.phase === "complete" && stage === "announced") {
         var won = animatedWinAmount(absolute);
+        var wonText = won > 0 ? "+" + formatChips(won) : "";
+        var winGainClass = "holdem-win-gain";
+        if (wonText.length >= 12) winGainClass += " is-tiny";
+        else if (wonText.length >= 9) winGainClass += " is-compact";
         resultBadge = '<div class="holdem-winner-result" aria-hidden="true">' +
-          (won > 0 ? '<span class="holdem-win-gain">+' + esc(formatChips(won)) + '</span>' : "") +
+          (won > 0 ? '<span class="' + winGainClass + '">' + esc(wonText) + '</span>' : "") +
           '<strong>WINNER</strong>' +
           '<small>' + esc(resultHandLabel(absolute)) + '</small>' +
         '</div>';

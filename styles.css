@@ -4981,7 +4981,10 @@ body.is-admin .feedback-user-compose { display: none; }
   white-space: nowrap;
 }
 .holdem-win-gain {
+  box-sizing: border-box;
+  max-width: min(148px, calc(100vw - 28px));
   padding: 2px 7px 3px;
+  overflow: hidden;
   border-radius: 999px;
   background: rgba(255,196,49,.18);
   color: #fff7c9;
@@ -4989,7 +4992,21 @@ body.is-admin .feedback-user-compose { display: none; }
   font-weight: 1000;
   line-height: 1;
   letter-spacing: -.02em;
+  text-overflow: clip;
   text-shadow: 0 0 12px rgba(255,205,81,.95), 0 2px 3px #000;
+  white-space: nowrap;
+}
+.holdem-win-gain.is-compact {
+  padding-right: 6px;
+  padding-left: 6px;
+  font-size: clamp(13px, 3.65vw, 17px);
+  letter-spacing: -.035em;
+}
+.holdem-win-gain.is-tiny {
+  padding-right: 5px;
+  padding-left: 5px;
+  font-size: clamp(11px, 3.05vw, 14px);
+  letter-spacing: -.045em;
 }
 .holdem-seat[data-relative-seat="3"] .holdem-winner-result {
   top: calc(var(--holdem-seat-avatar-size) * -0.56);
