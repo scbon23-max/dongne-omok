@@ -318,7 +318,8 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-board\s*\{[\s\S]*top:\s*62%/);
   assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards\s*\{[\s\S]*top:\s*50%[\s\S]*right:\s*0[\s\S]*left:\s*auto[\s\S]*translateY\(-50%\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \/ 2\)[\s\S]*left:\s*calc\(var\(--holdem-seat-avatar-size\) \/ 2\)[\s\S]*z-index:\s*18/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-seat-turn-timer\s*\{[\s\S]*left:\s*calc\(var\(--holdem-seat-avatar-size\) \/ 2\)/);
+  assert.match(styles, /\.holdem-seat\s*\{[\s\S]*--holdem-seat-timer-x:\s*50%[\s\S]*--holdem-seat-timer-y:\s*calc\(var\(--holdem-seat-avatar-size\) \/ 2\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me\s*\{[\s\S]*--holdem-seat-timer-x:\s*calc\(var\(--holdem-seat-avatar-size\) \/ 2\)[\s\S]*--holdem-seat-timer-y:\s*50%/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-seat-avatar-size\) \/ 2 \+ 24px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 68px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-seat-avatar-size\) \/ 2 - 24px\)/);
@@ -364,7 +365,7 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-seat-action\s*\{/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);
   assert.match(controller, /timer\.setAttribute\("data-seconds", seconds\)/);
-  assert.match(styles, /\.holdem-seat-turn-timer\s*\{[\s\S]*width:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 16px\)/);
+  assert.match(styles, /\.holdem-seat-turn-timer\s*\{[\s\S]*top:\s*var\(--holdem-seat-timer-y\)[\s\S]*left:\s*var\(--holdem-seat-timer-x\)[\s\S]*width:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 16px\)/);
   assert.match(styles, /\.holdem-seat-turn-timer::before\s*\{[\s\S]*conic-gradient\(#4df5d9 calc\(var\(--holdem-seat-timer-ratio\) \* 1turn\)/);
   assert.match(styles, /\.holdem-seat-turn-timer::after\s*\{[\s\S]*content:\s*attr\(data-seconds\)[\s\S]*right:\s*-1px[\s\S]*bottom:\s*-2px/);
   assert.match(styles, /\.holdem-seat-turn-timer\.urgent\s*\{[\s\S]*width:\s*var\(--holdem-seat-avatar-size\)[\s\S]*height:\s*var\(--holdem-seat-avatar-size\)/);
