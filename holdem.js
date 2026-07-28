@@ -2266,6 +2266,13 @@ window.TexasHoldem = (function () {
     }[kind] || "레이즈";
   }
 
+  function actionAmountFitClass(value) {
+    var compact = String(value || "").replace(/\s+/g, "");
+    if (compact.length >= 10) return " is-xl-amount";
+    if (compact.length >= 8) return " is-long-amount";
+    return "";
+  }
+
   function syncQuickBetButtons() {
     var buttons = root() ? root().querySelectorAll("[data-holdem-bet]") : [];
     for (var i = 0; i < buttons.length; i++) {
@@ -2275,7 +2282,7 @@ window.TexasHoldem = (function () {
       buttons[i].disabled = !available;
       var amount = formatChips(quickBetTarget(kind));
       buttons[i].innerHTML = '<span>' + esc(quickBetLabel(kind)) + '</span>' +
-        (amount ? '<strong>' + esc(amount) + '</strong>' : "");
+        (amount ? '<strong class="holdem-action-amount-fit' + actionAmountFitClass(amount) + '">' + esc(amount) + '</strong>' : "");
     }
   }
 
@@ -2352,7 +2359,12 @@ window.TexasHoldem = (function () {
       show(id, visible);
       disable(id, busy || !state.legal[move]);
     });
-    setText("holdem-call-amount", state.toCall ? formatChips(state.toCall) : "");
+    var callAmount = state.toCall ? formatChips(state.toCall) : "";
+    setText("holdem-call-amount", callAmount);
+    var callAmountNode = $("holdem-call-amount");
+    if (callAmountNode) {
+      callAmountNode.className = "holdem-action-call-amount holdem-action-amount-fit" + actionAmountFitClass(callAmount);
+    }
     setText("holdem-action-label", state.actingSeat === state.heroSeat ? "내 차례" : "행동 선택");
     setText("holdem-hand-name", state.handName || "패를 확인하세요");
 
@@ -2362,7 +2374,7 @@ window.TexasHoldem = (function () {
     var slider = $("holdem-raise-slider");
     if (slider) slider.disabled = busy;
     var quick = root() ? root().querySelectorAll("[data-holdem-bet]") : [];
-    for (var i = 0; i < quick.length; i++) quick[i].disabled = busy;
+    for (var i = 0; i < quick.length; i++) quick[i].disabled = busy || quick[i].classList.contains("hidden");
 
     var screen = root();
     if (screen) {

@@ -232,7 +232,12 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-color:\s*rgba\(213,239,235,\.12\)/);
   assert.match(styles, /\.holdem-board \.holdem-card \+ \.holdem-card\s*\{\s*margin-left:\s*0;\s*\}/);
   assert.match(styles, /#holdem-call-btn\s*\{[\s\S]*flex-direction:\s*column/);
-  assert.match(styles, /#holdem-call-btn \.holdem-action-call-amount\s*\{[\s\S]*font-size:\s*clamp\(18px,\s*5\.4vw,\s*27px\)/);
+  assert.match(controller, /function actionAmountFitClass\(value\)[\s\S]*is-xl-amount[\s\S]*is-long-amount/);
+  assert.match(controller, /class="holdem-action-amount-fit/);
+  assert.match(controller, /callAmountNode\.className = "holdem-action-call-amount holdem-action-amount-fit"/);
+  assert.match(styles, /\.holdem-action-amount-fit\s*\{[\s\S]*font-size:\s*clamp\(14px,\s*4vw,\s*20px\)/);
+  assert.match(styles, /\.holdem-action-amount-fit\.is-long-amount \{ font-size: clamp\(12px,\s*3\.4vw,\s*17px\); \}/);
+  assert.match(styles, /\.holdem-action-amount-fit\.is-xl-amount \{ font-size: clamp\(10px,\s*2\.8vw,\s*14px\); \}/);
   assert.match(styles, /#holdem-call-btn \.holdem-action-call-label\s*\{[\s\S]*font-size:\s*clamp\(10px,\s*2\.7vw,\s*13px\)/);
   assert.match(styles, /\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%[\s\S]*시작하기|\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%/);
   assert.match(controller, /var tableStartVisible = waiting && state\.canStart/);

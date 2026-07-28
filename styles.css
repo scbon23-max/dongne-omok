@@ -4829,9 +4829,19 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-screen.is-actioning .holdem-quick-bets button strong {
   color: inherit;
-  font-size: clamp(16px, 4.5vw, 22px);
-  font-weight: 1000;
 }
+.holdem-action-amount-fit {
+  max-width: 100%;
+  overflow: hidden;
+  color: inherit;
+  font-size: clamp(14px, 4vw, 20px);
+  font-weight: 1000;
+  line-height: 1;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+.holdem-action-amount-fit.is-long-amount { font-size: clamp(12px, 3.4vw, 17px); }
+.holdem-action-amount-fit.is-xl-amount { font-size: clamp(10px, 2.8vw, 14px); }
 .holdem-action-buttons { display: flex; gap: 7px; }
 .holdem-screen.is-actioning .holdem-action-buttons {
   display: grid;
@@ -4873,8 +4883,6 @@ body.is-admin .feedback-user-compose { display: none; }
   line-height: 1;
 }
 #holdem-call-btn .holdem-action-call-amount {
-  font-size: clamp(18px, 5.4vw, 27px);
-  font-weight: 1000;
   opacity: 1;
 }
 #holdem-call-btn .holdem-action-call-label {
