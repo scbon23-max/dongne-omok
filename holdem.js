@@ -135,6 +135,10 @@ window.TexasHoldem = (function () {
   var profileWalletNick = "";
   var profileWalletRequestSeq = 0;
   var profileTargetSeat = -1;
+  var profileAvatarCache = Object.create(null);
+  var profileAvatarRequestKey = "";
+  var profileAvatarRequestSeq = 0;
+  var profileAvatarFetchedAt = 0;
   var buyInDialogOpen = false;
   var buyInMode = "join";
   var buyInSeat = -1;
@@ -450,6 +454,10 @@ window.TexasHoldem = (function () {
   }
 
   function readProfileAvatar(nick) {
+    nick = text(nick, 40);
+    if (Object.prototype.hasOwnProperty.call(profileAvatarCache, nick)) {
+      return profileAvatarCache[nick] || "";
+    }
     if (typeof localStorage === "undefined") return "";
     try {
       return localStorage.getItem(profileAvatarStorageKey(nick)) || "";
@@ -459,6 +467,8 @@ window.TexasHoldem = (function () {
   }
 
   function writeProfileAvatar(nick, dataUrl) {
+    nick = text(nick, 40);
+    profileAvatarCache[nick] = dataUrl || "";
     if (typeof localStorage === "undefined") return false;
     try {
       localStorage.setItem(profileAvatarStorageKey(nick), dataUrl);
@@ -469,10 +479,76 @@ window.TexasHoldem = (function () {
   }
 
   function removeProfileAvatar(nick) {
+    nick = text(nick, 40);
+    profileAvatarCache[nick] = "";
     if (typeof localStorage === "undefined") return;
     try {
       localStorage.removeItem(profileAvatarStorageKey(nick));
     } catch (_error) {}
+  }
+
+  function persistProfileAvatar(nick, dataUrl) {
+    var currentAuth = auth();
+    nick = text(nick || currentAuth.nick || me().nick, 40);
+    if (!nick || !currentAuth.hash || !window.Db || typeof Db.saveProfileAvatar !== "function") {
+      return Promise.resolve({ ok: false, reason: "unavailable" });
+    }
+    return Promise.resolve(Db.saveProfileAvatar({
+      nick: nick,
+      hash: currentAuth.hash
+    }, dataUrl || ""));
+  }
+
+  function cacheRemoteProfileAvatars(avatars) {
+    if (!isObject(avatars)) return false;
+    var changed = false;
+    Object.keys(avatars).forEach(function (nick) {
+      var key = text(nick, 40);
+      if (!key) return;
+      var avatar = text(avatars[nick], 90000);
+      if (profileAvatarCache[key] !== avatar) {
+        profileAvatarCache[key] = avatar;
+        changed = true;
+      }
+      if (key === text(me().nick, 40)) {
+        if (avatar) writeProfileAvatar(key, avatar);
+        else removeProfileAvatar(key);
+      }
+    });
+    return changed;
+  }
+
+  function profileAvatarNicksFromSnapshot(snapshot) {
+    var seen = Object.create(null);
+    var nicks = [];
+    (snapshot && Array.isArray(snapshot.seats) ? snapshot.seats : []).forEach(function (seat) {
+      var nick = text(seat && seat.nick, 40);
+      if (!nick || seen[nick] || seat.isBot) return;
+      seen[nick] = true;
+      nicks.push(nick);
+    });
+    var mine = text(me().nick, 40);
+    if (mine && !seen[mine]) nicks.push(mine);
+    return nicks.sort();
+  }
+
+  function refreshProfileAvatars(snapshot, force) {
+    if (!window.Db || typeof Db.getProfileAvatars !== "function") return;
+    var nicks = profileAvatarNicksFromSnapshot(snapshot || state);
+    if (!nicks.length) return;
+    var now = Date.now();
+    var key = nicks.join("\n");
+    if (!force && key === profileAvatarRequestKey && now - profileAvatarFetchedAt < 30000) return;
+    profileAvatarRequestKey = key;
+    profileAvatarFetchedAt = now;
+    var seq = ++profileAvatarRequestSeq;
+    Promise.resolve(Db.getProfileAvatars(nicks)).then(function (result) {
+      if (seq !== profileAvatarRequestSeq || !result || !result.ok) return;
+      if (cacheRemoteProfileAvatars(result.avatars)) {
+        renderSeats();
+        if (profileDialogOpen) renderProfileDialog();
+      }
+    }, function () {});
   }
 
   function safeSeat(value) {
@@ -1482,6 +1558,7 @@ window.TexasHoldem = (function () {
       tickSentKey = "";
       tickRetryAt = 0;
     }
+    refreshProfileAvatars(next, false);
     render();
     return true;
   }
@@ -3074,6 +3151,15 @@ window.TexasHoldem = (function () {
       }
       renderProfileDialog();
       renderSeats();
+      persistProfileAvatar(nick, dataUrl).then(function (result) {
+        if (result && result.ok) {
+          refreshProfileAvatars(state, true);
+        } else if (api && typeof api.toast === "function") {
+          api.toast("사진을 서버에 저장하지 못했어요.", 2600);
+        }
+      }, function () {
+        if (api && typeof api.toast === "function") api.toast("사진을 서버에 저장하지 못했어요.", 2600);
+      });
     }, function () {
       if (api && typeof api.toast === "function") api.toast("이미지 파일을 다시 선택해 주세요.", 2600);
     });
@@ -3996,9 +4082,13 @@ window.TexasHoldem = (function () {
     } else if (id === "holdem-profile-role-action") {
       toggleProfileRole();
     } else if (id === "holdem-profile-avatar-remove") {
-      removeProfileAvatar(me().nick);
+      var profileNick = text(me().nick, 40);
+      removeProfileAvatar(profileNick);
       renderProfileDialog();
       renderSeats();
+      persistProfileAvatar(profileNick, "").then(function (result) {
+        if (result && result.ok) refreshProfileAvatars(state, true);
+      }, function () {});
     } else if (id === "holdem-settings-close") {
       settingsOpen = false;
       renderSettings();

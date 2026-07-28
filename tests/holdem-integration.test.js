@@ -16,6 +16,7 @@ const db = read("db.js");
 const controller = read("holdem.js");
 const engine = read("holdem-engine.js");
 const config = read(path.join("supabase", "config.toml"));
+const profileAvatarMigration = read(path.join("supabase", "migrations", "202607280001_account_profile_avatars.sql"));
 
 test("Hold'em is an available six-player controller game", () => {
   const context = { window: {} };
@@ -243,7 +244,11 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.create-holdem-wallet small\s*\{[\s\S]*display:\s*none/);
   assert.match(index, /class="create-holdem-wallet holdem-profile-wallet"/);
   assert.match(controller, /Db\.getHoldemWallet\(currentAuth\)/);
-  assert.match(controller, /localStorage\.setItem\(profileAvatarStorageKey\(nick\), dataUrl\)/);
+  assert.match(controller, /Db\.getProfileAvatars\(nicks\)/);
+  assert.match(controller, /Db\.saveProfileAvatar\([\s\S]*dataUrl/);
+  assert.match(db, /async function getProfileAvatars\(nicks\)/);
+  assert.match(db, /async function saveProfileAvatar\(auth, dataUrl\)/);
+  assert.match(profileAvatarMigration, /alter table public\.accounts[\s\S]*add column if not exists profile_avatar text/i);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{\s*top:\s*95%;\s*left:\s*50%;\s*\}/);
   assert.match(styles, /\.holdem-card\.back/);
   assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-width-auto:[\s\S]*var\(--holdem-card-width/);

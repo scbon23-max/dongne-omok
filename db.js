@@ -59,6 +59,58 @@ window.Db = (function () {
     return { ok: false, reason: "badpw" };
   }
 
+  function safeProfileAvatar(value) {
+    value = String(value || "").trim();
+    if (!value) return "";
+    if (value.length > 80000) return "";
+    return /^data:image\/(?:png|jpe?g|webp);base64,[a-z0-9+/=]+$/i.test(value) ? value : "";
+  }
+
+  function uniqueNicks(value) {
+    var seen = Object.create(null);
+    return (Array.isArray(value) ? value : []).map(function (nick) {
+      return String(nick || "").trim().slice(0, 40);
+    }).filter(function (nick) {
+      if (!nick || seen[nick]) return false;
+      seen[nick] = true;
+      return true;
+    }).slice(0, 40);
+  }
+
+  async function getProfileAvatars(nicks) {
+    var list = uniqueNicks(nicks);
+    if (!list.length) return { ok: true, avatars: {} };
+    if (!sb) return { ok: true, avatars: {} };
+    var r = await sb.from("accounts").select("nickname,profile_avatar").in("nickname", list);
+    if (r.error) return { ok: false, reason: "database", msg: r.error.message || String(r.error), avatars: {} };
+    var avatars = {};
+    (r.data || []).forEach(function (row) {
+      var nick = String(row && row.nickname || "").slice(0, 40);
+      if (nick) avatars[nick] = safeProfileAvatar(row.profile_avatar);
+    });
+    list.forEach(function (nick) {
+      if (!Object.prototype.hasOwnProperty.call(avatars, nick)) avatars[nick] = "";
+    });
+    return { ok: true, avatars: avatars };
+  }
+
+  async function saveProfileAvatar(auth, dataUrl) {
+    if (!sb) return { ok: true };
+    auth = auth || {};
+    var nick = String(auth.nick || "").trim().slice(0, 40);
+    var hash = String(auth.hash || "").trim().slice(0, 128);
+    var avatar = safeProfileAvatar(dataUrl);
+    if (!nick || !hash || (dataUrl && !avatar)) return { ok: false, reason: "auth" };
+    var r = await sb.from("accounts")
+      .update({ profile_avatar: avatar || null })
+      .eq("nickname", nick)
+      .eq("pw_hash", hash)
+      .select("nickname");
+    if (r.error) return { ok: false, reason: "database", msg: r.error.message || String(r.error) };
+    if (!r.data || !r.data.length) return { ok: false, reason: "auth" };
+    return { ok: true };
+  }
+
   async function listAccounts() {
     if (!sb) return [];
     var r = await sb.from("accounts").select("nickname,is_admin,pw_hash,created_at").order("created_at");
@@ -501,6 +553,7 @@ window.Db = (function () {
 
   return {
     ADMIN: ADMIN, ensureAdmin: ensureAdmin, login: login, loginHash: loginHash, hashPw: sha256,
+    getProfileAvatars: getProfileAvatars, saveProfileAvatar: saveProfileAvatar,
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
     recordGame: recordGame, recordAlkGame: recordAlkGame,
     saveCatchmindDrawing: saveCatchmindDrawing, getCatchmindGallery: getCatchmindGallery, toggleCatchmindFavorite: toggleCatchmindFavorite,
