@@ -3688,6 +3688,76 @@ body.is-admin .feedback-user-compose { display: none; }
   white-space: nowrap;
 }
 .holdem-table-hint:empty { display: none; }
+.holdem-join-request-btn,
+.holdem-join-request-alert {
+  position: absolute;
+  z-index: 18;
+  top: 58.5%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.holdem-join-request-btn {
+  min-width: 132px;
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid rgba(255,217,169,.58);
+  border-radius: 999px;
+  background: rgba(255,122,68,.95);
+  color: #fff8ef;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+  box-shadow: 0 8px 18px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.28);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.holdem-join-request-btn:disabled {
+  cursor: default;
+  opacity: .72;
+}
+.holdem-join-request-alert {
+  width: min(248px, 72%);
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid rgba(255,217,169,.48);
+  border-radius: 8px;
+  background: rgba(6,24,29,.93);
+  box-shadow: 0 10px 24px rgba(0,0,0,.42);
+  text-align: center;
+}
+.holdem-join-request-alert > span {
+  min-width: 0;
+  color: #fff8ef;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.holdem-join-request-alert > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.holdem-join-request-alert button {
+  min-height: 31px;
+  border: 0;
+  border-radius: 7px;
+  background: #244a50;
+  color: #d9efef;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 950;
+  cursor: pointer;
+}
+.holdem-join-request-alert #holdem-join-accept-btn {
+  background: #f27a44;
+  color: #fff8ef;
+}
+.holdem-join-request-alert button:disabled {
+  cursor: default;
+  opacity: .5;
+}
 .holdem-board {
   position: absolute;
   z-index: 8;

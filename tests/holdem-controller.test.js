@@ -152,6 +152,37 @@ test("engine bot metadata and turn-coordination fields survive controller normal
   assert.equal(playingNormalized.seats[0].botPersonality, "tight_passive");
 });
 
+test("practice join request controls are present and normalized", () => {
+  const controller = loadController("guest");
+  const normalized = controller._test.normalizeSnapshot({
+    phase: "preflop",
+    mode: "ring",
+    settings: { mode: "ring", assetBacked: false },
+    seats: [
+      { seat: 0, nick: "owner", stack: 20000 },
+      { seat: 1, nick: "AI 1", isBot: true, botId: "bot-1", botPersonality: "tight_passive", stack: 20000 },
+    ],
+    pendingJoinRequests: [{
+      nick: "guest",
+      targetNick: "owner",
+      requestedAt: 1_800_000_000_000,
+      expiresAt: 1_800_000_060_000,
+    }],
+  }, 14);
+
+  assert.equal(normalized.practiceMode, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(normalized.pendingJoinRequests)), [{
+    nick: "guest",
+    targetNick: "owner",
+    requestedAt: 1_800_000_000_000,
+    expiresAt: 1_800_000_060_000,
+  }]);
+  assert.match(indexSource, /id="holdem-join-request-btn"/);
+  assert.match(indexSource, /id="holdem-join-request-alert"/);
+  assert.match(source, /function requestPracticeJoin\(\)/);
+  assert.match(source, /function resolvePracticeJoin\(accepted\)/);
+});
+
 test("hand-end snapshots map to the completed UI and expose only server showdown cards", () => {
   const controller = loadController();
   let { state } = serverView();

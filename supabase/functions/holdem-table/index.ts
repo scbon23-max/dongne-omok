@@ -100,6 +100,8 @@ const ACTIONS = new Set([
   "tick",
   "add_bot",
   "remove_bot",
+  "join_request",
+  "resolve_join_request",
   "bot_step",
   "snapshot",
   "refill",
@@ -766,7 +768,7 @@ Deno.serve(async (request) => {
     return jsonResponse({ ok: false, reason }, 400);
   }
 
-  const action = safeText(body.action, 17);
+  const action = safeText(body.action, 24);
   if (!ACTIONS.has(action)) {
     return jsonResponse({ ok: false, reason: "action" }, 400);
   }

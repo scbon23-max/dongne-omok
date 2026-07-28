@@ -229,7 +229,7 @@ test("responses are built from the per-player engine view, never stored state", 
 });
 
 test("AI management and bot turns stay inside the authoritative command surface", () => {
-  for (const action of ["add_bot", "remove_bot", "bot_step"]) {
+  for (const action of ["add_bot", "remove_bot", "join_request", "resolve_join_request", "bot_step"]) {
     assert.match(edge, new RegExp(`"${action}"`));
   }
   assert.match(

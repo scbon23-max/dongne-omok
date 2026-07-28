@@ -10,6 +10,7 @@
   var MAX_SEATS = 6;
   var ACTION_HISTORY_LIMIT = 128;
   var BOT_THINK_DELAY_MS = 900;
+  var JOIN_REQUEST_TTL_MS = 60 * 1000;
   var BOT_DISPLAY_NAME = "AI";
   var BLIND_LEVEL_MULTIPLIERS = [1, 1.5, 2, 3, 4, 6, 8, 12, 16, 20, 30, 40, 60, 80, 100];
   var WHOLE_CHIP_BLIND_MULTIPLIERS = [1, 2, 3, 4, 6, 8, 10, 15, 20, 30, 40, 60, 80, 100, 150];
@@ -406,6 +407,7 @@
       pendingSeats: [],
       pots: [],
       showdown: [],
+      pendingJoinRequests: [],
       lastEvent: { type: "table_created" },
       recentRequestIds: [],
       actionSeq: 0,
@@ -548,6 +550,7 @@
     state.actionHistory = Array.isArray(state.actionHistory)
       ? state.actionHistory.slice(-ACTION_HISTORY_LIMIT)
       : [];
+    state.pendingJoinRequests = normalizeJoinRequests(state.pendingJoinRequests, now);
     state.botDueAt = Number.isFinite(Number(state.botDueAt))
       ? Math.max(0, integer(state.botDueAt, 0))
       : null;
@@ -620,6 +623,71 @@
 
   function botPlayers(state) {
     return occupiedPlayers(state).filter(function (player) { return !!player.isBot; });
+  }
+
+  function normalizeJoinRequests(value, now) {
+    if (!Array.isArray(value)) return [];
+    now = Math.max(0, integer(now, Date.now()));
+    var seen = {};
+    return value.map(function (entry) {
+      entry = entry && typeof entry === "object" ? entry : {};
+      var nick = text(entry.nick, 40);
+      var targetNick = text(entry.targetNick, 40);
+      var requestedAt = Math.max(0, integer(entry.requestedAt, now));
+      var expiresAt = Math.max(requestedAt + 1000, integer(entry.expiresAt, requestedAt + JOIN_REQUEST_TTL_MS));
+      var key = nick + "\n" + targetNick;
+      if (!nick || !targetNick || expiresAt <= now || seen[key]) return null;
+      seen[key] = true;
+      return {
+        nick: nick,
+        targetNick: targetNick,
+        requestedAt: requestedAt,
+        expiresAt: expiresAt
+      };
+    }).filter(Boolean).slice(-12);
+  }
+
+  function practiceJoinTarget(state) {
+    if (!state || !state.settings || state.settings.mode !== "ring" || botPlayers(state).length <= 0) return null;
+    var humans = humanPlayers(state).filter(function (player) {
+      return !player.leaving && player.stack > 0;
+    });
+    return humans.length === 1 ? humans[0] : null;
+  }
+
+  function emptySeatIndexes(state) {
+    var seats = [];
+    for (var i = 0; i < MAX_SEATS; i++) {
+      if (!state.seats[i]) seats.push(i);
+    }
+    return seats;
+  }
+
+  function randomEmptySeat(state, randomInt) {
+    var seats = emptySeatIndexes(state);
+    if (!seats.length) return -1;
+    var pick = typeof randomInt === "function"
+      ? clamp(integer(randomInt(seats.length), 0), 0, seats.length - 1)
+      : 0;
+    return seats[pick];
+  }
+
+  function pendingJoinRequest(state, requester, targetNick) {
+    requester = text(requester, 40);
+    targetNick = text(targetNick, 40);
+    for (var i = 0; i < state.pendingJoinRequests.length; i++) {
+      var request = state.pendingJoinRequests[i];
+      if (request.nick === requester && request.targetNick === targetNick) return request;
+    }
+    return null;
+  }
+
+  function removeJoinRequest(state, requester, targetNick) {
+    requester = text(requester, 40);
+    targetNick = text(targetNick, 40);
+    state.pendingJoinRequests = state.pendingJoinRequests.filter(function (request) {
+      return !(request.nick === requester && request.targetNick === targetNick);
+    });
   }
 
   function convertRingTableToPractice(state) {
@@ -1298,6 +1366,75 @@
             changed = true;
           }
         }
+      } else if (type === "join_request") {
+        var target = practiceJoinTarget(next);
+        if (!nick) result = { ok: false, reason: "nick" };
+        else if (!target) result = { ok: false, reason: "request_unavailable" };
+        else if (playerByNick(next, nick)) result = { ok: false, reason: "already_joined" };
+        else if (anyPlayerByNick(next, nick)) result = { ok: false, reason: "nick_reserved" };
+        else if (occupiedPlayers(next).length >= next.settings.maxPlayers || emptySeatIndexes(next).length <= 0) {
+          result = { ok: false, reason: "table_full" };
+        } else if (pendingJoinRequest(next, nick, target.nick)) {
+          result = { ok: true, reason: "already_requested" };
+        } else {
+          next.pendingJoinRequests.push({
+            nick: nick,
+            targetNick: target.nick,
+            requestedAt: now,
+            expiresAt: now + JOIN_REQUEST_TTL_MS
+          });
+          next.lastEvent = { type: "join_requested", nick: nick, targetNick: target.nick, at: now };
+          result = { ok: true };
+          changed = true;
+        }
+      } else if (type === "resolve_join_request") {
+        var requester = text(cmd.requester, 40);
+        var accepted = cmd.accepted === true;
+        player = playerByNick(next, nick);
+        var pending = pendingJoinRequest(next, requester, nick);
+        if (!nick || !requester) result = { ok: false, reason: "nick" };
+        else if (!player || player.isBot) result = { ok: false, reason: "not_joined" };
+        else if (!pending) result = { ok: false, reason: "request_missing" };
+        else {
+          removeJoinRequest(next, requester, nick);
+          if (!accepted) {
+            next.lastEvent = { type: "join_declined", nick: requester, targetNick: nick, at: now };
+            result = { ok: true };
+            changed = true;
+          } else if (playerByNick(next, requester)) {
+            next.lastEvent = { type: "join_accepted", nick: requester, targetNick: nick, reason: "already_joined", at: now };
+            result = { ok: true };
+            changed = true;
+          } else if (anyPlayerByNick(next, requester)) {
+            result = { ok: false, reason: "nick_reserved" };
+          } else if (occupiedPlayers(next).length >= next.settings.maxPlayers) {
+            result = { ok: false, reason: "table_full" };
+          } else {
+            var acceptedSeat = randomEmptySeat(next, context.randomInt);
+            if (acceptedSeat < 0) result = { ok: false, reason: "table_full" };
+            else {
+              var acceptedPlayer = createPlayer(requester, acceptedSeat, next.settings.startingStack, now);
+              acceptedPlayer.ready = true;
+              if (PLAYING_PHASES[next.phase]) {
+                acceptedPlayer.waiting = true;
+                acceptedPlayer.inHand = false;
+                acceptedPlayer.folded = false;
+                acceptedPlayer.cards = [];
+              }
+              next.seats[acceptedSeat] = acceptedPlayer;
+              if (next.settings.mode === "ring") next.ringStacks[requester] = acceptedPlayer.stack;
+              next.lastEvent = {
+                type: "join_accepted",
+                nick: requester,
+                targetNick: nick,
+                seat: acceptedSeat,
+                at: now
+              };
+              result = { ok: true };
+              changed = true;
+            }
+          }
+        }
       } else if (type === "leave") {
         player = playerByNick(next, nick);
         if (!player) result = { ok: true, reason: "not_joined" };
@@ -1584,7 +1721,7 @@
     var allowed = [
       "type", "nick", "seat", "ready", "handNo", "action", "amount",
       "fullRaise", "timeout", "winners", "reason", "at", "botId",
-      "botPersonality", "displayName"
+      "botPersonality", "displayName", "targetNick"
     ];
     var out = {};
     allowed.forEach(function (key) {
@@ -1726,6 +1863,14 @@
       canStart: canStart,
       canNext: state.phase === "hand_end" && canStart,
       canManageBots: canManageBots === true && state.phase === "waiting" && state.handNo === 0,
+      pendingJoinRequests: state.pendingJoinRequests.map(function (request) {
+        return {
+          nick: request.nick,
+          targetNick: request.targetNick,
+          requestedAt: request.requestedAt,
+          expiresAt: request.expiresAt
+        };
+      }),
       lastEvent: safeEvent(state.lastEvent),
       actionSeq: state.actionSeq,
       actionHistory: safeActionHistory(state.actionHistory)

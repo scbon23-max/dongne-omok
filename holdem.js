@@ -277,6 +277,7 @@ window.TexasHoldem = (function () {
       canStart: false,
       canNext: false,
       canManageBots: false,
+      pendingJoinRequests: [],
       assetBacked: false,
       practiceMode: false,
       canRefill: false,
@@ -533,6 +534,28 @@ window.TexasHoldem = (function () {
   function normalizeBotPersonality(value) {
     value = text(value, 32).toLowerCase().replace(/-/g, "_");
     return Object.prototype.hasOwnProperty.call(BOT_PERSONALITY_LABELS, value) ? value : "";
+  }
+
+  function normalizeJoinRequests(value) {
+    if (!Array.isArray(value)) return [];
+    var now = Date.now();
+    var seen = Object.create(null);
+    return value.map(function (entry) {
+      entry = isObject(entry) ? entry : {};
+      var nick = text(firstDefined(entry.nick, entry.requester, entry.player), 40);
+      var targetNick = text(firstDefined(entry.targetNick, entry.target, entry.ownerNick), 40);
+      var requestedAt = toTimestamp(firstDefined(entry.requestedAt, entry.at));
+      var expiresAt = toTimestamp(firstDefined(entry.expiresAt, entry.until));
+      var key = nick + "\n" + targetNick;
+      if (!nick || !targetNick || seen[key] || (expiresAt && expiresAt <= now)) return null;
+      seen[key] = true;
+      return {
+        nick: nick,
+        targetNick: targetNick,
+        requestedAt: requestedAt,
+        expiresAt: expiresAt
+      };
+    }).filter(Boolean);
   }
 
   function botPersonalityLabel(value) {
@@ -826,6 +849,11 @@ window.TexasHoldem = (function () {
       canStart: bool(canStartValue, false),
       canNext: bool(canNextValue, false),
       canManageBots: bool(canManageBotsValue, false),
+      pendingJoinRequests: normalizeJoinRequests(firstDefined(
+        table.pendingJoinRequests,
+        raw.pendingJoinRequests,
+        viewer.pendingJoinRequests
+      )),
       assetBacked: assetBacked,
       practiceMode: mode === "ring" && botCount > 0 && !assetBacked,
       canRefill: bool(firstDefined(
@@ -1149,6 +1177,9 @@ window.TexasHoldem = (function () {
       wallet_insufficient: "홀덤 자산이 이 방의 바이인보다 부족해요.",
       bots_solo_only: "AI 연습은 방에 혼자 있을 때만 사용할 수 있어요.",
       practice_ai_only: "AI 연습 중인 방에는 다른 사람이 함께할 수 없어요.",
+      request_unavailable: "지금은 같이 플레이 요청을 보낼 수 없어요.",
+      already_requested: "이미 같이 플레이 요청을 보냈어요.",
+      request_missing: "요청이 만료됐어요. 다시 요청해 주세요.",
       stale: "상태가 바뀌어 새로 불러왔어요."
     };
     return messages[text(reason, 80)] || text(fallback, 140) || "요청을 처리하지 못했어요.";
@@ -1319,6 +1350,53 @@ window.TexasHoldem = (function () {
 
   function humanSeatCount() {
     return state.seats.filter(function (seat) { return seat && !seat.isBot; }).length;
+  }
+
+  function occupiedSeatCount() {
+    return state.seats.filter(Boolean).length;
+  }
+
+  function ownJoinRequest() {
+    var nick = text(me().nick, 40);
+    for (var i = 0; i < state.pendingJoinRequests.length; i++) {
+      if (state.pendingJoinRequests[i].nick === nick) return state.pendingJoinRequests[i];
+    }
+    return null;
+  }
+
+  function incomingJoinRequest() {
+    var nick = text(me().nick, 40);
+    for (var i = 0; i < state.pendingJoinRequests.length; i++) {
+      if (state.pendingJoinRequests[i].targetNick === nick) return state.pendingJoinRequests[i];
+    }
+    return null;
+  }
+
+  function canRequestPracticeJoin() {
+    return state.practiceMode && state.heroSeat < 0 && state.botCount > 0 &&
+      humanSeatCount() === 1 && occupiedSeatCount() < MAX_SEATS;
+  }
+
+  function requestPracticeJoin() {
+    if (!canRequestPracticeJoin() || requests.join_request || ownJoinRequest()) return;
+    invoke("join_request", {}, {
+      key: "join_request",
+      label: "join_request",
+      broadcast: true
+    });
+  }
+
+  function resolvePracticeJoin(accepted) {
+    var request = incomingJoinRequest();
+    if (!request || requests.resolve_join_request) return;
+    invoke("resolve_join_request", {
+      requester: request.nick,
+      accepted: accepted === true
+    }, {
+      key: "resolve_join_request",
+      label: accepted ? "accept_join" : "decline_join",
+      broadcast: true
+    });
   }
 
   function seatedAloneWithBotsEnabled() {
@@ -2292,6 +2370,31 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function renderPracticeJoinControls(busy) {
+    var requestButton = $("holdem-join-request-btn");
+    var alert = $("holdem-join-request-alert");
+    var incoming = incomingJoinRequest();
+    var ownRequest = ownJoinRequest();
+    var canRequest = canRequestPracticeJoin();
+    if (requestButton) {
+      var showRequest = canRequest || !!ownRequest;
+      requestButton.classList.toggle("hidden", !showRequest);
+      requestButton.disabled = !!(busy || ownRequest || requests.join_request || !canRequest);
+      requestButton.textContent = ownRequest ? "요청 보냄" : "같이 플레이 요청";
+    }
+    if (alert) {
+      alert.classList.toggle("hidden", !incoming);
+      alert.setAttribute("aria-hidden", incoming ? "false" : "true");
+    }
+    if (incoming) {
+      setText("holdem-join-request-text", incoming.nick + "님이 같이 플레이하고 싶어해요");
+    } else {
+      setText("holdem-join-request-text", "");
+    }
+    disable("holdem-join-accept-btn", busy || !incoming || requests.resolve_join_request);
+    disable("holdem-join-decline-btn", busy || !incoming || requests.resolve_join_request);
+  }
+
   function renderControls() {
     var waiting = state.phase === "waiting";
     var completed = state.phase === "complete";
@@ -2341,6 +2444,7 @@ window.TexasHoldem = (function () {
     disable("holdem-next-btn", busy);
     disable("holdem-table-start-btn", busy);
     show("holdem-refill-panel", needsRefill);
+    renderPracticeJoinControls(busy);
     var refillButton = $("holdem-refill-btn");
     if (refillButton) {
       refillButton.textContent = formatChips(state.refillAmount || 20000) + " 충전";
@@ -2568,6 +2672,12 @@ window.TexasHoldem = (function () {
       if (api && typeof api.leaveRoom === "function") api.leaveRoom();
     } else if (id === "holdem-chat-send") {
       sendChat();
+    } else if (id === "holdem-join-request-btn") {
+      requestPracticeJoin();
+    } else if (id === "holdem-join-accept-btn") {
+      resolvePracticeJoin(true);
+    } else if (id === "holdem-join-decline-btn") {
+      resolvePracticeJoin(false);
     } else if (id === "holdem-ready-btn") {
       setReady();
     } else if (id === "holdem-refill-btn") {

@@ -996,6 +996,64 @@ test("AI practice ring tables use temporary chips and stay solo-only", () => {
   assert.equal(botWithGuest.reason, "bots_solo_only");
 });
 
+test("AI practice guests can request and be accepted into a random empty seat", () => {
+  let state = Engine.createTable({
+    roomId: "ai-practice-join-request",
+    ownerNick: "owner",
+    mode: "ring",
+    assetBacked: true,
+    chipUnit: 100,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  });
+  state = apply(state, { type: "join", nick: "owner", requestId: "request:owner" }, 1);
+  state.walletAdjustments = [];
+  state = apply(state, { type: "add_bot", nick: "owner", requestId: "request:bot" }, 2);
+  state.walletAdjustments = [];
+
+  const directJoin = Engine.command(state, {
+    type: "join",
+    nick: "guest",
+    requestId: "request:direct",
+  }, context(3));
+  assert.equal(directJoin.ok, false);
+  assert.equal(directJoin.reason, "practice_ai_only");
+
+  let requested = Engine.command(state, {
+    type: "join_request",
+    nick: "guest",
+    requestId: "request:ask",
+  }, context(4));
+  assert.equal(requested.ok, true, requested.reason);
+  assert.deepEqual(Engine.view(requested.state, "owner").pendingJoinRequests, [{
+    nick: "guest",
+    targetNick: "owner",
+    requestedAt: 4,
+    expiresAt: 60004,
+  }]);
+
+  const accepted = Engine.command(requested.state, {
+    type: "resolve_join_request",
+    nick: "owner",
+    requester: "guest",
+    accepted: true,
+    requestId: "request:accept",
+  }, {
+    now: 5,
+    randomInt: (max) => max - 1,
+  });
+  assert.equal(accepted.ok, true, accepted.reason);
+  const guest = accepted.state.seats.find((player) => player && player.nick === "guest");
+  assert.ok(guest);
+  assert.equal(guest.seat, 5);
+  assert.equal(guest.ready, true);
+  assert.deepEqual(accepted.state.pendingJoinRequests, []);
+  assert.equal(accepted.state.settings.assetBacked, false);
+});
+
 test("stale AI ring tables are forced back to practice before wallet changes", () => {
   let state = Engine.createTable({
     roomId: "stale-ai-practice-ring",
