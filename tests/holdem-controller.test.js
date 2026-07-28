@@ -480,6 +480,63 @@ test("join requests can carry a preferred seat", async () => {
   assert.equal(calls[0].payload.seat, 4);
 });
 
+test("join requests can carry the selected ring buy-in", async () => {
+  const calls = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 1,
+        snapshot: { phase: "waiting", seats: [{ seat: payload.seat, nick: auth.nick, stack: payload.buyIn }] },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  controller._test.setActive(true);
+
+  await controller._test.joinTable(3, 30000);
+
+  assert.equal(calls[0].action, "join");
+  assert.equal(calls[0].payload.seat, 3);
+  assert.equal(calls[0].payload.buyIn, 30000);
+});
+
+test("ring rebuys use a separate wallet-backed server command", async () => {
+  const calls = [];
+  const db = {
+    getHoldemWallet(auth) {
+      calls.push({ auth, action: "wallet", payload: {} });
+      return Promise.resolve({ ok: true, wallet: { balance: 40000, tableBalance: 0, totalAssets: 40000 } });
+    },
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({ ok: true, version: 2, snapshot: { phase: "waiting", seats: [] } });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const state = controller._test.emptyState();
+  state.mode = "ring";
+  state.phase = "complete";
+  state.version = 1;
+  state.heroSeat = 0;
+  state.seats[0] = { seat: 0, nick: "alice", stack: 0 };
+  state.buyInMin = 10000;
+  state.buyInMax = 50000;
+  state.buyInDefault = 30000;
+  controller._test.setState(state);
+  controller._test.setActive(true);
+
+  controller._test.openBuyInDialog("rebuy", 0);
+  await Promise.resolve();
+  await Promise.resolve();
+  controller._test.confirmBuyInDialog();
+
+  assert.equal(calls[0].action, "wallet");
+  assert.equal(calls[1].action, "rebuy");
+  assert.equal(calls[1].payload.amount, 30000);
+});
+
 test("bot add requests can target a clicked empty seat without choosing a personality", async () => {
   const calls = [];
   const db = {
@@ -548,7 +605,7 @@ test("the page loads the strong AI before the controller and exposes exact perso
   assert.match(source, /id === "holdem-bot-fill-btn"[\s\S]*addFiveBots\(\)/);
 
   const addBotFunction = source.match(
-    /function addBot\([^)]*\)\s*\{([\s\S]*?)\n  \}\n\n  function addFiveBots/,
+    /function addBot\([^)]*\)\s*\{([\s\S]*?)\r?\n  \}\r?\n\r?\n  function chooseEmptySeat/,
   );
   assert.ok(addBotFunction, "addBot exists");
   assert.match(addBotFunction[1], /var payload = \{[\s\S]*expectedVersion\s*:/);
@@ -559,7 +616,7 @@ test("the page loads the strong AI before the controller and exposes exact perso
 
 test("the bot-step request sends only optimistic-lock turn coordinates", () => {
   const requestFunction = source.match(
-    /function requestBotStep\(key\)\s*\{([\s\S]*?)\n  \}\n\n  function scheduleBotStep/,
+    /function requestBotStep\(key\)\s*\{([\s\S]*?)\r?\n  \}\r?\n\r?\n  function scheduleBotStep/,
   );
   assert.ok(requestFunction, "requestBotStep exists");
   const invokeMatch = requestFunction[1].match(

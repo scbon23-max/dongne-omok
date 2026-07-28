@@ -105,6 +105,7 @@ const ACTIONS = new Set([
   "bot_step",
   "snapshot",
   "refill",
+  "rebuy",
 ]);
 const OWNER_ACTIONS = new Set(["settings", "add_bot", "remove_bot"]);
 const VERSIONED_ACTIONS = new Set([
@@ -113,6 +114,7 @@ const VERSIONED_ACTIONS = new Set([
   "remove_bot",
   "bot_step",
   "refill",
+  "rebuy",
 ]);
 const HAND_SCOPED_ACTIONS = new Set(["act", "tick"]);
 HAND_SCOPED_ACTIONS.add("bot_step");

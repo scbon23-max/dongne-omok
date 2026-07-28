@@ -812,6 +812,36 @@
       <button id="holdem-refill-btn" type="button">20,000원 충전</button>
     </section>
 
+    <div id="holdem-buyin-backdrop" class="holdem-buyin-backdrop hidden" aria-hidden="true">
+      <section class="holdem-buyin-dialog" role="dialog" aria-modal="true" aria-labelledby="holdem-buyin-title">
+        <button id="holdem-buyin-close" class="holdem-buyin-close" type="button" aria-label="닫기">x</button>
+        <div class="holdem-buyin-head">
+          <span>RING BUY-IN</span>
+          <h2 id="holdem-buyin-title">착석 금액 선택</h2>
+        </div>
+        <dl class="holdem-buyin-summary">
+          <div>
+            <dt>방 금액 범위</dt>
+            <dd id="holdem-buyin-range">10,000원 ~ 20,000원</dd>
+          </div>
+          <div>
+            <dt>사용 가능 자산</dt>
+            <dd id="holdem-buyin-balance">확인 중</dd>
+          </div>
+        </dl>
+        <div class="holdem-buyin-picker">
+          <label for="holdem-buyin-slider">가져갈 금액</label>
+          <strong id="holdem-buyin-amount">20,000원</strong>
+          <input id="holdem-buyin-slider" type="range" min="10000" max="20000" step="100" value="20000">
+        </div>
+        <p id="holdem-buyin-note" class="holdem-buyin-note">선택한 금액만 테이블에 가져가고 나머지는 보유 자산에 남아요.</p>
+        <div class="holdem-buyin-actions">
+          <button id="holdem-buyin-cancel" type="button">취소</button>
+          <button id="holdem-buyin-confirm" type="button">확정</button>
+        </div>
+      </section>
+    </div>
+
     <section id="holdem-result" class="holdem-result-panel hidden" aria-labelledby="holdem-result-title">
       <div class="holdem-result-head">
         <span>HAND RESULT</span>

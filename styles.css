@@ -5037,6 +5037,125 @@ body.is-admin .feedback-user-compose { display: none; }
   font-weight: 900;
 }
 .holdem-refill-panel button:disabled { opacity: .42; }
+.holdem-buyin-backdrop {
+  position: absolute;
+  z-index: 82;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(1,8,10,.56);
+  backdrop-filter: blur(3px);
+}
+.holdem-buyin-dialog {
+  position: relative;
+  width: min(430px, 100%);
+  padding: 18px;
+  border: 1px solid rgba(125,225,196,.24);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(9,32,39,.98), rgba(5,19,25,.98));
+  box-shadow: 0 18px 48px rgba(0,0,0,.56), inset 0 1px 0 rgba(255,255,255,.07);
+  color: #eefbf8;
+}
+.holdem-buyin-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 7px;
+  background: rgba(19,41,50,.94);
+  color: #cfe6e1;
+  font-size: 18px;
+  font-weight: 900;
+}
+.holdem-buyin-head { padding-right: 42px; }
+.holdem-buyin-head span {
+  color: #76dfcb;
+  font-size: 11px;
+  font-weight: 1000;
+  letter-spacing: 2px;
+}
+.holdem-buyin-head h2 {
+  margin: 5px 0 14px;
+  font-size: 24px;
+  line-height: 1.2;
+}
+.holdem-buyin-summary {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.holdem-buyin-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.055);
+}
+.holdem-buyin-summary dt {
+  color: #94bab4;
+  font-size: 11px;
+  font-weight: 800;
+}
+.holdem-buyin-summary dd {
+  margin: 0;
+  color: #f3c879;
+  font-size: 13px;
+  font-weight: 1000;
+  text-align: right;
+}
+.holdem-buyin-picker {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(125,225,196,.16);
+  border-radius: 8px;
+  background: rgba(8,26,32,.82);
+}
+.holdem-buyin-picker label {
+  color: #a9cbc5;
+  font-size: 11px;
+  font-weight: 900;
+}
+.holdem-buyin-picker strong {
+  color: #fff;
+  font-size: 28px;
+  line-height: 1.05;
+}
+.holdem-buyin-picker input[type="range"] {
+  width: 100%;
+  accent-color: #2fc2a8;
+}
+.holdem-buyin-note {
+  min-height: 34px;
+  margin: 10px 2px 14px;
+  color: #a8c6bf;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.holdem-buyin-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 8px;
+}
+.holdem-buyin-actions button {
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(22,45,54,.96);
+  color: #ecf8f5;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 1000;
+}
+.holdem-buyin-actions #holdem-buyin-confirm {
+  border-color: rgba(125,225,196,.34);
+  background: linear-gradient(180deg, #1d9781, #116756);
+}
+.holdem-buyin-actions button:disabled { opacity: .42; }
 .holdem-screen.is-actioning .holdem-action-panel {
   bottom: max(8px, env(safe-area-inset-bottom));
   padding: 0;
@@ -5119,23 +5238,16 @@ body.is-admin .feedback-user-compose { display: none; }
   background: linear-gradient(#3a2e21, #191411);
   color: #ffe3b8;
 }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="eight-pot"] { grid-row: 2; }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="four-pot"] { grid-row: 3; }
 .holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="two-pot"] {
   grid-column: 3;
-  grid-row: 1;
 }
 .holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="allin"] {
   grid-column: 1;
-  grid-row: 1;
   background: linear-gradient(#7d2942, #35121f);
   color: #ffe1ec;
 }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="pot"] { grid-row: 2; }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="three-quarter"] { grid-row: 3; }
 .holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="half"] {
   grid-column: 3;
-  grid-row: 4;
 }
 .holdem-screen.is-actioning .holdem-quick-bets button span,
 .holdem-screen.is-actioning .holdem-quick-bets button strong {

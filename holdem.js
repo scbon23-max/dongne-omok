@@ -53,7 +53,7 @@ window.TexasHoldem = (function () {
   var CLOCK_MS = 250;
   var REFRESH_DEBOUNCE_MS = 90;
   var AUTO_NEXT_HAND_MS = 5000;
-  var RESULT_FINAL_ACTION_MS = 1000;
+  var RESULT_FINAL_ACTION_MS = 2000;
   var RESULT_CARDS_FIRST_MS = 900;
   var RESULT_BOARD_REVEAL_STEP_MS = 900;
   var COMMUNITY_CARD_FLIP_MS = 620;
@@ -108,6 +108,14 @@ window.TexasHoldem = (function () {
   var profileWalletNick = "";
   var profileWalletRequestSeq = 0;
   var profileTargetSeat = -1;
+  var buyInDialogOpen = false;
+  var buyInMode = "join";
+  var buyInSeat = -1;
+  var buyInValue = 0;
+  var buyInWallet = null;
+  var buyInWalletPending = false;
+  var buyInWalletRequestSeq = 0;
+  var autoBuyInKey = "";
   var autoNextTimer = null;
   var autoNextKey = "";
   var autoNextDueAt = 0;
@@ -290,6 +298,9 @@ window.TexasHoldem = (function () {
       practiceMode: false,
       canRefill: false,
       refillAmount: 0,
+      buyInMin: 10000,
+      buyInMax: 20000,
+      buyInDefault: 20000,
       dailyRefillLimit: 0,
       refillsUsedToday: 0,
       refillsRemainingToday: 0,
@@ -937,6 +948,29 @@ window.TexasHoldem = (function () {
         table.refillAmount,
         settings.refillAmount
       ), 0),
+      buyInMin: nonnegative(firstDefined(
+        table.buyInMin,
+        raw.buyInMin,
+        settings.buyInMin,
+        table.bigBlind ? table.bigBlind * 10 : null,
+        10000
+      ), 10000),
+      buyInMax: nonnegative(firstDefined(
+        table.buyInMax,
+        raw.buyInMax,
+        settings.buyInMax,
+        settings.startingStack,
+        table.startingStack,
+        20000
+      ), 20000),
+      buyInDefault: nonnegative(firstDefined(
+        table.buyInDefault,
+        raw.buyInDefault,
+        settings.buyInDefault,
+        settings.startingStack,
+        table.startingStack,
+        20000
+      ), 20000),
       dailyRefillLimit: Math.max(0, integer(firstDefined(
         ringRefill.dailyLimit,
         table.dailyRefillLimit,
@@ -964,6 +998,13 @@ window.TexasHoldem = (function () {
     if (!normalized.handNumber && /^\d+$/.test(normalized.handId)) {
       normalized.handNumber = Number(normalized.handId);
     }
+    normalized.buyInMax = Math.max(normalized.chipUnit, Math.round(normalized.buyInMax / normalized.chipUnit) * normalized.chipUnit);
+    normalized.buyInMin = Math.max(normalized.chipUnit, Math.round(normalized.buyInMin / normalized.chipUnit) * normalized.chipUnit);
+    if (normalized.buyInMin > normalized.buyInMax) normalized.buyInMin = normalized.buyInMax;
+    normalized.buyInDefault = Math.max(normalized.buyInMin, Math.min(
+      normalized.buyInMax,
+      Math.round(normalized.buyInDefault / normalized.chipUnit) * normalized.chipUnit
+    ));
     return normalized;
   }
 
@@ -1403,10 +1444,13 @@ window.TexasHoldem = (function () {
     }, REFRESH_DEBOUNCE_MS);
   }
 
-  function joinTable(preferredSeat) {
+  function joinTable(preferredSeat, buyInAmount) {
     var payload = {};
     var seat = safeSeat(preferredSeat);
     if (seat >= 0) payload.seat = seat;
+    if (Number.isFinite(Number(buyInAmount)) && Number(buyInAmount) > 0) {
+      payload.buyIn = Math.max(0, Math.round(Number(buyInAmount)));
+    }
     return invoke("join", payload, {
       key: "join",
       label: "join",
@@ -1625,6 +1669,18 @@ window.TexasHoldem = (function () {
     });
   }
 
+  function rebuyRingChips(amount) {
+    if (requests.rebuy) return Promise.resolve({ ok: false, reason: "busy" });
+    return invoke("rebuy", {
+      amount: Math.max(0, Math.round(Number(amount) || 0)),
+      expectedVersion: state.version
+    }, {
+      key: "rebuy",
+      label: "rebuy",
+      broadcast: true
+    });
+  }
+
   function addBot(options) {
     options = options || {};
     if (!state.canManageBots || state.botCount >= MAX_SEATS) return;
@@ -1650,6 +1706,10 @@ window.TexasHoldem = (function () {
     if (targetSeat < 0 || state.seats[targetSeat] || isHandActive(state.phase)) return;
     if (seatedAloneWithBotsEnabled()) {
       if (!requests.bot_manage) addBot({ seat: targetSeat });
+      return;
+    }
+    if (state.mode === "ring") {
+      openBuyInDialog("join", targetSeat);
       return;
     }
     if (!requests.join) joinTable(targetSeat);
@@ -2018,6 +2078,159 @@ window.TexasHoldem = (function () {
     });
   }
 
+  function tableBuyInBounds(wallet) {
+    var unit = Math.max(100, integer(state.chipUnit, 100));
+    var tableMin = Math.max(unit, Math.round(nonnegative(state.buyInMin, unit) / unit) * unit);
+    var tableMax = Math.max(tableMin, Math.round(nonnegative(state.buyInMax, state.startingStack || tableMin) / unit) * unit);
+    var walletBalance = wallet && Number.isFinite(Number(wallet.balance))
+      ? Math.max(0, Math.floor(Number(wallet.balance)))
+      : tableMax;
+    var max = Math.max(0, Math.min(tableMax, Math.floor(walletBalance / unit) * unit));
+    var defaultAmount = Math.max(tableMin, Math.min(
+      tableMax,
+      Math.round(nonnegative(state.buyInDefault, tableMax) / unit) * unit
+    ));
+    if (max >= tableMin) defaultAmount = Math.min(defaultAmount, max);
+    return {
+      unit: unit,
+      min: tableMin,
+      max: tableMax,
+      selectableMax: max,
+      defaultAmount: defaultAmount,
+      walletBalance: walletBalance
+    };
+  }
+
+  function normalizeBuyInAmount(value) {
+    var bounds = tableBuyInBounds(buyInWallet);
+    var amount = Math.round(nonnegative(value, bounds.defaultAmount) / bounds.unit) * bounds.unit;
+    var max = bounds.selectableMax >= bounds.min ? bounds.selectableMax : bounds.max;
+    return Math.max(bounds.min, Math.min(max, amount));
+  }
+
+  function loadBuyInWallet() {
+    var currentAuth = auth();
+    if (!window.Db || typeof Db.getHoldemWallet !== "function" || !currentAuth.hash || !currentAuth.nick) {
+      buyInWallet = { balance: state.buyInMax || state.startingStack || 0, tableBalance: 0, totalAssets: state.buyInMax || 0 };
+      buyInWalletPending = false;
+      renderBuyInDialog();
+      return Promise.resolve(buyInWallet);
+    }
+    var seq = ++buyInWalletRequestSeq;
+    buyInWalletPending = true;
+    renderBuyInDialog();
+    return Promise.resolve(Db.getHoldemWallet(currentAuth)).then(function (result) {
+      if (seq !== buyInWalletRequestSeq) return null;
+      var wallet = result && result.ok && isObject(result.wallet) ? result.wallet : null;
+      buyInWalletPending = false;
+      buyInWallet = wallet
+        ? {
+          balance: Math.max(0, Math.floor(Number(wallet.balance) || Number(wallet.availableBalance) || 0)),
+          tableBalance: Math.max(0, Math.floor(Number(wallet.tableBalance) || 0)),
+          totalAssets: Math.max(0, Math.floor(Number(wallet.totalAssets) || 0))
+        }
+        : null;
+      if (buyInMode === "rebuy" && buyInWallet && buyInWallet.balance <= 0) {
+        closeBuyInDialog();
+        renderControls();
+        return buyInWallet;
+      }
+      buyInValue = normalizeBuyInAmount(buyInValue);
+      renderBuyInDialog();
+      return buyInWallet;
+    }, function () {
+      if (seq !== buyInWalletRequestSeq) return null;
+      buyInWalletPending = false;
+      buyInWallet = null;
+      renderBuyInDialog();
+      return null;
+    });
+  }
+
+  function openBuyInDialog(mode, seat) {
+    buyInMode = mode === "rebuy" ? "rebuy" : "join";
+    buyInSeat = safeSeat(seat);
+    buyInDialogOpen = true;
+    buyInWallet = null;
+    buyInValue = tableBuyInBounds(null).defaultAmount;
+    renderBuyInDialog();
+    loadBuyInWallet();
+  }
+
+  function closeBuyInDialog() {
+    buyInDialogOpen = false;
+    buyInSeat = -1;
+    buyInWalletPending = false;
+    renderBuyInDialog();
+  }
+
+  function setBuyInValue(value) {
+    buyInValue = normalizeBuyInAmount(value);
+    renderBuyInDialog();
+  }
+
+  function confirmBuyInDialog() {
+    if (!buyInDialogOpen || buyInWalletPending) return;
+    var bounds = tableBuyInBounds(buyInWallet);
+    if (bounds.selectableMax < bounds.min) {
+      closeBuyInDialog();
+      renderControls();
+      return;
+    }
+    var amount = normalizeBuyInAmount(buyInValue);
+    var action = buyInMode;
+    var seat = buyInSeat;
+    closeBuyInDialog();
+    if (action === "rebuy") {
+      rebuyRingChips(amount);
+    } else if (!requests.join) {
+      joinTable(seat, amount);
+    }
+  }
+
+  function renderBuyInDialog() {
+    var backdrop = $("holdem-buyin-backdrop");
+    if (!backdrop) return;
+    var bounds = tableBuyInBounds(buyInWallet);
+    var lacksAssets = !!buyInWallet && bounds.selectableMax < bounds.min;
+    var title = buyInMode === "rebuy" ? "다시 참여할 금액" : "착석 금액 선택";
+    backdrop.classList.toggle("hidden", !buyInDialogOpen);
+    backdrop.setAttribute("aria-hidden", buyInDialogOpen ? "false" : "true");
+    setText("holdem-buyin-title", title);
+    setText("holdem-buyin-range", formatChips(bounds.min) + " ~ " + formatChips(bounds.max));
+    setText("holdem-buyin-balance", buyInWalletPending
+      ? "확인 중"
+      : buyInWallet
+        ? formatAsset(buyInWallet.balance)
+        : "확인 불가");
+    setText("holdem-buyin-amount", formatChips(buyInValue || bounds.defaultAmount));
+    setText("holdem-buyin-note", lacksAssets
+      ? "보유 자산이 부족해 무료 충전을 사용할 수 있어요."
+      : "선택한 금액만 테이블에 가져가고 나머지는 보유 자산에 남아요.");
+    var slider = $("holdem-buyin-slider");
+    if (slider) {
+      slider.min = String(bounds.min);
+      slider.max = String(Math.max(bounds.min, bounds.selectableMax || bounds.max));
+      slider.step = String(bounds.unit);
+      slider.value = String(normalizeBuyInAmount(buyInValue || bounds.defaultAmount));
+      slider.disabled = buyInWalletPending || lacksAssets;
+    }
+    disable("holdem-buyin-confirm", buyInWalletPending || lacksAssets || (buyInMode === "join" && buyInSeat < 0));
+  }
+
+  function maybeAutoOpenRebuyDialog() {
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    var needsRebuy = state.mode === "ring" && !!hero && hero.stack <= 0 && !isHandActive(state.phase);
+    if (!needsRebuy || buyInDialogOpen || requests.rebuy || requests.refill) {
+      if (!needsRebuy) autoBuyInKey = "";
+      return;
+    }
+    var key = String(state.version) + ":" + String(state.heroSeat) + ":" + String(state.handId || state.handNumber);
+    if (autoBuyInKey === key) return;
+    autoBuyInKey = key;
+    openBuyInDialog("rebuy", state.heroSeat);
+  }
+
   function renderProfileDialog() {
     var backdrop = $("holdem-profile-backdrop");
     if (!backdrop) return;
@@ -2243,6 +2456,8 @@ window.TexasHoldem = (function () {
     var nick = text(me().nick, 40);
     var winners = Object.create(null);
     state.winners.forEach(function (winner) { winners[winner] = true; });
+    var stage = resultStage();
+    var revealWinner = state.phase !== "complete" || stage === "announced";
     var html = [];
 
     for (var absolute = 0; absolute < MAX_SEATS; absolute++) {
@@ -2259,7 +2474,7 @@ window.TexasHoldem = (function () {
       if (seat && seat.away) classes.push("is-away");
       if (seat && seat.isBot) classes.push("is-bot");
       var isWinner = !!(seat && (seat.winner || winners[seat.nick]));
-      if (isWinner) classes.push("is-winner");
+      if (isWinner && revealWinner) classes.push("is-winner");
 
       var name = seat ? (seat.displayName || seat.nick) : "";
       var status = seat ? seatStatus(seat) : "";
@@ -2296,7 +2511,7 @@ window.TexasHoldem = (function () {
         }
       }
       var resultBadge = "";
-      if (seat && isWinner && state.phase === "complete" && resultStage() !== "cards") {
+      if (seat && isWinner && state.phase === "complete" && stage === "announced") {
         var won = animatedWinAmount(absolute);
         resultBadge = '<div class="holdem-winner-result" aria-hidden="true">' +
           (won > 0 ? '<span class="holdem-win-gain">+' + esc(formatChips(won)) + '</span>' : "") +
@@ -2714,8 +2929,11 @@ window.TexasHoldem = (function () {
     renderPracticeJoinControls(busy);
     var refillButton = $("holdem-refill-btn");
     if (refillButton) {
-      refillButton.textContent = formatChips(state.refillAmount || 20000) + " 충전";
-      refillButton.disabled = busy || !state.canRefill;
+      var knownFreeRefill = buyInWallet && buyInWallet.balance <= 0;
+      refillButton.textContent = knownFreeRefill
+        ? formatChips(state.refillAmount || 20000) + " 무료 충전"
+        : "금액 선택";
+      refillButton.disabled = busy || (knownFreeRefill && !state.canRefill);
     }
     if (needsRefill) {
       var refillStatus = state.practiceMode
@@ -2878,7 +3096,9 @@ window.TexasHoldem = (function () {
     renderHandResult();
     renderAnnouncer();
     renderControls();
+    renderBuyInDialog();
     renderTimer();
+    maybeAutoOpenRebuyDialog();
     scheduleBotStep();
     scheduleAutoReadyForNextHand();
     scheduleAutoNextHand();
@@ -2916,6 +3136,10 @@ window.TexasHoldem = (function () {
       closeProfileDialog();
       return;
     }
+    if (event.target.id === "holdem-buyin-backdrop") {
+      closeBuyInDialog();
+      return;
+    }
     var profileSeat = event.target.closest(".holdem-seat:not(.is-empty)");
     if (profileSeat && screen.contains(profileSeat)) {
       openProfileDialog(profileSeat.getAttribute("data-seat"));
@@ -2934,6 +3158,10 @@ window.TexasHoldem = (function () {
     if (id === "holdem-settings-btn") {
       settingsOpen = !settingsOpen;
       renderSettings();
+    } else if (id === "holdem-buyin-close" || id === "holdem-buyin-cancel") {
+      closeBuyInDialog();
+    } else if (id === "holdem-buyin-confirm") {
+      confirmBuyInDialog();
     } else if (id === "holdem-profile-close") {
       closeProfileDialog();
     } else if (id === "holdem-profile-avatar-remove") {
@@ -2964,7 +3192,12 @@ window.TexasHoldem = (function () {
     } else if (id === "holdem-ready-btn") {
       setReady();
     } else if (id === "holdem-refill-btn") {
-      refillRingChips();
+      var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+      if (state.mode === "ring" && hero && hero.stack <= 0 && (!buyInWallet || buyInWallet.balance > 0)) {
+        openBuyInDialog("rebuy", state.heroSeat);
+      } else {
+        refillRingChips();
+      }
     } else if (id === "holdem-bot-add-btn") {
       addBot();
     } else if (id === "holdem-bot-fill-btn") {
@@ -3003,6 +3236,8 @@ window.TexasHoldem = (function () {
   function onRootInput(event) {
     if (event.target && event.target.id === "holdem-raise-slider") {
       setRaiseValue(event.target.value);
+    } else if (event.target && event.target.id === "holdem-buyin-slider") {
+      setBuyInValue(event.target.value);
     }
   }
 
@@ -3017,6 +3252,10 @@ window.TexasHoldem = (function () {
   function onRootKeydown(event) {
     if (event.key === "Escape" && profileDialogOpen) {
       closeProfileDialog();
+      return;
+    }
+    if (event.key === "Escape" && buyInDialogOpen) {
+      closeBuyInDialog();
       return;
     }
     if (event.key === "Escape" && settingsOpen) {
@@ -3296,6 +3535,8 @@ window.TexasHoldem = (function () {
       relativeSeat: relativeSeat,
       requestId: requestId,
       joinTable: joinTable,
+      openBuyInDialog: openBuyInDialog,
+      confirmBuyInDialog: confirmBuyInDialog,
       addBot: addBot,
       chooseEmptySeat: chooseEmptySeat,
       applySnapshot: applySnapshot,

@@ -187,6 +187,9 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-action-panel",
     "holdem-refill-panel",
     "holdem-refill-btn",
+    "holdem-buyin-backdrop",
+    "holdem-buyin-slider",
+    "holdem-buyin-confirm",
     "holdem-fold-btn",
     "holdem-check-btn",
     "holdem-call-btn",
@@ -351,13 +354,10 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets\s*\{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[\s\S]*grid-auto-rows: minmax\(52px, auto\);[\s\S]*gap: 8px/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet-tier="over"\] \{[\s\S]*grid-column: 1/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\s*\{[\s\S]*pointer-events: auto/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="allin"\] \{[\s\S]*grid-column: 1[\s\S]*grid-row: 1/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="eight-pot"\] \{ grid-row: 2; \}/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="four-pot"\] \{ grid-row: 3; \}/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="two-pot"\]\s*\{[\s\S]*grid-column: 3;[\s\S]*grid-row: 1/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="pot"\] \{ grid-row: 2; \}/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="three-quarter"\] \{ grid-row: 3; \}/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="half"\]\s*\{[\s\S]*grid-column: 3;[\s\S]*grid-row: 4/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="allin"\] \{[\s\S]*grid-column: 1/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="two-pot"\]\s*\{[\s\S]*grid-column: 3/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="half"\]\s*\{[\s\S]*grid-column: 3/);
+  assert.doesNotMatch(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet(?:-tier)?="(?:allin|eight-pot|four-pot|two-pot|pot|three-quarter|half|over)"\][^{]*\{[^}]*grid-row:/);
   assert.match(styles, /\.holdem-screen\.is-raise-menu-open #holdem-bet-btn,[\s\S]*#holdem-raise-btn\s*\{[\s\S]*visibility: hidden/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-chat-row \{[\s\S]*opacity: 0/);
 });
@@ -369,7 +369,7 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /show\("holdem-lobby", false\)/);
   assert.match(controller, /refreshSnapshot\("enter", true\)/);
   assert.doesNotMatch(controller, /startTimers\(\);\s*joinTable\(\);/);
-  assert.match(controller, /function chooseEmptySeat\(seatIndex\)[\s\S]*addBot\(\{ seat: targetSeat \}\)[\s\S]*joinTable\(targetSeat\)/);
+  assert.match(controller, /function chooseEmptySeat\(seatIndex\)[\s\S]*addBot\(\{ seat: targetSeat \}\)[\s\S]*openBuyInDialog\("join", targetSeat\)/);
   assert.match(engine, /ready:\s*stack > 0/);
   assert.match(engine, /function startHand\(state, now, context\)[\s\S]*!player\.leaving && player\.stack > 0/);
   assert.match(controller, /function ensureSeatControls\(\)[\s\S]*appendChild\(button\)/);
@@ -391,9 +391,12 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-winner-edge-nudge\)\)/);
   assert.match(styles, /\.holdem-screen\.is-settling-pot \.holdem-seat\.is-winner \.holdem-seat-avatar/);
   assert.match(controller, /var RESULT_CARDS_FIRST_MS = 900/);
-  assert.match(controller, /var RESULT_FINAL_ACTION_MS = 1000/);
+  assert.match(controller, /var RESULT_FINAL_ACTION_MS = 2000/);
   assert.match(controller, /function resultStage\(\)[\s\S]*resultFlow\.actionUntil[\s\S]*return "action"/);
   assert.match(controller, /isBetweenHands\(state\.phase\) && resultStage\(\) !== "action"/);
+  assert.match(controller, /var stage = resultStage\(\);[\s\S]*var revealWinner = state\.phase !== "complete" \|\| stage === "announced"/);
+  assert.match(controller, /if \(isWinner && revealWinner\) classes\.push\("is-winner"\)/);
+  assert.match(controller, /state\.phase === "complete" && stage === "announced"/);
   assert.match(controller, /var RESULT_BOARD_REVEAL_STEP_MS = 900/);
   assert.match(controller, /function resultBoardVisibleCount\(\)[\s\S]*resultFlow\.initialBoardCount/);
   assert.match(controller, /function animatedPotAmount\(\)/);

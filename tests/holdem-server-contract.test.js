@@ -320,6 +320,7 @@ test("ring refills are account-wide, Korea-day limited, and atomic with the tabl
     /grant execute on function public\.holdem_ring_refill_compare_and_swap\(text,bigint,jsonb,text,text\)[\s\S]*to service_role/i
   );
   assert.match(edge, /"refill"/);
+  assert.match(edge, /"rebuy"/);
   assert.match(edge, /internalRefill: action === "refill"/);
   assert.match(edge, /client\.rpc\(\s*"holdem_ring_refill_compare_and_swap"/s);
   assert.match(edge, /\.from\("holdem_ring_refills"\)/);

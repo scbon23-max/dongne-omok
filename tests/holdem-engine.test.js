@@ -880,6 +880,59 @@ test("100-chip ring tables debit buy-ins, cash out exits, and reject odd bet siz
   assert.equal(oddRaise.reason, "chip_unit");
 });
 
+test("ring joins and bust rebuys can choose an in-room buy-in amount", () => {
+  const options = {
+    mode: "ring",
+    assetBacked: true,
+    chipUnit: 100,
+    startingStack: 50000,
+    smallBlind: 300,
+    bigBlind: 600,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  };
+  let state = Engine.createTable({
+    roomId: "rebuy-ring",
+    ownerNick: "owner",
+    ...options,
+  });
+  let joined = Engine.command(state, {
+    type: "join",
+    nick: "owner",
+    seat: 2,
+    buyIn: 30000,
+    requestId: "wallet:join-selected",
+  }, context(1));
+  assert.equal(joined.ok, true);
+  assert.equal(joined.state.seats[2].stack, 30000);
+  assert.deepEqual(
+    joined.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    [{ nickname: "owner", delta: -30000 }],
+  );
+
+  state = joined.state;
+  state.walletAdjustments = [];
+  state.seats[2].stack = 0;
+  state.ringStacks.owner = 0;
+  const rebuy = Engine.command(state, {
+    type: "rebuy",
+    nick: "owner",
+    amount: 40000,
+    requestId: "wallet:rebuy-selected",
+  }, context(2));
+  assert.equal(rebuy.ok, true, rebuy.reason);
+  assert.equal(rebuy.state.seats[2].stack, 40000);
+  assert.equal(rebuy.state.seats[2].ready, true);
+  assert.deepEqual(
+    rebuy.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    [{ nickname: "owner", delta: -40000 }],
+  );
+  const view = Engine.view(rebuy.state, "owner");
+  assert.equal(view.buyInMin, 10000);
+  assert.equal(view.buyInMax, 50000);
+  assert.equal(view.buyInDefault, 50000);
+});
+
 test("a 200 BB ring room keeps the free bust refill at 20,000 chips", () => {
   let state = tableWithPlayers(["owner", "guest"], {
     mode: "ring",

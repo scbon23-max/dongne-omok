@@ -577,6 +577,41 @@
     });
   }
 
+  function ringBuyInBounds(state) {
+    var unit = normalizedChipUnit(state && state.settings && state.settings.chipUnit);
+    var max = roundToChipUnit(
+      clamp(
+        state && state.settings && state.settings.startingStack,
+        unit,
+        100000000,
+        10000
+      ),
+      unit
+    );
+    var blindMin = roundToChipUnit(
+      clamp(
+        state && state.settings && state.settings.bigBlind
+          ? state.settings.bigBlind * 10
+          : unit,
+        unit,
+        max,
+        Math.min(max, 10000)
+      ),
+      unit
+    );
+    var min = Math.min(max, Math.max(unit, 10000, blindMin));
+    return { min: min, max: max, defaultAmount: max, unit: unit };
+  }
+
+  function requestedRingBuyIn(state, cmd) {
+    var bounds = ringBuyInBounds(state);
+    var raw = cmd && (cmd.buyIn != null ? cmd.buyIn : cmd.amount);
+    var amount = raw == null ? bounds.defaultAmount : Number(raw);
+    if (!Number.isFinite(amount)) amount = bounds.defaultAmount;
+    amount = roundToChipUnit(amount, bounds.unit);
+    return clamp(amount, bounds.min, bounds.max, bounds.defaultAmount);
+  }
+
   function updateBlindLevel(state, now) {
     if (state.settings.mode === "ring") {
       state.settings.smallBlind = state.settings.initialSmallBlind;
@@ -1349,9 +1384,11 @@
           else if (next.seats[seat]) result = { ok: false, reason: "seat_taken" };
           else {
             var hasSavedRingStack = next.settings.mode === "ring" &&
-              own(next.ringStacks, nick);
-            var joinStack = hasSavedRingStack
-              ? clamp(next.ringStacks[nick], 0, 100000000, next.settings.startingStack)
+              own(next.ringStacks, nick) && Number(next.ringStacks[nick]) > 0;
+            var joinStack = next.settings.mode === "ring"
+              ? (hasSavedRingStack
+                ? clamp(next.ringStacks[nick], 0, 100000000, next.settings.startingStack)
+                : requestedRingBuyIn(next, cmd))
               : next.settings.startingStack;
             next.seats[seat] = createPlayer(nick, seat, joinStack, now);
             if (next.settings.mode === "ring") {
@@ -1504,6 +1541,38 @@
             type: "ring_refilled",
             nick: nick,
             amount: next.settings.refillAmount,
+            at: now
+          };
+          result = { ok: true };
+          changed = true;
+        }
+      } else if (type === "rebuy") {
+        player = playerByNick(next, nick);
+        if (next.settings.mode !== "ring") result = { ok: false, reason: "ring_only" };
+        else if (!player || player.isBot) result = { ok: false, reason: "not_joined" };
+        else if (PLAYING_PHASES[next.phase]) result = { ok: false, reason: "hand_active" };
+        else if (player.stack > 0) result = { ok: false, reason: "refill_not_needed" };
+        else {
+          var rebuyAmount = requestedRingBuyIn(next, cmd);
+          player.stack = rebuyAmount;
+          player.ready = true;
+          player.waiting = true;
+          player.inHand = false;
+          player.folded = false;
+          player.allIn = false;
+          player.streetBet = 0;
+          player.totalBet = 0;
+          player.cards = [];
+          player.revealed = false;
+          player.lastAction = "";
+          player.lastActionBet = null;
+          player.winAmount = 0;
+          next.ringStacks[nick] = rebuyAmount;
+          addWalletAdjustment(next, nick, -rebuyAmount, "rebuy");
+          next.lastEvent = {
+            type: "ring_rebuy",
+            nick: nick,
+            amount: rebuyAmount,
             at: now
           };
           result = { ok: true };
@@ -1793,6 +1862,9 @@
       viewerPlayer.stack > 0 && readyEligible.length >= 2;
     var actorPlayer = state.actorSeat == null ? null : state.seats[state.actorSeat];
     var actorIsBot = !!(actorPlayer && actorPlayer.isBot);
+    var buyInBounds = state.settings.mode === "ring"
+      ? ringBuyInBounds(state)
+      : { min: state.settings.startingStack, max: state.settings.startingStack, defaultAmount: state.settings.startingStack };
     var winnerNicks = [];
     state.pots.forEach(function (pot) {
       (pot.winners || []).forEach(function (seat) {
@@ -1814,6 +1886,9 @@
       canRefill: state.settings.mode === "ring" && !!viewerPlayer &&
         !viewerPlayer.isBot && viewerPlayer.stack <= 0 && !PLAYING_PHASES[state.phase],
       refillAmount: state.settings.refillAmount,
+      buyInMin: buyInBounds.min,
+      buyInMax: buyInBounds.max,
+      buyInDefault: buyInBounds.defaultAmount,
       dailyRefillLimit: state.settings.dailyRefillLimit,
       seats: state.seats.map(function (player) { return publicPlayer(player, viewerPlayer, revealAll); }),
       handNo: state.handNo,
