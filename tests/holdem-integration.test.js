@@ -232,6 +232,9 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /readProfileAvatar\(seat\.nick\)/);
   assert.match(controller, /event\.target\.closest\("\.holdem-seat:not\(\.is-empty\)"\)/);
   assert.match(styles, /\.holdem-seat-avatar-name\s*\{[\s\S]*-webkit-line-clamp:\s*2/);
+  assert.match(styles, /\.holdem-seat\.is-folded\s*\{\s*opacity:\s*1;\s*filter:\s*none;\s*\}/);
+  assert.match(styles, /\.holdem-seat\.is-folded \.holdem-seat-avatar,[\s\S]*\.holdem-seat\.is-folded \.holdem-hole-cards \.holdem-card\s*\{[\s\S]*filter:\s*grayscale\(1\)/);
+  assert.doesNotMatch(styles, /\.holdem-seat\.is-folded\s*\{[^}]*opacity:\s*\.(?:[0-9]+)/);
   assert.match(styles, /\.create-holdem-wallet small\s*\{[\s\S]*display:\s*none/);
   assert.match(index, /class="create-holdem-wallet holdem-profile-wallet"/);
   assert.match(controller, /Db\.getHoldemWallet\(currentAuth\)/);
