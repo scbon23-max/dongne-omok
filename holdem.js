@@ -1802,8 +1802,8 @@ window.TexasHoldem = (function () {
       bet: "베팅" + amount,
       raise: "레이즈" + amount,
       allin: "올인",
-      small_blind: "SB " + formatChips(seat.bet || state.smallBlind),
-      big_blind: "BB " + formatChips(seat.bet || state.bigBlind)
+      small_blind: formatChips(seat.bet || state.smallBlind),
+      big_blind: formatChips(seat.bet || state.bigBlind)
     };
     return labels[seat.lastAction] || "";
   }
@@ -1932,8 +1932,6 @@ window.TexasHoldem = (function () {
         : (seatedAloneWithBotsEnabled() ? "빈 좌석, AI 추가" : "빈 좌석, 앉기");
       var badges = "";
       if (absolute === state.dealerSeat) badges += "<span>D</span>";
-      if (absolute === state.smallBlindSeat) badges += "<span>SB</span>";
-      if (absolute === state.bigBlindSeat) badges += "<span>BB</span>";
 
       var holes = "";
       var holesClass = "holdem-hole-cards";
