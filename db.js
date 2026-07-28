@@ -349,6 +349,10 @@ window.Db = (function () {
   async function addChatMsg(room, nick, text) {
     if (sb) return sb.from("chat").insert({ room: room, nick: nick, text: text });
   }
+  async function deleteChatRoom(room) {
+    room = String(room || "").trim();
+    if (sb && room) return sb.from("chat").delete().eq("room", room);
+  }
   function activityText(value, limit) {
     return String(value || "").trim().slice(0, limit);
   }
@@ -577,7 +581,8 @@ window.Db = (function () {
     getHoldemAssetRankingDetail: getHoldemAssetRankingDetail,
     getGames: getGames, getGamesByType: getGamesByType,
     getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves, deleteGame: deleteGame,
-    addChatMsg: addChatMsg, getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,
+    addChatMsg: addChatMsg, deleteChatRoom: deleteChatRoom,
+    getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,
     recordActivity: recordActivity, getActivityLogs: getActivityLogs,
     submitFeedback: submitFeedback, completeFeedback: completeFeedback, getFeedbackPosts: getFeedbackPosts,
     getFeedbackNotifications: getFeedbackNotifications,

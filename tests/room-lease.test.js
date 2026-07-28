@@ -51,6 +51,8 @@ test("room creation claims, renews, and releases the account lease", () => {
   assert.match(game, /setInterval\(renewOwnedRoomLease, 15000\)/);
   assert.match(game, /releaseOwnedRoomLease\(leavingId\)/);
   assert.match(game, /reason === "already_owned"/);
+  assert.match(game, /function deleteRoomChat\(roomId\)[\s\S]*Db\.deleteChatRoom\("r:" \+ roomId\)/);
+  assert.match(game, /wasHostHere && wasAlone\) \{ broadcastRoomClose\(leavingId, leavingGame\); deleteRoomChat\(leavingId\); \}/);
 });
 
 test("a refresh restores the same owned room instead of leaving an invisible lease", () => {
@@ -139,6 +141,41 @@ test("database room lease calls include account proof and lease identity", async
   assert.equal(calls[0].body.token, lease.token);
   assert.equal(calls[0].body.roomName, lease.roomName);
   assert.equal(calls[0].body.game, lease.game);
+});
+
+test("database chat cleanup deletes the closed room namespace only", async () => {
+  const calls = [];
+  const context = {
+    window: {
+      SB: {
+        from(table) {
+          return {
+            delete() {
+              calls.push({ table, action: "delete" });
+              return {
+                eq(column, value) {
+                  calls.push({ column, value });
+                  return Promise.resolve({ error: null });
+                }
+              };
+            }
+          };
+        }
+      }
+    },
+    console,
+    crypto: { subtle: {} },
+    TextEncoder
+  };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(root, "db.js"), "utf8"), context, { filename: "db.js" });
+
+  await context.window.Db.deleteChatRoom("r:room-1");
+
+  assert.deepEqual(calls, [
+    { table: "chat", action: "delete" },
+    { column: "room", value: "r:room-1" }
+  ]);
 });
 
 test("ring room claims carry a validated 100-chip buy-in", async () => {

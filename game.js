@@ -826,6 +826,10 @@
       Net.sendLobby({ t: "room_close", id: roomId });
     }
   }
+  function deleteRoomChat(roomId) {
+    if (!window.Db || !Db.deleteChatRoom || !roomId) return;
+    Promise.resolve(Db.deleteChatRoom("r:" + roomId)).catch(function () {});
+  }
   function renderRoomList() {
     var box = $("room-list"); if (!box) return;
     var list = Object.keys(rooms).map(function (k) { return rooms[k]; })
@@ -892,7 +896,7 @@
     if (inActiveGame()) { toast("게임 중엔 다른 방으로 이동할 수 없어요"); return; }
     var wasAlone = !netMode || roster.length <= 1, wasHostHere = amHost, leavingId = curRoomId, leavingGame = curRoomGame;
     var leavingActivity = currentRoomActivity();
-    if (wasHostHere && wasAlone) broadcastRoomClose(leavingId, leavingGame);
+    if (wasHostHere && wasAlone) { broadcastRoomClose(leavingId, leavingGame); deleteRoomChat(leavingId); }
     if (enterRoom(r.id, r.game, r.name)) {
       releaseOwnedRoomLease(leavingId);
       logRoomLeave(leavingActivity);
@@ -1137,7 +1141,7 @@
     setTimeout(function () {
       if (netMode && leavingId) Net.send({ t: "room_leave", nick: me.nick });
       setTimeout(function () {
-        if (wasHostHere && wasAlone) broadcastRoomClose(leavingId, leavingGame);
+        if (wasHostHere && wasAlone) { broadcastRoomClose(leavingId, leavingGame); deleteRoomChat(leavingId); }
         Net.leaveRoom(); netMode = false; hostNick = null; hostSessionId = ""; amHost = false; wasHost = false;
         roomHostEligible = true;
         document.body.classList.remove("is-host"); document.body.classList.remove("is-player");
@@ -2109,10 +2113,30 @@
     if (!window.Db || !curRoomId) return;
     var g = activeFamily();
     var panel = gameUi(g).chatLogId;
-    if (!panel) return;
     Db.getChatHistory(chatRoomOf(curGame), 200).then(function (msgs) {
       if (msgs.length) oldestChatTs = msgs[0].created_at;
       if (msgs.length < 200) noMoreChat = true;
+      if (!panel && g === "holdem") {
+        var holdemHistCount = {};
+        var holdemMerged = [];
+        msgs.forEach(function (m) {
+          holdemMerged.push({ game: "holdem", who: m.nick, text: m.text });
+          var hk = m.nick + "\u0001" + m.text;
+          holdemHistCount[hk] = (holdemHistCount[hk] || 0) + 1;
+        });
+        sessionChat.forEach(function (sc) {
+          if (sc.game !== "holdem") return;
+          var hk = sc.who + "\u0001" + sc.text;
+          if (holdemHistCount[hk] > 0) { holdemHistCount[hk]--; return; }
+          holdemMerged.push(sc);
+        });
+        sessionChat = sessionChat.filter(function (sc) { return sc.game !== "holdem"; });
+        holdemMerged.forEach(function (sc) { sessionChat.push(sc); });
+        if (sessionChat.length > 300) sessionChat = sessionChat.slice(sessionChat.length - 300);
+        renderHoldemChatHistory();
+        return;
+      }
+      if (!panel) return;
       var log = $(panel); if (!log) return;
       log.innerHTML = "";
       var histCount = {};

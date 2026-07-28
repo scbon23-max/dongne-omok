@@ -571,6 +571,14 @@ test("Hold'em chat focus scrolls previous chat lines above the keyboard", () => 
   assert.match(index, /id="holdem-chat-overlay"/);
   assert.match(index, /id="holdem-chat-input"/);
   assert.match(game, /function renderHoldemChatHistory\(\)/);
+  assert.match(game, /Db\.getChatHistory\(chatRoomOf\(curGame\), 200\)/);
+  assert.match(game, /!panel && g === "holdem"/);
+  assert.match(game, /var holdemHistCount = \{\}/);
+  assert.match(game, /var holdemMerged = \[\]/);
+  assert.match(game, /sessionChat = sessionChat\.filter\(function \(sc\) \{ return sc\.game !== "holdem"; \}\)/);
+  assert.match(game, /holdemMerged\.push\(\{ game: "holdem", who: m\.nick, text: m\.text \}\)/);
+  assert.match(game, /holdemMerged\.forEach\(function \(sc\) \{ sessionChat\.push\(sc\); \}\)/);
+  assert.match(game, /renderHoldemChatHistory\(\);\s*return;/);
   assert.match(game, /var history = \[\]/);
   assert.match(game, /row\.game !== "holdem"/);
   assert.match(game, /overlay\.scrollTop = overlay\.scrollHeight/);
