@@ -2925,6 +2925,13 @@ window.TexasHoldem = (function () {
     return Math.max(bounds.min, Math.min(max, amount));
   }
 
+  function displayedBuyInBalance(bounds, newGame) {
+    if (newGame || !buyInWallet) return null;
+    var selected = normalizeBuyInAmount(buyInValue || bounds.defaultAmount);
+    var walletBalance = Math.max(0, Math.floor(Number(buyInWallet.balance) || 0));
+    return Math.max(0, walletBalance - selected);
+  }
+
   function loadBuyInWallet() {
     var currentAuth = auth();
     if (!window.Db || typeof Db.getHoldemWallet !== "function" || !currentAuth.hash || !currentAuth.nick) {
@@ -3060,7 +3067,7 @@ window.TexasHoldem = (function () {
       : buyInWalletPending
       ? "확인 중"
       : buyInWallet
-        ? formatAsset(buyInWallet.balance)
+        ? formatAsset(displayedBuyInBalance(bounds, newGame))
         : "확인 불가");
     setText("holdem-buyin-amount", formatChips(buyInValue || bounds.defaultAmount));
     setText("holdem-buyin-note", newGame
@@ -4604,6 +4611,7 @@ window.TexasHoldem = (function () {
       requestId: requestId,
       joinTable: joinTable,
       openBuyInDialog: openBuyInDialog,
+      setBuyInValue: setBuyInValue,
       confirmBuyInDialog: confirmBuyInDialog,
       addBot: addBot,
       chooseEmptySeat: chooseEmptySeat,

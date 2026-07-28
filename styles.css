@@ -5675,9 +5675,9 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-screen.is-actioning .holdem-raise-panel {
   position: absolute;
   left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
+  right: auto;
+  bottom: 60px;
+  width: calc((100% - 16px) / 3);
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -5692,9 +5692,10 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-screen.is-actioning #holdem-raise-slider { display: none; }
 .holdem-quick-bets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
 .holdem-screen.is-actioning .holdem-quick-bets {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: minmax(52px, auto);
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
 }
 .holdem-quick-bets button {
   min-height: 28px;
@@ -5707,8 +5708,8 @@ body.is-admin .feedback-user-compose { display: none; }
   font-weight: 850;
 }
 .holdem-screen.is-actioning .holdem-quick-bets button {
-  grid-column: 3;
-  min-height: 52px;
+  width: 100%;
+  min-height: 46px;
   border-radius: 7px;
   background: linear-gradient(#2f261f, #171414);
   color: #ffd9a9;
@@ -5718,21 +5719,20 @@ body.is-admin .feedback-user-compose { display: none; }
   pointer-events: auto;
 }
 .holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet-tier="over"] {
-  grid-column: 1;
   background: linear-gradient(#3a2e21, #191411);
   color: #ffe3b8;
 }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="two-pot"] {
-  grid-column: 3;
-}
 .holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="allin"] {
-  grid-column: 1;
   background: linear-gradient(#7d2942, #35121f);
   color: #ffe1ec;
 }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="half"] {
-  grid-column: 3;
-}
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="eight-pot"] { order: 1; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="four-pot"] { order: 2; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="two-pot"] { order: 3; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="pot"] { order: 4; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="three-quarter"] { order: 5; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="half"] { order: 6; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="allin"] { order: 7; }
 .holdem-screen.is-actioning .holdem-quick-bets button span,
 .holdem-screen.is-actioning .holdem-quick-bets button strong {
   display: block;

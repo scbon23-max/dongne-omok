@@ -638,11 +638,12 @@ test("ring rebuys use a separate wallet-backed server command", async () => {
   controller._test.openBuyInDialog("rebuy", 0);
   await Promise.resolve();
   await Promise.resolve();
+  controller._test.setBuyInValue(20000);
   controller._test.confirmBuyInDialog();
 
   assert.equal(calls[0].action, "wallet");
   assert.equal(calls[1].action, "rebuy");
-  assert.equal(calls[1].payload.amount, 30000);
+  assert.equal(calls[1].payload.amount, 20000);
 });
 
 test("bot add requests can target a clicked empty seat without choosing a personality", async () => {
