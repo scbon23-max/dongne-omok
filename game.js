@@ -510,6 +510,7 @@
   var lobbyMode = false, lobbyRoster = [], rooms = {}, roomFilter = "all";
   var curRoomId = null, curRoomTitle = "", roomCreatedTs = 0;
   var ROOM_LEASE_STORAGE_KEY = "dongne_owned_room_lease_v1";
+  var HOLDEM_CREATE_SELECTION_STORAGE_PREFIX = "dongne_holdem_create_selection:";
   var HOLDEM_CHIP_UNIT = 100;
   var HOLDEM_INITIAL_ASSETS = 100000;
   var HOLDEM_MIN_BUY_IN = 10000;
@@ -562,6 +563,42 @@
     var option = holdemBuyInOption(amount);
     return option.title + " · " + holdemBuyInRangeLabel(amount) +
       " · BB " + option.bigBlind.toLocaleString("ko-KR") + " · 최대 6명";
+  }
+
+  function holdemCreateSelectionStorageKey() {
+    return HOLDEM_CREATE_SELECTION_STORAGE_PREFIX + encodeURIComponent(String(me.nick || "").slice(0, 40));
+  }
+  function readStoredHoldemCreateSelection() {
+    if (!me.nick) return null;
+    try {
+      var saved = JSON.parse(localStorage.getItem(holdemCreateSelectionStorageKey()) || "null");
+      if (!saved || saved.version !== 1) return null;
+      return {
+        mode: saved.mode === "tournament" ? "tournament" : "ring",
+        speed: saved.speed === "turbo" ? "turbo" : "normal",
+        buyIn: normalizeHoldemBuyIn(saved.buyIn)
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+  function storeHoldemCreateSelection(mode, speed, buyIn) {
+    if (!me.nick) return;
+    try {
+      localStorage.setItem(holdemCreateSelectionStorageKey(), JSON.stringify({
+        version: 1,
+        mode: mode === "tournament" ? "tournament" : "ring",
+        speed: speed === "turbo" ? "turbo" : "normal",
+        buyIn: normalizeHoldemBuyIn(buyIn, createHoldemBuyIn)
+      }));
+    } catch (e) {}
+  }
+  function restoreHoldemCreateSelection() {
+    var saved = readStoredHoldemCreateSelection();
+    if (!saved) return null;
+    createHoldemBuyIn = normalizeHoldemBuyIn(saved.buyIn, createHoldemBuyIn);
+    activeCreateHoldemMode = saved.mode;
+    return saved;
   }
 
   function readStoredRoomLease() {
@@ -6512,14 +6549,20 @@
     $("create-room-btn").addEventListener("click", function () {
       createGame = renderCreateGameOptions(createGame);
       createAlkMode = renderCreateAlkMode(createAlkMode);
+      var savedHoldemSelection = restoreHoldemCreateSelection();
+      if (savedHoldemSelection) {
+        createHoldemSpeed = savedHoldemSelection.speed;
+        createHoldemMode = savedHoldemSelection.mode;
+      }
       createHoldemMode = renderCreateHoldemMode(createHoldemMode, createHoldemSpeed);
       showCreateRoomStep("game");
       openModal("create-modal");
     });
     var createGame = renderCreateGameOptions("omok");
     var createAlkMode = renderCreateAlkMode("alk");
-    var createHoldemMode = renderCreateHoldemMode("ring", "normal");
-    var createHoldemSpeed = "normal";
+    var initialHoldemSelection = restoreHoldemCreateSelection() || {};
+    var createHoldemSpeed = initialHoldemSelection.speed === "turbo" ? "turbo" : "normal";
+    var createHoldemMode = renderCreateHoldemMode(initialHoldemSelection.mode || "ring", createHoldemSpeed);
     $("create-game").addEventListener("click", function (event) {
       var option = event.target.closest(".create-game-option");
       if (!option || !this.contains(option)) return;
@@ -6534,6 +6577,11 @@
         return;
       }
       if (createGame === "holdem") {
+        var savedHoldemSelection = restoreHoldemCreateSelection();
+        if (savedHoldemSelection) {
+          createHoldemSpeed = savedHoldemSelection.speed;
+          createHoldemMode = savedHoldemSelection.mode;
+        }
         createHoldemMode = renderCreateHoldemMode(createHoldemMode, createHoldemSpeed);
         showCreateRoomStep("holdem-mode");
         loadHoldemWallet(true);
@@ -6574,22 +6622,26 @@
       var card = event.target.closest("[data-holdem-mode]");
       if (!card || !this.contains(card)) return;
       createHoldemMode = renderCreateHoldemMode(card.getAttribute("data-holdem-mode"), createHoldemSpeed);
+      storeHoldemCreateSelection(createHoldemMode, createHoldemSpeed, createHoldemBuyIn);
     });
     $("create-holdem-speed").addEventListener("click", function (event) {
       var option = event.target.closest("[data-holdem-speed]");
       if (!option || !this.contains(option)) return;
       createHoldemSpeed = option.getAttribute("data-holdem-speed") === "turbo" ? "turbo" : "normal";
       createHoldemMode = renderCreateHoldemMode(createHoldemMode, createHoldemSpeed);
+      storeHoldemCreateSelection(createHoldemMode, createHoldemSpeed, createHoldemBuyIn);
     });
     $("create-holdem-buyin-slider").addEventListener("input", function () {
       setCreateHoldemBuyIn(this.value);
       createHoldemMode = renderCreateHoldemMode(createHoldemMode, createHoldemSpeed);
+      storeHoldemCreateSelection(createHoldemMode, createHoldemSpeed, createHoldemBuyIn);
     });
     $("create-holdem-buyin-presets").addEventListener("click", function (event) {
       var option = event.target.closest("[data-holdem-buyin]");
       if (!option || !this.contains(option) || option.disabled) return;
       setCreateHoldemBuyIn(option.getAttribute("data-holdem-buyin"));
       createHoldemMode = renderCreateHoldemMode(createHoldemMode, createHoldemSpeed);
+      storeHoldemCreateSelection(createHoldemMode, createHoldemSpeed, createHoldemBuyIn);
     });
     $("create-holdem-mode-confirm").addEventListener("click", function () {
       if (createHoldemMode === "tournament" && !me.isAdmin) {
@@ -6606,6 +6658,7 @@
       }
       $("create-modal").classList.add("hidden");
       var nm = $("create-name").value; $("create-name").value = "";
+      storeHoldemCreateSelection(createHoldemMode, createHoldemSpeed, createHoldemBuyIn);
       createRoom(
         holdemCreateGameId(createHoldemMode, createHoldemSpeed),
         nm,
