@@ -107,6 +107,7 @@ window.TexasHoldem = (function () {
   var profileWallet = null;
   var profileWalletNick = "";
   var profileWalletRequestSeq = 0;
+  var profileTargetSeat = -1;
   var autoNextTimer = null;
   var autoNextKey = "";
   var autoNextDueAt = 0;
@@ -297,6 +298,7 @@ window.TexasHoldem = (function () {
       actorIsBot: false,
       botDueAt: 0,
       actionSeq: 0,
+      actionHistory: [],
       ownerNick: "",
       winners: [],
       showdown: [],
@@ -666,6 +668,29 @@ window.TexasHoldem = (function () {
     }).filter(Boolean);
   }
 
+  function normalizeActionHistory(value) {
+    if (!Array.isArray(value)) return [];
+    return value.map(function (entry) {
+      entry = isObject(entry) ? entry : {};
+      return {
+        seq: Math.max(0, integer(entry.seq, 0)),
+        handNo: Math.max(0, integer(entry.handNo, 0)),
+        phase: text(entry.phase, 16),
+        seat: safeSeat(entry.seat),
+        nick: text(entry.nick, 40),
+        displayName: text(firstDefined(entry.displayName, entry.nick), 40),
+        isBot: entry.isBot === true,
+        action: canonicalSeatAction(firstDefined(entry.action, entry.move, entry.type)),
+        amount: nonnegative(entry.amount, 0),
+        potBefore: nonnegative(entry.potBefore, 0),
+        potAfter: nonnegative(entry.potAfter, 0),
+        at: toTimestamp(entry.at)
+      };
+    }).filter(function (entry) {
+      return entry.seat >= 0 && entry.action;
+    }).slice(-12);
+  }
+
   function normalizeSnapshot(input, versionHint) {
     var raw = isObject(input) ? input : {};
     var table = firstObject(raw.table, raw.public, raw.state, raw);
@@ -928,6 +953,7 @@ window.TexasHoldem = (function () {
       actorIsBot: bool(firstDefined(table.actorIsBot, raw.actorIsBot), !!(actorSeatEntry && actorSeatEntry.isBot)),
       botDueAt: toTimestamp(firstDefined(table.botDueAt, table.nextWakeAt, raw.botDueAt)),
       actionSeq: Math.max(0, integer(firstDefined(table.actionSeq, raw.actionSeq), 0)),
+      actionHistory: normalizeActionHistory(firstDefined(table.actionHistory, raw.actionHistory, viewer.actionHistory)),
       ownerNick: text(firstDefined(table.ownerNick, table.owner, raw.ownerNick), 40),
       winners: winnerNicks(table),
       showdown: showdownRows,
@@ -1903,36 +1929,52 @@ window.TexasHoldem = (function () {
     return '<span class="holdem-seat-avatar-name">' + esc(text(nick, 40) || "＋") + '</span>';
   }
 
+  function profileTarget() {
+    var seat = safeSeat(profileTargetSeat);
+    if (seat >= 0 && state.seats[seat]) return state.seats[seat];
+    var nick = text(me().nick, 40);
+    for (var i = 0; i < state.seats.length; i++) {
+      if (state.seats[i] && state.seats[i].nick === nick) return state.seats[i];
+    }
+    return null;
+  }
+
+  function profileTargetIsMe(seat) {
+    return !!(seat && text(seat.nick, 40) && text(seat.nick, 40) === text(me().nick, 40));
+  }
+
+  function profileTargetAvatar(seat, isMine) {
+    if (!seat) return "";
+    if (seat.isBot) return botPersonalityAvatar(seat.botPersonality);
+    return isMine ? readProfileAvatar(seat.nick) : readProfileAvatar(seat.nick);
+  }
+
+  function profileTargetAsset(seat, isMine) {
+    if (isMine && profileWallet && Number.isFinite(Number(profileWallet.totalAssets))) {
+      return Math.max(0, Math.floor(Number(profileWallet.totalAssets)));
+    }
+    if (!seat) return null;
+    return Math.max(
+      0,
+      Math.floor(Number(seat.stack) || 0) + Math.floor(Number(seat.totalBet || seat.bet) || 0)
+    );
+  }
+
   function renderProfileWallet() {
     var balanceNode = $("holdem-profile-wallet-balance");
     var statusNode = $("holdem-profile-wallet-status");
     if (!balanceNode && !statusNode) return;
-    var totalAssets = profileWallet && Number.isFinite(Number(profileWallet.totalAssets))
-      ? Math.max(0, Math.floor(Number(profileWallet.totalAssets)))
-      : null;
-    var tableBalance = profileWallet && Number.isFinite(Number(profileWallet.tableBalance))
-      ? Math.max(0, Math.floor(Number(profileWallet.tableBalance)))
-      : 0;
-    var availableBalance = profileWallet && Number.isFinite(Number(profileWallet.balance))
-      ? Math.max(0, Math.floor(Number(profileWallet.balance)))
-      : null;
+    var target = profileTarget();
+    var isMine = profileTargetIsMe(target);
+    var totalAssets = profileTargetAsset(target, isMine);
     if (balanceNode) {
-      balanceNode.textContent = profileWalletPending
+      balanceNode.textContent = isMine && profileWalletPending
         ? "불러오는 중"
         : totalAssets == null
           ? "확인할 수 없음"
           : formatAsset(totalAssets);
     }
-    if (statusNode) {
-      statusNode.textContent = profileWalletPending
-        ? "서버에서 내 총자산을 확인하고 있어요"
-        : totalAssets == null
-          ? "자산을 불러오지 못했어요. 잠시 후 다시 열어주세요."
-          : tableBalance > 0
-            ? "현재 테이블에서 " + formatAsset(tableBalance) +
-              " 사용 중 · 사용 가능 " + formatAsset(availableBalance)
-            : "";
-    }
+    if (statusNode) statusNode.textContent = "";
   }
 
   function loadProfileWallet(force) {
@@ -1979,30 +2021,38 @@ window.TexasHoldem = (function () {
   function renderProfileDialog() {
     var backdrop = $("holdem-profile-backdrop");
     if (!backdrop) return;
-    var nick = text(me().nick, 40);
-    var avatar = readProfileAvatar(nick);
+    var target = profileTarget();
+    var isMine = profileTargetIsMe(target);
+    var nick = text(target && (target.displayName || target.nick), 40) || text(me().nick, 40);
+    var avatar = profileTargetAvatar(target, isMine);
     backdrop.classList.toggle("hidden", !profileDialogOpen);
     backdrop.setAttribute("aria-hidden", profileDialogOpen ? "false" : "true");
     setText("holdem-profile-nick", nick || "닉네임");
+    setText("holdem-profile-title", isMine ? "내 프로필" : "프로필");
     var preview = $("holdem-profile-avatar-preview");
     if (preview) {
       preview.innerHTML = avatar
         ? '<img src="' + esc(avatar) + '" alt="">'
         : avatarNameHtml(nick);
     }
+    var actions = root() && root().querySelector(".holdem-profile-photo-actions");
+    if (actions) actions.classList.toggle("hidden", !isMine);
     var remove = $("holdem-profile-avatar-remove");
-    if (remove) remove.disabled = !avatar;
+    if (remove) remove.disabled = !isMine || !avatar;
+    setText("holdem-profile-wallet-label", isMine ? "내 총자산" : "총자산");
     renderProfileWallet();
   }
 
-  function openProfileDialog() {
+  function openProfileDialog(seat) {
+    profileTargetSeat = safeSeat(seat);
     profileDialogOpen = true;
     renderProfileDialog();
-    loadProfileWallet(true);
+    if (profileTargetIsMe(profileTarget())) loadProfileWallet(true);
   }
 
   function closeProfileDialog() {
     profileDialogOpen = false;
+    profileTargetSeat = -1;
     renderProfileDialog();
   }
 
@@ -2065,25 +2115,47 @@ window.TexasHoldem = (function () {
     return "";
   }
 
+  function latestSeatActionHistory(seat) {
+    if (!seat || !Array.isArray(state.actionHistory) || !state.actionHistory.length) return null;
+    var latest = state.actionHistory[state.actionHistory.length - 1];
+    if (!latest || latest.seat !== seat.seat) return null;
+    if (latest.seq && state.actionSeq && latest.seq !== state.actionSeq) return null;
+    return latest;
+  }
+
+  function seatDisplayAction(seat) {
+    if (!seat) return "";
+    return seat.lastAction || (latestSeatActionHistory(seat) || {}).action || "";
+  }
+
+  function seatDisplayActionAmount(seat) {
+    var latest = latestSeatActionHistory(seat);
+    if (seat && seat.bet > 0) return formatChips(seat.bet);
+    return latest && latest.amount > 0 ? formatChips(latest.amount) : "";
+  }
+
   function seatActionLabel(seat) {
-    if (!seat || !seat.lastAction || state.phase === "waiting") return "";
-    var amount = seat.bet > 0 ? " " + formatChips(seat.bet) : "";
+    var action = seatDisplayAction(seat);
+    if (!seat || !action || state.phase === "waiting") return "";
+    var amount = seatDisplayActionAmount(seat);
+    var amountSuffix = amount ? " " + amount : "";
     var labels = {
       fold: "폴드",
       check: "체크",
-      call: "콜" + amount,
-      bet: "베팅" + amount,
-      raise: "레이즈" + amount,
+      call: "콜" + amountSuffix,
+      bet: "베팅" + amountSuffix,
+      raise: "레이즈" + amountSuffix,
       allin: "올인",
       small_blind: formatChips(seat.bet || state.smallBlind),
       big_blind: formatChips(seat.bet || state.bigBlind)
     };
-    return labels[seat.lastAction] || "";
+    return labels[action] || "";
   }
 
   function seatActionAmountLabel(seat) {
-    if (!seat || (seat.lastAction !== "bet" && seat.lastAction !== "raise")) return "";
-    return seat.bet > 0 ? formatChips(seat.bet) : "";
+    var action = seatDisplayAction(seat);
+    if (!seat || (action !== "bet" && action !== "raise")) return "";
+    return seatDisplayActionAmount(seat);
   }
 
   function seatActionHtml(seat) {
@@ -2100,7 +2172,8 @@ window.TexasHoldem = (function () {
   }
 
   function seatActionClass(seat) {
-    return seat && seat.lastAction ? "action-" + seat.lastAction.replace(/_/g, "-") : "";
+    var action = seatDisplayAction(seat);
+    return action ? "action-" + action.replace(/_/g, "-") : "";
   }
 
   function timerSnapshot() {
@@ -2198,7 +2271,7 @@ window.TexasHoldem = (function () {
         : "";
       var avatarSrc = seat && seat.isBot
         ? botPersonalityAvatar(seat.botPersonality)
-        : isMe ? readProfileAvatar(seat.nick) : "";
+        : readProfileAvatar(seat.nick);
       var displayStack = seat ? animatedStackAmount(absolute, seat.stack) : 0;
       var label = seat
         ? name + ", 보유액 " + formatChips(displayStack) +
@@ -2235,7 +2308,7 @@ window.TexasHoldem = (function () {
       html.push(
         '<article class="' + classes.join(" ") + '" data-seat="' + absolute +
         '" data-relative-seat="' + relative + '" aria-label="' + esc(label) + '"' +
-        (isMe || (!seat && !isHandActive(state.phase)) ? ' role="button" tabindex="0"' : "") + '>' +
+        (seat || (!seat && !isHandActive(state.phase)) ? ' role="button" tabindex="0"' : "") + '>' +
           '<div class="' + holesClass + '">' + holes + '</div>' +
           resultBadge +
           '<div class="holdem-seat-avatar" aria-hidden="true">' +
@@ -2843,9 +2916,9 @@ window.TexasHoldem = (function () {
       closeProfileDialog();
       return;
     }
-    var profileSeat = event.target.closest(".holdem-seat.is-me");
+    var profileSeat = event.target.closest(".holdem-seat:not(.is-empty)");
     if (profileSeat && screen.contains(profileSeat)) {
-      openProfileDialog();
+      openProfileDialog(profileSeat.getAttribute("data-seat"));
       return;
     }
 
@@ -2952,11 +3025,11 @@ window.TexasHoldem = (function () {
       return;
     }
     if ((event.key === "Enter" || event.key === " ") && event.target &&
-        event.target.closest && event.target.closest(".holdem-seat.is-me")) {
-      var profileSeat = event.target.closest(".holdem-seat.is-me");
+        event.target.closest && event.target.closest(".holdem-seat:not(.is-empty)")) {
+      var profileSeat = event.target.closest(".holdem-seat:not(.is-empty)");
       if (profileSeat && root() && root().contains(profileSeat)) {
         event.preventDefault();
-        openProfileDialog();
+        openProfileDialog(profileSeat.getAttribute("data-seat"));
         return;
       }
     }
@@ -3048,6 +3121,7 @@ window.TexasHoldem = (function () {
     lastAppliedResponse = 0;
     lastAnnouncementKey = "";
     profileDialogOpen = false;
+    profileTargetSeat = -1;
     tickSentKey = "";
     botSentKey = "";
     botRetryAt = 0;
@@ -3096,6 +3170,7 @@ window.TexasHoldem = (function () {
     pendingAction = "";
     profileDialogOpen = false;
     profileWalletPending = false;
+    profileTargetSeat = -1;
     state = emptyState();
     rawSnapshot = null;
     demoState = null;
@@ -3210,9 +3285,12 @@ window.TexasHoldem = (function () {
     controller._test = {
       emptyState: emptyState,
       normalizeSnapshot: normalizeSnapshot,
+      normalizeActionHistory: normalizeActionHistory,
       normalizeCard: normalizeCard,
       normalizeLegal: normalizeLegal,
       cardHtml: cardHtml,
+      seatActionLabel: seatActionLabel,
+      seatActionClass: seatActionClass,
       handRankings: handRankings,
       resultBoardVisibleCount: resultBoardVisibleCount,
       relativeSeat: relativeSeat,

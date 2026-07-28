@@ -2425,13 +2425,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
     0 0 18px rgba(242,199,125,.35);
 }
 .create-holdem-wallet small {
-  position: relative;
-  z-index: 1;
-  min-height: 14px;
-  color: #86b9b4;
-  font-size: 10.5px;
-  line-height: 1.35;
-  word-break: keep-all;
+  display: none;
 }
 .create-holdem-section-title { margin-bottom: 7px; }
 .create-mode-list { display: grid; gap: 9px; margin-bottom: 16px; }
@@ -3977,7 +3971,7 @@ body.is-admin .feedback-user-compose { display: none; }
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 3px solid #28444d;
+  border: 0;
   border-radius: 50%;
   background:
     radial-gradient(circle at 35% 28%, rgba(255,255,255,.35), transparent 19%),
@@ -4012,8 +4006,6 @@ body.is-admin .feedback-user-compose { display: none; }
   cursor: pointer;
 }
 .holdem-seat.is-empty .holdem-seat-avatar {
-  border-color: rgba(141,227,211,.46);
-  border-style: dashed;
   background:
     radial-gradient(circle at 50% 18%, rgba(255,255,255,.16), transparent 34%),
     linear-gradient(145deg, rgba(25,91,91,.92), rgba(10,36,44,.92));
@@ -4021,7 +4013,6 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-seat.is-empty:hover .holdem-seat-avatar,
 .holdem-seat.is-empty:focus-visible .holdem-seat-avatar {
-  border-color: #8de3d3;
   box-shadow: 0 0 0 3px rgba(79,211,190,.18), 0 5px 16px rgba(0,0,0,.48);
 }
 .holdem-seat.is-empty:focus-visible {
@@ -4064,22 +4055,23 @@ body.is-admin .feedback-user-compose { display: none; }
   box-shadow: inset 0 -2px 0 rgba(0,0,0,.14);
 }
 .holdem-seat.is-active .holdem-seat-avatar {
-  border-color: #f2c77d;
   box-shadow: 0 0 0 3px rgba(242,199,125,.22), 0 0 18px rgba(242,199,125,.46);
 }
 .holdem-seat.is-me .holdem-seat-avatar {
-  border-color: #68e1ce;
   box-shadow: 0 0 0 3px rgba(47,184,158,.18), 0 5px 16px rgba(0,0,0,.58);
 }
-.holdem-seat.is-me {
+.holdem-seat:not(.is-empty) {
   cursor: pointer;
 }
-.holdem-seat.is-me:focus-visible {
+.holdem-seat:not(.is-empty):focus-visible {
   outline: none;
+}
+.holdem-seat:not(.is-empty):hover .holdem-seat-avatar,
+.holdem-seat:not(.is-empty):focus-visible .holdem-seat-avatar {
+  box-shadow: 0 0 0 3px rgba(242,199,125,.18), 0 0 15px rgba(242,199,125,.32), 0 5px 16px rgba(0,0,0,.54);
 }
 .holdem-seat.is-me:hover .holdem-seat-avatar,
 .holdem-seat.is-me:focus-visible .holdem-seat-avatar {
-  border-color: #f2c77d;
   box-shadow: 0 0 0 3px rgba(242,199,125,.22), 0 0 18px rgba(242,199,125,.4), 0 5px 16px rgba(0,0,0,.58);
 }
 .holdem-seat.is-folded { opacity: .48; filter: grayscale(.82); }
@@ -4301,15 +4293,16 @@ body.is-admin .feedback-user-compose { display: none; }
   color: #ffd8e2;
 }
 .holdem-seat.is-winner .holdem-seat-avatar {
-  border-color: #f4cc75;
   box-shadow: 0 0 0 6px rgba(244,204,117,.27), 0 0 34px rgba(244,204,117,.68);
 }
 .holdem-winner-result {
+  --holdem-winner-edge-nudge: clamp(38px, 9vw, 58px);
   position: absolute;
   z-index: 28;
   top: calc(var(--holdem-seat-avatar-size) * -0.56);
   left: 50%;
   min-width: 118px;
+  max-width: min(168px, calc(100vw - 22px));
   display: grid;
   justify-items: center;
   gap: 3px;
@@ -4331,7 +4324,7 @@ body.is-admin .feedback-user-compose { display: none; }
   box-shadow: 0 0 19px rgba(255,188,44,.58), inset 0 1px 0 rgba(255,255,255,.22);
 }
 .holdem-winner-result small {
-  max-width: 156px;
+  max-width: min(156px, calc(100vw - 28px));
   padding: 3px 9px;
   overflow: hidden;
   border-radius: 999px;
@@ -4356,12 +4349,12 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat[data-relative-seat="1"] .holdem-winner-result,
 .holdem-seat[data-relative-seat="2"] .holdem-winner-result {
   top: calc(var(--holdem-seat-avatar-size) * -0.58);
-  left: 50%;
+  left: calc(50% + var(--holdem-winner-edge-nudge));
 }
 .holdem-seat[data-relative-seat="4"] .holdem-winner-result,
 .holdem-seat[data-relative-seat="5"] .holdem-winner-result {
   top: calc(var(--holdem-seat-avatar-size) * -0.58);
-  left: 50%;
+  left: calc(50% - var(--holdem-winner-edge-nudge));
 }
 .holdem-screen.is-settling-pot .holdem-seat.is-winner .holdem-seat-avatar {
   animation: holdemWinnerPulse .42s ease-in-out infinite;
@@ -4403,7 +4396,6 @@ body.is-admin .feedback-user-compose { display: none; }
   color: #17110a;
 }
 .holdem-seat.is-bot .holdem-seat-avatar {
-  border-color: rgba(242,199,125,.76);
   background: #f7fbf7;
 }
 .holdem-hole-cards {
@@ -5242,7 +5234,7 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-table-wrap { inset: max(66px, calc(env(safe-area-inset-top) + 57px)) 0 max(49px, calc(env(safe-area-inset-bottom) + 45px)); padding-bottom: 30px; }
   .holdem-table { width: min(75vw, 350px); border-width: 8px; }
   .holdem-seat { --holdem-seat-avatar-size: 47px; width: 96px; }
-  .holdem-seat-avatar { width: 47px; height: 47px; border-width: 2px; }
+  .holdem-seat-avatar { width: 47px; height: 47px; }
   .holdem-seat[data-relative-seat="1"],
   .holdem-seat[data-relative-seat="2"] { left: -2%; }
   .holdem-seat[data-relative-seat="4"],

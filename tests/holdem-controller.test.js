@@ -101,6 +101,49 @@ test("the controller consumes the engine's personalized snapshot contract", () =
   assert.equal(normalized.bigBlind, 200);
 });
 
+test("seat action tags fall back to the latest server action history", () => {
+  const controller = loadController();
+  const normalized = controller._test.normalizeSnapshot({
+    phase: "turn",
+    actionSeq: 9,
+    seats: [
+      { seat: 0, nick: "alice", stack: 9800, inHand: true },
+      { seat: 1, nick: "bob", stack: 9900, inHand: true },
+    ],
+    actionHistory: [
+      { seq: 8, seat: 0, action: "call", amount: 200 },
+      { seq: 9, seat: 1, action: "check", amount: 0 },
+    ],
+  }, 8);
+
+  controller._test.setState(normalized);
+
+  assert.equal(normalized.actionHistory.at(-1).action, "check");
+  assert.equal(normalized.seats[1].lastAction, "");
+  assert.equal(controller._test.seatActionLabel(normalized.seats[1]), "체크");
+  assert.equal(controller._test.seatActionClass(normalized.seats[1]), "action-check");
+  assert.equal(controller._test.seatActionLabel(normalized.seats[0]), "");
+});
+
+test("seat action tags preserve latest bet and raise amounts from action history", () => {
+  const controller = loadController();
+  const normalized = controller._test.normalizeSnapshot({
+    phase: "river",
+    actionSeq: 12,
+    seats: [
+      { seat: 0, nick: "alice", stack: 8000, inHand: true },
+      { seat: 1, nick: "bob", stack: 7000, inHand: true },
+    ],
+    actionHistory: [
+      { seq: 12, seat: 0, action: "raise", amount: 2400 },
+    ],
+  }, 9);
+
+  controller._test.setState(normalized);
+
+  assert.equal(controller._test.seatActionLabel(normalized.seats[0]), "레이즈 2,400원");
+});
+
 test("central pot readout omits the side pot subline", () => {
   const controller = loadController();
   const base = {

@@ -218,10 +218,13 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\s*\{[\s\S]*width:\s*clamp\(106px,\s*31vw,\s*158px\)/);
   assert.match(styles, /\.holdem-seat-name\s*\{[\s\S]*font-size:\s*clamp\(11px,\s*3\.2vw,\s*14px\)/);
   assert.match(styles, /\.holdem-seat-stack\s*\{[\s\S]*font-size:\s*clamp\(11px,\s*3\.2vw,\s*14px\)/);
+  assert.match(styles, /\.holdem-seat-avatar\s*\{[^}]*border:\s*0/);
+  assert.doesNotMatch(styles, /\.holdem-seat-avatar\s*\{[^}]*border:\s*3px solid/);
   assert.match(controller, /function avatarNameHtml\(nick\)[\s\S]*holdem-seat-avatar-name/);
   assert.match(controller, /readProfileAvatar\(seat\.nick\)/);
-  assert.match(controller, /event\.target\.closest\("\.holdem-seat\.is-me"\)/);
+  assert.match(controller, /event\.target\.closest\("\.holdem-seat:not\(\.is-empty\)"\)/);
   assert.match(styles, /\.holdem-seat-avatar-name\s*\{[\s\S]*-webkit-line-clamp:\s*2/);
+  assert.match(styles, /\.create-holdem-wallet small\s*\{[\s\S]*display:\s*none/);
   assert.match(index, /class="create-holdem-wallet holdem-profile-wallet"/);
   assert.match(controller, /Db\.getHoldemWallet\(currentAuth\)/);
   assert.match(controller, /localStorage\.setItem\(profileAvatarStorageKey\(nick\), dataUrl\)/);
@@ -363,8 +366,11 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(styles, /\.holdem-winner-result\s*\{/);
   assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);
   assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*min-width:\s*118px/);
+  assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*max-width:\s*min\(168px,\s*calc\(100vw - 22px\)\)/);
   assert.match(styles, /\.holdem-winner-result strong\s*\{[\s\S]*font-size:\s*clamp\(13px,\s*3\.6vw,\s*17px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-winner-edge-nudge\)\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-winner-edge-nudge\)\)/);
   assert.match(styles, /\.holdem-screen\.is-settling-pot \.holdem-seat\.is-winner \.holdem-seat-avatar/);
   assert.match(controller, /var RESULT_CARDS_FIRST_MS = 900/);
   assert.match(controller, /var RESULT_FINAL_ACTION_MS = 1000/);
