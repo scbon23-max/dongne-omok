@@ -2670,12 +2670,22 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .holdem-asset-ranking-row {
   min-width: 0;
+  width: 100%;
   display: grid;
   grid-template-columns: 45px minmax(0, 1fr) minmax(84px, auto);
   align-items: center;
   gap: 8px;
   padding: 11px 18px;
+  border: 0;
   border-bottom: 1px solid rgba(255,255,255,.07);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.holdem-asset-ranking-row:active {
+  background: rgba(255,255,255,.06);
 }
 .holdem-asset-ranking-row.is-me {
   background: rgba(47,184,158,.13);
@@ -2764,6 +2774,124 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   font-weight: 800;
   line-height: 1.4;
 }
+.holdem-asset-ranking-detail {
+  margin: 10px 14px 0;
+  padding: 12px;
+  border: 1px solid rgba(99,226,200,.22);
+  border-radius: 8px;
+  background: rgba(3,20,23,.72);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+}
+.holdem-asset-ranking-detail.hidden { display: none; }
+.holdem-asset-ranking-detail-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.holdem-asset-ranking-detail-head span {
+  color: #6fe0ca;
+  font-size: 9px;
+  font-weight: 1000;
+}
+.holdem-asset-ranking-detail-head strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #fff7dc;
+  font-size: 15px;
+  font-weight: 1000;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.holdem-asset-ranking-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+.holdem-asset-ranking-metrics > span {
+  min-width: 0;
+  padding: 8px;
+  border-radius: 7px;
+  background: rgba(255,255,255,.055);
+}
+.holdem-asset-ranking-metrics small,
+.holdem-asset-ranking-session summary small {
+  display: block;
+  color: #7fa8a7;
+  font-size: 9px;
+  font-weight: 850;
+}
+.holdem-asset-ranking-metrics strong,
+.holdem-asset-ranking-signed {
+  color: #eefaf9;
+  font-size: 12px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+}
+.holdem-asset-ranking-signed.is-plus { color: #6ce4c4; }
+.holdem-asset-ranking-signed.is-minus { color: #ffaaa0; }
+.holdem-asset-ranking-refill {
+  margin: 9px 0 10px;
+  color: #8fb3b4;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+.holdem-asset-ranking-session-title {
+  margin: 4px 0 6px;
+  color: #fff7dc;
+  font-size: 11px;
+  font-weight: 1000;
+}
+.holdem-asset-ranking-session {
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+.holdem-asset-ranking-session summary {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px minmax(74px, auto);
+  align-items: center;
+  gap: 7px;
+  padding: 9px 0;
+  color: #eefaf9;
+  cursor: pointer;
+  list-style: none;
+}
+.holdem-asset-ranking-session summary::-webkit-details-marker { display: none; }
+.holdem-asset-ranking-session summary span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.holdem-asset-ranking-session summary .holdem-asset-ranking-signed {
+  text-align: right;
+}
+.holdem-asset-ranking-session-hands {
+  display: grid;
+  gap: 5px;
+  padding: 0 0 9px 10px;
+}
+.holdem-asset-ranking-hand-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #9ebcbd;
+  font-size: 10px;
+  font-weight: 800;
+}
+.holdem-asset-ranking-hand-note em {
+  min-width: 0;
+  overflow: hidden;
+  color: #d8ebe8;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 @media (max-width: 370px) {
   .holdem-asset-ranking-backdrop { padding: 10px; }
   .holdem-asset-ranking-dialog { width: min(96vw, 390px); max-height: 89dvh; }
@@ -2781,6 +2909,11 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   }
   .holdem-asset-ranking-player strong,
   .holdem-asset-ranking-assets { font-size: 12px; }
+  .holdem-asset-ranking-detail { margin-right: 10px; margin-left: 10px; }
+  .holdem-asset-ranking-metrics { grid-template-columns: 1fr; }
+  .holdem-asset-ranking-session summary {
+    grid-template-columns: minmax(0, 1fr) 40px minmax(68px, auto);
+  }
 }
 .create-holdem-section-title { margin-bottom: 7px; }
 .create-mode-list { display: grid; gap: 9px; margin-bottom: 16px; }

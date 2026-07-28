@@ -92,6 +92,7 @@ const CORS = {
 const ACTIONS = new Set([
   "wallet",
   "ranking",
+  "ranking_detail",
   "join",
   "leave",
   "ready",
@@ -484,10 +485,7 @@ function tableHoldingsByNickname(rows: unknown[]) {
   return holdings;
 }
 
-async function assetRanking(
-  client: ReturnType<typeof createClient>,
-  viewerNick: string,
-) {
+async function assetRankingRows(client: ReturnType<typeof createClient>) {
   const [{ data: walletRows, error: walletError }, {
     data: tableRows,
     error: tableError,
@@ -555,6 +553,14 @@ async function assetRanking(
     row.rank = previousRank;
     previousAssets = row.totalAssets;
   });
+  return ranked;
+}
+
+async function assetRanking(
+  client: ReturnType<typeof createClient>,
+  viewerNick: string,
+) {
+  const ranked = await assetRankingRows(client);
   const publicRow = (row: typeof ranked[number]) => ({
     rank: row.rank,
     nickname: row.nickname,
@@ -566,6 +572,174 @@ async function assetRanking(
     viewer: viewer ? publicRow(viewer) : null,
     totalPlayers: ranked.length,
     initialAssets: INITIAL_WALLET_BALANCE,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function seoulDateString(value: string | number | Date) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function tableTierLabel(smallBlind: number, bigBlind: number) {
+  if (bigBlind <= 200) return "라이트";
+  if (bigBlind <= 500) return "스탠다드";
+  return "하이롤러";
+}
+
+function publicHandHighlight(row: Record<string, unknown> | null) {
+  if (!row) return null;
+  const amount = Number(row.net_amount);
+  const handName = safeText(row.hand_name, 40);
+  const revealed = row.revealed === true && !!handName;
+  return {
+    amount: Number.isSafeInteger(amount) ? amount : 0,
+    handName: revealed ? handName : "",
+  };
+}
+
+async function assetRankingDetail(
+  client: ReturnType<typeof createClient>,
+  viewerNick: string,
+  targetNick: string,
+) {
+  targetNick = safeText(targetNick || viewerNick, 40);
+  if (!targetNick) throw new Error("ranking_detail_target");
+
+  const ranked = await assetRankingRows(client);
+  const profile = ranked.find((row) => row.nickname === targetNick);
+  if (!profile) return null;
+
+  const now = Date.now();
+  const todayKey = seoulDateString(now);
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const [{ data: handRows, error: handError }, {
+    data: refillRows,
+    error: refillError,
+  }] = await Promise.all([
+    client
+      .from("holdem_hand_results")
+      .select(
+        "session_date,small_blind,big_blind,net_amount,won_amount,revealed,hand_name,hand_category,is_winner,created_at,hand_no",
+      )
+      .eq("nickname", targetNick)
+      .order("created_at", { ascending: false })
+      .limit(500),
+    client
+      .from("holdem_economy_events")
+      .select("amount,created_at")
+      .eq("nickname", targetNick)
+      .eq("event_type", "refill")
+      .gte("created_at", sevenDaysAgo)
+      .order("created_at", { ascending: false })
+      .limit(200),
+  ]);
+  if (handError || refillError) throw new Error("ranking_detail_lookup");
+
+  const hands = (Array.isArray(handRows) ? handRows : []).filter((row) => {
+    const amount = Number(row?.net_amount);
+    const smallBlind = Number(row?.small_blind);
+    const bigBlind = Number(row?.big_blind);
+    return Number.isSafeInteger(amount) &&
+      Number.isSafeInteger(smallBlind) &&
+      Number.isSafeInteger(bigBlind);
+  });
+  const todayNet = hands.reduce((sum, row) => {
+    return seoulDateString(safeText(row?.created_at, 40)) === todayKey
+      ? sum + Number(row?.net_amount)
+      : sum;
+  }, 0);
+  const sevenDayNet = hands.reduce((sum, row) => {
+    const createdAt = new Date(safeText(row?.created_at, 40)).getTime();
+    return Number.isFinite(createdAt) && createdAt >= Date.parse(sevenDaysAgo)
+      ? sum + Number(row?.net_amount)
+      : sum;
+  }, 0);
+  const refillSummary = (Array.isArray(refillRows) ? refillRows : []).reduce(
+    (summary, row) => {
+      const amount = Math.max(0, Number(row?.amount) || 0);
+      const createdAt = safeText(row?.created_at, 40);
+      if (seoulDateString(createdAt) === todayKey) summary.today += amount;
+      summary.sevenDays += amount;
+      return summary;
+    },
+    { today: 0, sevenDays: 0 },
+  );
+
+  const sessionsByKey = new Map<string, {
+    date: string;
+    smallBlind: number;
+    bigBlind: number;
+    handCount: number;
+    netAmount: number;
+    startedAt: string;
+    endedAt: string;
+    biggestWin: Record<string, unknown> | null;
+    biggestLoss: Record<string, unknown> | null;
+  }>();
+  hands.forEach((row) => {
+    const date = safeText(row?.session_date, 16) ||
+      seoulDateString(safeText(row?.created_at, 40));
+    const smallBlind = Number(row?.small_blind);
+    const bigBlind = Number(row?.big_blind);
+    const key = `${date}:${smallBlind}/${bigBlind}`;
+    const createdAt = safeText(row?.created_at, 40);
+    const current = sessionsByKey.get(key) ?? {
+      date,
+      smallBlind,
+      bigBlind,
+      handCount: 0,
+      netAmount: 0,
+      startedAt: createdAt,
+      endedAt: createdAt,
+      biggestWin: null,
+      biggestLoss: null,
+    };
+    const netAmount = Number(row?.net_amount);
+    current.handCount += 1;
+    current.netAmount += netAmount;
+    if (!current.startedAt || createdAt < current.startedAt) current.startedAt = createdAt;
+    if (!current.endedAt || createdAt > current.endedAt) current.endedAt = createdAt;
+    if (netAmount > 0 && (!current.biggestWin ||
+        netAmount > Number(current.biggestWin.net_amount || 0))) {
+      current.biggestWin = row as Record<string, unknown>;
+    }
+    if (netAmount < 0 && (!current.biggestLoss ||
+        netAmount < Number(current.biggestLoss.net_amount || 0))) {
+      current.biggestLoss = row as Record<string, unknown>;
+    }
+    sessionsByKey.set(key, current);
+  });
+
+  const sessions = Array.from(sessionsByKey.values())
+    .sort((left, right) => right.endedAt.localeCompare(left.endedAt))
+    .slice(0, 10)
+    .map((session) => ({
+      date: session.date,
+      label: tableTierLabel(session.smallBlind, session.bigBlind),
+      smallBlind: session.smallBlind,
+      bigBlind: session.bigBlind,
+      handCount: session.handCount,
+      netAmount: session.netAmount,
+      biggestWin: publicHandHighlight(session.biggestWin),
+      biggestLoss: publicHandHighlight(session.biggestLoss),
+    }));
+
+  return {
+    rank: profile.rank,
+    nickname: profile.nickname,
+    totalAssets: profile.totalAssets,
+    todayNet,
+    sevenDayNet,
+    refillToday: refillSummary.today,
+    refillSevenDays: refillSummary.sevenDays,
+    sessions,
     generatedAt: new Date().toISOString(),
   };
 }
@@ -632,6 +806,61 @@ function takeEconomyEvents(state: JsonRecord) {
   if (events.length > 1) throw new Error("invalid_economy_event");
   delete state.economyEvents;
   return events;
+}
+
+function takeHandResults(state: JsonRecord) {
+  const raw = Array.isArray(state.handResults)
+    ? state.handResults
+    : [];
+  const results = raw.map((entry) => {
+    if (!isRecord(entry)) throw new Error("invalid_hand_result");
+    const nickname = safeText(entry.nickname, 40);
+    const handNo = Number(entry.handNo);
+    const smallBlind = Number(entry.smallBlind);
+    const bigBlind = Number(entry.bigBlind);
+    const netAmount = Number(entry.netAmount);
+    const wonAmount = Number(entry.wonAmount);
+    const handName = safeText(entry.handName, 40);
+    const handCategory = Number(entry.handCategory);
+    if (
+      !nickname ||
+      !Number.isSafeInteger(handNo) ||
+      handNo < 1 ||
+      !Number.isSafeInteger(smallBlind) ||
+      !Number.isSafeInteger(bigBlind) ||
+      smallBlind < CHIP_UNIT ||
+      bigBlind < smallBlind * 2 ||
+      smallBlind % CHIP_UNIT !== 0 ||
+      bigBlind % CHIP_UNIT !== 0 ||
+      !Number.isSafeInteger(netAmount) ||
+      Math.abs(netAmount) > 100000000 ||
+      Math.abs(netAmount) % CHIP_UNIT !== 0 ||
+      !Number.isSafeInteger(wonAmount) ||
+      wonAmount < 0 ||
+      wonAmount > 100000000 ||
+      wonAmount % CHIP_UNIT !== 0 ||
+      !Number.isSafeInteger(handCategory) ||
+      handCategory < -1 ||
+      handCategory > 8
+    ) {
+      throw new Error("invalid_hand_result");
+    }
+    return {
+      nickname,
+      hand_no: handNo,
+      small_blind: smallBlind,
+      big_blind: bigBlind,
+      net_amount: netAmount,
+      won_amount: wonAmount,
+      is_winner: entry.isWinner === true,
+      revealed: entry.revealed === true,
+      hand_name: entry.revealed === true ? handName : "",
+      hand_category: entry.revealed === true ? handCategory : -1,
+    };
+  });
+  if (results.length > 6) throw new Error("invalid_hand_result");
+  delete state.handResults;
+  return results;
 }
 
 function ringSettings(state: unknown) {
@@ -894,9 +1123,21 @@ async function compareAndSwapRingWallet(
     amount: number;
     hand_no: number;
   }>,
+  handResults: Array<{
+    nickname: string;
+    hand_no: number;
+    small_blind: number;
+    big_blind: number;
+    net_amount: number;
+    won_amount: number;
+    is_winner: boolean;
+    revealed: boolean;
+    hand_name: string;
+    hand_category: number;
+  }>,
 ): Promise<CasRow> {
   const { data, error } = await client.rpc(
-    "holdem_ring_table_v3_compare_and_swap",
+    "holdem_ring_table_v4_compare_and_swap",
     {
       p_room_id: roomId,
       p_expected_version: expectedVersion,
@@ -904,6 +1145,7 @@ async function compareAndSwapRingWallet(
       p_owner_nickname: ownerNick,
       p_adjustments: adjustments,
       p_economy_events: economyEvents,
+      p_hand_results: handResults,
     },
   );
   const row = Array.isArray(data) ? data[0] : null;
@@ -947,7 +1189,8 @@ Deno.serve(async (request) => {
   }
   const walletAction = action === "wallet";
   const rankingAction = action === "ranking";
-  const roomlessAction = walletAction || rankingAction;
+  const rankingDetailAction = action === "ranking_detail";
+  const roomlessAction = walletAction || rankingAction || rankingDetailAction;
   const roomId = roomlessAction ? "" : safeText(body.roomId, 81);
   const requestId = roomlessAction ? "" : safeText(body.requestId, 101);
   if (!roomlessAction) {
@@ -994,6 +1237,17 @@ Deno.serve(async (request) => {
       return jsonResponse({
         ok: true,
         ranking: await assetRanking(client, account.nick),
+      });
+    }
+    if (rankingDetailAction) {
+      await cleanupExpiredTables(client);
+      return jsonResponse({
+        ok: true,
+        detail: await assetRankingDetail(
+          client,
+          account.nick,
+          safeText(body.targetNick, 40),
+        ),
       });
     }
     if (!engine) {
@@ -1202,6 +1456,9 @@ Deno.serve(async (request) => {
         ? takeWalletAdjustments(nextState)
         : [];
       const economyEvents = takeEconomyEvents(nextState);
+      const handResults = assetBackedRingTable
+        ? takeHandResults(nextState)
+        : [];
       if (action === "refill" && walletAdjustments.length) {
         throw new Error("unexpected_refill_wallet_adjustment");
       }
@@ -1226,6 +1483,7 @@ Deno.serve(async (request) => {
           ownerNick,
           walletAdjustments,
           economyEvents,
+          handResults,
         )
         : await compareAndSwap(
           client,

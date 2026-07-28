@@ -5395,6 +5395,7 @@
     close: closeHoldemAssetRecordDialog
   };
   var holdemAssetRankingRequestSeq = 0;
+  var holdemAssetRankingDetailSeq = 0;
   function normalizeHoldemAssetRankingRow(value) {
     if (!value || typeof value !== "object") return null;
     var nickname = String(value.nickname || "").trim().slice(0, 40);
@@ -5420,6 +5421,129 @@
     return '<small class="' + (delta > 0 ? "is-plus" : "is-minus") + '">' +
       '시작 대비 ' + (delta > 0 ? "+" : "-") + formatHoldemAsset(Math.abs(delta)) + '</small>';
   }
+  function signedHoldemAssetHtml(value) {
+    var amount = Math.floor(Number(value) || 0);
+    var cls = amount > 0 ? " is-plus" : amount < 0 ? " is-minus" : "";
+    var label = amount > 0
+      ? "+" + formatHoldemAsset(amount)
+      : amount < 0
+        ? "-" + formatHoldemAsset(Math.abs(amount))
+        : "0원";
+    return '<strong class="holdem-asset-ranking-signed' + cls + '">' + esc(label) + '</strong>';
+  }
+  function normalizeHoldemAssetRankingDetail(value) {
+    if (!value || typeof value !== "object") return null;
+    var nickname = String(value.nickname || "").trim().slice(0, 40);
+    var rank = Math.floor(Number(value.rank));
+    var totalAssets = Math.floor(Number(value.totalAssets));
+    if (!nickname || !Number.isFinite(rank) || rank < 1 ||
+        !Number.isFinite(totalAssets) || totalAssets < 0) return null;
+    var sessions = Array.isArray(value.sessions) ? value.sessions : [];
+    return {
+      nickname: nickname,
+      rank: rank,
+      totalAssets: totalAssets,
+      todayNet: Math.floor(Number(value.todayNet) || 0),
+      sevenDayNet: Math.floor(Number(value.sevenDayNet) || 0),
+      refillToday: Math.max(0, Math.floor(Number(value.refillToday) || 0)),
+      refillSevenDays: Math.max(0, Math.floor(Number(value.refillSevenDays) || 0)),
+      sessions: sessions.slice(0, 10).map(function (session) {
+        session = session && typeof session === "object" ? session : {};
+        return {
+          date: String(session.date || "").trim().slice(0, 16),
+          label: String(session.label || "링게임").trim().slice(0, 16),
+          smallBlind: Math.max(0, Math.floor(Number(session.smallBlind) || 0)),
+          bigBlind: Math.max(0, Math.floor(Number(session.bigBlind) || 0)),
+          handCount: Math.max(0, Math.floor(Number(session.handCount) || 0)),
+          netAmount: Math.floor(Number(session.netAmount) || 0),
+          biggestWin: session.biggestWin && typeof session.biggestWin === "object" ? session.biggestWin : null,
+          biggestLoss: session.biggestLoss && typeof session.biggestLoss === "object" ? session.biggestLoss : null
+        };
+      }).filter(function (session) { return session.handCount > 0; })
+    };
+  }
+  function holdemSessionHighlightHtml(title, item) {
+    if (!item || typeof item !== "object") {
+      return '<span class="holdem-asset-ranking-hand-note">' + esc(title) + ' 기록 없음</span>';
+    }
+    var amount = Math.floor(Number(item.amount) || 0);
+    var handName = String(item.handName || "").trim().slice(0, 40);
+    return '<span class="holdem-asset-ranking-hand-note">' + esc(title) + ' ' +
+      signedHoldemAssetHtml(amount) +
+      (handName ? '<em>' + esc(handName) + '</em>' : '<em>공개된 족보 없음</em>') +
+      '</span>';
+  }
+  function renderHoldemAssetRankingDetail(detail) {
+    detail = normalizeHoldemAssetRankingDetail(detail);
+    var box = $("holdem-asset-ranking-detail");
+    if (!box) return;
+    if (!detail) {
+      box.classList.remove("hidden");
+      box.innerHTML = '<p class="holdem-asset-ranking-status">최근 기록을 불러오지 못했습니다.</p>';
+      return;
+    }
+    var refillNote = detail.refillToday || detail.refillSevenDays
+      ? '<p class="holdem-asset-ranking-refill">보충칩 별도 · 오늘 ' +
+        esc(formatHoldemAsset(detail.refillToday)) + ' · 7일 ' +
+        esc(formatHoldemAsset(detail.refillSevenDays)) + '</p>'
+      : '<p class="holdem-asset-ranking-refill">보충칩은 게임 손익에 포함하지 않습니다.</p>';
+    var sessionsHtml = detail.sessions.length
+      ? detail.sessions.map(function (session) {
+        return '<details class="holdem-asset-ranking-session">' +
+          '<summary><span>' + esc(session.label) + ' ' +
+          esc(formatHoldemAsset(session.smallBlind)) + '/' +
+          esc(formatHoldemAsset(session.bigBlind)) + '</span><small>' +
+          esc(session.handCount + "핸드") + '</small>' +
+          signedHoldemAssetHtml(session.netAmount) + '</summary>' +
+          '<div class="holdem-asset-ranking-session-hands">' +
+          holdemSessionHighlightHtml("가장 크게 이긴 핸드", session.biggestWin) +
+          holdemSessionHighlightHtml("가장 크게 잃은 핸드", session.biggestLoss) +
+          '</div></details>';
+      }).join("")
+      : '<p class="holdem-asset-ranking-status">아직 완료된 세션 기록이 없습니다.</p>';
+    box.classList.remove("hidden");
+    box.innerHTML = '<div class="holdem-asset-ranking-detail-head">' +
+      '<span>PLAYER DETAIL</span><strong>' + esc(detail.nickname) + '</strong></div>' +
+      '<div class="holdem-asset-ranking-metrics">' +
+      '<span><small>현재 순위</small><strong>' + esc(detail.rank + "위") + '</strong></span>' +
+      '<span><small>총자산</small><strong>' + esc(formatHoldemAsset(detail.totalAssets)) + '</strong></span>' +
+      '<span><small>오늘 게임손익</small>' + signedHoldemAssetHtml(detail.todayNet) + '</span>' +
+      '<span><small>최근 7일 손익</small>' + signedHoldemAssetHtml(detail.sevenDayNet) + '</span>' +
+      '</div>' + refillNote +
+      '<div class="holdem-asset-ranking-session-title">최근 10개 완료 세션</div>' +
+      sessionsHtml;
+  }
+  function showHoldemAssetRankingDetailStatus(message) {
+    var box = $("holdem-asset-ranking-detail");
+    if (!box) return;
+    box.classList.remove("hidden");
+    box.innerHTML = '<p class="holdem-asset-ranking-status">' + esc(message) + '</p>';
+  }
+  function loadHoldemAssetRankingDetail(targetNick) {
+    targetNick = String(targetNick || "").trim().slice(0, 40);
+    if (!targetNick) return;
+    var requestSeq = ++holdemAssetRankingDetailSeq;
+    showHoldemAssetRankingDetailStatus("최근 기록을 불러오는 중입니다.");
+    if (!window.Db || typeof Db.getHoldemAssetRankingDetail !== "function" ||
+        !me.nick || !sessionAuthHash) {
+      showHoldemAssetRankingDetailStatus("최근 기록을 불러올 수 없습니다.");
+      return;
+    }
+    Promise.resolve(Db.getHoldemAssetRankingDetail({
+      nick: me.nick,
+      hash: sessionAuthHash
+    }, targetNick)).then(function (result) {
+      if (requestSeq !== holdemAssetRankingDetailSeq) return;
+      if (!result || !result.ok || !result.detail) {
+        showHoldemAssetRankingDetailStatus("최근 기록이 아직 없습니다.");
+        return;
+      }
+      renderHoldemAssetRankingDetail(result.detail);
+    }, function () {
+      if (requestSeq !== holdemAssetRankingDetailSeq) return;
+      showHoldemAssetRankingDetailStatus("최근 기록을 불러오지 못했습니다.");
+    });
+  }
   function renderHoldemAssetRanking(ranking) {
     ranking = ranking && typeof ranking === "object" ? ranking : {};
     var rows = (Array.isArray(ranking.rows) ? ranking.rows : [])
@@ -5443,6 +5567,8 @@
           "총자산 " + formatHoldemAsset(viewer.totalAssets);
       }
     }
+    var detail = $("holdem-asset-ranking-detail");
+    if (detail) detail.classList.add("hidden");
     var list = $("holdem-asset-ranking-list");
     if (!list) return;
     if (!rows.length) {
@@ -5451,13 +5577,14 @@
     }
     list.innerHTML = rows.map(function (row) {
       var isMe = row.nickname === me.nick;
-      return '<div class="holdem-asset-ranking-row' + (isMe ? ' is-me' : '') + '" role="listitem">' +
+      return '<button class="holdem-asset-ranking-row' + (isMe ? ' is-me' : '') +
+        '" type="button" data-holdem-rank-nick="' + esc(row.nickname) + '" role="listitem">' +
         holdemAssetRankingPositionHtml(row.rank) +
         '<span class="holdem-asset-ranking-player"><strong>' + esc(row.nickname) +
         (isMe ? '<i class="holdem-asset-ranking-me-tag">나</i>' : '') + '</strong>' +
         holdemAssetRankingDeltaHtml(row.totalAssets, initialAssets) + '</span>' +
         '<strong class="holdem-asset-ranking-assets">' + formatHoldemAsset(row.totalAssets) + '</strong>' +
-        '</div>';
+        '</button>';
     }).join("");
   }
   function showHoldemAssetRankingStatus(message) {
@@ -5465,9 +5592,12 @@
     if (mine) mine.classList.add("hidden");
     var list = $("holdem-asset-ranking-list");
     if (list) list.innerHTML = '<p class="holdem-asset-ranking-status">' + esc(message) + '</p>';
+    var detail = $("holdem-asset-ranking-detail");
+    if (detail) detail.classList.add("hidden");
   }
   function closeHoldemAssetRanking() {
     holdemAssetRankingRequestSeq += 1;
+    holdemAssetRankingDetailSeq += 1;
     var backdrop = $("holdem-asset-ranking-backdrop");
     if (!backdrop) return;
     backdrop.classList.add("hidden");
@@ -6617,6 +6747,11 @@
     $("holdem-asset-ranking-close").addEventListener("click", closeHoldemAssetRanking);
     $("holdem-asset-ranking-backdrop").addEventListener("click", function (event) {
       if (event.target === this) closeHoldemAssetRanking();
+    });
+    $("holdem-asset-ranking-list").addEventListener("click", function (event) {
+      var row = event.target.closest("[data-holdem-rank-nick]");
+      if (!row || !this.contains(row)) return;
+      loadHoldemAssetRankingDetail(row.getAttribute("data-holdem-rank-nick"));
     });
     $("create-holdem-mode").addEventListener("click", function (event) {
       var card = event.target.closest("[data-holdem-mode]");

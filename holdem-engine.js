@@ -332,7 +332,8 @@
       revealed: false,
       lastAction: "",
       lastActionBet: null,
-      winAmount: 0
+      winAmount: 0,
+      handStartStack: null
     };
   }
 
@@ -393,6 +394,7 @@
       ringStacks: {},
       walletAdjustments: [],
       economyEvents: [],
+      handResults: [],
       seats: [null, null, null, null, null, null],
       handNo: 0,
       tournamentStartedAt: null,
@@ -498,6 +500,7 @@
     }
     state.walletAdjustments = [];
     state.economyEvents = [];
+    state.handResults = [];
     state.lastRake = Math.max(0, integer(state.lastRake, 0));
     state.settings.actionMs = clamp(
       state.settings.actionMs,
@@ -878,6 +881,37 @@
     });
   }
 
+  function addHandResults(state, now) {
+    if (!state || !state.settings || state.settings.mode !== "ring" ||
+        state.settings.assetBacked !== true) return;
+    var handNo = Math.max(0, integer(state.handNo, 0));
+    if (handNo < 1) return;
+    var unit = normalizedChipUnit(state.settings.chipUnit);
+    state.handResults = handPlayers(state).map(function (player) {
+      if (!player || player.isBot || !player.nick) return null;
+      var startStack = Number.isFinite(Number(player.handStartStack))
+        ? integer(player.handStartStack, player.stack)
+        : player.stack + integer(player.totalBet, 0) - integer(player.winAmount, 0);
+      startStack = Math.max(0, startStack);
+      var netAmount = integer(player.stack, 0) - startStack;
+      if (netAmount !== 0 && !isChipMultiple(netAmount, unit)) return null;
+      var revealed = player.revealed === true && !!player.evaluation;
+      return {
+        nickname: player.nick,
+        handNo: handNo,
+        smallBlind: Math.max(unit, integer(state.settings.smallBlind, unit)),
+        bigBlind: Math.max(unit * 2, integer(state.settings.bigBlind, unit * 2)),
+        netAmount: netAmount,
+        wonAmount: Math.max(0, integer(player.winAmount, 0)),
+        isWinner: integer(player.winAmount, 0) > 0,
+        revealed: revealed,
+        handName: revealed ? text(player.evaluation.name, 40) : "",
+        handCategory: revealed ? integer(player.evaluation.category, -1) : -1,
+        at: Math.max(0, integer(now, 0))
+      };
+    }).filter(Boolean);
+  }
+
   function ringRake(state, grossPot) {
     if (!state || !state.settings || state.settings.mode !== "ring" ||
         state.settings.assetBacked !== true || state.board.length < 3) return 0;
@@ -1067,6 +1101,7 @@
       reason: "folds",
       at: now
     };
+    addHandResults(state, now);
     finishHandPlayers(state);
   }
 
@@ -1163,6 +1198,7 @@
       rake: rake,
       at: now
     };
+    addHandResults(state, now);
     finishHandPlayers(state);
   }
 
@@ -1390,6 +1426,7 @@
       player.lastActionBet = null;
       player.winAmount = 0;
       player.evaluation = null;
+      player.handStartStack = player.inHand ? player.stack : null;
       player.ready = false;
     });
     postChips(state.seats[state.smallBlindSeat], state.settings.smallBlind);

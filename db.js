@@ -286,7 +286,9 @@ window.Db = (function () {
     };
     if (body.roomId != null) body.roomId = String(body.roomId).trim().slice(0, 80);
     if (body.requestId != null) body.requestId = String(body.requestId).trim().slice(0, 100);
-    var roomRequired = body.action !== "wallet" && body.action !== "ranking";
+    var roomRequired = body.action !== "wallet" &&
+      body.action !== "ranking" &&
+      body.action !== "ranking_detail";
     if (!body.auth.nick || !body.auth.hash || !body.action || (roomRequired && !body.roomId)) {
       return { ok: false, reason: "auth" };
     }
@@ -309,6 +311,11 @@ window.Db = (function () {
   }
   async function getHoldemAssetRanking(auth) {
     return holdemInvoke(auth, "ranking", {});
+  }
+  async function getHoldemAssetRankingDetail(auth, targetNick) {
+    return holdemInvoke(auth, "ranking_detail", {
+      targetNick: String(targetNick || "").trim().slice(0, 40)
+    });
   }
   var GAME_COLS = "id,black,white,winner,game,created_at";
   async function getGames() {
@@ -567,6 +574,7 @@ window.Db = (function () {
     claimRoomLease: claimRoomLease, renewRoomLease: renewRoomLease, releaseRoomLease: releaseRoomLease,
     holdemInvoke: holdemInvoke, getHoldemWallet: getHoldemWallet,
     getHoldemAssetRanking: getHoldemAssetRanking,
+    getHoldemAssetRankingDetail: getHoldemAssetRankingDetail,
     getGames: getGames, getGamesByType: getGamesByType,
     getGameMoves: getGameMoves, gamesWithMoves: gamesWithMoves, deleteGame: deleteGame,
     addChatMsg: addChatMsg, getChatHistory: getChatHistory, getChatHistoryBefore: getChatHistoryBefore,

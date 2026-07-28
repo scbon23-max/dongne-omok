@@ -404,7 +404,7 @@ test("Hold'em wallets use 100-chip accounting and update atomically with ring ta
   assert.match(edge, /const assetBackedRingTable = ringTable/);
   assert.match(edge, /assetBackedRingTable \|\| walletAdjustments\.length > 0/);
   assert.match(edge, /action === "refill" && assetBackedRingTable/);
-  assert.match(edge, /client\.rpc\(\s*"holdem_ring_table_v3_compare_and_swap"/s);
+  assert.match(edge, /client\.rpc\(\s*"holdem_ring_table_v4_compare_and_swap"/s);
   assert.match(edge, /cas\.reason === "wallet_insufficient"/);
   assert.match(
     walletMigration,
