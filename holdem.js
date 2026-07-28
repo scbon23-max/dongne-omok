@@ -2801,7 +2801,8 @@ window.TexasHoldem = (function () {
   function renderProfileWallet() {
     var balanceNode = $("holdem-profile-wallet-balance");
     var statusNode = $("holdem-profile-wallet-status");
-    if (!balanceNode && !statusNode) return;
+    var recordButton = $("holdem-profile-asset-record-btn");
+    if (!balanceNode && !statusNode && !recordButton) return;
     var target = profileTarget();
     var isMine = profileTargetIsMe(target);
     var totalAssets = profileTargetAsset(target, isMine);
@@ -2813,6 +2814,15 @@ window.TexasHoldem = (function () {
           : formatAsset(totalAssets);
     }
     if (statusNode) statusNode.textContent = "";
+    if (isMine && totalAssets != null && !profileWalletPending &&
+        window.HoldemAssetRecords && typeof HoldemAssetRecords.record === "function") {
+      HoldemAssetRecords.record(text(me().nick, 40), totalAssets);
+    }
+    if (recordButton) {
+      recordButton.disabled = !isMine || profileWalletPending || totalAssets == null ||
+        !window.HoldemAssetRecords || typeof HoldemAssetRecords.open !== "function";
+      recordButton.classList.toggle("hidden", !isMine);
+    }
   }
 
   function loadProfileWallet(force) {
@@ -4079,6 +4089,12 @@ window.TexasHoldem = (function () {
       confirmBuyInDialog();
     } else if (id === "holdem-profile-close") {
       closeProfileDialog();
+    } else if (id === "holdem-profile-asset-record-btn") {
+      var recordTarget = profileTarget();
+      var recordTotalAssets = profileTargetAsset(recordTarget, true);
+      if (window.HoldemAssetRecords && typeof HoldemAssetRecords.open === "function") {
+        HoldemAssetRecords.open(text(me().nick, 40), recordTotalAssets);
+      }
     } else if (id === "holdem-profile-role-action") {
       toggleProfileRole();
     } else if (id === "holdem-profile-avatar-remove") {

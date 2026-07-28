@@ -5230,6 +5230,132 @@
   function formatHoldemAsset(value) {
     return Math.max(0, Math.floor(Number(value) || 0)).toLocaleString("ko-KR") + "원";
   }
+  var HOLDEM_ASSET_RECORD_STORAGE_KEY = "dongne_holdem_asset_records_v1";
+  function holdemAssetDateKey(now) {
+    var date = new Date((now || Date.now()) + 9 * 60 * 60 * 1000);
+    return date.toISOString().slice(0, 10);
+  }
+  function holdemAssetRecordNick(nick) {
+    return String(nick || "").trim().slice(0, 40);
+  }
+  function hasHoldemAssetAmount(value) {
+    return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+  }
+  function readHoldemAssetRecords() {
+    try {
+      var parsed = JSON.parse(localStorage.getItem(HOLDEM_ASSET_RECORD_STORAGE_KEY) || "{}");
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (e) {
+      return {};
+    }
+  }
+  function writeHoldemAssetRecords(records) {
+    try { localStorage.setItem(HOLDEM_ASSET_RECORD_STORAGE_KEY, JSON.stringify(records)); }
+    catch (e) {}
+  }
+  function holdemAssetRecordKey(nick, dateKey) {
+    return holdemAssetRecordNick(nick) + "::" + String(dateKey || holdemAssetDateKey());
+  }
+  function pruneHoldemAssetRecords(records, nick) {
+    var prefix = holdemAssetRecordNick(nick) + "::";
+    var keys = Object.keys(records).filter(function (key) { return key.indexOf(prefix) === 0; }).sort();
+    while (keys.length > 31) delete records[keys.shift()];
+  }
+  function recordHoldemAssetSnapshot(nick, totalAssets) {
+    nick = holdemAssetRecordNick(nick);
+    if (!nick || !hasHoldemAssetAmount(totalAssets)) return null;
+    var amount = Math.max(0, Math.floor(Number(totalAssets)));
+    var dateKey = holdemAssetDateKey();
+    var records = readHoldemAssetRecords();
+    var key = holdemAssetRecordKey(nick, dateKey);
+    var now = Date.now();
+    var record = records[key];
+    if (!record || !Number.isFinite(Number(record.startAssets))) {
+      record = {
+        nick: nick,
+        date: dateKey,
+        startAssets: amount,
+        currentAssets: amount,
+        highAssets: amount,
+        lowAssets: amount,
+        firstSeenAt: now,
+        updatedAt: now
+      };
+    } else {
+      record.currentAssets = amount;
+      record.highAssets = Math.max(Math.floor(Number(record.highAssets) || amount), amount);
+      record.lowAssets = Math.min(Math.floor(Number(record.lowAssets) || amount), amount);
+      record.updatedAt = now;
+    }
+    records[key] = record;
+    pruneHoldemAssetRecords(records, nick);
+    writeHoldemAssetRecords(records);
+    return record;
+  }
+  function holdemAssetRecordForToday(nick) {
+    var records = readHoldemAssetRecords();
+    return records[holdemAssetRecordKey(nick, holdemAssetDateKey())] || null;
+  }
+  function signedHoldemAsset(value) {
+    var amount = Math.floor(Number(value) || 0);
+    if (amount > 0) return "+" + formatHoldemAsset(amount);
+    if (amount < 0) return "-" + formatHoldemAsset(Math.abs(amount));
+    return "0원";
+  }
+  function setHoldemAssetRecordText(id, value) {
+    var node = $(id);
+    if (node) node.textContent = value;
+  }
+  function renderHoldemAssetRecordDialog(nick, totalAssets) {
+    var record = hasHoldemAssetAmount(totalAssets)
+      ? recordHoldemAssetSnapshot(nick, totalAssets)
+      : holdemAssetRecordForToday(nick);
+    var summary = $("holdem-asset-record-summary") || document.querySelector(".holdem-asset-record-summary");
+    if (summary) {
+      summary.classList.remove("is-plus", "is-minus");
+    }
+    if (!record) {
+      setHoldemAssetRecordText("holdem-asset-record-date", "오늘 기준");
+      setHoldemAssetRecordText("holdem-asset-record-net", "확인 필요");
+      setHoldemAssetRecordText("holdem-asset-record-start", "-");
+      setHoldemAssetRecordText("holdem-asset-record-current", "-");
+      setHoldemAssetRecordText("holdem-asset-record-win", "0원");
+      setHoldemAssetRecordText("holdem-asset-record-loss", "0원");
+      setHoldemAssetRecordText("holdem-asset-record-note", "총자산을 불러오면 오늘 기록이 시작됩니다.");
+      return;
+    }
+    var start = Math.max(0, Math.floor(Number(record.startAssets) || 0));
+    var current = Math.max(0, Math.floor(Number(record.currentAssets) || start));
+    var net = current - start;
+    var won = Math.max(0, net);
+    var lost = Math.max(0, -net);
+    setHoldemAssetRecordText("holdem-asset-record-date", record.date + " 오늘 기준");
+    setHoldemAssetRecordText("holdem-asset-record-net", signedHoldemAsset(net));
+    setHoldemAssetRecordText("holdem-asset-record-start", formatHoldemAsset(start));
+    setHoldemAssetRecordText("holdem-asset-record-current", formatHoldemAsset(current));
+    setHoldemAssetRecordText("holdem-asset-record-win", formatHoldemAsset(won));
+    setHoldemAssetRecordText("holdem-asset-record-loss", formatHoldemAsset(lost));
+    setHoldemAssetRecordText("holdem-asset-record-note", "오늘 처음 확인한 총자산을 기준으로 이 기기에 저장합니다.");
+    if (summary && net !== 0) summary.classList.add(net > 0 ? "is-plus" : "is-minus");
+  }
+  function openHoldemAssetRecordDialog(nick, totalAssets) {
+    renderHoldemAssetRecordDialog(nick || me.nick, totalAssets);
+    var backdrop = $("holdem-asset-record-backdrop");
+    if (!backdrop) return;
+    backdrop.classList.remove("hidden");
+    backdrop.setAttribute("aria-hidden", "false");
+  }
+  function closeHoldemAssetRecordDialog() {
+    var backdrop = $("holdem-asset-record-backdrop");
+    if (!backdrop) return;
+    backdrop.classList.add("hidden");
+    backdrop.setAttribute("aria-hidden", "true");
+  }
+  window.HoldemAssetRecords = {
+    record: recordHoldemAssetSnapshot,
+    open: openHoldemAssetRecordDialog,
+    close: closeHoldemAssetRecordDialog
+  };
   function renderHoldemWalletControls(mode) {
     var availableBalance = holdemWalletProfile &&
       Number.isFinite(Number(holdemWalletProfile.balance))
@@ -5261,6 +5387,11 @@
               formatHoldemAsset(availableBalance) + "을 사용할 수 있습니다."
             : "";
     }
+    var recordButton = $("create-holdem-asset-record-btn");
+    if (totalAssets != null && !holdemWalletPending) {
+      recordHoldemAssetSnapshot(me.nick, totalAssets);
+    }
+    if (recordButton) recordButton.disabled = holdemWalletPending || totalAssets == null;
 
     var slider = $("create-holdem-buyin-slider");
     var availableMax = availableBalance == null
@@ -6314,6 +6445,16 @@
       showCreateRoomStep("game");
     });
     $("create-holdem-step-back").addEventListener("click", function () { showCreateRoomStep("game"); });
+    $("create-holdem-asset-record-btn").addEventListener("click", function () {
+      var totalAssets = holdemWalletProfile && Number.isFinite(Number(holdemWalletProfile.totalAssets))
+        ? Math.max(0, Math.floor(Number(holdemWalletProfile.totalAssets)))
+        : null;
+      openHoldemAssetRecordDialog(me.nick, totalAssets);
+    });
+    $("holdem-asset-record-close").addEventListener("click", closeHoldemAssetRecordDialog);
+    $("holdem-asset-record-backdrop").addEventListener("click", function (event) {
+      if (event.target === this) closeHoldemAssetRecordDialog();
+    });
     $("create-holdem-mode").addEventListener("click", function (event) {
       var card = event.target.closest("[data-holdem-mode]");
       if (!card || !this.contains(card)) return;

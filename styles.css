@@ -2393,14 +2393,32 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   font-size: 12px;
   letter-spacing: -.1px;
 }
-.create-holdem-wallet-top em {
-  padding: 3px 7px;
+.holdem-asset-record-btn {
+  flex: 0 0 auto;
+  min-height: 26px;
+  padding: 4px 9px;
+  border: 1px solid rgba(242,199,125,.42);
   border-radius: 999px;
-  background: rgba(242,199,125,.18);
+  background: rgba(242,199,125,.16);
   color: #f2c77d;
-  font-size: 9px;
-  font-style: normal;
-  letter-spacing: .9px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 1000;
+  line-height: 1;
+  letter-spacing: -.1px;
+}
+.holdem-asset-record-btn:not(:disabled) {
+  cursor: pointer;
+}
+.holdem-asset-record-btn:not(:disabled):hover,
+.holdem-asset-record-btn:not(:disabled):focus-visible {
+  border-color: rgba(255,223,151,.82);
+  background: rgba(242,199,125,.25);
+  color: #fff0c2;
+  outline: none;
+}
+.holdem-asset-record-btn:disabled {
+  opacity: .42;
 }
 .create-holdem-wallet strong {
   position: relative;
@@ -2418,6 +2436,129 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-holdem-wallet small {
   display: none;
+}
+.holdem-asset-record-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0,8,12,.7);
+  backdrop-filter: blur(7px);
+}
+.holdem-asset-record-backdrop.hidden {
+  display: none;
+}
+.holdem-asset-record-dialog {
+  width: min(92vw, 390px);
+  overflow: hidden;
+  border: 1px solid rgba(125,225,196,.28);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(85,227,204,.18), transparent 38%),
+    linear-gradient(180deg, rgba(11,42,51,.98), rgba(5,18,25,.99));
+  color: #dffbf6;
+  box-shadow: 0 24px 70px rgba(0,0,0,.56), inset 0 1px 0 rgba(255,255,255,.1);
+}
+.holdem-asset-record-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 18px 8px;
+}
+.holdem-asset-record-head span {
+  color: #f2c77d;
+  font-size: 11px;
+  font-weight: 1000;
+  letter-spacing: .08em;
+}
+.holdem-asset-record-head h2 {
+  margin: 4px 0 0;
+  color: #fff7dc;
+  font-size: 21px;
+  line-height: 1.1;
+  letter-spacing: -.5px;
+}
+.holdem-asset-record-head button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 50%;
+  background: rgba(0,0,0,.24);
+  color: #dffbf6;
+  font-size: 22px;
+  line-height: 1;
+}
+.holdem-asset-record-summary {
+  margin: 8px 18px 13px;
+  padding: 15px;
+  border: 1px solid rgba(242,199,125,.28);
+  border-radius: 16px;
+  background: rgba(242,199,125,.12);
+}
+.holdem-asset-record-summary span {
+  display: block;
+  color: #b7dcd7;
+  font-size: 12px;
+  font-weight: 900;
+}
+.holdem-asset-record-summary strong {
+  display: block;
+  margin-top: 5px;
+  color: #fff7dc;
+  font-size: clamp(30px, 8vw, 42px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1.4px;
+  text-shadow: 0 0 18px rgba(242,199,125,.34), 0 2px 0 rgba(0,0,0,.28);
+}
+.holdem-asset-record-summary.is-plus strong,
+.holdem-asset-record-grid .win dd {
+  color: #7effd8;
+}
+.holdem-asset-record-summary.is-minus strong,
+.holdem-asset-record-grid .loss dd {
+  color: #ffaaa0;
+}
+.holdem-asset-record-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0;
+  padding: 0 18px 15px;
+}
+.holdem-asset-record-grid div {
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 13px;
+  background: rgba(255,255,255,.045);
+}
+.holdem-asset-record-grid dt {
+  margin: 0 0 5px;
+  color: #91b8b7;
+  font-size: 11px;
+  font-weight: 900;
+}
+.holdem-asset-record-grid dd {
+  margin: 0;
+  color: #f4ffff;
+  font-size: 16px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.35px;
+  white-space: nowrap;
+}
+.holdem-asset-record-note {
+  margin: 0;
+  padding: 11px 18px 15px;
+  border-top: 1px solid rgba(255,255,255,.07);
+  color: #8fb3b4;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.45;
 }
 .create-holdem-section-title { margin-bottom: 7px; }
 .create-mode-list { display: grid; gap: 9px; margin-bottom: 16px; }

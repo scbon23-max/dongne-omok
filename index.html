@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260728-holdem-action-tag-single-seat-v1">
+<meta name="app-build" content="20260728-holdem-asset-record-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -926,7 +926,7 @@
         <div class="create-holdem-wallet holdem-profile-wallet" aria-live="polite">
           <div class="create-holdem-wallet-top">
             <span id="holdem-profile-wallet-label">내 총자산</span>
-            <em>MY STACK</em>
+            <button id="holdem-profile-asset-record-btn" class="holdem-asset-record-btn" type="button">자산기록</button>
           </div>
           <strong id="holdem-profile-wallet-balance">불러오는 중</strong>
           <small id="holdem-profile-wallet-status">자산을 확인하고 있어요</small>
@@ -1133,7 +1133,7 @@
       <div class="create-holdem-wallet create-holdem-wallet-full" aria-live="polite">
         <div class="create-holdem-wallet-top">
           <span>내 홀덤 총 자산</span>
-          <em>MY STACK</em>
+          <button id="create-holdem-asset-record-btn" class="holdem-asset-record-btn" type="button">자산기록</button>
         </div>
         <strong id="create-holdem-wallet-balance">불러오는 중</strong>
         <small id="create-holdem-wallet-status">자산을 확인하고 있어요</small>
@@ -1199,6 +1199,41 @@
       <button id="create-holdem-mode-confirm" class="btn-primary create-confirm">홀덤 방 만들기</button>
     </div>
   </div>
+</div>
+
+<div id="holdem-asset-record-backdrop" class="holdem-asset-record-backdrop hidden" aria-hidden="true">
+  <section class="holdem-asset-record-dialog" role="dialog" aria-modal="true" aria-labelledby="holdem-asset-record-title">
+    <header class="holdem-asset-record-head">
+      <div>
+        <span id="holdem-asset-record-date">오늘 기준</span>
+        <h2 id="holdem-asset-record-title">자산기록</h2>
+      </div>
+      <button id="holdem-asset-record-close" type="button" aria-label="자산기록 닫기">×</button>
+    </header>
+    <div class="holdem-asset-record-summary" aria-live="polite">
+      <span>오늘 순손익</span>
+      <strong id="holdem-asset-record-net">0원</strong>
+    </div>
+    <dl class="holdem-asset-record-grid">
+      <div>
+        <dt>시작 자산</dt>
+        <dd id="holdem-asset-record-start">-</dd>
+      </div>
+      <div>
+        <dt>현재 자산</dt>
+        <dd id="holdem-asset-record-current">-</dd>
+      </div>
+      <div class="win">
+        <dt>오늘 딴 금액</dt>
+        <dd id="holdem-asset-record-win">0원</dd>
+      </div>
+      <div class="loss">
+        <dt>오늘 잃은 금액</dt>
+        <dd id="holdem-asset-record-loss">0원</dd>
+      </div>
+    </dl>
+    <p id="holdem-asset-record-note" class="holdem-asset-record-note">오늘 처음 확인한 총자산을 기준으로 기록합니다.</p>
+  </section>
 </div>
 
 <!-- 메뉴 모달 -->

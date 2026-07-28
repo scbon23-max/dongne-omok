@@ -63,6 +63,11 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.match(index, /id="create-holdem-mode-step"/);
   assert.match(index, /id="create-holdem-wallet-balance"/);
   assert.match(index, /내 홀덤 총 자산/);
+  assert.match(index, /id="create-holdem-asset-record-btn"[^>]*>자산기록<\/button>/);
+  assert.match(index, /id="holdem-asset-record-backdrop"/);
+  assert.match(index, /오늘 딴 금액/);
+  assert.match(index, /오늘 잃은 금액/);
+  assert.doesNotMatch(index, /MY STACK/);
   assert.doesNotMatch(index, /현금과 무관한/);
   assert.ok(
     index.indexOf('data-holdem-mode="ring"') <
@@ -102,6 +107,10 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.doesNotMatch(game, /smallBlind: 50(?!0)|smallBlind: 250/);
   assert.doesNotMatch(index, /SB 50(?!0)|SB 250/);
   assert.match(game, /function holdemBuyInRangeLabel\(amount\)/);
+  assert.match(game, /HOLDEM_ASSET_RECORD_STORAGE_KEY = "dongne_holdem_asset_records_v1"/);
+  assert.match(game, /function recordHoldemAssetSnapshot\(nick, totalAssets\)/);
+  assert.match(game, /recordHoldemAssetSnapshot\(me\.nick, totalAssets\)/);
+  assert.match(game, /openHoldemAssetRecordDialog\(me\.nick, totalAssets\)/);
   assert.match(game, /totalAssets[\s\S]*tableBalance[\s\S]*현재 테이블에서 사용 중/);
   assert.match(game, /mode = "ring"/);
   assert.match(game, /modeBox\.hidden = true/);
@@ -242,8 +251,14 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\.is-folded \.holdem-seat-avatar,[\s\S]*\.holdem-seat\.is-folded \.holdem-hole-cards \.holdem-card\s*\{[\s\S]*filter:\s*grayscale\(1\)/);
   assert.doesNotMatch(styles, /\.holdem-seat\.is-folded\s*\{[^}]*opacity:\s*\.(?:[0-9]+)/);
   assert.match(styles, /\.create-holdem-wallet small\s*\{[\s\S]*display:\s*none/);
+  assert.match(styles, /\.holdem-asset-record-btn\s*\{/);
+  assert.match(styles, /\.holdem-asset-record-backdrop\s*\{/);
+  assert.match(styles, /\.holdem-asset-record-summary\.is-plus strong/);
   assert.match(index, /class="create-holdem-wallet holdem-profile-wallet"/);
+  assert.match(index, /id="holdem-profile-asset-record-btn"[^>]*>자산기록<\/button>/);
   assert.match(controller, /Db\.getHoldemWallet\(currentAuth\)/);
+  assert.match(controller, /HoldemAssetRecords\.record\(text\(me\(\)\.nick, 40\), totalAssets\)/);
+  assert.match(controller, /id === "holdem-profile-asset-record-btn"[\s\S]*HoldemAssetRecords\.open/);
   assert.match(controller, /Db\.getProfileAvatars\(nicks\)/);
   assert.match(controller, /Db\.saveProfileAvatar\([\s\S]*dataUrl/);
   assert.match(db, /async function getProfileAvatars\(nicks\)/);
