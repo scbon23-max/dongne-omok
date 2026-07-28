@@ -63,6 +63,8 @@ window.TexasHoldem = (function () {
   var COMMUNITY_CARD_OPEN_SFX_VOLUME = 0.78;
   var TIMER_WARNING_SFX_SRC = "assets/warn.mp3";
   var TIMER_WARNING_SFX_VOLUME = 1;
+  var TURN_START_SFX_SRC = "assets/holdem/my-turn.mp3";
+  var TURN_START_SFX_VOLUME = 0.92;
   var ACTION_SFX_SOURCES = {
     fold: "assets/holdem/fold.mp3",
     check: "assets/holdem/check.mp3",
@@ -155,6 +157,7 @@ window.TexasHoldem = (function () {
   var sfxPoolCursor = Object.create(null);
   var allinBgmSfxEl = null;
   var timerWarningSfxEls = [];
+  var turnStartSfxEls = [];
   var holdemAudioContext = null;
   var holdemAudioBuffers = Object.create(null);
   var holdemAudioBufferPromises = Object.create(null);
@@ -166,6 +169,7 @@ window.TexasHoldem = (function () {
   var lastAllinBgmKey = "";
   var lastWinnerSoundKey = "";
   var lastTimerWarningKey = "";
+  var lastTurnSoundKey = "";
   var lastBoardHtml = "";
 
   var boundRoot = null;
@@ -613,6 +617,7 @@ window.TexasHoldem = (function () {
   function preloadHoldemAudioBuffers() {
     loadHoldemAudioBuffer("community-card-open", COMMUNITY_CARD_OPEN_SFX_SRC);
     loadHoldemAudioBuffer("timer-warning", TIMER_WARNING_SFX_SRC);
+    loadHoldemAudioBuffer("turn-start", TURN_START_SFX_SRC);
     Object.keys(ACTION_SFX_SOURCES).forEach(function (kind) {
       loadHoldemAudioBuffer("action-" + kind, ACTION_SFX_SOURCES[kind]);
     });
@@ -736,6 +741,15 @@ window.TexasHoldem = (function () {
     );
   }
 
+  function ensureTurnStartSfx() {
+    return ensureHoldemAudioPool(
+      turnStartSfxEls,
+      TURN_START_SFX_SRC,
+      TURN_START_SFX_VOLUME,
+      HOLDEM_SFX_POOL_SIZE
+    );
+  }
+
   function playActionSfx(kind) {
     kind = ACTION_SFX_SOURCES[kind] ? kind : "";
     if (!active || !kind || holdemSoundMuted()) return false;
@@ -757,6 +771,12 @@ window.TexasHoldem = (function () {
     return playHoldemAudioPool("timer-warning", ensureTimerWarningSfx(), TIMER_WARNING_SFX_VOLUME);
   }
 
+  function playTurnStartSfx() {
+    if (!active || holdemSoundMuted()) return false;
+    if (playHoldemAudioBuffer("turn-start", TURN_START_SFX_VOLUME)) return true;
+    return playHoldemAudioPool("turn-start", ensureTurnStartSfx(), TURN_START_SFX_VOLUME);
+  }
+
   function stopAllinBgmSfx() {
     if (!allinBgmSfxEl) return;
     try {
@@ -770,6 +790,7 @@ window.TexasHoldem = (function () {
     var community = ensureCommunityCardOpenSfx();
     var allinBgm = ensureAllinBgmSfx();
     var timer = ensureTimerWarningSfx();
+    var turnStart = ensureTurnStartSfx();
     community.forEach(function (el) {
       elements.push({ el: el, volume: COMMUNITY_CARD_OPEN_SFX_VOLUME });
     });
@@ -781,6 +802,9 @@ window.TexasHoldem = (function () {
     if (allinBgm) elements.push({ el: allinBgm, volume: ALLIN_BGM_SFX_VOLUME });
     timer.forEach(function (el) {
       elements.push({ el: el, volume: TIMER_WARNING_SFX_VOLUME });
+    });
+    turnStart.forEach(function (el) {
+      elements.push({ el: el, volume: TURN_START_SFX_VOLUME });
     });
     return elements;
   }
@@ -895,6 +919,7 @@ window.TexasHoldem = (function () {
     ensureActionSfx("winner");
     ensureAllinBgmSfx();
     ensureTimerWarningSfx();
+    ensureTurnStartSfx();
   }
 
   function boardRevealKey(snapshot) {
@@ -1436,6 +1461,7 @@ window.TexasHoldem = (function () {
     var nextDeadlineKey = next.version + ":" + next.deadlineAt;
     syncResultFlow(state, next);
     syncActionSounds(state, next, hadSnapshot);
+    syncTurnStartSound(state, next, hadSnapshot);
     state = next;
     rawSnapshot = snapshot;
     hasSnapshot = true;
@@ -1549,6 +1575,33 @@ window.TexasHoldem = (function () {
     } else if (!winnerKey) {
       lastWinnerSoundKey = "";
     }
+  }
+
+  function turnStartSoundKey(snapshot) {
+    if (!snapshot || !isHandActive(snapshot.phase)) return "";
+    if (snapshot.heroSeat < 0 || snapshot.actingSeat !== snapshot.heroSeat) return "";
+    return [
+      snapshot.handId || snapshot.handNumber || "hand",
+      snapshot.actionSeq || 0,
+      snapshot.actingSeat,
+      snapshot.deadlineAt
+    ].join(":");
+  }
+
+  function syncTurnStartSound(previous, next, hadSnapshot) {
+    var nextKey = turnStartSoundKey(next);
+    if (!hadSnapshot) {
+      lastTurnSoundKey = nextKey;
+      return;
+    }
+    if (!nextKey) {
+      lastTurnSoundKey = "";
+      return;
+    }
+    var previousKey = turnStartSoundKey(previous);
+    if (nextKey === previousKey || nextKey === lastTurnSoundKey) return;
+    lastTurnSoundKey = nextKey;
+    playTurnStartSfx();
   }
 
   function winnerSeatMap(snapshot) {
@@ -4012,6 +4065,7 @@ window.TexasHoldem = (function () {
     lastAppliedResponse = 0;
     lastAnnouncementKey = "";
     lastTimerWarningKey = "";
+    lastTurnSoundKey = "";
     profileDialogOpen = false;
     profileTargetSeat = -1;
     autoSeatKey = "";
@@ -4068,6 +4122,7 @@ window.TexasHoldem = (function () {
     pendingUiCount = 0;
     pendingAction = "";
     lastTimerWarningKey = "";
+    lastTurnSoundKey = "";
     profileDialogOpen = false;
     profileWalletPending = false;
     profileTargetSeat = -1;

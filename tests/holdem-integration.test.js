@@ -256,6 +256,8 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /COMMUNITY_CARD_OPEN_SFX_VOLUME = 0\.78/);
   assert.match(controller, /TIMER_WARNING_SFX_SRC = "assets\/warn\.mp3"/);
   assert.match(controller, /TIMER_WARNING_SFX_VOLUME = 1/);
+  assert.match(controller, /TURN_START_SFX_SRC = "assets\/holdem\/my-turn\.mp3"/);
+  assert.match(controller, /TURN_START_SFX_VOLUME = 0\.92/);
   assert.match(controller, /fold:\s*"assets\/holdem\/fold\.mp3"/);
   assert.match(controller, /check:\s*"assets\/holdem\/check\.mp3"/);
   assert.match(controller, /call:\s*"assets\/holdem\/call\.mp3"/);
@@ -269,10 +271,12 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /HOLDEM_SFX_POOL_SIZE = 4/);
   assert.match(controller, /function ensureHoldemAudioContext\(\)[\s\S]*window\.AudioContext \|\| window\.webkitAudioContext/);
   assert.match(controller, /function preloadHoldemAudioBuffers\(\)[\s\S]*loadHoldemAudioBuffer\("timer-warning", TIMER_WARNING_SFX_SRC\)/);
+  assert.match(controller, /function preloadHoldemAudioBuffers\(\)[\s\S]*loadHoldemAudioBuffer\("turn-start", TURN_START_SFX_SRC\)/);
   assert.match(controller, /function playHoldemAudioBuffer\(key, volume\)[\s\S]*context\.createBufferSource\(\)/);
   assert.match(controller, /function ensureHoldemAudioPool\([\s\S]*while \(pool\.length < size\)/);
   assert.match(controller, /function playHoldemAudioPool\([\s\S]*nextHoldemPoolAudio/);
   assert.match(controller, /function playTimerWarningSfx\(\)[\s\S]*playHoldemAudioBuffer\("timer-warning", TIMER_WARNING_SFX_VOLUME\)/);
+  assert.match(controller, /function playTurnStartSfx\(\)[\s\S]*playHoldemAudioBuffer\("turn-start", TURN_START_SFX_VOLUME\)/);
   assert.match(controller, /function unlockHoldemAudio\(\)[\s\S]*el\.muted = true[\s\S]*el\.play\(\)/);
   assert.match(controller, /function unlockHoldemAudio\(\)[\s\S]*resumeHoldemAudioContext\(\);[\s\S]*preloadHoldemAudioBuffers\(\);/);
   assert.match(controller, /function bindHoldemAudioUnlock\(\)[\s\S]*document\.addEventListener\(eventName, unlockHoldemAudio, true\)/);
@@ -281,6 +285,9 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /function actionSoundEntries\(snapshot\)[\s\S]*snapshot\.actionHistory\.filter/);
   assert.match(controller, /for \(var entryIndex = firstNewIndex;[\s\S]*scheduleActionSfx\(kind, \(entryIndex - firstNewIndex\) \* 90\)/);
   assert.match(controller, /lastActionSoundKey = entryKey/);
+  assert.match(controller, /function turnStartSoundKey\(snapshot\)[\s\S]*snapshot\.actingSeat !== snapshot\.heroSeat[\s\S]*snapshot\.deadlineAt/);
+  assert.match(controller, /function syncTurnStartSound\(previous, next, hadSnapshot\)[\s\S]*playTurnStartSfx\(\)/);
+  assert.match(controller, /syncTurnStartSound\(state, next, hadSnapshot\)/);
   assert.match(controller, /function actionSoundKind\(action\)[\s\S]*action === "check"/);
   assert.match(controller, /if \(kind === "allin"\)[\s\S]*bgmKey !== lastAllinBgmKey[\s\S]*setTimeout\(playAllinBgmSfx/);
   assert.match(controller, /allinBgmSfxEl\.loop = false/);
