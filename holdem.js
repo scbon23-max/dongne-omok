@@ -184,6 +184,7 @@ window.TexasHoldem = (function () {
   var suppressActionTagAnimations = false;
   var lastBoardHtml = "";
   var lastSeatsHtml = "";
+  var lastSeatResultStage = "none";
 
   var boundRoot = null;
   var demoState = null;
@@ -1119,7 +1120,8 @@ window.TexasHoldem = (function () {
       cardCount: clamp(integer(firstDefined(entry.cardCount, entry.holeCardCount, entry.hasCards ? 2 : 0), 0), 0, 2),
       status: status,
       handName: text(firstDefined(entry.handName, entry.handLabel), 80),
-      winner: !!firstDefined(entry.winner, entry.isWinner, false)
+      winner: !!firstDefined(entry.winner, entry.isWinner, false),
+      winAmount: nonnegative(firstDefined(entry.winAmount, entry.wonAmount, entry.payout), 0)
     };
   }
 
@@ -1204,12 +1206,51 @@ window.TexasHoldem = (function () {
     return { total: Math.max(0, main), sides: sides };
   }
 
-  function winnerNicks(table) {
-    var value = firstDefined(table.winners, table.winnerNicks, table.winner);
-    if (!Array.isArray(value)) value = value == null ? [] : [value];
-    return value.map(function (entry) {
-      return text(isObject(entry) ? firstDefined(entry.nick, entry.nickname, entry.name) : entry, 40);
-    }).filter(Boolean);
+  function winnerNicks(table, seats) {
+    var found = [];
+
+    function addNick(value) {
+      var nick = text(value, 40);
+      if (nick && found.indexOf(nick) < 0) found.push(nick);
+    }
+
+    function addWinner(entry) {
+      if (Array.isArray(entry)) {
+        entry.forEach(addWinner);
+        return;
+      }
+      if (isObject(entry)) {
+        var entryNick = firstDefined(entry.nick, entry.nickname, entry.name);
+        if (entryNick != null) {
+          addNick(entryNick);
+          return;
+        }
+        entry = firstDefined(entry.seat, entry.index, entry.position);
+      }
+      if (typeof entry === "number") {
+        var seatIndex = safeSeat(entry);
+        if (seatIndex >= 0 && seats && seats[seatIndex]) addNick(seats[seatIndex].nick);
+        return;
+      }
+      addNick(entry);
+    }
+
+    addWinner(firstDefined(table.winners, table.winnerNicks, table.winner));
+    if (!found.length && Array.isArray(table.pots)) {
+      table.pots.forEach(function (pot) {
+        if (isObject(pot)) addWinner(firstDefined(pot.winners, pot.winnerSeats, pot.winner));
+      });
+    }
+    if (!found.length) {
+      var lastEvent = firstObject(table.lastEvent, table.event);
+      addWinner(firstDefined(lastEvent.nick, lastEvent.winners, lastEvent.winner));
+    }
+    if (!found.length && Array.isArray(seats)) {
+      seats.forEach(function (seat) {
+        if (seat && (seat.winner || seat.winAmount > 0)) addNick(seat.nick);
+      });
+    }
+    return found;
   }
 
   function normalizeActionHistory(value) {
@@ -1527,7 +1568,7 @@ window.TexasHoldem = (function () {
       actionSeq: Math.max(0, integer(firstDefined(table.actionSeq, raw.actionSeq), 0)),
       actionHistory: normalizeActionHistory(firstDefined(table.actionHistory, raw.actionHistory, viewer.actionHistory)),
       ownerNick: text(firstDefined(table.ownerNick, table.owner, raw.ownerNick), 40),
-      winners: winnerNicks(table),
+      winners: winnerNicks(table, seats),
       showdown: showdownRows,
       handName: text(firstDefined(viewer.handName, viewer.bestHandName, raw.handName), 80),
       message: text(firstDefined(raw.message, table.message, table.announcement, table.resultText), 160)
@@ -1782,6 +1823,7 @@ window.TexasHoldem = (function () {
       settleStart: now + finalActionMs + cardsFirstMs,
       settleEnd: settleEnd,
       reviewUntil: settleEnd + RESULT_REVIEW_MS,
+      settlementReleased: false,
       transitionsReleased: false,
       potFrom: Math.max(nonnegative(previous && previous.pot, 0), nonnegative(next && next.pot, 0)),
       fromStacks: fromStacks,
@@ -1804,6 +1846,15 @@ window.TexasHoldem = (function () {
 
   function resultTransitionReady() {
     return resultTransitionDelayMs() <= 0;
+  }
+
+  function resultSettlementDelayMs() {
+    if (state.phase !== "complete" || !resultFlow) return 0;
+    return Math.max(0, nonnegative(resultFlow.settleEnd, 0) - Date.now());
+  }
+
+  function resultSettlementReady() {
+    return resultSettlementDelayMs() <= 0;
   }
 
   function resultBoardVisibleCount() {
@@ -1843,7 +1894,9 @@ window.TexasHoldem = (function () {
     if (!resultFlow || !resultFlow.winnerSeats[seatIndex]) return 0;
     var from = resultFlow.fromStacks[seatIndex];
     var to = resultFlow.toStacks[seatIndex];
-    return Number.isFinite(from) && Number.isFinite(to) && to > from ? to - from : 0;
+    if (Number.isFinite(from) && Number.isFinite(to) && to > from) return to - from;
+    var seat = state.seats[seatIndex];
+    return nonnegative(seat && seat.winAmount, 0);
   }
 
   function requestId(prefix, stableSuffix) {
@@ -2401,7 +2454,7 @@ window.TexasHoldem = (function () {
   }
 
   function startHand() {
-    if (state.phase === "complete" && !resultTransitionReady()) return;
+    if (state.phase === "complete" && !resultSettlementReady()) return;
     if (state.newGameBuyInRequired) {
       if (text(me().nick, 40) !== state.ownerNick) {
         if (api && typeof api.toast === "function") api.toast("방장이 새 게임 참가금액을 정하고 있어요.", 2200);
@@ -3157,6 +3210,13 @@ window.TexasHoldem = (function () {
     scheduleAutoNextHand();
   }
 
+  function releaseResultSettlement() {
+    if (state.phase !== "complete" || !resultFlow || resultFlow.settlementReleased ||
+        !resultSettlementReady()) return;
+    resultFlow.settlementReleased = true;
+    renderControls();
+  }
+
   function renderProfileDialog() {
     var backdrop = $("holdem-profile-backdrop");
     if (!backdrop) return;
@@ -3587,6 +3647,7 @@ window.TexasHoldem = (function () {
       box.innerHTML = nextHtml;
       lastSeatsHtml = nextHtml;
     }
+    lastSeatResultStage = stage;
     suppressActionTagAnimations = false;
   }
 
@@ -3946,6 +4007,7 @@ window.TexasHoldem = (function () {
     var canSize = !!(state.legal.bet || state.legal.raise);
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
     var resultReady = resultTransitionReady();
+    var resultSettled = resultSettlementReady();
     var needsRefill = state.mode === "ring" && !!hero && hero.stack <= 0 &&
       !isHandActive(state.phase) && resultReady;
     var menuKey = state.handId + ":" + state.version + ":" + state.actionSeq + ":" +
@@ -3966,14 +4028,18 @@ window.TexasHoldem = (function () {
     disable("holdem-bot-remove-btn", busy || !canManageBots || state.botCount <= 0);
     var isNewGameStart = state.phase === "complete" && state.newGameBuyInRequired &&
       isOwner && resultReady;
-    var tableStartVisible = (waiting && state.canStart) || isNewGameStart;
+    var isNextHandStart = completed && state.canNext && !state.newGameBuyInRequired &&
+      resultSettled;
+    var tableStartVisible = (waiting && state.canStart) || isNewGameStart || isNextHandStart;
     show("holdem-ready-btn", false);
     show("holdem-start-btn", false);
     show("holdem-next-btn", false);
     show("holdem-table-start-btn", tableStartVisible);
     var tableStartButton = $("holdem-table-start-btn");
     if (tableStartButton) {
-      tableStartButton.textContent = isNewGameStart ? "새 게임 시작" : "시작하기";
+      tableStartButton.textContent = isNewGameStart
+        ? "새 게임 시작"
+        : isNextHandStart ? "다음 핸드" : "시작하기";
     }
     var readyButton = $("holdem-ready-btn");
     if (readyButton) {
@@ -4089,12 +4155,13 @@ window.TexasHoldem = (function () {
     countdown.textContent = seconds + "초 후 다음 핸드가 자동으로 시작됩니다.";
   }
 
-  function syncResultClasses() {
+  function syncResultClasses(stage) {
     var screen = root();
     if (!screen) return;
-    var stage = resultStage();
+    stage = stage || resultStage();
     var settling = !!(state.phase === "complete" && resultFlow &&
       Date.now() >= resultFlow.settleStart && Date.now() < resultFlow.settleEnd);
+    screen.classList.toggle("is-showdown", isBetweenHands(state.phase) && stage !== "action");
     screen.classList.toggle("is-result-final-action", stage === "action");
     screen.classList.toggle("is-result-cards-first", stage === "cards");
     screen.classList.toggle("is-result-announced", stage === "announced");
@@ -4103,7 +4170,9 @@ window.TexasHoldem = (function () {
 
   function renderSettlementAnimation() {
     if (state.phase !== "complete") return;
-    syncResultClasses();
+    var stage = resultStage();
+    syncResultClasses(stage);
+    if (stage !== lastSeatResultStage) renderSeats();
     renderBoard();
     setText("holdem-pot-amount", formatChips(animatedPotAmount()));
     setText("holdem-result-pot", formatChips(animatedPotAmount()));
@@ -4113,7 +4182,8 @@ window.TexasHoldem = (function () {
       var node = root() && root().querySelector('.holdem-seat[data-seat="' + i + '"] .holdem-seat-stack');
       if (node) node.textContent = formatChips(animatedStackAmount(i, seat.stack));
     }
-    if (resultStage() === "announced") renderHandResult();
+    releaseResultSettlement();
+    if (stage === "announced") renderHandResult();
   }
 
   function renderPlayers(box, hint) {
@@ -4157,7 +4227,6 @@ window.TexasHoldem = (function () {
     if (!screen) return;
     screen.dataset.phase = state.phase;
     screen.classList.toggle("is-playing", isHandActive(state.phase));
-    screen.classList.toggle("is-showdown", isBetweenHands(state.phase) && resultStage() !== "action");
     screen.classList.toggle("is-connected", connected);
     syncResultClasses();
     renderHeader();
@@ -4442,6 +4511,7 @@ window.TexasHoldem = (function () {
     suppressActionTagAnimations = false;
     lastBoardHtml = "";
     lastSeatsHtml = "";
+    lastSeatResultStage = "none";
   }
 
   function enter(nextApi) {
@@ -4658,8 +4728,12 @@ window.TexasHoldem = (function () {
       seatActionClass: seatActionClass,
       handRankings: handRankings,
       resultBoardVisibleCount: resultBoardVisibleCount,
+      resultStage: resultStage,
+      resultSettlementDelayMs: resultSettlementDelayMs,
+      resultSettlementReady: resultSettlementReady,
       resultTransitionDelayMs: resultTransitionDelayMs,
       resultTransitionReady: resultTransitionReady,
+      renderSettlementAnimation: renderSettlementAnimation,
       relativeSeat: relativeSeat,
       requestId: requestId,
       joinTable: joinTable,

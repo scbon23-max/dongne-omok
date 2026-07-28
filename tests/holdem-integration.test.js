@@ -363,9 +363,11 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /#holdem-call-btn \.holdem-action-call-amount\.is-xl-amount\s*\{[\s\S]*font-size:\s*clamp\(10px,\s*2\.8vw,\s*14px\)/);
   assert.match(styles, /#holdem-call-btn \.holdem-action-call-label\s*\{[\s\S]*font-size:\s*clamp\(10px,\s*2\.7vw,\s*13px\)/);
   assert.match(styles, /\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%[\s\S]*시작하기|\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%/);
-  assert.match(controller, /var tableStartVisible = \(waiting && state\.canStart\) \|\| isNewGameStart/);
+  assert.match(controller, /var isNextHandStart = completed && state\.canNext && !state\.newGameBuyInRequired[\s\S]*resultSettled/);
+  assert.match(controller, /var tableStartVisible = \(waiting && state\.canStart\) \|\| isNewGameStart \|\| isNextHandStart/);
   assert.doesNotMatch(controller, /다음 핸드 시작/);
   assert.match(controller, /show\("holdem-table-start-btn", tableStartVisible\)/);
+  assert.match(controller, /isNextHandStart \? "다음 핸드" : "시작하기"/);
   assert.match(controller, /id === "holdem-start-btn" \|\| id === "holdem-next-btn" \|\| id === "holdem-table-start-btn"/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\s*\{[\s\S]*top: 1px[\s\S]*translate\(-50%, -45%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\.is-revealed-cards\s*\{[\s\S]*z-index:\s*24[\s\S]*translate\(-50%, -72%\)/);
@@ -523,10 +525,12 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /var RESULT_CARDS_FIRST_MS = 900/);
   assert.match(controller, /var RESULT_FINAL_ACTION_MS = 2000/);
   assert.match(controller, /function resultStage\(\)[\s\S]*resultFlow\.actionUntil[\s\S]*return "action"/);
-  assert.match(controller, /isBetweenHands\(state\.phase\) && resultStage\(\) !== "action"/);
+  assert.match(controller, /screen\.classList\.toggle\("is-showdown", isBetweenHands\(state\.phase\) && stage !== "action"\)/);
   assert.match(controller, /var stage = resultStage\(\);[\s\S]*var revealWinner = state\.phase !== "complete" \|\| stage === "announced"/);
   assert.match(controller, /if \(isWinner && revealWinner\) classes\.push\("is-winner"\)/);
   assert.match(controller, /state\.phase === "complete" && stage === "announced"/);
+  assert.match(controller, /function renderSettlementAnimation\(\)[\s\S]*if \(stage !== lastSeatResultStage\) renderSeats\(\)/);
+  assert.match(controller, /function releaseResultSettlement\(\)[\s\S]*resultSettlementReady\(\)[\s\S]*renderControls\(\)/);
   assert.match(controller, /var RESULT_BOARD_REVEAL_STEP_MS = 900/);
   assert.match(controller, /function resultBoardVisibleCount\(\)[\s\S]*resultFlow\.initialBoardCount/);
   assert.match(controller, /function animatedPotAmount\(\)/);

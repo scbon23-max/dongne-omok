@@ -31,6 +31,10 @@ function loadController(nick = "alice", options = {}) {
     setInterval,
     clearInterval,
   };
+  if (options.document) {
+    context.document = options.document;
+    window.document = options.document;
+  }
   if (options.db) window.Db = options.db;
   vm.createContext(context);
   vm.runInContext(source, context, { filename: "holdem.js" });
@@ -40,6 +44,67 @@ function loadController(nick = "alice", options = {}) {
     galleryAuth: () => ({ nick, hash: "a".repeat(64) }),
   });
   return window.TexasHoldem;
+}
+
+function fakeClassList(initial = []) {
+  const values = new Set(initial);
+  return {
+    add(...names) {
+      names.forEach((name) => values.add(name));
+    },
+    remove(...names) {
+      names.forEach((name) => values.delete(name));
+    },
+    toggle(name, force) {
+      const enabled = force === undefined ? !values.has(name) : !!force;
+      if (enabled) values.add(name);
+      else values.delete(name);
+      return enabled;
+    },
+    contains(name) {
+      return values.has(name);
+    },
+  };
+}
+
+function fakeElement(initialClasses = []) {
+  return {
+    classList: fakeClassList(initialClasses),
+    dataset: {},
+    attributes: {},
+    textContent: "",
+    innerHTML: "",
+    disabled: false,
+    setAttribute(name, value) {
+      this.attributes[name] = String(value);
+    },
+    querySelector() {
+      return null;
+    },
+    querySelectorAll() {
+      return [];
+    },
+  };
+}
+
+function resultTestDocument() {
+  const elements = {
+    holdemgame: fakeElement(),
+    "holdem-seats": fakeElement(),
+    "holdem-board": fakeElement(),
+    "holdem-pot-amount": fakeElement(),
+    "holdem-result-pot": fakeElement(),
+    "holdem-result": fakeElement(["hidden"]),
+    "holdem-table-start-btn": fakeElement(["hidden"]),
+  };
+  return {
+    document: {
+      getElementById(id) {
+        return elements[id] || null;
+      },
+    },
+    elements,
+  };
 }
 
 function serverView() {
@@ -249,6 +314,70 @@ test("hand-end snapshots map to the completed UI and expose only server showdown
   assert.equal(normalized.revealedCards[1].length, 2);
   assert.ok(normalized.winners.length >= 1);
   assert.ok(normalized.showdown.some((row) => row.handName));
+});
+
+test("completed snapshots recover winners from pot seats and authoritative payouts", () => {
+  const controller = loadController();
+  const base = {
+    phase: "hand_end",
+    seats: [
+      { seat: 0, nick: "alice", stack: 10600, winAmount: 600 },
+      { seat: 1, nick: "bob", stack: 9400 },
+    ],
+  };
+  const fromPot = controller._test.normalizeSnapshot({
+    ...base,
+    pots: [{ amount: 600, winners: [0] }],
+  }, 10);
+  assert.deepEqual(Array.from(fromPot.winners), ["alice"]);
+  assert.equal(fromPot.seats[0].winAmount, 600);
+
+  const fromPayout = controller._test.normalizeSnapshot(base, 11);
+  assert.deepEqual(Array.from(fromPayout.winners), ["alice"]);
+});
+
+test("the result clock inserts the winner tag and next-hand button without another snapshot", () => {
+  const originalNow = Date.now;
+  let now = 1_800_000_000_000;
+  Date.now = () => now;
+  const dom = resultTestDocument();
+  const controller = loadController("alice", { document: dom.document });
+
+  try {
+    assert.equal(controller._test.applySnapshot({
+      phase: "hand_end",
+      handId: "result-redraw",
+      handNo: 12,
+      ownerNick: "alice",
+      seats: [
+        { seat: 0, nick: "alice", stack: 10600, winAmount: 600, handName: "스트레이트" },
+        { seat: 1, nick: "bob", stack: 9400 },
+      ],
+      board: ["As", "Kd", "Qc", "Jh", "Ts"],
+      pot: 600,
+      pots: [{ amount: 600, winners: [0] }],
+      winners: ["alice"],
+      canStart: false,
+      canNext: true,
+    }, 12), true);
+
+    assert.doesNotMatch(dom.elements["holdem-seats"].innerHTML, /holdem-winner-result/);
+    assert.equal(dom.elements["holdem-table-start-btn"].classList.contains("hidden"), true);
+
+    now += controller._test.constants.resultCardsFirstMs +
+      controller._test.constants.resultBoardRevealStepMs * 2 +
+      controller._test.constants.resultSettleMs;
+    controller._test.renderSettlementAnimation();
+
+    assert.match(dom.elements["holdem-seats"].innerHTML, /holdem-winner-result/);
+    assert.match(dom.elements["holdem-seats"].innerHTML, /is-winner/);
+    assert.equal(dom.elements.holdemgame.classList.contains("is-result-announced"), true);
+    assert.equal(dom.elements.holdemgame.classList.contains("is-showdown"), true);
+    assert.equal(dom.elements["holdem-table-start-btn"].classList.contains("hidden"), false);
+    assert.equal(dom.elements["holdem-table-start-btn"].textContent, "다음 핸드");
+  } finally {
+    Date.now = originalNow;
+  }
 });
 
 test("completed all-in boards reveal flop, turn, and river in order", () => {
