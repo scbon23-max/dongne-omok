@@ -3876,7 +3876,44 @@ window.TexasHoldem = (function () {
     var roster = api && typeof api.roster === "function" ? api.roster() : [];
     setText("holdem-people-count", Math.max(occupied, Array.isArray(roster) ? roster.length : 0));
     if (roomName()) setText("holdem-lobby-title", roomName());
+    renderSpectatorChip();
     renderSettings();
+  }
+
+  function holdemUnseatedSpectators() {
+    var seated = Object.create(null);
+    state.seats.forEach(function (seat) {
+      var nick = text(seat && seat.nick, 40);
+      if (nick) seated[nick] = true;
+    });
+    var roster = api && typeof api.roster === "function" ? api.roster() : [];
+    if (!Array.isArray(roster)) roster = [];
+    var seen = Object.create(null);
+    var spectators = [];
+    roster.forEach(function (person) {
+      var nick = text(person && person.nick, 40);
+      if (!nick || seated[nick] || seen[nick]) return;
+      seen[nick] = true;
+      spectators.push(nick);
+    });
+    return spectators;
+  }
+
+  function renderSpectatorChip() {
+    var chip = $("holdem-spectator-chip");
+    if (!chip) return;
+    var spectators = holdemUnseatedSpectators();
+    var count = spectators.length;
+    chip.classList.toggle("hidden", count <= 0);
+    if (count <= 0) {
+      chip.textContent = "";
+      chip.removeAttribute("title");
+      return;
+    }
+    var label = "미착석 관전 " + count + "명";
+    if (spectators[0]) label += " · " + spectators[0] + (count > 1 ? " 외 " + (count - 1) : "");
+    chip.textContent = label;
+    chip.title = spectators.join(", ");
   }
 
   function renderConnection() {

@@ -226,9 +226,11 @@ test("the six-seat table exposes every required game control", () => {
   assert.doesNotMatch(index, /id="holdem-status"/);
   assert.doesNotMatch(index, /id="holdem-people-btn"/);
   assert.doesNotMatch(index, /id="holdem-profile-btn"/);
-  assert.match(index, /<nav class="holdem-utility"[\s\S]*id="holdem-leave-btn"[\s\S]*id="holdem-hands-btn"[\s\S]*id="holdem-settings-btn"/);
+  assert.match(index, /<nav class="holdem-utility"[\s\S]*class="holdem-exit-stack"[\s\S]*id="holdem-leave-btn"[\s\S]*id="holdem-spectator-chip"[\s\S]*id="holdem-hands-btn"[\s\S]*id="holdem-settings-btn"/);
   assert.match(styles, /\.holdem-topbar\s*\{[\s\S]*background:\s*transparent/);
-  assert.match(styles, /\.holdem-utility #holdem-leave-btn \{ margin-right: auto; \}/);
+  assert.match(styles, /\.holdem-exit-stack\s*\{[\s\S]*margin-right:\s*auto/);
+  assert.match(styles, /\.holdem-spectator-chip\s*\{[\s\S]*font-size:\s*9px/);
+  assert.match(controller, /function renderSpectatorChip\(\)[\s\S]*미착석 관전/);
   assert.match(styles, /\.holdem-table\s*\{[\s\S]*aspect-ratio:\s*9\s*\/\s*14/);
   for (let seat = 0; seat < 6; seat += 1) {
     assert.match(
@@ -560,17 +562,19 @@ test("the browser sends only server commands and public refresh hints", () => {
   assert.match(controller, /invoke\("refill"/);
 });
 
-test("Hold'em chat focus keeps the latest five chat lines above the keyboard", () => {
+test("Hold'em chat focus scrolls previous chat lines above the keyboard", () => {
   assert.match(index, /id="holdem-chat-overlay"/);
   assert.match(index, /id="holdem-chat-input"/);
   assert.match(game, /function renderHoldemChatHistory\(\)/);
-  assert.match(game, /recent\.length < 5/);
+  assert.match(game, /var history = \[\]/);
   assert.match(game, /row\.game !== "holdem"/);
+  assert.match(game, /overlay\.scrollTop = overlay\.scrollHeight/);
   assert.match(game, /line\.classList\.add\("show"\)/);
   assert.match(game, /holdem-chat-input"\)\.addEventListener\("focus"/);
   assert.match(game, /holdem-chat-input"\)\.addEventListener\("blur"[\s\S]*setHoldemChatFocusState\(false\)/);
   assert.match(game, /holdem-chat-overlay"\)\.innerHTML = ""/);
-  assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-overlay\s*\{[\s\S]*max-height:\s*154px/);
+  assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-overlay\s*\{[\s\S]*overflow-y:\s*auto/);
+  assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-overlay\s*\{[\s\S]*-webkit-overflow-scrolling:\s*touch/);
   assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-overlay \.ov-line\s*\{[\s\S]*opacity:\s*1[\s\S]*transform:\s*none/);
 });
 

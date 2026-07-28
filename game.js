@@ -4539,17 +4539,22 @@
     var focused = holdemChatInputFocused();
     if (screen) screen.classList.toggle("is-chat-focused", focused);
     if (!overlay || !focused) return;
-    var recent = [];
-    for (var i = sessionChat.length - 1; i >= 0 && recent.length < 5; i--) {
+    var shouldStickToBottom = overlay.scrollTop + overlay.clientHeight >= overlay.scrollHeight - 12;
+    var history = [];
+    for (var i = 0; i < sessionChat.length; i++) {
       var row = sessionChat[i];
       if (!row || row.game !== "holdem" || !row.text || row.who === "__sys") continue;
-      recent.unshift(row);
+      history.push(row);
     }
     overlay.innerHTML = "";
-    for (var j = 0; j < recent.length; j++) {
-      var line = createOverlayLine("holdem", recent[j].who, recent[j].text);
+    for (var j = 0; j < history.length; j++) {
+      var line = createOverlayLine("holdem", history[j].who, history[j].text);
       line.classList.add("show");
       overlay.appendChild(line);
+    }
+    if (shouldStickToBottom || overlay.dataset.holdemJustFocused === "1") {
+      overlay.scrollTop = overlay.scrollHeight;
+      delete overlay.dataset.holdemJustFocused;
     }
   }
   function renderUnread(game) {
@@ -4653,7 +4658,11 @@
   function setHoldemChatFocusState(focused) {
     var screen = $("holdemgame");
     if (screen) screen.classList.toggle("is-chat-focused", !!focused && activeFamily() === "holdem");
-    if (focused) renderHoldemChatHistory();
+    if (focused) {
+      var overlay = $("holdem-chat-overlay");
+      if (overlay) overlay.dataset.holdemJustFocused = "1";
+      renderHoldemChatHistory();
+    }
     else if ($("holdem-chat-overlay")) $("holdem-chat-overlay").innerHTML = "";
   }
 

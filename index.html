@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260728-holdem-swap-fold-raise-v1">
+<meta name="app-build" content="20260728-holdem-swap-raise-spectator-chat-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -739,7 +739,10 @@
   <div id="holdem-stage" class="holdem-stage">
     <header class="holdem-topbar">
       <nav class="holdem-utility" aria-label="홀덤 방 메뉴">
-        <button id="holdem-leave-btn" type="button">나가기</button>
+        <div class="holdem-exit-stack">
+          <button id="holdem-leave-btn" type="button">나가기</button>
+          <span id="holdem-spectator-chip" class="holdem-spectator-chip hidden" aria-live="polite"></span>
+        </div>
         <button id="holdem-hands-btn" type="button" aria-label="홀덤 족보 보기">족보</button>
         <button id="holdem-rank-btn" type="button" aria-label="홀덤 자산 랭킹 보기">랭킹</button>
         <button id="holdem-settings-btn" type="button" aria-label="설정" aria-expanded="false">⚙</button>

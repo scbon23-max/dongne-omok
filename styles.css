@@ -3959,7 +3959,29 @@ body.is-admin .feedback-user-compose { display: none; }
   background: transparent;
 }
 .holdem-utility { display: flex; width: 100%; align-items: center; justify-content: flex-end; gap: 5px; }
-.holdem-utility #holdem-leave-btn { margin-right: auto; }
+.holdem-exit-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-right: auto;
+  min-width: 62px;
+}
+.holdem-spectator-chip {
+  display: inline-flex;
+  max-width: 118px;
+  padding-left: 2px;
+  color: rgba(212,230,232,.48);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
+.holdem-spectator-chip.hidden { display: none; }
 .holdem-utility button,
 .holdem-chat-row button {
   flex-shrink: 0;
@@ -6030,8 +6052,15 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-screen.is-chat-focused .holdem-chat-overlay {
   z-index: 49;
   bottom: calc(max(6px, env(safe-area-inset-bottom)) + 54px);
-  max-height: 154px;
-  overflow: hidden;
+  max-height: min(42dvh, 218px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  pointer-events: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(134,232,220,.42) transparent;
 }
 .holdem-screen.is-chat-focused .holdem-chat-overlay .ov-line {
   opacity: 1;
