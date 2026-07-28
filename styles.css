@@ -4324,11 +4324,11 @@ body.is-admin .feedback-user-compose { display: none; }
   text-overflow: ellipsis;
   text-shadow: 0 1px 2px rgba(0,0,0,.7);
   transform: translate(-50%, -50%);
-  will-change: transform, filter, opacity;
   white-space: nowrap;
   box-shadow: 0 4px 12px rgba(0,0,0,.48);
 }
 .holdem-seat-action.is-action-enter {
+  will-change: transform, filter, opacity;
   animation: holdemActionTagPop .48s cubic-bezier(.18,.82,.28,1) both;
 }
 .holdem-seat-action::before {
