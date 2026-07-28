@@ -336,7 +336,7 @@ test("completed snapshots recover winners from pot seats and authoritative payou
   assert.deepEqual(Array.from(fromPayout.winners), ["alice"]);
 });
 
-test("the result clock inserts the winner tag and next-hand button without another snapshot", () => {
+test("the result clock inserts the winner tag while next hand stays automatic", () => {
   const originalNow = Date.now;
   let now = 1_800_000_000_000;
   Date.now = () => now;
@@ -375,8 +375,7 @@ test("the result clock inserts the winner tag and next-hand button without anoth
     assert.match(dom.elements["holdem-seats"].innerHTML, /is-winner/);
     assert.equal(dom.elements.holdemgame.classList.contains("is-result-announced"), true);
     assert.equal(dom.elements.holdemgame.classList.contains("is-showdown"), true);
-    assert.equal(dom.elements["holdem-table-start-btn"].classList.contains("hidden"), false);
-    assert.equal(dom.elements["holdem-table-start-btn"].textContent, "다음 핸드");
+    assert.equal(dom.elements["holdem-table-start-btn"].classList.contains("hidden"), true);
   } finally {
     Date.now = originalNow;
   }

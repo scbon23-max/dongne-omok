@@ -11,8 +11,7 @@
  *   #holdem-people-count
  * Waiting UI: #holdem-lobby, #holdem-lobby-title,
  *   #holdem-lobby-roster, #holdem-ready-btn, #holdem-start-btn,
- *   #holdem-next-btn, #holdem-bot-controls,
- *   #holdem-bot-add-btn, #holdem-bot-remove-btn, #holdem-bot-fill-btn,
+ *   #holdem-bot-controls, #holdem-bot-add-btn, #holdem-bot-remove-btn, #holdem-bot-fill-btn,
  *   #holdem-bot-count
  * Action UI: #holdem-action-panel, #holdem-action-label,
  *   #holdem-hand-name, #holdem-timer-ring, #holdem-timer,
@@ -4039,18 +4038,15 @@ window.TexasHoldem = (function () {
     disable("holdem-bot-remove-btn", busy || !canManageBots || state.botCount <= 0);
     var isNewGameStart = state.phase === "complete" && state.newGameBuyInRequired &&
       isOwner && resultReady;
-    var isNextHandStart = completed && state.canNext && !state.newGameBuyInRequired &&
-      resultSettled;
-    var tableStartVisible = (waiting && state.canStart) || isNewGameStart || isNextHandStart;
+    var tableStartVisible = (waiting && state.canStart) || isNewGameStart;
     show("holdem-ready-btn", false);
     show("holdem-start-btn", false);
-    show("holdem-next-btn", false);
     show("holdem-table-start-btn", tableStartVisible);
     var tableStartButton = $("holdem-table-start-btn");
     if (tableStartButton) {
       tableStartButton.textContent = isNewGameStart
         ? "새 게임 시작"
-        : isNextHandStart ? "다음 핸드" : "시작하기";
+        : "시작하기";
     }
     var readyButton = $("holdem-ready-btn");
     if (readyButton) {
@@ -4059,7 +4055,6 @@ window.TexasHoldem = (function () {
     }
     disable("holdem-ready-btn", busy);
     disable("holdem-start-btn", busy);
-    disable("holdem-next-btn", busy);
     disable("holdem-table-start-btn", busy);
     show("holdem-refill-panel", needsRefill);
     renderPracticeJoinControls(busy);
@@ -4374,7 +4369,7 @@ window.TexasHoldem = (function () {
       addFiveBots();
     } else if (id === "holdem-bot-remove-btn") {
       removeBot();
-    } else if (id === "holdem-start-btn" || id === "holdem-next-btn" || id === "holdem-table-start-btn") {
+    } else if (id === "holdem-start-btn" || id === "holdem-table-start-btn") {
       startHand();
     } else if (id === "holdem-fold-btn") {
       performMove("fold");
@@ -4470,7 +4465,7 @@ window.TexasHoldem = (function () {
       controls.setAttribute("aria-label", "홀덤 대기 컨트롤");
       stage.appendChild(controls);
     }
-    ["holdem-ready-btn", "holdem-start-btn", "holdem-next-btn"].forEach(function (id) {
+    ["holdem-ready-btn", "holdem-start-btn"].forEach(function (id) {
       var button = $(id);
       if (button && button.parentNode !== controls) controls.appendChild(button);
     });

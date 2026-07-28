@@ -194,7 +194,6 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-result-countdown",
     "holdem-ready-btn",
     "holdem-start-btn",
-    "holdem-next-btn",
     "holdem-bot-add-btn",
     "holdem-bot-fill-btn",
     "holdem-bot-remove-btn",
@@ -372,12 +371,13 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /#holdem-call-btn \.holdem-action-call-amount\.is-xl-amount\s*\{[\s\S]*font-size:\s*clamp\(10px,\s*2\.8vw,\s*14px\)/);
   assert.match(styles, /#holdem-call-btn \.holdem-action-call-label\s*\{[\s\S]*font-size:\s*clamp\(10px,\s*2\.7vw,\s*13px\)/);
   assert.match(styles, /\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%[\s\S]*시작하기|\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%/);
-  assert.match(controller, /var isNextHandStart = completed && state\.canNext && !state\.newGameBuyInRequired[\s\S]*resultSettled/);
-  assert.match(controller, /var tableStartVisible = \(waiting && state\.canStart\) \|\| isNewGameStart \|\| isNextHandStart/);
+  assert.doesNotMatch(controller, /var isNextHandStart = completed && state\.canNext && !state\.newGameBuyInRequired[\s\S]*resultSettled/);
+  assert.match(controller, /var tableStartVisible = \(waiting && state\.canStart\) \|\| isNewGameStart/);
   assert.doesNotMatch(controller, /다음 핸드 시작/);
   assert.match(controller, /show\("holdem-table-start-btn", tableStartVisible\)/);
-  assert.match(controller, /isNextHandStart \? "다음 핸드" : "시작하기"/);
-  assert.match(controller, /id === "holdem-start-btn" \|\| id === "holdem-next-btn" \|\| id === "holdem-table-start-btn"/);
+  assert.doesNotMatch(controller, /isNextHandStart \? "다음 핸드" : "시작하기"/);
+  assert.doesNotMatch(controller, /id === "holdem-start-btn" \|\| id === "holdem-next-btn" \|\| id === "holdem-table-start-btn"/);
+  assert.match(controller, /id === "holdem-start-btn" \|\| id === "holdem-table-start-btn"/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\s*\{[\s\S]*top: 1px[\s\S]*translate\(-50%, -45%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\.is-revealed-cards\s*\{[\s\S]*z-index:\s*24[\s\S]*translate\(-50%, -72%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*--holdem-card-width:\s*clamp\(16px,\s*4\.6vw,\s*24px\)/);
