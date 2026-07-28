@@ -402,8 +402,11 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /AI와 하는 연습용 임시 원화 자산/);
   assert.match(controller, /연습용 임시 원화 자산 충전/);
   assert.match(styles, /\.holdem-seat-action\s*\{/);
-  assert.match(controller, /function seatActionAnimationKey\(seat, absolute\)[\s\S]*latestSeatActionHistory\(seat\)[\s\S]*seatDisplayActionAmount\(seat\)/);
+  assert.match(controller, /function actionTagEntryKey\(entry, snapshot\)[\s\S]*entry\.seq \|\| action[\s\S]*amount \|\| 0/);
+  assert.match(controller, /pendingActionTagAnimationKeys\[actionTagKey\] = true/);
+  assert.match(controller, /function seatActionAnimationKey\(seat, absolute\)[\s\S]*latestSeatActionHistory\(seat\)[\s\S]*latest\.seq \|\| action[\s\S]*seatDisplayActionAmount\(seat\)/);
   assert.match(controller, /actionEnterClass = " is-action-enter"/);
+  assert.match(controller, /pendingActionTagAnimationKeys\[actionAnimationKey\][\s\S]*delete pendingActionTagAnimationKeys\[actionAnimationKey\]/);
   assert.match(controller, /suppressActionTagAnimations = !hadSnapshot/);
   assert.doesNotMatch(styles, /\.holdem-seat-action\s*\{[^}]*animation:/);
   assert.match(styles, /\.holdem-seat-action\.is-action-enter\s*\{[\s\S]*animation:\s*holdemActionTagPop/);

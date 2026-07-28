@@ -171,6 +171,7 @@ window.TexasHoldem = (function () {
   var lastTimerWarningKey = "";
   var lastTurnSoundKey = "";
   var actionTagAnimationKeys = Object.create(null);
+  var pendingActionTagAnimationKeys = Object.create(null);
   var suppressActionTagAnimations = false;
   var lastBoardHtml = "";
 
@@ -1468,6 +1469,7 @@ window.TexasHoldem = (function () {
     syncTurnStartSound(state, next, hadSnapshot);
     if (previousHandKey && nextHandKey && previousHandKey !== nextHandKey) {
       actionTagAnimationKeys = Object.create(null);
+      pendingActionTagAnimationKeys = Object.create(null);
     }
     suppressActionTagAnimations = !hadSnapshot;
     state = next;
@@ -1527,6 +1529,24 @@ window.TexasHoldem = (function () {
     ].join(":");
   }
 
+  function actionTagEntryKey(entry, snapshot) {
+    if (!entry || !snapshot) return "";
+    var action = actionSoundKind(entry.action);
+    var seatIndex = safeSeat(entry.seat);
+    if (!action || seatIndex < 0) return "";
+    var seat = Array.isArray(snapshot.seats) ? snapshot.seats[seatIndex] : null;
+    var amount = seat && seat.bet > 0
+      ? formatChips(seat.bet)
+      : entry.amount > 0 ? formatChips(entry.amount) : "";
+    return [
+      snapshot.handId || snapshot.handNumber || "hand",
+      entry.seq || action,
+      seatIndex,
+      action,
+      amount || 0
+    ].join(":");
+  }
+
   function allinBgmKey(snapshot) {
     if (!snapshot) return "";
     return String(snapshot.handId || snapshot.handNumber || snapshot.version || "hand");
@@ -1566,6 +1586,8 @@ window.TexasHoldem = (function () {
       if (!entryKey || entryKey === lastActionSoundKey) continue;
       lastActionSoundKey = entryKey;
       var kind = actionSoundKind(entry.action);
+      var actionTagKey = actionTagEntryKey(entry, next);
+      if (actionTagKey) pendingActionTagAnimationKeys[actionTagKey] = true;
       scheduleActionSfx(kind, (entryIndex - firstNewIndex) * 90);
       if (kind === "allin") {
         var bgmKey = allinBgmKey(next);
@@ -3131,12 +3153,12 @@ window.TexasHoldem = (function () {
   }
 
   function seatActionAnimationKey(seat, absolute) {
-    var action = seatDisplayAction(seat);
-    if (!seat || !action) return "";
     var latest = latestSeatActionHistory(seat);
+    var action = latest && actionSoundKind(latest.action);
+    if (!seat || !latest || !action) return "";
     return [
       state.handId || state.handNumber || "hand",
-      latest && latest.seq ? latest.seq : action,
+      latest.seq || action,
       absolute,
       action,
       seatDisplayActionAmount(seat) || 0
@@ -3263,10 +3285,13 @@ window.TexasHoldem = (function () {
       var actionAnimationKey = seatActionAnimationKey(seat, absolute);
       var actionEnterClass = "";
       if (actionAnimationKey) {
-        if (!suppressActionTagAnimations && !actionTagAnimationKeys[actionAnimationKey]) {
+        if (!suppressActionTagAnimations &&
+            pendingActionTagAnimationKeys[actionAnimationKey] &&
+            !actionTagAnimationKeys[actionAnimationKey]) {
           actionEnterClass = " is-action-enter";
         }
         actionTagAnimationKeys[actionAnimationKey] = true;
+        delete pendingActionTagAnimationKeys[actionAnimationKey];
       }
       var personalityLabel = seat && seat.isBot
         ? botPersonalityLabel(seat.botPersonality)
@@ -4154,6 +4179,7 @@ window.TexasHoldem = (function () {
     resultFlow = null;
     boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [], soundKeys: [] };
     actionTagAnimationKeys = Object.create(null);
+    pendingActionTagAnimationKeys = Object.create(null);
     suppressActionTagAnimations = false;
     lastBoardHtml = "";
   }
@@ -4187,6 +4213,7 @@ window.TexasHoldem = (function () {
     lastAllinBgmKey = "";
     lastWinnerSoundKey = "";
     actionTagAnimationKeys = Object.create(null);
+    pendingActionTagAnimationKeys = Object.create(null);
     suppressActionTagAnimations = false;
     lastBoardHtml = "";
     if (!bindDom()) throw new Error("텍사스 홀덤 화면을 찾을 수 없습니다.");
@@ -4232,6 +4259,7 @@ window.TexasHoldem = (function () {
     lastTimerWarningKey = "";
     lastTurnSoundKey = "";
     actionTagAnimationKeys = Object.create(null);
+    pendingActionTagAnimationKeys = Object.create(null);
     suppressActionTagAnimations = false;
     profileDialogOpen = false;
     profileWalletPending = false;
