@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260728-holdem-action-amount-fit-v1">
+<meta name="app-build" content="20260728-holdem-seat-scale-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -763,6 +763,14 @@
         </div>
 
         <div id="holdem-table-hint" class="holdem-table-hint" role="status" aria-live="polite"></div>
+        <button id="holdem-join-request-btn" class="holdem-join-request-btn hidden" type="button">같이 플레이 요청</button>
+        <section id="holdem-join-request-alert" class="holdem-join-request-alert hidden" aria-live="polite">
+          <span id="holdem-join-request-text"></span>
+          <div>
+            <button id="holdem-join-accept-btn" type="button">수락</button>
+            <button id="holdem-join-decline-btn" type="button">거절</button>
+          </div>
+        </section>
         <div id="holdem-board" class="holdem-board" aria-label="커뮤니티 카드"></div>
         <button id="holdem-table-start-btn" class="holdem-table-start-btn hidden" type="button">시작하기</button>
         <div id="holdem-seats" class="holdem-seats" aria-label="플레이어 좌석"></div>

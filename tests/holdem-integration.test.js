@@ -210,7 +210,11 @@ test("the six-seat table exposes every required game control", () => {
       new RegExp(`\\.holdem-seat\\[data-relative-seat="${seat}"\\]`)
     );
   }
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{\s*top:\s*98%;\s*left:\s*50%;\s*\}/);
+  assert.match(styles, /--holdem-seat-avatar-size:\s*clamp\(50px,\s*14\.4vw,\s*72px\)/);
+  assert.match(styles, /\.holdem-seat\s*\{[\s\S]*width:\s*clamp\(106px,\s*31vw,\s*158px\)/);
+  assert.match(styles, /\.holdem-seat-name\s*\{[\s\S]*font-size:\s*clamp\(11px,\s*3\.2vw,\s*14px\)/);
+  assert.match(styles, /\.holdem-seat-stack\s*\{[\s\S]*font-size:\s*clamp\(11px,\s*3\.2vw,\s*14px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{\s*top:\s*99%;\s*left:\s*50%;\s*\}/);
   assert.match(styles, /\.holdem-card\.back/);
   assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-width-auto:[\s\S]*var\(--holdem-card-width/);
   assert.match(styles, /\.holdem-card-rank svg,[\s\S]*\.holdem-card > \.rank svg\s*\{[\s\S]*fill: currentColor/);
@@ -260,9 +264,9 @@ test("the six-seat table exposes every required game control", () => {
   assert.doesNotMatch(controller, /badges \+= "<span>SB<\/span>"|badges \+= "<span>BB<\/span>"/);
   assert.match(styles, /\.holdem-seat-action\.action-small-blind,[\s\S]*\.holdem-seat-action\.action-big-blind\s*\{/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*-14px/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% \+ 58px\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 44px\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - 58px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% \+ 70px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 50px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - 70px\)/);
   assert.match(controller, /is-visible-cards is-revealed-cards/);
   assert.match(controller, /class="holdem-seat-open-icon"/);
   assert.match(controller, /role="button" tabindex="0"/);
@@ -303,9 +307,12 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /연습용 임시 원화 자산 충전/);
   assert.match(styles, /\.holdem-seat-action\s*\{/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-turn-timer,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-turn-timer\s*\{[\s\S]*left:\s*calc\(50% \+ 28px\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-turn-timer\s*\{[\s\S]*top:\s*calc\(50% \+ 24px\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-turn-timer,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-turn-timer\s*\{[\s\S]*left:\s*calc\(50% - 58px\)/);
+  assert.match(controller, /timer\.setAttribute\("data-seconds", seconds\)/);
+  assert.match(styles, /\.holdem-seat-turn-timer\s*\{[\s\S]*width:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 16px\)/);
+  assert.match(styles, /\.holdem-seat-turn-timer::before\s*\{[\s\S]*conic-gradient\(#4df5d9 calc\(var\(--holdem-seat-timer-ratio\) \* 1turn\)/);
+  assert.match(styles, /\.holdem-seat-turn-timer::after\s*\{[\s\S]*content:\s*attr\(data-seconds\)/);
+  assert.match(styles, /\.holdem-seat-turn-timer\.urgent::before\s*\{[\s\S]*#ff433d/);
+  assert.match(styles, /@keyframes holdemSeatTimerUrgent/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-action-summary \{ display: none; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel \{[\s\S]*position: absolute[\s\S]*bottom: calc\(100% \+ 9px\)/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); gap: 7px; \}/);

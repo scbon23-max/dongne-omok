@@ -5199,7 +5199,7 @@
       var icon = id === "omok"
         ? '<span class="create-game-icon omok" aria-hidden="true"></span>'
         : id === "holdem"
-          ? '<span class="create-game-icon holdem" aria-hidden="true"><i>A♠</i><b>K♥</b></span>'
+          ? '<img class="create-game-icon holdem" src="' + localAssetUrl("assets/holdem/create-room-icon.png") + '" alt="">'
         : '<img class="create-game-icon" src="' + localAssetUrl(iconSrc) + '" alt="">';
       return '<button class="create-game-option' + (id === selected ? ' active' : '') + '" data-game="' + esc(id) + '" type="button" aria-pressed="' + (id === selected ? 'true' : 'false') + '">'
         + icon + '<span class="create-game-copy"><span class="create-game-name">' + esc(label) + '</span><span class="create-game-desc">' + esc(desc) + '</span></span></button>';

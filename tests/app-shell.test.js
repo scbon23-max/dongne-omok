@@ -373,9 +373,10 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
   assert.match(styles, /\.create-room-dialog\s*\{[^}]*background:\s*var\(--navy-2\)/);
   assert.match(styles, /\.create-game-option\.active\s*\{[^}]*background:\s*rgba\(243,97,42,\.2\)/);
   assert.match(styles, /\.create-game-option\s*\{[^}]*border:\s*0/);
-  assert.match(game, /class="create-game-icon holdem"[\s\S]*A♠[\s\S]*K♥/);
+  assert.match(game, /class="create-game-icon holdem"[\s\S]*assets\/holdem\/create-room-icon\.png/);
   assert.match(styles, /\.create-game-icon\.holdem\s*\{[\s\S]*overflow:\s*hidden/);
-  assert.match(styles, /\.create-game-icon\.holdem::before\s*\{[\s\S]*border:\s*2px solid #f2c77d/);
+  assert.match(styles, /\.create-game-icon\.holdem\s*\{[\s\S]*object-fit:\s*cover/);
+  assert.doesNotMatch(styles, /\.create-game-icon\.holdem::before/);
   assert.match(styles, /\.create-mode-card\s*\{[^}]*border:\s*0/);
   assert.match(styles, /\.create-name-input\s*\{[^}]*border:\s*0/);
   assert.doesNotMatch(styles, /\.create-room-dialog\s*\{[^}]*border:/);

@@ -1852,7 +1852,9 @@ window.TexasHoldem = (function () {
     var timers = screen.querySelectorAll(".holdem-seat-turn-timer");
     for (var i = 0; i < timers.length; i++) {
       var timer = timers[i];
-      timer.textContent = info.active ? String(info.seconds) : "";
+      var seconds = info.active ? String(info.seconds) : "";
+      timer.textContent = seconds;
+      timer.setAttribute("data-seconds", seconds);
       timer.classList.toggle("urgent", info.urgent);
       timer.style.setProperty("--holdem-seat-timer-ratio", String(info.ratio));
     }
