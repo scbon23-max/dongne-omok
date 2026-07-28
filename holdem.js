@@ -2478,6 +2478,21 @@ window.TexasHoldem = (function () {
     }, { key: "start", label: "start", broadcast: true });
   }
 
+  function heroRingStackRestored() {
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    return !!(hero && hero.stack > 0);
+  }
+
+  function reconcileRingStackMutation(result, reason) {
+    if (result && result.stale) return Promise.resolve(result);
+    return refreshSnapshot(reason, true).then(function () {
+      if (heroRingStackRestored()) {
+        return Object.assign({}, result || {}, { ok: true, restored: true });
+      }
+      return result || { ok: false, reason: "restore_unconfirmed" };
+    });
+  }
+
   function refillRingChips() {
     if (!state.canRefill || requests.refill) {
       return Promise.resolve({ ok: false, reason: "unavailable" });
@@ -2488,6 +2503,8 @@ window.TexasHoldem = (function () {
       key: "refill",
       label: "refill",
       broadcast: true
+    }).then(function (result) {
+      return reconcileRingStackMutation(result, "refill_confirm");
     });
   }
 
@@ -2500,6 +2517,8 @@ window.TexasHoldem = (function () {
       key: "rebuy",
       label: "rebuy",
       broadcast: true
+    }).then(function (result) {
+      return reconcileRingStackMutation(result, "rebuy_confirm");
     });
   }
 
@@ -3155,19 +3174,38 @@ window.TexasHoldem = (function () {
   }
 
   function confirmBuyInDialog() {
-    if (!buyInDialogOpen || buyInWalletPending) return;
+    if (!buyInDialogOpen || buyInWalletPending) {
+      return Promise.resolve({ ok: false, reason: "unavailable" });
+    }
     var bounds = tableBuyInBounds(buyInWallet);
     if (bounds.selectableMax < bounds.min) {
       closeBuyInDialog();
       renderControls();
-      return;
+      return Promise.resolve({ ok: false, reason: "wallet_insufficient" });
     }
     var amount = normalizeBuyInAmount(buyInValue);
     var action = buyInMode;
     var seat = buyInSeat;
+    if (action === "rebuy") {
+      buyInWalletPending = true;
+      renderBuyInDialog();
+      return rebuyRingChips(amount).then(function (result) {
+        buyInWalletPending = false;
+        autoBuyInKey = "";
+        if (result && result.ok && heroRingStackRestored()) {
+          closeBuyInDialog();
+        } else {
+          buyInDialogOpen = true;
+          buyInMode = "rebuy";
+          buyInSeat = seat;
+          renderBuyInDialog();
+        }
+        return result;
+      });
+    }
     closeBuyInDialog();
     if (action === "new_game") {
-      invoke("start", {
+      return invoke("start", {
         buyIn: amount,
         expectedVersion: state.version
       }, {
@@ -3175,11 +3213,10 @@ window.TexasHoldem = (function () {
         label: "new_game",
         broadcast: true
       });
-    } else if (action === "rebuy") {
-      rebuyRingChips(amount);
     } else if (!requests.join) {
-      joinTable(seat, amount);
+      return joinTable(seat, amount);
     }
+    return Promise.resolve({ ok: false, reason: "busy" });
   }
 
   function spectateFromBuyInDialog() {
@@ -4857,6 +4894,8 @@ window.TexasHoldem = (function () {
       openBuyInDialog: openBuyInDialog,
       setBuyInValue: setBuyInValue,
       confirmBuyInDialog: confirmBuyInDialog,
+      refillRingChips: refillRingChips,
+      rebuyRingChips: rebuyRingChips,
       addBot: addBot,
       chooseEmptySeat: chooseEmptySeat,
       maybeAutoSeatJoin: maybeAutoSeatJoin,
@@ -4868,6 +4907,14 @@ window.TexasHoldem = (function () {
       setActive: function (value) { active = !!value; },
       setState: function (nextState) { state = nextState; },
       setHasSnapshot: function (value) { hasSnapshot = !!value; },
+      getBuyInDialogState: function () {
+        return {
+          open: buyInDialogOpen,
+          mode: buyInMode,
+          seat: buyInSeat,
+          pending: buyInWalletPending
+        };
+      },
       getLifecycleGeneration: function () { return lifecycleGeneration; },
       getRawSnapshot: function () { return rawSnapshot; },
       constants: {

@@ -643,6 +643,20 @@ test("a busted ring player receives the free refill without opening a wallet dia
   const db = {
     holdemInvoke(auth, action, payload) {
       calls.push({ auth, action, payload });
+      if (action === "snapshot") {
+        return Promise.resolve({
+          ok: true,
+          version: 2,
+          snapshot: {
+            phase: "hand_end",
+            mode: "ring",
+            handId: "7",
+            canRefill: false,
+            viewer: { seat: 0 },
+            seats: [{ seat: 0, nick: "alice", stack: 20000 }],
+          },
+        });
+      }
       return Promise.resolve({
         ok: true,
         version: 2,
@@ -650,8 +664,9 @@ test("a busted ring player receives the free refill without opening a wallet dia
           phase: "hand_end",
           mode: "ring",
           handId: "7",
-          canRefill: false,
-          seats: [{ seat: 0, nick: "alice", stack: 20000 }],
+          canRefill: true,
+          viewer: { seat: 0 },
+          seats: [{ seat: 0, nick: "alice", stack: 0 }],
         },
       });
     },
@@ -670,12 +685,12 @@ test("a busted ring player receives the free refill without opening a wallet dia
   controller._test.setActive(true);
   controller._test.setHasSnapshot(true);
 
-  controller._test.maybeAutoOpenRebuyDialog();
-  await Promise.resolve();
-  await Promise.resolve();
+  const result = await controller._test.refillRingChips();
 
-  assert.deepEqual(calls.map((call) => call.action), ["refill"]);
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls.map((call) => call.action), ["refill", "snapshot"]);
   assert.equal(calls[0].payload.expectedVersion, 1);
+  assert.equal(controller.state.seats[0].stack, 20000);
   controller.leave();
 });
 
@@ -831,7 +846,16 @@ test("ring rebuys use a separate wallet-backed server command", async () => {
     },
     holdemInvoke(auth, action, payload) {
       calls.push({ auth, action, payload });
-      return Promise.resolve({ ok: true, version: 2, snapshot: { phase: "waiting", seats: [] } });
+      return Promise.resolve({
+        ok: true,
+        version: 2,
+        snapshot: {
+          phase: "hand_end",
+          mode: "ring",
+          viewer: { seat: 0 },
+          seats: [{ seat: 0, nick: "alice", stack: 20000 }],
+        },
+      });
     },
   };
   const controller = loadController("alice", { db });
@@ -851,11 +875,93 @@ test("ring rebuys use a separate wallet-backed server command", async () => {
   await Promise.resolve();
   await Promise.resolve();
   controller._test.setBuyInValue(20000);
-  controller._test.confirmBuyInDialog();
+  const result = await controller._test.confirmBuyInDialog();
 
+  assert.equal(result.ok, true);
   assert.equal(calls[0].action, "wallet");
   assert.equal(calls[1].action, "rebuy");
   assert.equal(calls[1].payload.amount, 20000);
+  assert.equal(calls[2].action, "snapshot");
+  assert.equal(controller.state.seats[0].stack, 20000);
+  assert.equal(controller._test.getBuyInDialogState().open, false);
+  controller.leave();
+});
+
+test("a failed ring rebuy stays open and succeeds without leaving the room", async () => {
+  const calls = [];
+  let rebuyAttempts = 0;
+  let stack = 0;
+  let version = 1;
+  const snapshot = () => ({
+    phase: "hand_end",
+    mode: "ring",
+    viewer: { seat: 0 },
+    seats: [{ seat: 0, nick: "alice", stack }],
+  });
+  const db = {
+    getHoldemWallet(auth) {
+      calls.push({ auth, action: "wallet", payload: {} });
+      return Promise.resolve({
+        ok: true,
+        wallet: { balance: 40000, tableBalance: 0, totalAssets: 40000 },
+      });
+    },
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      if (action === "rebuy") {
+        rebuyAttempts += 1;
+        if (rebuyAttempts === 1) {
+          return Promise.resolve({
+            ok: false,
+            reason: "conflict",
+            version,
+            snapshot: snapshot(),
+          });
+        }
+        stack = 20000;
+        version = 2;
+      }
+      return Promise.resolve({
+        ok: true,
+        version,
+        snapshot: snapshot(),
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const state = controller._test.emptyState();
+  state.mode = "ring";
+  state.phase = "complete";
+  state.version = 1;
+  state.heroSeat = 0;
+  state.seats[0] = { seat: 0, nick: "alice", stack: 0 };
+  state.buyInMin = 10000;
+  state.buyInMax = 50000;
+  state.buyInDefault = 30000;
+  controller._test.setState(state);
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+
+  controller._test.openBuyInDialog("rebuy", 0);
+  await Promise.resolve();
+  await Promise.resolve();
+  controller._test.setBuyInValue(20000);
+
+  const firstResult = await controller._test.confirmBuyInDialog();
+  assert.equal(firstResult.ok, false);
+  assert.equal(controller.state.seats[0].stack, 0);
+  assert.equal(controller._test.getBuyInDialogState().open, true);
+  assert.equal(controller._test.getBuyInDialogState().pending, false);
+
+  const secondResult = await controller._test.confirmBuyInDialog();
+  assert.equal(secondResult.ok, true);
+  assert.equal(controller.state.seats[0].stack, 20000);
+  assert.equal(controller._test.getBuyInDialogState().open, false);
+  assert.deepEqual(
+    calls.map((call) => call.action),
+    ["wallet", "rebuy", "snapshot", "rebuy", "snapshot"],
+  );
+  controller.leave();
 });
 
 test("bot add requests can target a clicked empty seat without choosing a personality", async () => {
