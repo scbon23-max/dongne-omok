@@ -2559,13 +2559,13 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .create-holdem-buyin-presets button {
   min-width: 0;
-  min-height: 68px;
+  min-height: 92px;
   display: grid;
   justify-items: center;
   align-content: center;
   align-items: center;
-  gap: 6px;
-  padding: 10px 6px;
+  gap: 8px;
+  padding: 10px 7px;
   border: 1px solid rgba(255,255,255,.1);
   border-radius: 11px;
   background:
@@ -2577,7 +2577,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
 }
 .create-holdem-buyin-presets button strong,
-.create-holdem-buyin-presets button span {
+.create-holdem-buyin-range {
   display: block;
 }
 .create-holdem-buyin-presets button strong {
@@ -2585,11 +2585,38 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   font-size: 13px;
   line-height: 1.15;
 }
-.create-holdem-buyin-presets button span {
-  margin-top: 0;
+.create-holdem-buyin-range {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-radius: 8px;
+  background: rgba(2,17,22,.28);
+  overflow: hidden;
+}
+.create-holdem-buyin-range > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 6px 4px;
+}
+.create-holdem-buyin-range > span + span {
+  border-left: 1px solid rgba(255,255,255,.08);
+}
+.create-holdem-buyin-range small,
+.create-holdem-buyin-range b {
+  display: block;
+}
+.create-holdem-buyin-range small {
+  color: #83b4ae;
+  font-size: 9px;
+  font-weight: 1000;
+  line-height: 1;
+}
+.create-holdem-buyin-range b {
   color: #eefbf8;
-  font-size: 11px;
-  line-height: 1.18;
+  font-size: 10.5px;
+  font-weight: 1000;
+  line-height: 1.08;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
@@ -2619,7 +2646,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   .create-mode-card > img { height: 82px; }
   .create-holdem-mode-card { min-height: 62px; }
   .create-holdem-buyin-presets button {
-    min-height: 62px;
+    min-height: 86px;
     padding-top: 8px;
     padding-bottom: 8px;
   }
@@ -2637,8 +2664,12 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   .create-holdem-buyin-presets button {
     padding: 8px 5px;
   }
-  .create-holdem-buyin-presets button span {
-    font-size: 10px;
+  .create-holdem-buyin-range > span {
+    padding-right: 3px;
+    padding-left: 3px;
+  }
+  .create-holdem-buyin-range b {
+    font-size: 9.5px;
   }
 }
 

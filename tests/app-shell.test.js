@@ -360,7 +360,9 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
   assert.match(index, /id="create-holdem-wallet-balance"/);
   assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*min="10000"[^>]*max="40000"[^>]*step="100"/);
   assert.match(index, /data-holdem-buyin="10000"[\s\S]*data-holdem-buyin="30000"[\s\S]*data-holdem-buyin="40000"/);
-  assert.match(index, /10,000원~20,000원[\s\S]*20,000원~30,000원[\s\S]*30,000원~40,000원/);
+  assert.match(index, /<small>최소<\/small><b>10,000원<\/b>[\s\S]*<small>최대<\/small><b>20,000원<\/b>/);
+  assert.match(index, /<small>최소<\/small><b>20,000원<\/b>[\s\S]*<small>최대<\/small><b>30,000원<\/b>/);
+  assert.match(index, /<small>최소<\/small><b>30,000원<\/b>[\s\S]*<small>최대<\/small><b>40,000원<\/b>/);
   assert.match(index, /id="create-holdem-mode"[^>]*hidden/);
   assert.match(index, /data-holdem-mode="tournament"[^>]*hidden/);
   assert.match(game, /if \(!canEnterGame\(game\)\) \{[\s\S]*game === "catchmind" \? "캐치마인드는 점검 중이라 이용할 수 없어요"/);

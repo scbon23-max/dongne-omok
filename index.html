@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260728-holdem-create-clean-buyin-v1">
+<meta name="app-build" content="20260728-holdem-create-minmax-buyin-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -1143,15 +1143,24 @@
         <div id="create-holdem-buyin-presets" class="create-holdem-buyin-presets" role="group" aria-label="바이인 빠른 선택">
           <button type="button" data-holdem-buyin="10000">
             <strong>라이트</strong>
-            <span>10,000원~20,000원</span>
+            <span class="create-holdem-buyin-range">
+              <span><small>최소</small><b>10,000원</b></span>
+              <span><small>최대</small><b>20,000원</b></span>
+            </span>
           </button>
           <button class="active" type="button" data-holdem-buyin="30000">
             <strong>스탠다드</strong>
-            <span>20,000원~30,000원</span>
+            <span class="create-holdem-buyin-range">
+              <span><small>최소</small><b>20,000원</b></span>
+              <span><small>최대</small><b>30,000원</b></span>
+            </span>
           </button>
           <button type="button" data-holdem-buyin="40000">
             <strong>하이롤러</strong>
-            <span>30,000원~40,000원</span>
+            <span class="create-holdem-buyin-range">
+              <span><small>최소</small><b>30,000원</b></span>
+              <span><small>최대</small><b>40,000원</b></span>
+            </span>
           </button>
         </div>
       </div>

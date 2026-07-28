@@ -76,7 +76,10 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*max="40000"[^>]*step="100"/);
   assert.match(index, /data-holdem-buyin="10000"[\s\S]*data-holdem-buyin="30000"[\s\S]*data-holdem-buyin="40000"/);
   assert.match(index, /참가비용 범위/);
-  assert.match(index, /10,000원~20,000원[\s\S]*20,000원~30,000원[\s\S]*30,000원~40,000원/);
+  assert.match(index, /<small>최소<\/small><b>10,000원<\/b>[\s\S]*<small>최대<\/small><b>20,000원<\/b>/);
+  assert.match(index, /<small>최소<\/small><b>20,000원<\/b>[\s\S]*<small>최대<\/small><b>30,000원<\/b>/);
+  assert.match(index, /<small>최소<\/small><b>30,000원<\/b>[\s\S]*<small>최대<\/small><b>40,000원<\/b>/);
+  assert.match(styles, /\.create-holdem-buyin-range\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(index, /<strong>홀덤<\/strong>/);
   assert.doesNotMatch(index, /id="create-holdem-summary-name"/);
   assert.doesNotMatch(index, /create-holdem-head-title/);
