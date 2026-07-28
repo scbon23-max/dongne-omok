@@ -2179,9 +2179,13 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-room-dialog {
   max-width: 430px;
   padding: 22px 18px 18px;
-  background: var(--navy-2);
+  background:
+    radial-gradient(ellipse at 50% -12%, rgba(139,255,215,.18), rgba(139,255,215,0) 46%),
+    radial-gradient(ellipse at 100% 3%, rgba(255,217,139,.08), rgba(255,217,139,0) 42%),
+    repeating-linear-gradient(115deg, rgba(255,255,255,.035) 0 1px, rgba(255,255,255,0) 1px 7px),
+    linear-gradient(142deg, #123c3c 0%, #0b2634 54%, #102b36 100%);
   color: #fff;
-  box-shadow: 0 22px 64px rgba(0,0,0,.48);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 22px 64px rgba(0,0,0,.48);
 }
 .create-head {
   min-height: 34px;
@@ -2260,37 +2264,24 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   align-items: center;
   justify-content: flex-start;
   gap: 9px;
-  padding: 0 2px;
-  border: 0;
-  border-radius: 18px;
-  background: transparent;
+  padding: 8px 6px 7px;
+  border: 1.5px solid rgba(202,239,230,0);
+  border-radius: 16px;
+  background: rgba(3,19,26,.12);
   color: #fff;
   text-align: center;
   cursor: pointer;
+  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .15s ease;
 }
 .create-game-option:active, .create-mode-card:active { transform: scale(.985); }
-.create-game-option.active { background: transparent; }
+.create-game-option.active {
+  border-color: rgba(126,255,227,.78);
+  background: linear-gradient(180deg, rgba(105,255,218,.13), rgba(9,32,40,.38));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 8px 18px rgba(0,0,0,.18);
+}
 .create-game-option::before {
   content: "";
-  position: absolute;
-  z-index: 0;
-  top: -20px;
-  left: 50%;
-  width: 128px;
-  height: 118px;
-  border-radius: 50%;
-  background:
-    radial-gradient(ellipse at 50% 18%, rgba(255,230,188,.62) 0%, rgba(255,171,95,.45) 24%, rgba(47,184,158,.24) 48%, rgba(47,184,158,0) 76%),
-    radial-gradient(ellipse at 50% 72%, rgba(255,132,73,.18) 0%, rgba(255,132,73,0) 62%);
-  filter: blur(3px);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-50%) scale(.82);
-  transition: opacity .16s ease, transform .16s ease;
-}
-.create-game-option.active::before {
-  opacity: 1.0;
-  transform: translateX(-50%) scale(1);
+  display: none;
 }
 .create-game-icon {
   position: relative;
