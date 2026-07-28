@@ -6024,6 +6024,19 @@ body.is-admin .feedback-user-compose { display: none; }
   margin: auto;
   pointer-events: none;
 }
+.holdem-chat-overlay .ov-line {
+  max-width: 100%;
+}
+.holdem-screen.is-chat-focused .holdem-chat-overlay {
+  z-index: 49;
+  bottom: calc(max(6px, env(safe-area-inset-bottom)) + 54px);
+  max-height: 154px;
+  overflow: hidden;
+}
+.holdem-screen.is-chat-focused .holdem-chat-overlay .ov-line {
+  opacity: 1;
+  transform: none;
+}
 #room-strip-holdem { display: none !important; }
 .room-badge.holdem,
 .room-badge.holdem_tournament,

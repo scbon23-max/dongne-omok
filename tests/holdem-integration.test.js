@@ -560,6 +560,20 @@ test("the browser sends only server commands and public refresh hints", () => {
   assert.match(controller, /invoke\("refill"/);
 });
 
+test("Hold'em chat focus keeps the latest five chat lines above the keyboard", () => {
+  assert.match(index, /id="holdem-chat-overlay"/);
+  assert.match(index, /id="holdem-chat-input"/);
+  assert.match(game, /function renderHoldemChatHistory\(\)/);
+  assert.match(game, /recent\.length < 5/);
+  assert.match(game, /row\.game !== "holdem"/);
+  assert.match(game, /line\.classList\.add\("show"\)/);
+  assert.match(game, /holdem-chat-input"\)\.addEventListener\("focus"/);
+  assert.match(game, /holdem-chat-input"\)\.addEventListener\("blur"[\s\S]*setHoldemChatFocusState\(false\)/);
+  assert.match(game, /holdem-chat-overlay"\)\.innerHTML = ""/);
+  assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-overlay\s*\{[\s\S]*max-height:\s*154px/);
+  assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-overlay \.ov-line\s*\{[\s\S]*opacity:\s*1[\s\S]*transform:\s*none/);
+});
+
 test("the rules and UI clearly identify KRW-unit assets and standard no-limit play", () => {
   assert.match(index, /6-MAX · NO LIMIT/);
   assert.match(index, /실제 현금 가치가 없는 원화 단위 게임 자산/);

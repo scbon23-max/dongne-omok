@@ -4521,6 +4521,37 @@
   function chatRoomOf(game) { return curRoomId ? ("r:" + curRoomId) : roomName(); }
   var unreadCount = {};
   (window.GameCatalog ? GameCatalog.families() : ["omok", "alk"]).forEach(function (family) { unreadCount[family] = 0; });
+  function holdemChatInputFocused() {
+    var input = $("holdem-chat-input");
+    return !!(input && document.activeElement === input && activeFamily() === "holdem");
+  }
+  function createOverlayLine(family, nick, text, overlaySide) {
+    var line = document.createElement("div");
+    var isSystem = nick === "__sys";
+    var isRight = family === "catchmind" && overlaySide === "right";
+    line.className = "ov-line" + (isSystem ? " system" : "") + (isRight ? " right" : "");
+    line.innerHTML = isSystem ? esc(text) : '<span class="ov-nick" style="color:' + nickColor(nick) + '">' + esc(nick) + '</span>' + esc(text);
+    return line;
+  }
+  function renderHoldemChatHistory() {
+    var screen = $("holdemgame");
+    var overlay = $("holdem-chat-overlay");
+    var focused = holdemChatInputFocused();
+    if (screen) screen.classList.toggle("is-chat-focused", focused);
+    if (!overlay || !focused) return;
+    var recent = [];
+    for (var i = sessionChat.length - 1; i >= 0 && recent.length < 5; i--) {
+      var row = sessionChat[i];
+      if (!row || row.game !== "holdem" || !row.text || row.who === "__sys") continue;
+      recent.unshift(row);
+    }
+    overlay.innerHTML = "";
+    for (var j = 0; j < recent.length; j++) {
+      var line = createOverlayLine("holdem", recent[j].who, recent[j].text);
+      line.classList.add("show");
+      overlay.appendChild(line);
+    }
+  }
   function renderUnread(game) {
     if (unreadCount[game] == null) unreadCount[game] = 0;
     var n = unreadCount[game];
@@ -4573,11 +4604,11 @@
   function pushOverlay(game, nick, text, overlaySide) {
     var family = gameFamily(game);
     var ov = $(gameUi(family).chatOverlayId); if (!ov) return;
-    var line = document.createElement("div");
-    var isSystem = nick === "__sys";
-    var isRight = family === "catchmind" && overlaySide === "right";
-    line.className = "ov-line" + (isSystem ? " system" : "") + (isRight ? " right" : "");
-    line.innerHTML = isSystem ? esc(text) : '<span class="ov-nick" style="color:' + nickColor(nick) + '">' + esc(nick) + '</span>' + esc(text);
+    if (family === "holdem" && holdemChatInputFocused()) {
+      renderHoldemChatHistory();
+      return;
+    }
+    var line = createOverlayLine(family, nick, text, overlaySide);
     ov.appendChild(line);
     var maxLines = family === "catchmind" ? 5 : 3;
     while (ov.children.length > maxLines) ov.removeChild(ov.children[0]);
@@ -4617,6 +4648,13 @@
     var inp = $(gameUi(game).chatInputId);
     if (!inp) return;
     if (sendChatText(game, inp.value)) inp.value = "";
+  }
+
+  function setHoldemChatFocusState(focused) {
+    var screen = $("holdemgame");
+    if (screen) screen.classList.toggle("is-chat-focused", !!focused && activeFamily() === "holdem");
+    if (focused) renderHoldemChatHistory();
+    else if ($("holdem-chat-overlay")) $("holdem-chat-overlay").innerHTML = "";
   }
 
   // ---------- 토스트 ----------
@@ -6640,6 +6678,10 @@
 
     $("chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendChat("omok"); });
     $("alk-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendChat("alk"); });
+    $("holdem-chat-input").addEventListener("focus", function () { setHoldemChatFocusState(true); });
+    $("holdem-chat-input").addEventListener("blur", function () {
+      setTimeout(function () { setHoldemChatFocusState(false); }, 120);
+    });
     $("chat-log").addEventListener("scroll", function () { if (this.scrollTop < 40) loadOlderChat(); });
     $("alk-menu-btn").addEventListener("click", openMenu);
     $("leave-room-btn").addEventListener("click", requestLeaveRoom);
