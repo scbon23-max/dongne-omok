@@ -3949,17 +3949,18 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat[data-relative-seat="0"].is-me {
   --holdem-seat-timer-x: calc(var(--holdem-seat-avatar-size) / 2);
   --holdem-seat-timer-y: 50%;
-  width: min(94vw, 500px);
+  width: min(88vw, 360px);
   min-height: calc(var(--holdem-seat-avatar-size) + 18px);
   display: grid;
-  grid-template-columns: var(--holdem-seat-avatar-size) minmax(54px, 1fr) minmax(76px, max-content) minmax(116px, .9fr);
-  grid-template-rows: auto;
+  grid-template-columns: minmax(var(--holdem-seat-avatar-size), max-content) minmax(116px, max-content);
+  grid-template-rows: auto auto auto;
   align-items: center;
-  justify-items: start;
-  column-gap: clamp(6px, 2.2vw, 14px);
+  justify-content: center;
+  justify-items: center;
+  column-gap: clamp(14px, 4vw, 26px);
   padding: 0 clamp(6px, 2vw, 12px);
   left: 50%;
-  text-align: left;
+  text-align: center;
 }
 .holdem-seat-avatar {
   position: relative;
@@ -4062,7 +4063,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat[data-relative-seat="0"].is-me .holdem-seat-avatar {
   grid-column: 1;
   grid-row: 1;
-  justify-self: start;
+  justify-self: center;
 }
 .holdem-seat:not(.is-empty) {
   cursor: pointer;
@@ -4097,13 +4098,12 @@ body.is-admin .feedback-user-compose { display: none; }
   white-space: nowrap;
 }
 .holdem-seat[data-relative-seat="0"].is-me .holdem-seat-name {
-  grid-column: 2;
-  grid-row: 1;
-  align-self: center;
-  justify-self: start;
-  max-width: 100%;
-  margin-top: 0;
-  text-align: left;
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: center;
+  max-width: clamp(86px, 24vw, 124px);
+  margin-top: 3px;
+  text-align: center;
 }
 .holdem-seat-stack {
   margin-top: 1px;
@@ -4113,12 +4113,11 @@ body.is-admin .feedback-user-compose { display: none; }
   text-shadow: 0 1px 2px #000;
 }
 .holdem-seat[data-relative-seat="0"].is-me .holdem-seat-stack {
-  grid-column: 3;
-  grid-row: 1;
-  align-self: center;
-  justify-self: start;
-  margin-top: 0;
-  text-align: left;
+  grid-column: 1;
+  grid-row: 3;
+  justify-self: center;
+  margin-top: 1px;
+  text-align: center;
   white-space: nowrap;
 }
 .holdem-seat-personality {
@@ -4470,8 +4469,8 @@ body.is-admin .feedback-user-compose { display: none; }
   top: auto;
   right: auto;
   left: auto;
-  grid-column: 4;
-  grid-row: 1;
+  grid-column: 2;
+  grid-row: 1 / span 3;
   justify-self: center;
   align-self: center;
   transform: none;
@@ -5432,10 +5431,13 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-table { width: min(75vw, 350px); border-width: 8px; }
   .holdem-seat { --holdem-seat-avatar-size: 47px; width: 96px; }
   .holdem-seat[data-relative-seat="0"].is-me {
-    width: min(96vw, 360px);
-    grid-template-columns: var(--holdem-seat-avatar-size) minmax(44px, 1fr) minmax(64px, max-content) minmax(88px, .8fr);
-    column-gap: 4px;
+    width: min(92vw, 300px);
+    grid-template-columns: minmax(var(--holdem-seat-avatar-size), max-content) minmax(88px, max-content);
+    column-gap: 9px;
     padding: 0 4px;
+  }
+  .holdem-seat[data-relative-seat="0"].is-me .holdem-seat-name {
+    max-width: 92px;
   }
   .holdem-seat-avatar { width: 47px; height: 47px; }
   .holdem-seat[data-relative-seat="1"],
