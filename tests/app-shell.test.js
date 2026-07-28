@@ -333,7 +333,7 @@ test("Alkkagi has a synchronized five-choice turn timer with short-game warnings
   assert.match(game, /A\.started && window\.Alkkagi && Alkkagi\.isMoving\(\) \? "…" : "∞"/);
 });
 
-test("room creation keeps Hold'em admin-created and off the public list", () => {
+test("room creation keeps Hold'em public and joinable from the list", () => {
   const catalog = fs.readFileSync(path.join(root, "game-catalog.js"), "utf8");
 
   assert.match(index, /id="create-game-step"/);
@@ -353,18 +353,18 @@ test("room creation keeps Hold'em admin-created and off the public list", () => 
   assert.match(game, /function canCreateGame\(id\)[\s\S]*if \(!canEnterGame\(id\)\) return false[\s\S]*def\.createAdminOnly && !me\.isAdmin/);
   assert.match(game, /visibleGameIds\(createIds\)\.filter\(canCreateGame\)/);
   assert.match(catalog, /territory:\s*\{[\s\S]*createAdminOnly:\s*false/);
-  assert.match(catalog, /holdem:\s*\{[\s\S]*createAdminOnly:\s*true[\s\S]*discoverable:\s*false/);
-  assert.match(catalog, /holdem_tournament:\s*\{[\s\S]*createAdminOnly:\s*true[\s\S]*discoverable:\s*false/);
-  assert.match(catalog, /holdem_turbo:\s*\{[\s\S]*createAdminOnly:\s*true[\s\S]*discoverable:\s*false/);
-  assert.match(catalog, /holdem_ring:\s*\{[\s\S]*createAdminOnly:\s*false[\s\S]*discoverable:\s*false/);
+  assert.match(catalog, /holdem:\s*\{[\s\S]*createAdminOnly:\s*false[\s\S]*discoverable:\s*true/);
+  assert.match(catalog, /holdem_tournament:\s*\{[\s\S]*createAdminOnly:\s*false[\s\S]*discoverable:\s*true/);
+  assert.match(catalog, /holdem_turbo:\s*\{[\s\S]*createAdminOnly:\s*false[\s\S]*discoverable:\s*true/);
+  assert.match(catalog, /holdem_ring:\s*\{[\s\S]*createAdminOnly:\s*false[\s\S]*discoverable:\s*true/);
   assert.match(index, /id="create-holdem-wallet-balance"/);
   assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*min="10000"[^>]*max="100000"[^>]*step="100"[^>]*value="30000"/);
   assert.match(index, /data-holdem-buyin="15000"[\s\S]*data-holdem-buyin="30000"[\s\S]*data-holdem-buyin="75000"/);
   assert.match(index, /<small>최소<\/small><b>10,000원<\/b>[\s\S]*<small>최대<\/small><b>20,000원<\/b>/);
   assert.match(index, /<small>최소<\/small><b>20,000원<\/b>[\s\S]*<small>최대<\/small><b>40,000원<\/b>/);
   assert.match(index, /<small>최소<\/small><b>50,000원<\/b>[\s\S]*<small>최대<\/small><b>100,000원<\/b>/);
-  assert.match(index, /id="create-holdem-mode"[^>]*hidden/);
-  assert.match(index, /data-holdem-mode="tournament"[^>]*hidden/);
+  assert.doesNotMatch(index, /id="create-holdem-mode"\s+class="[^"]*\bhidden\b/);
+  assert.doesNotMatch(index, /data-holdem-mode="tournament"[^>]*hidden/);
   assert.match(game, /if \(!canEnterGame\(game\)\) \{[\s\S]*game === "catchmind" \? "캐치마인드는 점검 중이라 이용할 수 없어요"/);
   assert.match(game, /function renderRoomList\(\)[\s\S]*roomIsDiscoverable\(r\.game\)[\s\S]*canEnterGame\(r\.game\)/);
   assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);

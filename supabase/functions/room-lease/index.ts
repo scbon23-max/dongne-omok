@@ -9,12 +9,6 @@ const CORS = {
 const CHIP_UNIT = 100;
 const RING_ROOM_BUY_INS = new Set([15000, 30000, 75000]);
 const RING_DEFAULT_BUY_IN = 30000;
-const HOLDEM_TOURNAMENT_GAMES = new Set([
-  "holdem",
-  "holdem_tournament",
-  "holdem_turbo",
-]);
-
 function response(body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -80,10 +74,6 @@ Deno.serve(async (request) => {
     const roomName = safeText(body.roomName, 80);
     const game = safeText(body.game, 30);
     if (!roomName || !game) return response({ ok: false, reason: "invalid_room" });
-    if (HOLDEM_TOURNAMENT_GAMES.has(game) && !account.isAdmin) {
-      return response({ ok: false, reason: "forbidden" });
-    }
-
     const buyIn = game === "holdem_ring"
       ? ringBuyIn(body.buyIn)
       : 0;

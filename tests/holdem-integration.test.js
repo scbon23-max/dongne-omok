@@ -28,8 +28,8 @@ test("Hold'em is an available six-player controller game", () => {
   assert.equal(definition.maxPlayers, 6);
   assert.equal(definition.maxRoomMembers, 6);
   assert.equal(definition.rankable, false);
-  assert.equal(definition.createAdminOnly, true);
-  assert.equal(definition.discoverable, false);
+  assert.equal(definition.createAdminOnly, false);
+  assert.equal(definition.discoverable, true);
   assert.equal(definition.controller, "TexasHoldem");
   assert.equal(definition.screenId, "holdemgame");
   assert.match(game, /GameCatalog\.order\.filter\(function \(id\) \{ return id !== "alk_terr"; \}\)/);
@@ -40,7 +40,7 @@ test("Hold'em is an available six-player controller game", () => {
   assert.match(game, /var iconClass = "create-game-icon" \+ \(id === "holdem" \? " holdem" : ""\)/);
 });
 
-test("Hold'em room creation shows assets, locks tournaments to admins, and selects a ring buy-in", () => {
+test("Hold'em room creation shows assets, opens tournaments, and selects a ring buy-in", () => {
   const context = { window: {} };
   vm.createContext(context);
   vm.runInContext(catalogSource, context, { filename: "game-catalog.js" });
@@ -48,13 +48,13 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   for (const id of ["holdem_tournament", "holdem_turbo"]) {
     const definition = context.window.GameCatalog.get(id);
     assert.equal(definition.family, "holdem");
-    assert.equal(definition.createAdminOnly, true);
-    assert.equal(definition.discoverable, false);
+    assert.equal(definition.createAdminOnly, false);
+    assert.equal(definition.discoverable, true);
   }
   const ring = context.window.GameCatalog.get("holdem_ring");
   assert.equal(ring.family, "holdem");
   assert.equal(ring.createAdminOnly, false);
-  assert.equal(ring.discoverable, false);
+  assert.equal(ring.discoverable, true);
   assert.equal(ring.name, "홀덤");
   const holdemCreateStep = index.slice(
     index.indexOf('id="create-holdem-mode-step"'),
@@ -73,8 +73,8 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
     index.indexOf('data-holdem-mode="ring"') <
       index.indexOf('data-holdem-mode="tournament"')
   );
-  assert.match(index, /data-holdem-mode="tournament"[^>]*hidden/);
-  assert.match(index, /id="create-holdem-mode"[^>]*hidden/);
+  assert.doesNotMatch(index, /data-holdem-mode="tournament"[^>]*hidden/);
+  assert.doesNotMatch(index, /id="create-holdem-mode"\s+class="[^"]*\bhidden\b/);
   assert.match(index, /data-holdem-mode="ring"/);
   assert.match(index, /data-holdem-speed="normal"/);
   assert.match(index, /data-holdem-speed="turbo"/);
@@ -112,10 +112,10 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.match(game, /recordHoldemAssetSnapshot\(me\.nick, totalAssets\)/);
   assert.match(game, /openHoldemAssetRecordDialog\(me\.nick, totalAssets\)/);
   assert.match(game, /totalAssets[\s\S]*tableBalance[\s\S]*현재 테이블에서 사용 중/);
-  assert.match(game, /mode = "ring"/);
-  assert.match(game, /modeBox\.hidden = true/);
-  assert.match(game, /modeCards\[i\]\.hidden = isTournamentCard/);
-  assert.match(game, /토너먼트 방은 관리자만 만들 수 있어요/);
+  assert.match(game, /mode = mode === "tournament" \? "tournament" : "ring"/);
+  assert.match(game, /modeBox\.hidden = false/);
+  assert.match(game, /modeCards\[i\]\.hidden = false/);
+  assert.doesNotMatch(game, /토너먼트 방은 관리자만 만들 수 있어요/);
   assert.match(game, /function holdemCreateGameId\(mode, speed\)/);
   assert.match(game, /return "holdem_ring"/);
   assert.match(game, /speed === "turbo" \? "holdem_turbo" : "holdem_tournament"/);
@@ -125,12 +125,12 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.match(styles, /\.room-badge\.holdem_tournament/);
 });
 
-test("room visibility follows the catalog and Hold'em rooms stay off the public list", () => {
+test("room visibility follows the catalog and Hold'em rooms are public", () => {
   const context = { window: {} };
   vm.createContext(context);
   vm.runInContext(catalogSource, context, { filename: "game-catalog.js" });
   for (const id of ["holdem", "holdem_tournament", "holdem_turbo", "holdem_ring"]) {
-    assert.equal(context.window.GameCatalog.get(id).discoverable, false);
+    assert.equal(context.window.GameCatalog.get(id).discoverable, true);
   }
   assert.match(
     game,

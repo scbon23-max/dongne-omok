@@ -1057,9 +1057,7 @@
       return;
     }
     if (!canCreateGame(game)) {
-      toast(gameFamily(game) === "holdem"
-        ? "토너먼트 방은 관리자만 만들 수 있어요"
-        : "이 방은 관리자만 만들 수 있어요");
+      toast("이 방은 지금 만들 수 없어요");
       return;
     }
     if (roomLeaseRestorePending) { toast("새로고침 전 방을 확인하고 있어요"); return; }
@@ -1088,9 +1086,7 @@
       if (claimed && claimed.reason === "already_owned") {
         toast("이 계정으로 이미 만든 방이 있어요 · " + (claimed.roomName || "기존 방"), 4500);
       } else if (claimed && claimed.reason === "forbidden") {
-        toast(gameFamily(game) === "holdem"
-          ? "토너먼트 방은 관리자만 만들 수 있어요"
-          : "이 방은 관리자만 만들 수 있어요");
+        toast("방 생성 권한을 확인하지 못했어요");
       } else if (claimed && claimed.reason === "wallet_insufficient") {
         toast("홀덤 자산이 선택한 바이인보다 부족해요");
         loadHoldemWallet(true);
@@ -5713,9 +5709,7 @@
     }
     var confirm = $("create-holdem-mode-confirm");
     if (confirm) {
-      confirm.disabled = mode === "tournament"
-        ? !me.isAdmin
-        : !canBuyIn || holdemWalletPending;
+      confirm.disabled = mode === "ring" && (!canBuyIn || holdemWalletPending);
     }
   }
   async function loadHoldemWallet(force) {
@@ -5788,23 +5782,22 @@
     renderHoldemWalletControls(activeCreateHoldemMode);
   }
   function renderCreateHoldemMode(mode, speed) {
-    mode = "ring";
+    mode = mode === "tournament" ? "tournament" : "ring";
     activeCreateHoldemMode = mode;
     speed = speed === "turbo" ? "turbo" : "normal";
     var modeBox = $("create-holdem-mode");
     if (modeBox) {
-      modeBox.hidden = true;
-      modeBox.classList.add("hidden");
-      modeBox.setAttribute("aria-hidden", "true");
+      modeBox.hidden = false;
+      modeBox.classList.remove("hidden");
+      modeBox.setAttribute("aria-hidden", "false");
       var modeCards = modeBox.querySelectorAll("[data-holdem-mode]");
       for (var i = 0; i < modeCards.length; i++) {
         var cardMode = modeCards[i].getAttribute("data-holdem-mode");
-        var isTournamentCard = cardMode === "tournament";
         var modeActive = cardMode === mode;
-        modeCards[i].hidden = isTournamentCard;
-        modeCards[i].classList.toggle("hidden", isTournamentCard);
-        modeCards[i].disabled = isTournamentCard;
-        modeCards[i].setAttribute("aria-disabled", isTournamentCard ? "true" : "false");
+        modeCards[i].hidden = false;
+        modeCards[i].classList.remove("hidden");
+        modeCards[i].disabled = false;
+        modeCards[i].setAttribute("aria-disabled", "false");
         modeCards[i].classList.toggle("active", modeActive);
         modeCards[i].setAttribute("aria-pressed", modeActive ? "true" : "false");
       }
@@ -5819,7 +5812,9 @@
       }
     }
     if ($("create-holdem-speed-group")) {
+      $("create-holdem-speed-group").hidden = mode !== "tournament";
       $("create-holdem-speed-group").classList.toggle("hidden", mode !== "tournament");
+      $("create-holdem-speed-group").setAttribute("aria-hidden", mode !== "tournament" ? "true" : "false");
     }
     if ($("create-holdem-buyin-group")) {
       $("create-holdem-buyin-group").classList.toggle("hidden", mode !== "ring");
@@ -5829,7 +5824,7 @@
         holdemRingSummaryLabel(createHoldemBuyIn);
     }
     if ($("create-holdem-mode-confirm")) {
-      $("create-holdem-mode-confirm").textContent = "홀덤 방 만들기";
+      $("create-holdem-mode-confirm").textContent = mode === "tournament" ? "토너먼트 방 만들기" : "링게임 방 만들기";
     }
     renderHoldemWalletControls(mode);
     return mode;
@@ -6779,10 +6774,6 @@
       storeHoldemCreateSelection(createHoldemMode, createHoldemSpeed, createHoldemBuyIn);
     });
     $("create-holdem-mode-confirm").addEventListener("click", function () {
-      if (createHoldemMode === "tournament" && !me.isAdmin) {
-        toast("토너먼트 방은 관리자만 만들 수 있어요");
-        return;
-      }
       if (createHoldemMode === "ring" &&
           (!holdemWalletProfile ||
             Number(holdemWalletProfile.balance) <
