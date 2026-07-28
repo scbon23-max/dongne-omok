@@ -472,6 +472,9 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel \{[\s\S]*position: absolute[\s\S]*left: 0[\s\S]*bottom: 60px[\s\S]*width: calc\(\(100% - 16px\) \/ 3\)[\s\S]*pointer-events: none/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets\s*\{[\s\S]*display: flex[\s\S]*flex-direction: column[\s\S]*justify-content: flex-end[\s\S]*gap: 6px/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\s*\{[\s\S]*pointer-events: auto/);
+  assert.match(styles, /\.holdem-screen\.is-actioning #holdem-fold-btn \{ grid-column: 1; \}/);
+  assert.match(styles, /\.holdem-screen\.is-actioning #holdem-check-btn,[\s\S]*#holdem-call-btn \{ grid-column: 2; \}/);
+  assert.match(styles, /\.holdem-screen\.is-actioning #holdem-bet-btn,[\s\S]*#holdem-raise-btn,[\s\S]*#holdem-allin-btn \{ grid-column: 3; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="allin"\] \{ order: 1; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="half"\] \{ order: 7; \}/);
   assert.doesNotMatch(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet(?:-tier)?="(?:allin|eight-pot|four-pot|two-pot|pot|three-quarter|half|over)"\][^{]*\{[^}]*grid-(?:row|column):/);

@@ -5769,6 +5769,12 @@ body.is-admin .feedback-user-compose { display: none; }
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
+.holdem-screen.is-actioning #holdem-fold-btn { grid-column: 1; }
+.holdem-screen.is-actioning #holdem-check-btn,
+.holdem-screen.is-actioning #holdem-call-btn { grid-column: 2; }
+.holdem-screen.is-actioning #holdem-bet-btn,
+.holdem-screen.is-actioning #holdem-raise-btn,
+.holdem-screen.is-actioning #holdem-allin-btn { grid-column: 3; }
 .holdem-screen.is-raise-menu-open #holdem-bet-btn,
 .holdem-screen.is-raise-menu-open #holdem-raise-btn {
   visibility: hidden;
