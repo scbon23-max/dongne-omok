@@ -261,6 +261,7 @@
       showBoardFrame: showCatchBoardFrame,
       openRules: function () { showRules(curRoomGame || curGame); },
       openHoldemHands: function () { showHoldemHands(); },
+      openHoldemRank: function () { openHoldemAssetRanking(); },
       leaveRoom: requestLeaveRoom,
       roomChanged: broadcastRoomOpen,
       galleryAuth: function () { return { nick: me.nick, hash: sessionAuthHash }; },
@@ -5356,6 +5357,114 @@
     open: openHoldemAssetRecordDialog,
     close: closeHoldemAssetRecordDialog
   };
+  var holdemAssetRankingRequestSeq = 0;
+  function normalizeHoldemAssetRankingRow(value) {
+    if (!value || typeof value !== "object") return null;
+    var nickname = String(value.nickname || "").trim().slice(0, 40);
+    var rank = Math.floor(Number(value.rank));
+    var totalAssets = Math.floor(Number(value.totalAssets));
+    if (!nickname || !Number.isFinite(rank) || rank < 1 ||
+        !Number.isFinite(totalAssets) || totalAssets < 0) return null;
+    return { nickname: nickname, rank: rank, totalAssets: totalAssets };
+  }
+  function holdemAssetRankingPositionHtml(rank) {
+    var medalClass = rank === 1
+      ? " is-medal is-gold"
+      : rank === 2
+        ? " is-medal is-silver"
+        : rank === 3
+          ? " is-medal is-bronze"
+          : "";
+    return '<span class="holdem-asset-ranking-position' + medalClass + '">' + rank + '</span>';
+  }
+  function holdemAssetRankingDeltaHtml(totalAssets, initialAssets) {
+    var delta = totalAssets - initialAssets;
+    if (!delta) return '<small>시작 자산과 같음</small>';
+    return '<small class="' + (delta > 0 ? "is-plus" : "is-minus") + '">' +
+      '시작 대비 ' + (delta > 0 ? "+" : "-") + formatHoldemAsset(Math.abs(delta)) + '</small>';
+  }
+  function renderHoldemAssetRanking(ranking) {
+    ranking = ranking && typeof ranking === "object" ? ranking : {};
+    var rows = (Array.isArray(ranking.rows) ? ranking.rows : [])
+      .map(normalizeHoldemAssetRankingRow)
+      .filter(Boolean);
+    var viewer = normalizeHoldemAssetRankingRow(ranking.viewer);
+    var totalPlayers = Math.max(rows.length, Math.floor(Number(ranking.totalPlayers) || 0));
+    var initialAssets = Math.max(
+      0,
+      Math.floor(Number(ranking.initialAssets) || HOLDEM_INITIAL_ASSETS)
+    );
+    var mine = $("holdem-asset-ranking-mine");
+    if (mine) mine.classList.toggle("hidden", !viewer);
+    if (viewer) {
+      if ($("holdem-asset-ranking-mine-rank")) {
+        $("holdem-asset-ranking-mine-rank").textContent =
+          viewer.rank + "위" + (totalPlayers ? " / " + totalPlayers + "명" : "");
+      }
+      if ($("holdem-asset-ranking-mine-assets")) {
+        $("holdem-asset-ranking-mine-assets").textContent =
+          "총자산 " + formatHoldemAsset(viewer.totalAssets);
+      }
+    }
+    var list = $("holdem-asset-ranking-list");
+    if (!list) return;
+    if (!rows.length) {
+      list.innerHTML = '<p class="holdem-asset-ranking-status">아직 홀덤 자산 기록이 없습니다.</p>';
+      return;
+    }
+    list.innerHTML = rows.map(function (row) {
+      var isMe = row.nickname === me.nick;
+      return '<div class="holdem-asset-ranking-row' + (isMe ? ' is-me' : '') + '" role="listitem">' +
+        holdemAssetRankingPositionHtml(row.rank) +
+        '<span class="holdem-asset-ranking-player"><strong>' + esc(row.nickname) +
+        (isMe ? '<i class="holdem-asset-ranking-me-tag">나</i>' : '') + '</strong>' +
+        holdemAssetRankingDeltaHtml(row.totalAssets, initialAssets) + '</span>' +
+        '<strong class="holdem-asset-ranking-assets">' + formatHoldemAsset(row.totalAssets) + '</strong>' +
+        '</div>';
+    }).join("");
+  }
+  function showHoldemAssetRankingStatus(message) {
+    var mine = $("holdem-asset-ranking-mine");
+    if (mine) mine.classList.add("hidden");
+    var list = $("holdem-asset-ranking-list");
+    if (list) list.innerHTML = '<p class="holdem-asset-ranking-status">' + esc(message) + '</p>';
+  }
+  function closeHoldemAssetRanking() {
+    holdemAssetRankingRequestSeq += 1;
+    var backdrop = $("holdem-asset-ranking-backdrop");
+    if (!backdrop) return;
+    backdrop.classList.add("hidden");
+    backdrop.setAttribute("aria-hidden", "true");
+  }
+  function openHoldemAssetRanking() {
+    var backdrop = $("holdem-asset-ranking-backdrop");
+    if (!backdrop) return;
+    backdrop.classList.remove("hidden");
+    backdrop.setAttribute("aria-hidden", "false");
+    showHoldemAssetRankingStatus("랭킹을 불러오는 중입니다.");
+    var requestSeq = ++holdemAssetRankingRequestSeq;
+    if (!window.Db || typeof Db.getHoldemAssetRanking !== "function" ||
+        !me.nick || !sessionAuthHash) {
+      showHoldemAssetRankingStatus("랭킹을 불러올 수 없습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    Promise.resolve(Db.getHoldemAssetRanking({
+      nick: me.nick,
+      hash: sessionAuthHash
+    })).then(function (result) {
+      var currentBackdrop = $("holdem-asset-ranking-backdrop");
+      if (requestSeq !== holdemAssetRankingRequestSeq || !currentBackdrop ||
+          currentBackdrop.classList.contains("hidden")) return;
+      if (!result || !result.ok || !result.ranking) {
+        showHoldemAssetRankingStatus("랭킹을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+        return;
+      }
+      renderHoldemAssetRanking(result.ranking);
+    }, function () {
+      if (requestSeq !== holdemAssetRankingRequestSeq) return;
+      showHoldemAssetRankingStatus("랭킹을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+    });
+  }
   function renderHoldemWalletControls(mode) {
     var availableBalance = holdemWalletProfile &&
       Number.isFinite(Number(holdemWalletProfile.balance))
@@ -6456,6 +6565,10 @@
     $("holdem-asset-record-close").addEventListener("click", closeHoldemAssetRecordDialog);
     $("holdem-asset-record-backdrop").addEventListener("click", function (event) {
       if (event.target === this) closeHoldemAssetRecordDialog();
+    });
+    $("holdem-asset-ranking-close").addEventListener("click", closeHoldemAssetRanking);
+    $("holdem-asset-ranking-backdrop").addEventListener("click", function (event) {
+      if (event.target === this) closeHoldemAssetRanking();
     });
     $("create-holdem-mode").addEventListener("click", function (event) {
       var card = event.target.closest("[data-holdem-mode]");

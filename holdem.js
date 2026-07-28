@@ -21,7 +21,7 @@
  *   #holdem-call-btn, #holdem-call-amount, #holdem-bet-btn,
  *   #holdem-raise-btn, #holdem-allin-btn
  * Utility/chat: #holdem-settings-btn, #holdem-people-btn,
- *   #holdem-hands-btn, #holdem-leave-btn, #holdem-chat-input,
+ *   #holdem-hands-btn, #holdem-rank-btn, #holdem-leave-btn, #holdem-chat-input,
  *   #holdem-chat-send, #holdem-chat-overlay
  * Quick bet buttons: [data-holdem-bet="half|three-quarter|pot|two-pot|four-pot|eight-pot|allin"]
  *
@@ -3123,7 +3123,10 @@ window.TexasHoldem = (function () {
     if (actions) actions.classList.toggle("hidden", !isMine);
     var remove = $("holdem-profile-avatar-remove");
     if (remove) remove.disabled = !isMine || !avatar;
-    setText("holdem-profile-wallet-label", isMine ? "내 총자산" : "총자산");
+    setText(
+      "holdem-profile-wallet-label",
+      isMine ? "내 총자산" : target && target.isBot ? "연습칩" : "테이블 보유칩"
+    );
     var roleAction = $("holdem-profile-role-action");
     if (roleAction) {
       var seated = state.heroSeat >= 0;
@@ -4207,6 +4210,8 @@ window.TexasHoldem = (function () {
       if (api && typeof api.openHoldemHands === "function") api.openHoldemHands();
       else if (api && typeof api.openRules === "function") api.openRules();
       else if (api && typeof api.openMenu === "function") api.openMenu();
+    } else if (id === "holdem-rank-btn") {
+      if (api && typeof api.openHoldemRank === "function") api.openHoldemRank();
     } else if (id === "holdem-leave-btn") {
       if (api && typeof api.leaveRoom === "function") api.leaveRoom();
     } else if (id === "holdem-chat-send") {

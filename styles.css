@@ -2560,6 +2560,228 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   font-weight: 800;
   line-height: 1.45;
 }
+.holdem-asset-ranking-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0,8,12,.74);
+  backdrop-filter: blur(7px);
+}
+.holdem-asset-ranking-backdrop.hidden { display: none; }
+.holdem-asset-ranking-dialog {
+  width: min(92vw, 420px);
+  max-height: min(86dvh, 680px);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(90px, 1fr) auto;
+  border: 1px solid rgba(125,225,196,.28);
+  border-radius: 20px;
+  background: linear-gradient(180deg, #0c2c35, #06141a);
+  color: #dffbf6;
+  box-shadow: 0 24px 70px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.1);
+}
+.holdem-asset-ranking-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 18px 10px;
+}
+.holdem-asset-ranking-head span {
+  color: #f2c77d;
+  font-size: 10px;
+  font-weight: 1000;
+  letter-spacing: .08em;
+}
+.holdem-asset-ranking-head h2 {
+  margin: 4px 0 0;
+  color: #fff7dc;
+  font-size: 22px;
+  line-height: 1.1;
+  letter-spacing: -.5px;
+}
+.holdem-asset-ranking-head button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 50%;
+  background: rgba(0,0,0,.24);
+  color: #dffbf6;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.holdem-asset-ranking-mine {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin: 2px 18px 12px;
+  padding: 12px 13px;
+  border: 1px solid rgba(242,199,125,.36);
+  border-radius: 14px;
+  background: rgba(242,199,125,.11);
+}
+.holdem-asset-ranking-mine.hidden { display: none; }
+.holdem-asset-ranking-mine > span {
+  color: #c4dedb;
+  font-size: 11px;
+  font-weight: 900;
+}
+.holdem-asset-ranking-mine > strong {
+  color: #ffd989;
+  font-size: 20px;
+  font-weight: 1000;
+  line-height: 1;
+  white-space: nowrap;
+}
+.holdem-asset-ranking-mine > small {
+  min-width: 0;
+  overflow: hidden;
+  color: #fff7dc;
+  font-size: 12px;
+  font-weight: 950;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.holdem-asset-ranking-columns {
+  display: grid;
+  grid-template-columns: 45px minmax(0, 1fr) minmax(84px, auto);
+  gap: 8px;
+  padding: 0 20px 7px;
+  color: #759b9d;
+  font-size: 9px;
+  font-weight: 900;
+}
+.holdem-asset-ranking-columns span:last-child { text-align: right; }
+.holdem-asset-ranking-list {
+  min-height: 90px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid rgba(255,255,255,.07);
+  scrollbar-color: rgba(125,225,196,.35) transparent;
+}
+.holdem-asset-ranking-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 45px minmax(0, 1fr) minmax(84px, auto);
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.holdem-asset-ranking-row.is-me {
+  background: rgba(47,184,158,.13);
+  box-shadow: inset 3px 0 0 #5ee2c8;
+}
+.holdem-asset-ranking-position {
+  display: grid;
+  place-items: center;
+  color: #91aeb0;
+  font-size: 13px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+}
+.holdem-asset-ranking-position.is-medal {
+  width: 27px;
+  height: 27px;
+  justify-self: center;
+  border-radius: 50%;
+  color: #fff;
+  box-shadow: 0 3px 9px rgba(0,0,0,.26);
+}
+.holdem-asset-ranking-position.is-gold { background: linear-gradient(145deg, #ffd85a, #b7780c); }
+.holdem-asset-ranking-position.is-silver { background: linear-gradient(145deg, #d9e1e5, #788993); }
+.holdem-asset-ranking-position.is-bronze { background: linear-gradient(145deg, #e0a36e, #8a4e2f); }
+.holdem-asset-ranking-player {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.holdem-asset-ranking-player strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #eefaf9;
+  font-size: 13px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.holdem-asset-ranking-player small {
+  overflow: hidden;
+  color: #7fa8a7;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.holdem-asset-ranking-player small.is-plus { color: #6ce4c4; }
+.holdem-asset-ranking-player small.is-minus { color: #ffaaa0; }
+.holdem-asset-ranking-me-tag {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #2fb89e;
+  color: #06231f;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 1000;
+  vertical-align: 1px;
+}
+.holdem-asset-ranking-assets {
+  color: #fff7dc;
+  font-size: 13px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.25px;
+  text-align: right;
+  white-space: nowrap;
+}
+.holdem-asset-ranking-status {
+  margin: 0;
+  padding: 34px 18px;
+  color: #8fb3b4;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.5;
+  text-align: center;
+}
+.holdem-asset-ranking-note {
+  margin: 0;
+  padding: 11px 18px 14px;
+  border-top: 1px solid rgba(255,255,255,.07);
+  color: #7fa5a7;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+@media (max-width: 370px) {
+  .holdem-asset-ranking-backdrop { padding: 10px; }
+  .holdem-asset-ranking-dialog { width: min(96vw, 390px); max-height: 89dvh; }
+  .holdem-asset-ranking-head { padding: 15px 14px 9px; }
+  .holdem-asset-ranking-mine { margin: 2px 14px 10px; }
+  .holdem-asset-ranking-columns {
+    grid-template-columns: 38px minmax(0, 1fr) minmax(78px, auto);
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+  .holdem-asset-ranking-row {
+    grid-template-columns: 38px minmax(0, 1fr) minmax(78px, auto);
+    gap: 6px;
+    padding: 10px 13px;
+  }
+  .holdem-asset-ranking-player strong,
+  .holdem-asset-ranking-assets { font-size: 12px; }
+}
 .create-holdem-section-title { margin-bottom: 7px; }
 .create-mode-list { display: grid; gap: 9px; margin-bottom: 16px; }
 .create-mode-card {
@@ -3607,6 +3829,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-utility #holdem-leave-btn { margin-right: auto; }
 .holdem-utility button,
 .holdem-chat-row button {
+  flex-shrink: 0;
   min-height: 34px;
   padding: 0 9px;
   border: 1px solid rgba(255,255,255,.12);
@@ -3616,6 +3839,7 @@ body.is-admin .feedback-user-compose { display: none; }
   font: inherit;
   font-size: 11px;
   font-weight: 800;
+  white-space: nowrap;
   cursor: pointer;
 }
 .holdem-utility button:active,

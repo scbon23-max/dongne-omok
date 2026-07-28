@@ -91,6 +91,7 @@ const CORS = {
 
 const ACTIONS = new Set([
   "wallet",
+  "ranking",
   "join",
   "leave",
   "ready",
@@ -441,6 +442,117 @@ async function walletProfile(
     defaultBuyIn: RING_DEFAULT_BUY_IN,
     refillAmount: RING_REFILL_AMOUNT,
     dailyRefillLimit: 3,
+  };
+}
+
+function tableHoldingsByNickname(rows: unknown[]) {
+  const holdings = new Map<string, number>();
+  const activePhases = new Set(["preflop", "flop", "turn", "river"]);
+  for (const row of rows) {
+    if (!isRecord(row) || !isRecord(row.state)) continue;
+    const state = row.state;
+    const settings = isRecord(state.settings) ? state.settings : null;
+    if (
+      !settings ||
+      safeText(settings.mode, 24) !== "ring" ||
+      settings.assetBacked !== true ||
+      !Array.isArray(state.seats)
+    ) {
+      continue;
+    }
+    const includeCommittedBets = activePhases.has(safeText(state.phase, 24));
+    for (const rawSeat of state.seats) {
+      if (!isRecord(rawSeat) || rawSeat.isBot === true) continue;
+      const nickname = safeText(rawSeat.nick, 40);
+      const stack = Number(rawSeat.stack);
+      const totalBet = includeCommittedBets ? Number(rawSeat.totalBet) : 0;
+      if (
+        !nickname ||
+        !Number.isSafeInteger(stack) ||
+        !Number.isSafeInteger(totalBet) ||
+        stack < 0 ||
+        totalBet < 0 ||
+        stack % CHIP_UNIT !== 0 ||
+        totalBet % CHIP_UNIT !== 0
+      ) {
+        continue;
+      }
+      const next = (holdings.get(nickname) ?? 0) + stack + totalBet;
+      if (Number.isSafeInteger(next) && next >= 0) holdings.set(nickname, next);
+    }
+  }
+  return holdings;
+}
+
+async function assetRanking(
+  client: ReturnType<typeof createClient>,
+  viewerNick: string,
+) {
+  const [{ data: walletRows, error: walletError }, {
+    data: tableRows,
+    error: tableError,
+  }] = await Promise.all([
+    client
+      .from("holdem_wallets")
+      .select("nickname,balance,updated_at")
+      .limit(500),
+    client
+      .from("holdem_tables")
+      .select("state")
+      .limit(500),
+  ]);
+  if (walletError || tableError) throw new Error("ranking_lookup");
+
+  const holdings = tableHoldingsByNickname(Array.isArray(tableRows) ? tableRows : []);
+  const ranked = (Array.isArray(walletRows) ? walletRows : []).map((row) => {
+    const nickname = safeText(row?.nickname, 40);
+    const balance = Number(row?.balance);
+    if (
+      !nickname ||
+      !Number.isSafeInteger(balance) ||
+      balance < 0 ||
+      balance % CHIP_UNIT !== 0
+    ) {
+      return null;
+    }
+    const totalAssets = balance + (holdings.get(nickname) ?? 0);
+    if (!Number.isSafeInteger(totalAssets) || totalAssets < 0) return null;
+    return {
+      nickname,
+      totalAssets,
+      updatedAt: safeText(row?.updated_at, 40),
+      rank: 0,
+    };
+  }).filter((row): row is {
+    nickname: string;
+    totalAssets: number;
+    updatedAt: string;
+    rank: number;
+  } => row !== null).sort((left, right) => {
+    return right.totalAssets - left.totalAssets ||
+      left.updatedAt.localeCompare(right.updatedAt) ||
+      left.nickname.localeCompare(right.nickname, "ko");
+  });
+
+  let previousAssets: number | null = null;
+  let previousRank = 0;
+  ranked.forEach((row, index) => {
+    if (previousAssets !== row.totalAssets) previousRank = index + 1;
+    row.rank = previousRank;
+    previousAssets = row.totalAssets;
+  });
+  const publicRow = (row: typeof ranked[number]) => ({
+    rank: row.rank,
+    nickname: row.nickname,
+    totalAssets: row.totalAssets,
+  });
+  const viewer = ranked.find((row) => row.nickname === viewerNick);
+  return {
+    rows: ranked.slice(0, 100).map(publicRow),
+    viewer: viewer ? publicRow(viewer) : null,
+    totalPlayers: ranked.length,
+    initialAssets: INITIAL_WALLET_BALANCE,
+    generatedAt: new Date().toISOString(),
   };
 }
 
@@ -820,9 +932,11 @@ Deno.serve(async (request) => {
     return jsonResponse({ ok: false, reason: "action" }, 400);
   }
   const walletAction = action === "wallet";
-  const roomId = walletAction ? "" : safeText(body.roomId, 81);
-  const requestId = walletAction ? "" : safeText(body.requestId, 101);
-  if (!walletAction) {
+  const rankingAction = action === "ranking";
+  const roomlessAction = walletAction || rankingAction;
+  const roomId = roomlessAction ? "" : safeText(body.roomId, 81);
+  const requestId = roomlessAction ? "" : safeText(body.requestId, 101);
+  if (!roomlessAction) {
     if (!ROOM_ID_PATTERN.test(roomId)) {
       return jsonResponse({ ok: false, reason: "invalid_room" }, 400);
     }
@@ -838,7 +952,7 @@ Deno.serve(async (request) => {
   if (
     !url ||
     !serviceKey ||
-    (!walletAction && !engine) ||
+    (!roomlessAction && !engine) ||
     (action === "bot_step" && !ai)
   ) {
     return jsonResponse({ ok: false, reason: "server_config" }, 500);
@@ -859,6 +973,13 @@ Deno.serve(async (request) => {
       return jsonResponse({
         ok: true,
         wallet: await walletProfile(client, account.nick),
+      });
+    }
+    if (rankingAction) {
+      await cleanupExpiredTables(client);
+      return jsonResponse({
+        ok: true,
+        ranking: await assetRanking(client, account.nick),
       });
     }
     if (!engine) {
