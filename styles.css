@@ -5962,6 +5962,7 @@ body.is-admin .feedback-user-compose { display: none; }
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
+.holdem-screen.is-actioning .holdem-action-buttons > .holdem-action { grid-row: 1; }
 .holdem-screen.is-actioning #holdem-fold-btn { grid-column: 3; }
 .holdem-screen.is-actioning #holdem-check-btn,
 .holdem-screen.is-actioning #holdem-call-btn { grid-column: 2; }
