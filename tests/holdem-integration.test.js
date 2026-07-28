@@ -97,7 +97,7 @@ test("Hold'em room creation shows assets, locks tournaments to admins, and selec
   assert.match(holdemCreateStep, /create-holdem-wallet create-holdem-wallet-full/);
   assert.doesNotMatch(holdemCreateStep, /create-holdem-buyin-output|create-holdem-buyin-note|create-holdem-rule-summary/);
   assert.doesNotMatch(holdemCreateStep, /SB 100|SB 200|SB 300|BB 200|BB 400|BB 600|李멸? 媛??/);
-  assert.match(game, /renderCreateHoldemMode\("ring", "normal"\)/);
+  assert.match(game, /renderCreateHoldemMode\(initialHoldemSelection\.mode \|\| "ring", createHoldemSpeed\)/);
   assert.match(game, /HOLDEM_INITIAL_ASSETS = 100000/);
   assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 30000/);
   assert.match(game, /HOLDEM_BUY_IN_OPTIONS = \[[\s\S]*amount: 15000[\s\S]*minBuyIn: 10000[\s\S]*maxBuyIn: 20000[\s\S]*amount: 30000[\s\S]*minBuyIn: 20000[\s\S]*maxBuyIn: 40000[\s\S]*amount: 75000[\s\S]*minBuyIn: 50000[\s\S]*maxBuyIn: 100000/);
@@ -375,9 +375,10 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -5px; \}/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back \+ \.holdem-card\.back \{ margin-left: -10px; \}/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\.is-revealed-cards \.holdem-card:not\(\.back\):not\(\.empty\) \+ \.holdem-card:not\(\.back\):not\(\.empty\) \{ margin-left: -12px; \}/);
-  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -14px; \}/);
+  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: 6px; \}/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card:first-of-type\s*\{[\s\S]*rotate\(-7deg\)/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card:last-of-type\s*\{[\s\S]*rotate\(7deg\)/);
+  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card:first-of-type,[\s\S]*\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card:last-of-type\s*\{[\s\S]*transform:\s*none/);
   assert.match(controller, /small_blind:\s*formatChips\(seat\.bet \|\| state\.smallBlind\)/);
   assert.match(controller, /big_blind:\s*formatChips\(seat\.bet \|\| state\.bigBlind\)/);
   assert.doesNotMatch(controller, /badges \+= "<span>SB<\/span>"|badges \+= "<span>BB<\/span>"/);
@@ -395,7 +396,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\s*\{[\s\S]*--holdem-seat-timer-x:\s*50%[\s\S]*--holdem-seat-timer-y:\s*calc\(var\(--holdem-seat-avatar-size\) \/ 2\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me\s*\{[\s\S]*--holdem-seat-timer-x:\s*var\(--holdem-hero-profile-center-x\)[\s\S]*--holdem-seat-timer-y:\s*calc\(var\(--holdem-seat-avatar-size\) \/ 2\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-seat-avatar-size\) \/ 2 \+ 24px\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 68px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 56px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-seat-avatar-size\) \/ 2 - 24px\)/);
   assert.match(controller, /is-visible-cards is-revealed-cards/);
   assert.match(controller, /class="holdem-seat-open-icon"/);
@@ -480,6 +481,7 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
 
 test("hand results stay on the table without a popup and advance automatically", () => {
   assert.match(controller, /var AUTO_NEXT_HAND_MS = 5000/);
+  assert.match(controller, /var RESULT_REVIEW_MS = 4000/);
   assert.match(controller, /function renderHandResult\(\)[\s\S]*panel\.classList\.add\("hidden"\)/);
   assert.doesNotMatch(controller, /panel\.classList\.toggle\("hidden", !announced\)/);
   assert.match(controller, /show\("holdem-lobby", false\)/);
@@ -498,7 +500,11 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /show\("holdem-ready-btn", false\)/);
   assert.match(engine, /canReady: false/);
   assert.match(controller, /scheduleAutoReadyForNextHand\(\)[\s\S]*scheduleAutoNextHand\(\)/);
-  assert.match(controller, /function scheduleAutoNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*setTimeout\(function \(\) \{ autoStartHand\(key\); \}, AUTO_NEXT_HAND_MS\)/);
+  assert.match(controller, /function scheduleAutoNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*hasBustedHumanSeat\(\)[\s\S]*Math\.max\(AUTO_NEXT_HAND_MS, resultTransitionDelayMs\(\)\)[\s\S]*setTimeout\(function \(\) \{ autoStartHand\(key\); \}, delay\)/);
+  assert.match(controller, /reviewUntil: settleEnd \+ RESULT_REVIEW_MS/);
+  assert.match(controller, /function openBuyInDialog\(mode, seat\)[\s\S]*state\.phase === "complete" && !resultTransitionReady\(\)/);
+  assert.match(controller, /function maybeAutoOpenRebuyDialog\(\)[\s\S]*if \(!resultTransitionReady\(\)\) return/);
+  assert.match(controller, /function releaseResultTransitions\(\)[\s\S]*maybeAutoOpenRebuyDialog\(\)[\s\S]*scheduleAutoNextHand\(\)/);
   assert.match(styles, /\.holdem-result-panel\s*\{[\s\S]*display: none !important/);
   assert.match(styles, /\.holdem-winner-result\s*\{/);
   assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);

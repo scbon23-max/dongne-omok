@@ -290,6 +290,86 @@ test("completed all-in boards reveal flop, turn, and river in order", () => {
   }
 });
 
+test("an all-in result finishes every reveal before opening the rebuy dialog", async () => {
+  const calls = [];
+  const db = {
+    getHoldemWallet() {
+      calls.push("wallet");
+      return Promise.resolve({
+        ok: true,
+        wallet: { balance: 50000, tableBalance: 0, totalAssets: 50000 },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const previous = controller._test.emptyState();
+  previous.mode = "ring";
+  previous.phase = "preflop";
+  previous.version = 20;
+  previous.handId = "7";
+  previous.handNumber = 7;
+  previous.heroSeat = 0;
+  previous.seats[0] = { seat: 0, nick: "alice", stack: 0 };
+  previous.seats[1] = { seat: 1, nick: "bob", stack: 30000 };
+  controller._test.setState(previous);
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+
+  const originalNow = Date.now;
+  let now = 1_900_000_000_000;
+  Date.now = () => now;
+  try {
+    const completed = {
+      phase: "hand_end",
+      mode: "ring",
+      handId: "7",
+      handNo: 7,
+      settings: {
+        mode: "ring",
+        chipUnit: 100,
+        buyInMin: 10000,
+        buyInMax: 50000,
+        defaultBuyIn: 30000,
+      },
+      viewer: { seat: 0 },
+      seats: [
+        { seat: 0, nick: "alice", stack: 0, lastAction: "allin" },
+        { seat: 1, nick: "bob", stack: 30000 },
+      ],
+      board: ["As", "Kd", "Qc", "Jh", "Ts"],
+      winners: ["bob"],
+      canRefill: false,
+    };
+    assert.equal(controller._test.applySnapshot(completed, 21), true);
+
+    const resultDuration =
+      controller._test.constants.resultFinalActionMs +
+      controller._test.constants.resultCardsFirstMs +
+      controller._test.constants.resultBoardRevealStepMs * 2 +
+      controller._test.constants.resultSettleMs +
+      controller._test.constants.resultReviewMs;
+
+    assert.equal(controller._test.resultTransitionDelayMs(), resultDuration);
+    assert.equal(controller._test.resultTransitionReady(), false);
+    assert.equal(controller._test.openBuyInDialog("rebuy", 0), false);
+    controller._test.maybeAutoOpenRebuyDialog();
+    assert.deepEqual(calls, []);
+
+    now += resultDuration - 1;
+    controller._test.maybeAutoOpenRebuyDialog();
+    assert.deepEqual(calls, []);
+
+    now += 1;
+    assert.equal(controller._test.resultTransitionReady(), true);
+    controller._test.maybeAutoOpenRebuyDialog();
+    await Promise.resolve();
+    assert.deepEqual(calls, ["wallet"]);
+  } finally {
+    Date.now = originalNow;
+    controller._test.setActive(false);
+  }
+});
+
 test("the completed UI does not receive an AI winner's cards without a showdown", () => {
   const controller = loadController();
   const ctx = { now: 1_800_000_000_000, randomInt: () => 0 };
