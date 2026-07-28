@@ -4546,6 +4546,7 @@
       if (!row || row.game !== "holdem" || !row.text || row.who === "__sys") continue;
       history.push(row);
     }
+    overlay.dataset.holdemOverlayMode = "history";
     overlay.innerHTML = "";
     for (var j = 0; j < history.length; j++) {
       var line = createOverlayLine("holdem", history[j].who, history[j].text);
@@ -4613,6 +4614,10 @@
       renderHoldemChatHistory();
       return;
     }
+    if (family === "holdem") {
+      if (ov.dataset.holdemOverlayMode === "history") ov.innerHTML = "";
+      ov.dataset.holdemOverlayMode = "toast";
+    }
     var line = createOverlayLine(family, nick, text, overlaySide);
     ov.appendChild(line);
     var maxLines = family === "catchmind" ? 5 : 3;
@@ -4663,7 +4668,10 @@
       if (overlay) overlay.dataset.holdemJustFocused = "1";
       renderHoldemChatHistory();
     }
-    else if ($("holdem-chat-overlay")) $("holdem-chat-overlay").innerHTML = "";
+    else if ($("holdem-chat-overlay")) {
+      $("holdem-chat-overlay").dataset.holdemOverlayMode = "toast";
+      $("holdem-chat-overlay").innerHTML = "";
+    }
   }
 
   // ---------- 토스트 ----------
@@ -6689,7 +6697,7 @@
     $("alk-chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendChat("alk"); });
     $("holdem-chat-input").addEventListener("focus", function () { setHoldemChatFocusState(true); });
     $("holdem-chat-input").addEventListener("blur", function () {
-      setTimeout(function () { setHoldemChatFocusState(false); }, 120);
+      setHoldemChatFocusState(false);
     });
     $("chat-log").addEventListener("scroll", function () { if (this.scrollTop < 40) loadOlderChat(); });
     $("alk-menu-btn").addEventListener("click", openMenu);

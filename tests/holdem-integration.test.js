@@ -575,8 +575,12 @@ test("Hold'em chat focus scrolls previous chat lines above the keyboard", () => 
   assert.match(game, /row\.game !== "holdem"/);
   assert.match(game, /overlay\.scrollTop = overlay\.scrollHeight/);
   assert.match(game, /line\.classList\.add\("show"\)/);
+  assert.match(game, /holdemOverlayMode = "history"/);
+  assert.match(game, /holdemOverlayMode === "history"[\s\S]*ov\.innerHTML = ""/);
+  assert.match(game, /holdemOverlayMode = "toast"/);
   assert.match(game, /holdem-chat-input"\)\.addEventListener\("focus"/);
   assert.match(game, /holdem-chat-input"\)\.addEventListener\("blur"[\s\S]*setHoldemChatFocusState\(false\)/);
+  assert.doesNotMatch(game, /holdem-chat-input"\)\.addEventListener\("blur"[\s\S]{0,140}setTimeout/);
   assert.match(game, /holdem-chat-overlay"\)\.innerHTML = ""/);
   assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-overlay\s*\{[\s\S]*overflow-y:\s*auto/);
   assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-overlay\s*\{[\s\S]*-webkit-overflow-scrolling:\s*touch/);
