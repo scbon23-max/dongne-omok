@@ -42,6 +42,15 @@ const economyV3Migration = fs.readFileSync(
   ),
   "utf8"
 );
+const adminWalletMigration = fs.readFileSync(
+  path.join(
+    root,
+    "supabase",
+    "migrations",
+    "20260728214712_holdem_admin_wallet_100m.sql"
+  ),
+  "utf8"
+);
 const edge = fs.readFileSync(
   path.join(root, "supabase", "functions", "holdem-table", "index.ts"),
   "utf8"
@@ -431,6 +440,33 @@ test("Hold'em wallets use 100-chip accounting and update atomically with ring ta
     /if \(walletAction\) \{[\s\S]*await cleanupExpiredTables\(client\)[\s\S]*walletProfile/
   );
   assert.match(edge, /if \(action === "join"\) await cleanupExpiredTables\(client\)/);
+});
+
+test("the administrator receives exactly 100,000,000 total Hold'em assets", () => {
+  assert.match(
+    adminWalletMigration,
+    /target_nickname constant text := '\uad6c\ub098'/
+  );
+  assert.match(
+    adminWalletMigration,
+    /target_assets constant bigint := 100000000/
+  );
+  assert.match(
+    adminWalletMigration,
+    /account\.is_admin[\s\S]*active_table_assets[\s\S]*state #>> '\{settings,assetBacked\}'/
+  );
+  assert.match(
+    adminWalletMigration,
+    /balance = target_assets - active_table_assets/
+  );
+  assert.match(
+    adminWalletMigration,
+    /balance \+ active_table_assets = target_assets/
+  );
+  assert.match(
+    edge,
+    /if \(adminNicknames\.has\(nickname\)\) return null/
+  );
 });
 
 test("economy v3 records refills and rake atomically while refunding legacy tables", () => {
