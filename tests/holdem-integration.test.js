@@ -289,6 +289,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-seat-avatar-size\) \/ 2 - 24px\)/);
   assert.match(controller, /is-visible-cards is-revealed-cards/);
   assert.match(controller, /class="holdem-seat-open-icon"/);
+  assert.match(controller, /seat \? readProfileAvatar\(seat\.nick\) : ""/);
   assert.match(controller, /role="button" tabindex="0"/);
   assert.match(styles, /\.holdem-seat-open-icon\s*\{/);
   assert.match(styles, /@media \(min-width: 900px\)[\s\S]*\.holdem-table/);

@@ -2271,7 +2271,7 @@ window.TexasHoldem = (function () {
         : "";
       var avatarSrc = seat && seat.isBot
         ? botPersonalityAvatar(seat.botPersonality)
-        : readProfileAvatar(seat.nick);
+        : seat ? readProfileAvatar(seat.nick) : "";
       var displayStack = seat ? animatedStackAmount(absolute, seat.stack) : 0;
       var label = seat
         ? name + ", 보유액 " + formatChips(displayStack) +
