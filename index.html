@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260728-holdem-community-card-sfx-v1">
+<meta name="app-build" content="20260728-holdem-auto-seat-sfx-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -724,6 +724,7 @@
   <div id="holdem-stage" class="holdem-stage">
     <header class="holdem-topbar">
       <nav class="holdem-utility" aria-label="홀덤 방 메뉴">
+        <button id="holdem-profile-btn" type="button">내 프로필</button>
         <button id="holdem-leave-btn" type="button">나가기</button>
         <button id="holdem-hands-btn" type="button" aria-label="홀덤 족보 보기">족보</button>
         <button id="holdem-settings-btn" type="button" aria-label="설정" aria-expanded="false">⚙</button>
@@ -836,6 +837,7 @@
         </div>
         <p id="holdem-buyin-note" class="holdem-buyin-note">선택한 금액만 테이블에 가져가고 나머지는 보유 자산에 남아요.</p>
         <div class="holdem-buyin-actions">
+          <button id="holdem-buyin-spectate" type="button">관전하기</button>
           <button id="holdem-buyin-cancel" type="button">취소</button>
           <button id="holdem-buyin-confirm" type="button">확정</button>
         </div>
@@ -930,6 +932,7 @@
           <strong id="holdem-profile-wallet-balance">불러오는 중</strong>
           <small id="holdem-profile-wallet-status">자산을 확인하고 있어요</small>
         </div>
+        <button id="holdem-profile-role-action" class="holdem-profile-role-action hidden" type="button">관전하기</button>
       </section>
     </div>
   </div>

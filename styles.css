@@ -4987,6 +4987,21 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-profile-wallet {
   margin: 0;
 }
+.holdem-profile-role-action {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
+  border: 1px solid rgba(125,225,196,.34);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #1d9781, #116756);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 1000;
+}
+.holdem-profile-role-action:disabled {
+  opacity: .42;
+}
 .holdem-action-panel {
   position: absolute;
   z-index: 50;
@@ -5140,7 +5155,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-buyin-actions {
   display: grid;
-  grid-template-columns: 1fr 1.4fr;
+  grid-template-columns: 1fr 1fr 1.35fr;
   gap: 8px;
 }
 .holdem-buyin-actions button {

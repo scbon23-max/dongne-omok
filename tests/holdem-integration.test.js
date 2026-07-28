@@ -379,7 +379,10 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /show\("holdem-lobby", false\)/);
   assert.match(controller, /refreshSnapshot\("enter", true\)/);
   assert.doesNotMatch(controller, /startTimers\(\);\s*joinTable\(\);/);
-  assert.match(controller, /function chooseEmptySeat\(seatIndex\)[\s\S]*addBot\(\{ seat: targetSeat \}\)[\s\S]*openBuyInDialog\("join", targetSeat\)/);
+  assert.match(controller, /function chooseEmptySeat\(seatIndex\)[\s\S]*addBot\(\{ seat: targetSeat \}\)[\s\S]*requestHumanSeatJoin\(targetSeat\)/);
+  assert.match(controller, /function maybeAutoSeatJoin\(\)[\s\S]*firstEmptySeat\(\)[\s\S]*requestHumanSeatJoin\(targetSeat\)/);
+  assert.match(index, /id="holdem-buyin-spectate"[^>]*>관전하기</);
+  assert.match(index, /id="holdem-profile-role-action"[^>]*>관전하기</);
   assert.match(engine, /ready:\s*stack > 0/);
   assert.match(engine, /function startHand\(state, now, context\)[\s\S]*!player\.leaving && player\.stack > 0/);
   assert.match(controller, /function ensureSeatControls\(\)[\s\S]*appendChild\(button\)/);

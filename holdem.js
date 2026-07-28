@@ -118,6 +118,8 @@ window.TexasHoldem = (function () {
   var buyInWalletPending = false;
   var buyInWalletRequestSeq = 0;
   var autoBuyInKey = "";
+  var autoSeatKey = "";
+  var autoSeatSuppressed = false;
   var autoNextTimer = null;
   var autoNextKey = "";
   var autoNextDueAt = 0;
@@ -1525,10 +1527,30 @@ window.TexasHoldem = (function () {
       broadcast: true
     }).then(function (result) {
       if (result && result.stale) return result;
+      if (result && result.ok) {
+        autoSeatKey = "";
+        autoSeatSuppressed = false;
+      }
       return refreshSnapshot(result && result.ok ? "joined" : "join_retry", true).then(function (refreshResult) {
         if (result && result.ok) autoReadyAfterSeatJoin();
         return refreshResult;
       });
+    });
+  }
+
+  function leaveTableForSpectate() {
+    if (state.heroSeat < 0 || requests.seat_role) return Promise.resolve({ ok: false, reason: "not_joined" });
+    autoSeatSuppressed = true;
+    autoSeatKey = "";
+    return invoke("leave", {
+      expectedVersion: state.version
+    }, {
+      key: "seat_role",
+      label: "spectate",
+      broadcast: true
+    }).then(function (result) {
+      if (result && result.stale) return result;
+      return refreshSnapshot(result && result.ok ? "spectating" : "spectate_retry", true);
     });
   }
 
@@ -1538,6 +1560,13 @@ window.TexasHoldem = (function () {
 
   function occupiedSeatCount() {
     return state.seats.filter(Boolean).length;
+  }
+
+  function firstEmptySeat() {
+    for (var i = 0; i < state.seats.length; i++) {
+      if (!state.seats[i]) return i;
+    }
+    return -1;
   }
 
   function ownJoinRequest() {
@@ -1769,6 +1798,20 @@ window.TexasHoldem = (function () {
     });
   }
 
+  function requestHumanSeatJoin(seatIndex) {
+    var targetSeat = safeSeat(seatIndex);
+    if (targetSeat < 0 || state.seats[targetSeat]) return false;
+    if (state.mode === "ring") {
+      openBuyInDialog("join", targetSeat);
+      return true;
+    }
+    if (!requests.join) {
+      joinTable(targetSeat);
+      return true;
+    }
+    return false;
+  }
+
   function chooseEmptySeat(seatIndex) {
     var targetSeat = safeSeat(seatIndex);
     if (targetSeat < 0 || state.seats[targetSeat] || isHandActive(state.phase)) return;
@@ -1776,11 +1819,7 @@ window.TexasHoldem = (function () {
       if (!requests.bot_manage) addBot({ seat: targetSeat });
       return;
     }
-    if (state.mode === "ring") {
-      openBuyInDialog("join", targetSeat);
-      return;
-    }
-    if (!requests.join) joinTable(targetSeat);
+    requestHumanSeatJoin(targetSeat);
   }
 
   function addFiveBots() {
@@ -2058,9 +2097,15 @@ window.TexasHoldem = (function () {
   }
 
   function profileTarget() {
+    var nick = text(me().nick, 40);
+    if (profileTargetSeat === -2 && nick) {
+      for (var ownIndex = 0; ownIndex < state.seats.length; ownIndex++) {
+        if (state.seats[ownIndex] && state.seats[ownIndex].nick === nick) return state.seats[ownIndex];
+      }
+      return { seat: -1, nick: nick, displayName: nick, stack: 0, isSpectatorProfile: true };
+    }
     var seat = safeSeat(profileTargetSeat);
     if (seat >= 0 && state.seats[seat]) return state.seats[seat];
-    var nick = text(me().nick, 40);
     for (var i = 0; i < state.seats.length; i++) {
       if (state.seats[i] && state.seats[i].nick === nick) return state.seats[i];
     }
@@ -2225,7 +2270,12 @@ window.TexasHoldem = (function () {
     loadBuyInWallet();
   }
 
-  function closeBuyInDialog() {
+  function closeBuyInDialog(options) {
+    options = options || {};
+    if (buyInMode === "join" && options.suppressAutoSeat) {
+      autoSeatSuppressed = true;
+      autoSeatKey = "";
+    }
     buyInDialogOpen = false;
     buyInSeat = -1;
     buyInWalletPending = false;
@@ -2256,6 +2306,29 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function spectateFromBuyInDialog() {
+    var mode = buyInMode;
+    closeBuyInDialog({ suppressAutoSeat: mode === "join" });
+    if (mode === "rebuy" && state.heroSeat >= 0) leaveTableForSpectate();
+  }
+
+  function maybeAutoSeatJoin() {
+    if (!active || !hasSnapshot || autoSeatSuppressed || buyInDialogOpen || requests.join) return;
+    if (state.phase === "loading" || state.heroSeat >= 0) {
+      if (state.heroSeat >= 0) autoSeatKey = "";
+      return;
+    }
+    var targetSeat = firstEmptySeat();
+    if (targetSeat < 0) {
+      autoSeatKey = "full";
+      return;
+    }
+    var key = String(roomId()) + ":" + String(state.version) + ":" + String(targetSeat);
+    if (autoSeatKey === key) return;
+    autoSeatKey = key;
+    requestHumanSeatJoin(targetSeat);
+  }
+
   function renderBuyInDialog() {
     var backdrop = $("holdem-buyin-backdrop");
     if (!backdrop) return;
@@ -2284,6 +2357,7 @@ window.TexasHoldem = (function () {
       slider.disabled = buyInWalletPending || lacksAssets;
     }
     disable("holdem-buyin-confirm", buyInWalletPending || lacksAssets || (buyInMode === "join" && buyInSeat < 0));
+    disable("holdem-buyin-spectate", buyInWalletPending && buyInMode === "rebuy");
   }
 
   function maybeAutoOpenRebuyDialog() {
@@ -2321,6 +2395,14 @@ window.TexasHoldem = (function () {
     var remove = $("holdem-profile-avatar-remove");
     if (remove) remove.disabled = !isMine || !avatar;
     setText("holdem-profile-wallet-label", isMine ? "내 총자산" : "총자산");
+    var roleAction = $("holdem-profile-role-action");
+    if (roleAction) {
+      var seated = state.heroSeat >= 0;
+      var canJoin = firstEmptySeat() >= 0 && !requests.join && !buyInDialogOpen;
+      roleAction.classList.toggle("hidden", !isMine);
+      roleAction.textContent = seated ? "관전하기" : "참석하기";
+      roleAction.disabled = !isMine || pendingUiCount > 0 || (!seated && !canJoin);
+    }
     renderProfileWallet();
   }
 
@@ -2329,6 +2411,38 @@ window.TexasHoldem = (function () {
     profileDialogOpen = true;
     renderProfileDialog();
     if (profileTargetIsMe(profileTarget())) loadProfileWallet(true);
+  }
+
+  function openOwnProfileDialog() {
+    profileTargetSeat = -2;
+    profileDialogOpen = true;
+    renderProfileDialog();
+    loadProfileWallet(true);
+  }
+
+  function joinFromProfileDialog() {
+    if (state.heroSeat >= 0) return;
+    var targetSeat = firstEmptySeat();
+    if (targetSeat < 0) {
+      if (api && typeof api.toast === "function") api.toast("빈 좌석이 없어요.", 2200);
+      renderProfileDialog();
+      return;
+    }
+    autoSeatSuppressed = false;
+    autoSeatKey = "";
+    closeProfileDialog();
+    requestHumanSeatJoin(targetSeat);
+  }
+
+  function spectateFromProfileDialog() {
+    if (state.heroSeat < 0) return;
+    closeProfileDialog();
+    leaveTableForSpectate();
+  }
+
+  function toggleProfileRole() {
+    if (state.heroSeat >= 0) spectateFromProfileDialog();
+    else joinFromProfileDialog();
   }
 
   function closeProfileDialog() {
@@ -3165,6 +3279,7 @@ window.TexasHoldem = (function () {
     renderHandResult();
     renderAnnouncer();
     renderControls();
+    maybeAutoSeatJoin();
     renderBuyInDialog();
     renderTimer();
     maybeAutoOpenRebuyDialog();
@@ -3206,7 +3321,7 @@ window.TexasHoldem = (function () {
       return;
     }
     if (event.target.id === "holdem-buyin-backdrop") {
-      closeBuyInDialog();
+      closeBuyInDialog({ suppressAutoSeat: true });
       return;
     }
     var profileSeat = event.target.closest(".holdem-seat:not(.is-empty)");
@@ -3227,12 +3342,18 @@ window.TexasHoldem = (function () {
     if (id === "holdem-settings-btn") {
       settingsOpen = !settingsOpen;
       renderSettings();
+    } else if (id === "holdem-profile-btn") {
+      openOwnProfileDialog();
     } else if (id === "holdem-buyin-close" || id === "holdem-buyin-cancel") {
-      closeBuyInDialog();
+      closeBuyInDialog({ suppressAutoSeat: true });
+    } else if (id === "holdem-buyin-spectate") {
+      spectateFromBuyInDialog();
     } else if (id === "holdem-buyin-confirm") {
       confirmBuyInDialog();
     } else if (id === "holdem-profile-close") {
       closeProfileDialog();
+    } else if (id === "holdem-profile-role-action") {
+      toggleProfileRole();
     } else if (id === "holdem-profile-avatar-remove") {
       removeProfileAvatar(me().nick);
       renderProfileDialog();
@@ -3324,7 +3445,7 @@ window.TexasHoldem = (function () {
       return;
     }
     if (event.key === "Escape" && buyInDialogOpen) {
-      closeBuyInDialog();
+      closeBuyInDialog({ suppressAutoSeat: true });
       return;
     }
     if (event.key === "Escape" && settingsOpen) {
@@ -3431,6 +3552,8 @@ window.TexasHoldem = (function () {
     lastAnnouncementKey = "";
     profileDialogOpen = false;
     profileTargetSeat = -1;
+    autoSeatKey = "";
+    autoSeatSuppressed = false;
     tickSentKey = "";
     botSentKey = "";
     botRetryAt = 0;
@@ -3480,6 +3603,8 @@ window.TexasHoldem = (function () {
     profileDialogOpen = false;
     profileWalletPending = false;
     profileTargetSeat = -1;
+    autoSeatKey = "";
+    autoSeatSuppressed = false;
     state = emptyState();
     rawSnapshot = null;
     demoState = null;
@@ -3610,11 +3735,14 @@ window.TexasHoldem = (function () {
       confirmBuyInDialog: confirmBuyInDialog,
       addBot: addBot,
       chooseEmptySeat: chooseEmptySeat,
+      maybeAutoSeatJoin: maybeAutoSeatJoin,
+      leaveTableForSpectate: leaveTableForSpectate,
       applySnapshot: applySnapshot,
       invoke: invoke,
       setApi: function (nextApi) { api = nextApi; },
       setActive: function (value) { active = !!value; },
       setState: function (nextState) { state = nextState; },
+      setHasSnapshot: function (value) { hasSnapshot = !!value; },
       getLifecycleGeneration: function () { return lifecycleGeneration; },
       getRawSnapshot: function () { return rawSnapshot; },
       constants: {

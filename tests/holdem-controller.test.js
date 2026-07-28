@@ -502,6 +502,70 @@ test("join requests can carry the selected ring buy-in", async () => {
   assert.equal(calls[0].payload.buyIn, 30000);
 });
 
+test("spectators automatically claim the first open table seat", async () => {
+  const calls = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 2,
+        snapshot: {
+          phase: "waiting",
+          seats: [
+            { seat: payload.seat, nick: auth.nick, stack: 20000 },
+            { seat: 1, nick: "bob", stack: 20000 },
+          ],
+        },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const state = controller._test.emptyState();
+  state.phase = "waiting";
+  state.version = 1;
+  state.heroSeat = -1;
+  state.seats[1] = { seat: 1, nick: "bob", stack: 20000 };
+  controller._test.setState(state);
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+
+  controller._test.maybeAutoSeatJoin();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(calls[0].action, "join");
+  assert.equal(calls[0].payload.seat, 0);
+});
+
+test("switching to spectate leaves the current table seat", async () => {
+  const calls = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 2,
+        snapshot: { phase: "waiting", seats: [] },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const state = controller._test.emptyState();
+  state.phase = "waiting";
+  state.version = 1;
+  state.heroSeat = 0;
+  state.seats[0] = { seat: 0, nick: "alice", stack: 20000 };
+  controller._test.setState(state);
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+
+  await controller._test.leaveTableForSpectate();
+
+  assert.equal(calls[0].action, "leave");
+  assert.equal(calls[0].payload.expectedVersion, 1);
+});
+
 test("ring rebuys use a separate wallet-backed server command", async () => {
   const calls = [];
   const db = {
