@@ -5726,13 +5726,13 @@ body.is-admin .feedback-user-compose { display: none; }
   background: linear-gradient(#7d2942, #35121f);
   color: #ffe1ec;
 }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="eight-pot"] { order: 1; }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="four-pot"] { order: 2; }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="two-pot"] { order: 3; }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="pot"] { order: 4; }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="three-quarter"] { order: 5; }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="half"] { order: 6; }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="allin"] { order: 7; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="allin"] { order: 1; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="eight-pot"] { order: 2; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="four-pot"] { order: 3; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="two-pot"] { order: 4; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="pot"] { order: 5; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="three-quarter"] { order: 6; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="half"] { order: 7; }
 .holdem-screen.is-actioning .holdem-quick-bets button span,
 .holdem-screen.is-actioning .holdem-quick-bets button strong {
   display: block;
