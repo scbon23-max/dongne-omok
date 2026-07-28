@@ -5000,6 +5000,13 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 #holdem-call-btn .holdem-action-call-amount {
   opacity: 1;
+  font-size: clamp(14px, 4vw, 20px);
+}
+#holdem-call-btn .holdem-action-call-amount.is-long-amount {
+  font-size: clamp(12px, 3.4vw, 17px);
+}
+#holdem-call-btn .holdem-action-call-amount.is-xl-amount {
+  font-size: clamp(10px, 2.8vw, 14px);
 }
 #holdem-call-btn .holdem-action-call-label {
   font-size: clamp(10px, 2.7vw, 13px);

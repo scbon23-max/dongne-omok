@@ -35,7 +35,7 @@ test("Hold'em is an available six-player controller game", () => {
   assert.match(game, /visibleGameIds\(createIds\)\.filter\(canCreateGame\)/);
   assert.match(game, /def && def\.createAdminOnly && !me\.isAdmin/);
   assert.doesNotMatch(game, /createAdminOnly && !isGunaAdmin\(\)/);
-  assert.match(game, /id === "holdem" \? "홀덤 · 링게임"/);
+  assert.match(game, /id === "holdem"\s*\? '<img class="create-game-icon holdem" src="' \+ localAssetUrl\("assets\/holdem\/create-room-icon\.png"\)/);
 });
 
 test("Hold'em room creation shows assets, locks tournaments to admins, and selects a ring buy-in", () => {
@@ -242,6 +242,9 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-action-amount-fit\s*\{[\s\S]*font-size:\s*clamp\(14px,\s*4vw,\s*20px\)/);
   assert.match(styles, /\.holdem-action-amount-fit\.is-long-amount \{ font-size: clamp\(12px,\s*3\.4vw,\s*17px\); \}/);
   assert.match(styles, /\.holdem-action-amount-fit\.is-xl-amount \{ font-size: clamp\(10px,\s*2\.8vw,\s*14px\); \}/);
+  assert.match(styles, /#holdem-call-btn \.holdem-action-call-amount\s*\{[\s\S]*font-size:\s*clamp\(14px,\s*4vw,\s*20px\)/);
+  assert.match(styles, /#holdem-call-btn \.holdem-action-call-amount\.is-long-amount\s*\{[\s\S]*font-size:\s*clamp\(12px,\s*3\.4vw,\s*17px\)/);
+  assert.match(styles, /#holdem-call-btn \.holdem-action-call-amount\.is-xl-amount\s*\{[\s\S]*font-size:\s*clamp\(10px,\s*2\.8vw,\s*14px\)/);
   assert.match(styles, /#holdem-call-btn \.holdem-action-call-label\s*\{[\s\S]*font-size:\s*clamp\(10px,\s*2\.7vw,\s*13px\)/);
   assert.match(styles, /\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%[\s\S]*시작하기|\.holdem-table-start-btn\s*\{[\s\S]*top:\s*66%/);
   assert.match(controller, /var tableStartVisible = waiting && state\.canStart/);
@@ -317,7 +320,8 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel \{[\s\S]*position: absolute[\s\S]*bottom: calc\(100% \+ 9px\)/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); gap: 7px; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet-tier="over"\] \{[\s\S]*grid-column: 1/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="allin"\] \{[\s\S]*grid-column: 1[\s\S]*grid-row: 1/);`n  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="eight-pot"\] \{ grid-row: 2; \}/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="allin"\] \{[\s\S]*grid-column: 1[\s\S]*grid-row: 1/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="eight-pot"\] \{ grid-row: 2; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="four-pot"\] \{ grid-row: 3; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="two-pot"\] \{ grid-row: 4; \}/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-chat-row \{[\s\S]*opacity: 0/);
