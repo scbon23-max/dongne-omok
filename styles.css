@@ -4845,10 +4845,12 @@ body.is-admin .feedback-user-compose { display: none; }
   background: linear-gradient(#3a2e21, #191411);
   color: #ffe3b8;
 }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="two-pot"] { grid-row: 2; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="eight-pot"] { grid-row: 2; }
 .holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="four-pot"] { grid-row: 3; }
-.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="eight-pot"] { grid-row: 4; }
+.holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="two-pot"] { grid-row: 4; }
 .holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="allin"] {
+  grid-column: 1;
+  grid-row: 1;
   background: linear-gradient(#7d2942, #35121f);
   color: #ffe1ec;
 }

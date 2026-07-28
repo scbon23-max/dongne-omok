@@ -2189,9 +2189,13 @@ window.TexasHoldem = (function () {
       state.legal.bet && state.legal.bet.min ||
       state.minRaise || state.minBet || state.bigBlind || 1;
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    var heroMaximum = hero
+      ? nonnegative(hero.bet, 0) + nonnegative(hero.stack, 0)
+      : 0;
     var maximum = state.legal.raise && state.legal.raise.max ||
       state.legal.bet && state.legal.bet.max ||
       state.maxRaise || hero && hero.stack || minimum;
+    if (heroMaximum > 0) maximum = Math.min(maximum, heroMaximum);
     minimum = Math.max(1, Math.round(minimum));
     maximum = Math.max(minimum, Math.round(maximum));
     return { min: minimum, max: maximum, step: Math.max(1, state.raiseStep || 1) };
@@ -2253,7 +2257,7 @@ window.TexasHoldem = (function () {
   function quickBetAvailable(kind) {
     if (kind === "allin") return true;
     var bounds = raiseBounds();
-    return quickBetRawTarget(kind) <= bounds.max;
+    return quickBetRawTarget(kind) < bounds.max;
   }
 
   function quickBetLabel(kind) {
