@@ -35,7 +35,8 @@ test("Hold'em is an available six-player controller game", () => {
   assert.match(game, /visibleGameIds\(createIds\)\.filter\(canCreateGame\)/);
   assert.match(game, /def && def\.createAdminOnly && !me\.isAdmin/);
   assert.doesNotMatch(game, /createAdminOnly && !isGunaAdmin\(\)/);
-  assert.match(game, /id === "holdem"\s*\? '<img class="create-game-icon holdem" src="' \+ localAssetUrl\("assets\/holdem\/create-room-icon\.png"\)/);
+  assert.match(game, /id === "holdem" \? "assets\/create-room-icons\/holdem\.png"/);
+  assert.match(game, /var iconClass = "create-game-icon" \+ \(id === "holdem" \? " holdem" : ""\)/);
 });
 
 test("Hold'em room creation shows assets, locks tournaments to admins, and selects a ring buy-in", () => {
@@ -355,6 +356,10 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /function scheduleAutoNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*setTimeout\(function \(\) \{ autoStartHand\(key\); \}, AUTO_NEXT_HAND_MS\)/);
   assert.match(styles, /\.holdem-result-panel\s*\{[\s\S]*display: none !important/);
   assert.match(styles, /\.holdem-winner-result\s*\{/);
+  assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);
+  assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*min-width:\s*118px/);
+  assert.match(styles, /\.holdem-winner-result strong\s*\{[\s\S]*font-size:\s*clamp\(13px,\s*3\.6vw,\s*17px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);
   assert.match(styles, /\.holdem-screen\.is-settling-pot \.holdem-seat\.is-winner \.holdem-seat-avatar/);
   assert.match(controller, /var RESULT_CARDS_FIRST_MS = 900/);
   assert.match(controller, /var RESULT_FINAL_ACTION_MS = 1000/);
