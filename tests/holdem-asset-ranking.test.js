@@ -117,9 +117,12 @@ test("the engine records only public hand-result summaries for asset-backed ring
   assert.doesNotMatch(engine, /handResults[\s\S]{0,500}cards:/);
 });
 
-test("other players' table chips are no longer mislabeled as their total assets", () => {
+test("other human profiles show total assets instead of table chips", () => {
   assert.match(
     controller,
-    /isMine \? "내 총자산" : target && target\.isBot \? "연습칩" : "테이블 보유칩"/
+    /isMine \? "내 총자산" : target && target\.isBot \? "연습칩" : "총자산"/
   );
+  assert.match(controller, /function loadProfileAsset\(force\)/);
+  assert.match(controller, /Db\.getHoldemAssetRankingDetail\(currentAuth, nick\)/);
+  assert.match(controller, /if \(!seat\.isBot\) return null/);
 });

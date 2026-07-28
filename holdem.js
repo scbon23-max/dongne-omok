@@ -138,6 +138,10 @@ window.TexasHoldem = (function () {
   var profileWallet = null;
   var profileWalletNick = "";
   var profileWalletRequestSeq = 0;
+  var profileAssetPending = false;
+  var profileAsset = null;
+  var profileAssetNick = "";
+  var profileAssetRequestSeq = 0;
   var profileTargetSeat = -1;
   var profileAvatarCache = Object.create(null);
   var profileAvatarRequestKey = "";
@@ -2913,6 +2917,11 @@ window.TexasHoldem = (function () {
       return Math.max(0, Math.floor(Number(profileWallet.totalAssets)));
     }
     if (!seat) return null;
+    if (!seat.isBot && profileAsset && profileAssetNick === text(seat.nick, 40) &&
+        Number.isFinite(Number(profileAsset.totalAssets))) {
+      return Math.max(0, Math.floor(Number(profileAsset.totalAssets)));
+    }
+    if (!seat.isBot) return null;
     return Math.max(
       0,
       Math.floor(Number(seat.stack) || 0) + Math.floor(Number(seat.totalBet || seat.bet) || 0)
@@ -2926,9 +2935,11 @@ window.TexasHoldem = (function () {
     if (!balanceNode && !statusNode && !recordButton) return;
     var target = profileTarget();
     var isMine = profileTargetIsMe(target);
+    var isBot = !!(target && target.isBot);
     var totalAssets = profileTargetAsset(target, isMine);
     if (balanceNode) {
-      balanceNode.textContent = isMine && profileWalletPending
+      balanceNode.textContent = (isMine && profileWalletPending) ||
+          (!isMine && !isBot && profileAssetPending)
         ? "불러오는 중"
         : totalAssets == null
           ? "확인할 수 없음"
@@ -2944,6 +2955,56 @@ window.TexasHoldem = (function () {
         !window.HoldemAssetRecords || typeof HoldemAssetRecords.open !== "function";
       recordButton.classList.toggle("hidden", !isMine);
     }
+  }
+
+  function loadProfileAsset(force) {
+    var currentAuth = auth();
+    var target = profileTarget();
+    var nick = text(target && target.nick, 40);
+    if (!target || target.isBot || profileTargetIsMe(target)) {
+      profileAssetPending = false;
+      profileAsset = null;
+      profileAssetNick = "";
+      renderProfileWallet();
+      return Promise.resolve(null);
+    }
+    if (!force && (profileAssetPending || (profileAsset && profileAssetNick === nick))) {
+      renderProfileWallet();
+      return Promise.resolve(profileAsset);
+    }
+    if (!window.Db || typeof Db.getHoldemAssetRankingDetail !== "function" ||
+        !currentAuth.hash || !text(currentAuth.nick || me().nick, 40) || !nick) {
+      profileAssetPending = false;
+      profileAsset = null;
+      profileAssetNick = "";
+      renderProfileWallet();
+      return Promise.resolve(null);
+    }
+    var seq = ++profileAssetRequestSeq;
+    profileAssetPending = true;
+    profileAsset = null;
+    profileAssetNick = nick;
+    renderProfileWallet();
+    return Promise.resolve(Db.getHoldemAssetRankingDetail(currentAuth, nick)).then(function (result) {
+      if (seq !== profileAssetRequestSeq) return null;
+      var detail = result && result.ok && result.detail && typeof result.detail === "object"
+        ? result.detail
+        : null;
+      profileAssetPending = false;
+      profileAsset = detail && Number.isFinite(Number(detail.totalAssets))
+        ? { totalAssets: Math.max(0, Math.floor(Number(detail.totalAssets))) }
+        : null;
+      profileAssetNick = profileAsset ? nick : "";
+      renderProfileWallet();
+      return profileAsset;
+    }, function () {
+      if (seq !== profileAssetRequestSeq) return null;
+      profileAssetPending = false;
+      profileAsset = null;
+      profileAssetNick = "";
+      renderProfileWallet();
+      return null;
+    });
   }
 
   function loadProfileWallet(force) {
@@ -3246,7 +3307,7 @@ window.TexasHoldem = (function () {
     if (remove) remove.disabled = !isMine || !avatar;
     setText(
       "holdem-profile-wallet-label",
-      isMine ? "내 총자산" : target && target.isBot ? "연습칩" : "테이블 보유칩"
+      isMine ? "내 총자산" : target && target.isBot ? "연습칩" : "총자산"
     );
     var roleAction = $("holdem-profile-role-action");
     if (roleAction) {
@@ -3263,7 +3324,9 @@ window.TexasHoldem = (function () {
     profileTargetSeat = safeSeat(seat);
     profileDialogOpen = true;
     renderProfileDialog();
-    if (profileTargetIsMe(profileTarget())) loadProfileWallet(true);
+    var target = profileTarget();
+    if (profileTargetIsMe(target)) loadProfileWallet(true);
+    else loadProfileAsset(true);
   }
 
   function joinFromProfileDialog() {
@@ -3293,6 +3356,8 @@ window.TexasHoldem = (function () {
 
   function closeProfileDialog() {
     profileDialogOpen = false;
+    profileAssetRequestSeq += 1;
+    profileAssetPending = false;
     profileTargetSeat = -1;
     renderProfileDialog();
   }
@@ -4535,6 +4600,10 @@ window.TexasHoldem = (function () {
     lastTimerWarningKey = "";
     lastTurnSoundKey = "";
     profileDialogOpen = false;
+    profileAssetRequestSeq += 1;
+    profileAssetPending = false;
+    profileAsset = null;
+    profileAssetNick = "";
     profileTargetSeat = -1;
     autoSeatKey = "";
     autoSeatSuppressed = false;
@@ -4600,6 +4669,10 @@ window.TexasHoldem = (function () {
     suppressActionTagAnimations = false;
     profileDialogOpen = false;
     profileWalletPending = false;
+    profileAssetRequestSeq += 1;
+    profileAssetPending = false;
+    profileAsset = null;
+    profileAssetNick = "";
     profileTargetSeat = -1;
     autoSeatKey = "";
     autoSeatSuppressed = false;
