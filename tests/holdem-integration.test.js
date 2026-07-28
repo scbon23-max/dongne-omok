@@ -289,7 +289,8 @@ test("the six-seat table exposes every required game control", () => {
   assert.doesNotMatch(controller, /badges \+= "<span>SB<\/span>"|badges \+= "<span>BB<\/span>"/);
   assert.match(styles, /\.holdem-seat-action\.action-small-blind,[\s\S]*\.holdem-seat-action\.action-big-blind\s*\{/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{ top: 95%; left: 50%; \}/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me\s*\{[\s\S]*width:\s*min\(92vw,\s*430px\)[\s\S]*grid-template-columns:\s*var\(--holdem-seat-avatar-size\) minmax\(0,\s*1fr\)[\s\S]*padding-right:\s*var\(--holdem-hero-card-zone\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me\s*\{[\s\S]*width:\s*clamp\(238px,\s*66vw,\s*312px\)[\s\S]*grid-template-columns:\s*var\(--holdem-seat-avatar-size\) minmax\(62px,\s*1fr\) clamp\(104px,\s*29vw,\s*142px\)/);
+  assert.doesNotMatch(styles, /--holdem-hero-card-zone|padding-right:\s*var\(--holdem-hero-card-zone\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-seat-avatar\s*\{[\s\S]*grid-column:\s*1[\s\S]*grid-row:\s*1 \/ span 2/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-seat-name\s*\{[\s\S]*grid-column:\s*2[\s\S]*text-align:\s*left/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-seat-stack\s*\{[\s\S]*grid-column:\s*2[\s\S]*text-align:\s*left/);

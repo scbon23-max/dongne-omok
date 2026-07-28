@@ -3944,16 +3944,14 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat[data-relative-seat="4"] { top: 24%; left: 104%; }
 .holdem-seat[data-relative-seat="5"] { top: 58%; left: 104%; }
 .holdem-seat[data-relative-seat="0"].is-me {
-  --holdem-hero-card-zone: clamp(112px, 32vw, 154px);
-  width: min(92vw, 430px);
+  width: clamp(238px, 66vw, 312px);
   min-height: calc(var(--holdem-seat-avatar-size) + 16px);
   display: grid;
-  grid-template-columns: var(--holdem-seat-avatar-size) minmax(0, 1fr);
+  grid-template-columns: var(--holdem-seat-avatar-size) minmax(62px, 1fr) clamp(104px, 29vw, 142px);
   grid-template-rows: auto auto;
   align-items: center;
   justify-items: start;
-  column-gap: 9px;
-  padding-right: var(--holdem-hero-card-zone);
+  column-gap: 7px;
   text-align: left;
 }
 .holdem-seat-avatar {
@@ -4072,7 +4070,11 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat.is-me:focus-visible .holdem-seat-avatar {
   box-shadow: 0 0 0 3px rgba(242,199,125,.22), 0 0 18px rgba(242,199,125,.4), 0 5px 16px rgba(0,0,0,.58);
 }
-.holdem-seat.is-folded { opacity: .48; filter: grayscale(.82); }
+.holdem-seat.is-folded { opacity: 1; filter: none; }
+.holdem-seat.is-folded .holdem-seat-avatar,
+.holdem-seat.is-folded .holdem-hole-cards .holdem-card {
+  filter: grayscale(1) saturate(.16) brightness(.82);
+}
 .holdem-seat-name {
   max-width: 100%;
   margin-top: 3px;
