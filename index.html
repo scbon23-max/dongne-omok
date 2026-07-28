@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260728-holdem-call-amount-size-v1">
+<meta name="app-build" content="20260728-holdem-profile-wallet-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -870,6 +870,37 @@
       <label for="holdem-chat-input">채팅</label>
       <input id="holdem-chat-input" class="chat-input" type="text" maxlength="80" placeholder="채팅 입력" autocomplete="off" enterkeyhint="send">
       <button id="holdem-chat-send" type="button">보내기</button>
+    </div>
+
+    <div id="holdem-profile-backdrop" class="holdem-profile-backdrop hidden" aria-hidden="true">
+      <section class="holdem-profile-dialog" role="dialog" aria-modal="true" aria-labelledby="holdem-profile-title">
+        <header class="holdem-profile-head">
+          <div>
+            <span>MY PROFILE</span>
+            <h2 id="holdem-profile-title">내 프로필</h2>
+          </div>
+          <button id="holdem-profile-close" type="button" aria-label="프로필 닫기">×</button>
+        </header>
+        <div class="holdem-profile-main">
+          <div id="holdem-profile-avatar-preview" class="holdem-profile-avatar-preview" aria-hidden="true"></div>
+          <strong id="holdem-profile-nick" class="holdem-profile-nick">닉네임</strong>
+          <div class="holdem-profile-photo-actions">
+            <label class="holdem-profile-upload">
+              <input id="holdem-profile-avatar-input" type="file" accept="image/*">
+              <span>사진 업로드</span>
+            </label>
+            <button id="holdem-profile-avatar-remove" type="button">기본으로</button>
+          </div>
+        </div>
+        <div class="create-holdem-wallet holdem-profile-wallet" aria-live="polite">
+          <div class="create-holdem-wallet-top">
+            <span>내 총자산</span>
+            <em>MY STACK</em>
+          </div>
+          <strong id="holdem-profile-wallet-balance">불러오는 중</strong>
+          <small id="holdem-profile-wallet-status">자산을 확인하고 있어요</small>
+        </div>
+      </section>
     </div>
   </div>
 

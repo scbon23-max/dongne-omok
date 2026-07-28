@@ -59,6 +59,8 @@ window.TexasHoldem = (function () {
   var COMMUNITY_CARD_FLIP_MS = 620;
   var COMMUNITY_CARD_FLIP_STAGGER_MS = 120;
   var RESULT_SETTLE_MS = 1600;
+  var PROFILE_AVATAR_STORAGE_PREFIX = "dongne_holdem_profile_avatar:";
+  var PROFILE_AVATAR_SIZE = 192;
   var BOT_PERSONALITY_LABELS = {
     tight_passive: "타이트 패시브",
     tight_aggressive: "타이트 어그레시브",
@@ -100,6 +102,11 @@ window.TexasHoldem = (function () {
   var raiseRangeKey = "";
   var raiseMenuOpen = false;
   var actionMenuKey = "";
+  var profileDialogOpen = false;
+  var profileWalletPending = false;
+  var profileWallet = null;
+  var profileWalletNick = "";
+  var profileWalletRequestSeq = 0;
   var autoNextTimer = null;
   var autoNextKey = "";
   var autoNextDueAt = 0;
@@ -364,6 +371,45 @@ window.TexasHoldem = (function () {
     } catch (_error) {
       return String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "\uC6D0";
     }
+  }
+
+  function formatAsset(value) {
+    var amount = Math.max(0, Math.floor(Number(value) || 0));
+    try {
+      return new Intl.NumberFormat("ko-KR").format(amount) + "\uC6D0";
+    } catch (_error) {
+      return String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "\uC6D0";
+    }
+  }
+
+  function profileAvatarStorageKey(nick) {
+    return PROFILE_AVATAR_STORAGE_PREFIX + encodeURIComponent(text(nick, 40));
+  }
+
+  function readProfileAvatar(nick) {
+    if (typeof localStorage === "undefined") return "";
+    try {
+      return localStorage.getItem(profileAvatarStorageKey(nick)) || "";
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function writeProfileAvatar(nick, dataUrl) {
+    if (typeof localStorage === "undefined") return false;
+    try {
+      localStorage.setItem(profileAvatarStorageKey(nick), dataUrl);
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function removeProfileAvatar(nick) {
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.removeItem(profileAvatarStorageKey(nick));
+    } catch (_error) {}
   }
 
   function safeSeat(value) {
@@ -1853,10 +1899,158 @@ window.TexasHoldem = (function () {
     return ((absolute - perspective) % MAX_SEATS + MAX_SEATS) % MAX_SEATS;
   }
 
-  function initialFor(nick) {
-    var chars;
-    try { chars = Array.from(nick || ""); } catch (_error) { chars = String(nick || "").split(""); }
-    return chars.length ? chars[0] : "＋";
+  function avatarNameHtml(nick) {
+    return '<span class="holdem-seat-avatar-name">' + esc(text(nick, 40) || "＋") + '</span>';
+  }
+
+  function renderProfileWallet() {
+    var balanceNode = $("holdem-profile-wallet-balance");
+    var statusNode = $("holdem-profile-wallet-status");
+    if (!balanceNode && !statusNode) return;
+    var totalAssets = profileWallet && Number.isFinite(Number(profileWallet.totalAssets))
+      ? Math.max(0, Math.floor(Number(profileWallet.totalAssets)))
+      : null;
+    var tableBalance = profileWallet && Number.isFinite(Number(profileWallet.tableBalance))
+      ? Math.max(0, Math.floor(Number(profileWallet.tableBalance)))
+      : 0;
+    var availableBalance = profileWallet && Number.isFinite(Number(profileWallet.balance))
+      ? Math.max(0, Math.floor(Number(profileWallet.balance)))
+      : null;
+    if (balanceNode) {
+      balanceNode.textContent = profileWalletPending
+        ? "불러오는 중"
+        : totalAssets == null
+          ? "확인할 수 없음"
+          : formatAsset(totalAssets);
+    }
+    if (statusNode) {
+      statusNode.textContent = profileWalletPending
+        ? "서버에서 내 총자산을 확인하고 있어요"
+        : totalAssets == null
+          ? "자산을 불러오지 못했어요. 잠시 후 다시 열어주세요."
+          : tableBalance > 0
+            ? "현재 테이블에서 " + formatAsset(tableBalance) +
+              " 사용 중 · 사용 가능 " + formatAsset(availableBalance)
+            : "";
+    }
+  }
+
+  function loadProfileWallet(force) {
+    var currentAuth = auth();
+    var nick = text(currentAuth.nick || me().nick, 40);
+    if (!force && (profileWalletPending || (profileWallet && profileWalletNick === nick))) {
+      renderProfileWallet();
+      return Promise.resolve(profileWallet);
+    }
+    if (!window.Db || typeof Db.getHoldemWallet !== "function" || !currentAuth.hash || !nick) {
+      profileWallet = null;
+      profileWalletNick = "";
+      profileWalletPending = false;
+      renderProfileWallet();
+      return Promise.resolve(null);
+    }
+    var seq = ++profileWalletRequestSeq;
+    profileWalletPending = true;
+    renderProfileWallet();
+    return Promise.resolve(Db.getHoldemWallet(currentAuth)).then(function (result) {
+      if (seq !== profileWalletRequestSeq) return null;
+      var wallet = result && result.ok && isObject(result.wallet) ? result.wallet : null;
+      profileWalletPending = false;
+      profileWallet = wallet && Number.isFinite(Number(wallet.balance))
+        ? {
+          balance: Math.max(0, Math.floor(Number(wallet.balance))),
+          tableBalance: Math.max(0, Math.floor(Number(wallet.tableBalance) || 0)),
+          totalAssets: Math.max(0, Math.floor(Number(wallet.totalAssets) || Number(wallet.balance)))
+        }
+        : null;
+      profileWalletNick = profileWallet ? nick : "";
+      renderProfileWallet();
+      return profileWallet;
+    }, function () {
+      if (seq !== profileWalletRequestSeq) return null;
+      profileWalletPending = false;
+      profileWallet = null;
+      profileWalletNick = "";
+      renderProfileWallet();
+      return null;
+    });
+  }
+
+  function renderProfileDialog() {
+    var backdrop = $("holdem-profile-backdrop");
+    if (!backdrop) return;
+    var nick = text(me().nick, 40);
+    var avatar = readProfileAvatar(nick);
+    backdrop.classList.toggle("hidden", !profileDialogOpen);
+    backdrop.setAttribute("aria-hidden", profileDialogOpen ? "false" : "true");
+    setText("holdem-profile-nick", nick || "닉네임");
+    var preview = $("holdem-profile-avatar-preview");
+    if (preview) {
+      preview.innerHTML = avatar
+        ? '<img src="' + esc(avatar) + '" alt="">'
+        : avatarNameHtml(nick);
+    }
+    var remove = $("holdem-profile-avatar-remove");
+    if (remove) remove.disabled = !avatar;
+    renderProfileWallet();
+  }
+
+  function openProfileDialog() {
+    profileDialogOpen = true;
+    renderProfileDialog();
+    loadProfileWallet(true);
+  }
+
+  function closeProfileDialog() {
+    profileDialogOpen = false;
+    renderProfileDialog();
+  }
+
+  function resizeAvatarImage(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file || !/^image\//.test(file.type || "")) {
+        reject(new Error("invalid_image"));
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function () {
+        var image = new Image();
+        image.onload = function () {
+          var canvas = document.createElement("canvas");
+          var size = PROFILE_AVATAR_SIZE;
+          canvas.width = size;
+          canvas.height = size;
+          var context = canvas.getContext("2d");
+          if (!context) {
+            reject(new Error("canvas"));
+            return;
+          }
+          var scale = Math.max(size / image.width, size / image.height);
+          var width = image.width * scale;
+          var height = image.height * scale;
+          context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.86));
+        };
+        image.onerror = function () { reject(new Error("invalid_image")); };
+        image.src = String(reader.result || "");
+      };
+      reader.onerror = function () { reject(new Error("read")); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function updateProfileAvatarFromFile(file) {
+    var nick = text(me().nick, 40);
+    if (!nick) return;
+    resizeAvatarImage(file).then(function (dataUrl) {
+      if (!writeProfileAvatar(nick, dataUrl) && api && typeof api.toast === "function") {
+        api.toast("사진을 저장할 공간이 부족해요.", 2600);
+      }
+      renderProfileDialog();
+      renderSeats();
+    }, function () {
+      if (api && typeof api.toast === "function") api.toast("이미지 파일을 다시 선택해 주세요.", 2600);
+    });
   }
 
   function seatStatus(seat) {
@@ -2004,7 +2198,7 @@ window.TexasHoldem = (function () {
         : "";
       var avatarSrc = seat && seat.isBot
         ? botPersonalityAvatar(seat.botPersonality)
-        : "";
+        : isMe ? readProfileAvatar(seat.nick) : "";
       var displayStack = seat ? animatedStackAmount(absolute, seat.stack) : 0;
       var label = seat
         ? name + ", 보유액 " + formatChips(displayStack) +
@@ -2041,11 +2235,11 @@ window.TexasHoldem = (function () {
       html.push(
         '<article class="' + classes.join(" ") + '" data-seat="' + absolute +
         '" data-relative-seat="' + relative + '" aria-label="' + esc(label) + '"' +
-        (!seat && !isHandActive(state.phase) ? ' role="button" tabindex="0"' : "") + '>' +
+        (isMe || (!seat && !isHandActive(state.phase)) ? ' role="button" tabindex="0"' : "") + '>' +
           '<div class="' + holesClass + '">' + holes + '</div>' +
           resultBadge +
           '<div class="holdem-seat-avatar" aria-hidden="true">' +
-            (avatarSrc ? '<img src="' + esc(avatarSrc) + '" alt="">' : seat ? esc(initialFor(name)) :
+            (avatarSrc ? '<img src="' + esc(avatarSrc) + '" alt="">' : seat ? avatarNameHtml(name) :
               '<span class="holdem-seat-open-icon"><span></span><i></i></span>') +
           '</div>' +
           '<div class="holdem-seat-badges" aria-hidden="true">' + badges + '</div>' +
@@ -2645,6 +2839,16 @@ window.TexasHoldem = (function () {
     var screen = root();
     if (!screen || !event.target || !event.target.closest) return;
 
+    if (event.target.id === "holdem-profile-backdrop") {
+      closeProfileDialog();
+      return;
+    }
+    var profileSeat = event.target.closest(".holdem-seat.is-me");
+    if (profileSeat && screen.contains(profileSeat)) {
+      openProfileDialog();
+      return;
+    }
+
     var seatElement = event.target.closest(".holdem-seat.is-empty");
     if (seatElement && screen.contains(seatElement)) {
       chooseEmptySeat(seatElement.getAttribute("data-seat"));
@@ -2657,6 +2861,12 @@ window.TexasHoldem = (function () {
     if (id === "holdem-settings-btn") {
       settingsOpen = !settingsOpen;
       renderSettings();
+    } else if (id === "holdem-profile-close") {
+      closeProfileDialog();
+    } else if (id === "holdem-profile-avatar-remove") {
+      removeProfileAvatar(me().nick);
+      renderProfileDialog();
+      renderSeats();
     } else if (id === "holdem-settings-close") {
       settingsOpen = false;
       renderSettings();
@@ -2723,11 +2933,32 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function onRootChange(event) {
+    if (event.target && event.target.id === "holdem-profile-avatar-input") {
+      var file = event.target.files && event.target.files[0];
+      if (file) updateProfileAvatarFromFile(file);
+      event.target.value = "";
+    }
+  }
+
   function onRootKeydown(event) {
+    if (event.key === "Escape" && profileDialogOpen) {
+      closeProfileDialog();
+      return;
+    }
     if (event.key === "Escape" && settingsOpen) {
       settingsOpen = false;
       renderSettings();
       return;
+    }
+    if ((event.key === "Enter" || event.key === " ") && event.target &&
+        event.target.closest && event.target.closest(".holdem-seat.is-me")) {
+      var profileSeat = event.target.closest(".holdem-seat.is-me");
+      if (profileSeat && root() && root().contains(profileSeat)) {
+        event.preventDefault();
+        openProfileDialog();
+        return;
+      }
     }
     if ((event.key === "Enter" || event.key === " ") && event.target &&
         event.target.closest && event.target.closest(".holdem-seat.is-empty")) {
@@ -2771,11 +3002,13 @@ window.TexasHoldem = (function () {
     if (boundRoot) {
       boundRoot.removeEventListener("click", onRootClick);
       boundRoot.removeEventListener("input", onRootInput);
+      boundRoot.removeEventListener("change", onRootChange);
       boundRoot.removeEventListener("keydown", onRootKeydown);
     }
     boundRoot = screen;
     boundRoot.addEventListener("click", onRootClick);
     boundRoot.addEventListener("input", onRootInput);
+    boundRoot.addEventListener("change", onRootChange);
     boundRoot.addEventListener("keydown", onRootKeydown);
     return true;
   }
@@ -2814,6 +3047,7 @@ window.TexasHoldem = (function () {
     rawSnapshot = null;
     lastAppliedResponse = 0;
     lastAnnouncementKey = "";
+    profileDialogOpen = false;
     tickSentKey = "";
     botSentKey = "";
     botRetryAt = 0;
@@ -2860,6 +3094,8 @@ window.TexasHoldem = (function () {
     pendingCount = 0;
     pendingUiCount = 0;
     pendingAction = "";
+    profileDialogOpen = false;
+    profileWalletPending = false;
     state = emptyState();
     rawSnapshot = null;
     demoState = null;

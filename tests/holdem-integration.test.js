@@ -189,6 +189,9 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-allin-btn",
     "holdem-raise-slider",
     "holdem-chat-input",
+    "holdem-profile-backdrop",
+    "holdem-profile-avatar-input",
+    "holdem-profile-wallet-balance",
   ].forEach((id) => assert.match(index, new RegExp(`id="${id}"`)));
   assert.match(index, /id="holdem-call-btn"[\s\S]*id="holdem-call-amount" class="holdem-action-call-amount"[\s\S]*class="holdem-action-call-label"/);
   assert.match(index, /id="holdem-connection" class="holdem-connection hidden"[\s\S]*><\/div>/);
@@ -214,6 +217,13 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\s*\{[\s\S]*width:\s*clamp\(106px,\s*31vw,\s*158px\)/);
   assert.match(styles, /\.holdem-seat-name\s*\{[\s\S]*font-size:\s*clamp\(11px,\s*3\.2vw,\s*14px\)/);
   assert.match(styles, /\.holdem-seat-stack\s*\{[\s\S]*font-size:\s*clamp\(11px,\s*3\.2vw,\s*14px\)/);
+  assert.match(controller, /function avatarNameHtml\(nick\)[\s\S]*holdem-seat-avatar-name/);
+  assert.match(controller, /readProfileAvatar\(seat\.nick\)/);
+  assert.match(controller, /event\.target\.closest\("\.holdem-seat\.is-me"\)/);
+  assert.match(styles, /\.holdem-seat-avatar-name\s*\{[\s\S]*-webkit-line-clamp:\s*2/);
+  assert.match(index, /class="create-holdem-wallet holdem-profile-wallet"/);
+  assert.match(controller, /Db\.getHoldemWallet\(currentAuth\)/);
+  assert.match(controller, /localStorage\.setItem\(profileAvatarStorageKey\(nick\), dataUrl\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{\s*top:\s*99%;\s*left:\s*50%;\s*\}/);
   assert.match(styles, /\.holdem-card\.back/);
   assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-width-auto:[\s\S]*var\(--holdem-card-width/);
