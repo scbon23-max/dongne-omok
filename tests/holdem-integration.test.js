@@ -435,10 +435,12 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-seat-avatar-size\) \/ 2 - 24px\)/);
   assert.match(controller, /is-visible-cards is-revealed-cards/);
   assert.match(controller, /function heroRevealCardClass\(cardIndex\)[\s\S]*heroPublicRevealIndexes\(state\)/);
-  assert.match(controller, /function syncHeroRevealThrow\(previous, next, hadSnapshot\)[\s\S]*previousRevealKey !== nextRevealKey/);
-  assert.match(controller, /function heroPublicRevealKey\(snapshot\)[\s\S]*snapshot\.revealedCards/);
+  assert.match(controller, /function syncHeroRevealThrow\(previous, next, hadSnapshot\)[\s\S]*heroRevealThrowPlayedKey = canAnimate/);
+  assert.match(controller, /function heroPublicRevealIndexes\(snapshot\)[\s\S]*snapshot\.phase !== "complete"/);
+  assert.match(controller, /function maybeStartHeroRevealThrow\(stage\)[\s\S]*stage === "action"/);
   assert.match(controller, /heroRevealThrowUntil = Date\.now\(\) \+ HERO_REVEAL_THROW_MS/);
   assert.match(controller, /heroRevealCardClass\(cardIndex\)/);
+  assert.match(styles, /\.holdem-screen\.is-result-cards-first \.holdem-seat:not\(\.is-me\)/);
   assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card\.is-hero-reveal-forward\s*\{[\s\S]*transform:\s*translate\(var\(--holdem-reveal-x/);
   assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card\.is-hero-reveal-throwing\s*\{[\s\S]*animation:\s*holdemHeroRevealThrow/);
   assert.match(styles, /@keyframes holdemHeroRevealThrow[\s\S]*translate\(var\(--holdem-reveal-x/);
@@ -656,7 +658,7 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /var stage = resultStage\(\);[\s\S]*var revealWinner = state\.phase !== "complete" \|\| stage === "announced"/);
   assert.match(controller, /if \(isWinner && revealWinner\) classes\.push\("is-winner"\)/);
   assert.match(controller, /state\.phase === "complete" && stage === "announced"/);
-  assert.match(controller, /function renderSettlementAnimation\(\)[\s\S]*if \(stage !== lastSeatResultStage\) renderSeats\(\)/);
+  assert.match(controller, /function renderSettlementAnimation\(\)[\s\S]*maybeStartHeroRevealThrow\(stage\)[\s\S]*stage !== lastSeatResultStage \|\| revealThrowStarted/);
   assert.match(controller, /function releaseResultSettlement\(\)[\s\S]*resultSettlementReady\(\)[\s\S]*renderControls\(\)/);
   assert.match(controller, /var RESULT_BOARD_REVEAL_STEP_MS = 900/);
   assert.match(controller, /function resultBoardVisibleCount\(\)[\s\S]*resultFlow\.initialBoardCount/);

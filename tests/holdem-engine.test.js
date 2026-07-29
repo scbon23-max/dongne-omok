@@ -553,7 +553,7 @@ test("a folded AI keeps its cards hidden when the hand ends by folds", () => {
   botCards.forEach((card) => assert.equal(completedSerialized.includes(`"${card}"`), false));
 });
 
-test("folded card reveals are public during the active hand", () => {
+test("folded card reveal reservations stay private until the hand ends", () => {
   const names = ["alice", "bob", "cara"];
   let state = readyAndStart(tableWithPlayers(names), names);
   const folder = state.seats[state.actorSeat];
@@ -572,11 +572,62 @@ test("folded card reveals are public during the active hand", () => {
 
   const viewer = state.seats.find((player) => player && player.nick !== folder.nick && !player.folded);
   const activeView = Engine.view(state, viewer.nick);
-  const row = activeView.revealedCards.find((entry) => entry.seat === folder.seat);
+  const folderView = Engine.view(state, folder.nick);
+  assert.equal(activeView.revealedCards, undefined);
+  assert.deepEqual(folderView.heroRevealCards, [0]);
+  assert.equal(JSON.stringify(activeView).includes(`"${foldedCards[0]}"`), false);
+  assert.equal(JSON.stringify(activeView).includes(`"${foldedCards[1]}"`), false);
+
+  const nextActor = state.seats[state.actorSeat];
+  state = apply(state, {
+    type: "act",
+    nick: nextActor.nick,
+    action: "fold",
+  }, 132);
+  assert.equal(state.phase, "hand_end");
+
+  const completedView = Engine.view(state, viewer.nick);
+  const row = completedView.showdown.find((entry) => entry.seat === folder.seat);
   assert.ok(row);
   assert.deepEqual(row.cards, [foldedCards[0]]);
   assert.deepEqual(row.revealCards, [0]);
-  assert.equal(JSON.stringify(activeView).includes(`"${foldedCards[1]}"`), false);
+  assert.equal(JSON.stringify(completedView).includes(`"${foldedCards[1]}"`), false);
+});
+
+test("a reveal request that races the final action can update the completed showdown", () => {
+  const names = ["alice", "bob"];
+  let state = readyAndStart(tableWithPlayers(names), names);
+  const folder = state.seats[state.actorSeat];
+  const foldedCards = folder.cards.slice();
+
+  state = apply(state, {
+    type: "act",
+    nick: folder.nick,
+    action: "fold",
+  }, 140);
+  assert.equal(state.phase, "hand_end");
+
+  state = apply(state, {
+    type: "reveal_cards",
+    nick: folder.nick,
+    cards: [1],
+  }, 141);
+  const row = Engine.view(state, names[1]).showdown.find((entry) => entry.seat === folder.seat);
+  assert.ok(row);
+  assert.deepEqual(row.cards, [foldedCards[1]]);
+  assert.deepEqual(row.revealCards, [1]);
+  assert.equal(JSON.stringify(Engine.view(state, names[1])).includes(`"${foldedCards[0]}"`), false);
+
+  state = apply(state, {
+    type: "reveal_cards",
+    nick: folder.nick,
+    cards: [0],
+  }, 142);
+  const replacementRows = Engine.view(state, names[1]).showdown
+    .filter((entry) => entry.seat === folder.seat && entry.folded);
+  assert.equal(replacementRows.length, 1);
+  assert.deepEqual(replacementRows[0].cards, [foldedCards[0]]);
+  assert.deepEqual(replacementRows[0].revealCards, [0]);
 });
 
 test("an AI that wins by folds reveals its winner hand after the hand", () => {

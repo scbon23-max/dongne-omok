@@ -110,6 +110,7 @@ function resultTestDocument() {
     "holdem-result-pot": fakeElement(),
     "holdem-result": fakeElement(["hidden"]),
     "holdem-table-start-btn": fakeElement(["hidden"]),
+    "holdem-fold-reveal-panel": fakeElement(["hidden"]),
   };
   return {
     document: {
@@ -640,52 +641,149 @@ test("hand-end snapshots map to the completed UI and expose only server showdown
   assert.ok(normalized.showdown.some((row) => row.handName));
 });
 
-test("active folded reveals drive a one-shot hero throw without being cut off by refreshes", () => {
+test("active snapshots ignore legacy public folded-card fields", () => {
+  const controller = loadController("bob");
+  const normalized = controller._test.normalizeSnapshot({
+    version: 4,
+    phase: "flop",
+    handId: "legacy-active-reveal",
+    seats: [
+      { seat: 0, nick: "alice", inHand: true, folded: true, cardCount: 2 },
+      { seat: 1, nick: "bob", inHand: true, folded: false, cardCount: 2 },
+    ],
+    viewer: { seat: 1, cards: ["Kh", "Kd"], revealCards: [] },
+    revealedCards: [{ seat: 0, cards: ["As"], revealCards: [0], folded: true }],
+  }, 4);
+
+  assert.equal(normalized.revealedCards[0], null);
+  assert.equal(normalized.revealedCardIndexes[0], null);
+  assert.equal(Array.from(normalized.showdown).length, 0);
+});
+
+test("a reserved folded card throws once when result cards actually become public", () => {
   const originalNow = Date.now;
   let now = 1_800_000_000_000;
   Date.now = () => now;
-  const dom = resultTestDocument();
-  const controller = loadController("alice", { document: dom.document });
-  const heroCards = ["As", "7d"];
-  function snapshot(revealCards, version) {
-    return {
-      version,
-      phase: "flop",
-      handId: "reveal-hand",
-      mode: "ring",
-      seats: [
-        { seat: 0, nick: "alice", displayName: "alice", stack: 10000, inHand: true, folded: true, cardCount: 2 },
-        { seat: 1, nick: "bob", displayName: "bob", stack: 10000, inHand: true, folded: false, cardCount: 2 },
-      ],
-      viewer: { seat: 0, cards: heroCards, revealCards },
-      revealedCards: revealCards.length
-        ? [{ seat: 0, cards: revealCards.map((index) => heroCards[index]), revealCards }]
-        : [],
-      board: ["2c", "3c", "4c"],
-      actingSeat: 1,
-      legalActions: {},
-    };
+  const heroDom = resultTestDocument();
+  const observerDom = resultTestDocument();
+  const heroController = loadController("alice", { document: heroDom.document });
+  const observerController = loadController("cara", { document: observerDom.document });
+  let serverState = Engine.createTable({
+    roomId: "room-controller",
+    ownerNick: "alice",
+  });
+  let commandNow = 100;
+  function command(command) {
+    const result = Engine.command(serverState, command, {
+      now: commandNow++,
+      randomInt: () => 0,
+    });
+    assert.equal(result.ok, true, result.reason);
+    serverState = result.state;
   }
 
   try {
-    assert.equal(controller._test.applySnapshot(snapshot([], 1), 1, 1), true);
-    assert.equal(dom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-throwing"), false);
+    for (const nick of ["alice", "bob", "cara"]) {
+      command({ type: "join", nick });
+      command({ type: "ready", nick, ready: true });
+    }
+    command({ type: "start", nick: "alice" });
+    assert.equal(serverState.seats[serverState.actorSeat].nick, "alice");
+    const heroCards = serverState.seats[serverState.actorSeat].cards.slice();
+    command({ type: "act", nick: "alice", action: "fold" });
+    command({ type: "reveal_cards", nick: "alice", cards: [0] });
 
-    assert.equal(controller._test.applySnapshot(snapshot([0], 2), 2, 2), true);
-    assert.equal(dom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-forward"), true);
-    assert.equal(dom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-throwing"), true);
+    const activeHero = Engine.view(serverState, "alice");
+    const activeObserver = Engine.view(serverState, "cara");
+    assert.deepEqual(activeHero.heroRevealCards, [0]);
+    assert.equal(activeObserver.revealedCards, undefined);
+    assert.equal(heroController._test.applySnapshot(activeHero, 1, 1), true);
+    assert.equal(observerController._test.applySnapshot(activeObserver, 1, 1), true);
+
+    const nextActor = serverState.seats[serverState.actorSeat];
+    command({ type: "act", nick: nextActor.nick, action: "fold" });
+    assert.equal(serverState.phase, "hand_end");
+    const completedHero = Engine.view(serverState, "alice");
+    const completedObserver = Engine.view(serverState, "cara");
+    assert.equal(heroController._test.applySnapshot(completedHero, 2, 2), true);
+    assert.equal(observerController._test.applySnapshot(completedObserver, 2, 2), true);
+    assert.equal(heroController._test.resultStage(), "action");
+    assert.equal(heroDom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-forward"), false);
+    assert.equal(heroDom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-throwing"), false);
+    assert.equal(observerDom.elements["holdem-seats"].innerHTML.includes("is-revealed-cards"), false);
+
+    now += heroController._test.constants.resultFinalActionMs + 1;
+    heroController._test.renderSettlementAnimation();
+    observerController._test.renderSettlementAnimation();
+    assert.equal(heroController._test.resultStage(), "cards");
+    assert.equal((heroDom.elements["holdem-seats"].innerHTML.match(/is-hero-reveal-forward/g) || []).length, 1);
+    assert.equal((heroDom.elements["holdem-seats"].innerHTML.match(/is-hero-reveal-throwing/g) || []).length, 1);
+    assert.equal(observerDom.elements["holdem-seats"].innerHTML.includes("is-revealed-cards"), true);
+    assert.equal(observerDom.elements["holdem-seats"].innerHTML.includes(heroCards[1]), false);
 
     now += 120;
-    assert.equal(controller._test.applySnapshot(snapshot([0], 3), 3, 3), true);
-    assert.equal(dom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-throwing"), true);
+    assert.equal(heroController._test.applySnapshot(completedHero, 3, 3), true);
+    assert.equal((heroDom.elements["holdem-seats"].innerHTML.match(/is-hero-reveal-throwing/g) || []).length, 1);
 
-    now += 900;
-    assert.equal(controller._test.applySnapshot(snapshot([0], 4), 4, 4), true);
-    assert.equal(dom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-forward"), true);
-    assert.equal(dom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-throwing"), false);
+    now += 800;
+    assert.equal(heroController._test.applySnapshot(completedHero, 4, 4), true);
+    assert.equal((heroDom.elements["holdem-seats"].innerHTML.match(/is-hero-reveal-forward/g) || []).length, 1);
+    assert.equal(heroDom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-throwing"), false);
+  } finally {
+    heroController.leave();
+    observerController.leave();
+    Date.now = originalNow;
+  }
+});
+
+test("fold reveal controls keep the requested selection while the server confirms it", async () => {
+  const dom = resultTestDocument();
+  const calls = [];
+  let resolveReveal;
+  const db = {
+    holdemInvoke(_auth, action, payload) {
+      calls.push({ action, payload });
+      return new Promise((resolve) => {
+        resolveReveal = resolve;
+      });
+    },
+  };
+  const controller = loadController("alice", { document: dom.document, db });
+  const snapshot = (revealCards, version) => ({
+    version,
+    phase: "flop",
+    handId: "1",
+    mode: "ring",
+    seats: [
+      { seat: 0, nick: "alice", stack: 9800, inHand: true, folded: true, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 10200, inHand: true, folded: false, cardCount: 2 },
+    ],
+    viewer: { seat: 0, cards: ["As", "7d"], revealCards },
+    actingSeat: 1,
+    legalActions: {},
+  });
+
+  try {
+    controller._test.setActive(true);
+    controller._test.setHasSnapshot(true);
+    controller._test.setState(controller._test.normalizeSnapshot(snapshot([], 1), 1));
+    controller._test.renderControls();
+
+    const request = controller._test.reserveFoldReveal([0]);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].action, "reveal_cards");
+    assert.deepEqual(Array.from(calls[0].payload.cards), [0]);
+    assert.match(dom.elements["holdem-fold-reveal-panel"].innerHTML, /data-holdem-reveal-cards="0" aria-pressed="true"/);
+    assert.match(dom.elements["holdem-fold-reveal-panel"].innerHTML, /예약 중/);
+
+    resolveReveal({ ok: true, version: 2, snapshot: snapshot([0], 2) });
+    const result = await request;
+    assert.equal(result.ok, true);
+    assert.equal(controller._test.getPendingFoldRevealReservation(), null);
+    assert.match(dom.elements["holdem-fold-reveal-panel"].innerHTML, /data-holdem-reveal-cards="0" aria-pressed="true"/);
+    assert.match(dom.elements["holdem-fold-reveal-panel"].innerHTML, /예약됨/);
   } finally {
     controller.leave();
-    Date.now = originalNow;
   }
 });
 

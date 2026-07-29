@@ -113,7 +113,6 @@ const ACTIONS = new Set([
 const OWNER_ACTIONS = new Set(["settings", "add_bot", "remove_bot"]);
 const VERSIONED_ACTIONS = new Set([
   "act",
-  "reveal_cards",
   "add_bot",
   "remove_bot",
   "bot_step",

@@ -5460,7 +5460,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat.is-payout-receiving .holdem-win-gain {
   animation: holdemWinnerGainReceive .78s cubic-bezier(.18,.82,.22,1) both;
 }
-.holdem-screen.is-result-cards-first .holdem-seat .holdem-hole-cards .holdem-card:not(.back):not(.empty) {
+.holdem-screen.is-result-cards-first .holdem-seat:not(.is-me) .holdem-hole-cards .holdem-card:not(.back):not(.empty) {
   animation: holdemCardRevealPop .34s ease-out both;
 }
 

@@ -218,9 +218,11 @@ window.TexasHoldem = (function () {
   var lastSeatsHtml = "";
   var lastSeatResultStage = "none";
   var heroRevealThrowKey = "";
+  var heroRevealThrowPlayedKey = "";
   var heroRevealThrowIndexes = [];
   var heroRevealThrowUntil = 0;
   var heroRevealThrowTimer = null;
+  var pendingFoldRevealReservation = null;
   var communityRevealControlBlocked = false;
   var chatKeyboardViewportBound = false;
   var chatKeyboardWasOpen = false;
@@ -1536,17 +1538,19 @@ window.TexasHoldem = (function () {
       var cards = normalizeCards(entry.cards, 2);
       if (revealedSeat < 0 || !cards.length) return;
       revealedCards[revealedSeat] = cards;
-      revealedCardIndexes[revealedSeat] = normalizeCardIndexes(firstDefined(
+      var revealIndexes = normalizeCardIndexes(firstDefined(
         entry.revealCards,
         entry.revealCardIndexes,
         entry.cardIndexes
       ));
+      revealedCardIndexes[revealedSeat] = revealIndexes;
       if (pushShowdown) {
         showdownRows.push({
           seat: revealedSeat,
           nick: text(firstDefined(entry.nick, entry.nickname, entry.name), 40),
           displayName: text(firstDefined(entry.displayName, entry.label, entry.nick, entry.nickname), 40),
           cards: cards,
+          revealCards: revealIndexes,
           handName: text(firstDefined(entry.handName, entry.handLabel, entry.name), 80),
           handCategory: integer(firstDefined(entry.handCategory, entry.category), -1),
           folded: !!firstDefined(entry.folded, false),
@@ -1554,14 +1558,16 @@ window.TexasHoldem = (function () {
         });
       }
     }
-    [table.revealedCards, table.foldedReveals, table.publicReveals].forEach(function (rows) {
-      if (!Array.isArray(rows)) return;
-      rows.forEach(function (entry) { addRevealedCards(entry, false); });
-    });
-    if ((phase === "complete" || phase === "showdown") && Array.isArray(table.showdown)) {
-      table.showdown.forEach(function (entry) {
-        addRevealedCards(entry, true);
+    if (phase === "complete" || phase === "showdown") {
+      [table.revealedCards, table.foldedReveals, table.publicReveals].forEach(function (rows) {
+        if (!Array.isArray(rows)) return;
+        rows.forEach(function (entry) { addRevealedCards(entry, false); });
       });
+      if (Array.isArray(table.showdown)) {
+        table.showdown.forEach(function (entry) {
+          addRevealedCards(entry, true);
+        });
+      }
     }
     var canReadyValue = firstDefined(viewer.canReady, raw.canReady, table.canReady);
     var canStartValue = firstDefined(viewer.canStart, raw.canStart, table.canStart);
@@ -1794,13 +1800,11 @@ window.TexasHoldem = (function () {
     if (previousHandKey && nextHandKey && previousHandKey !== nextHandKey) {
       actionTagAnimationKeys = Object.create(null);
       pendingActionTagAnimationKeys = Object.create(null);
-      heroRevealThrowKey = "";
-      heroRevealThrowIndexes = [];
-      heroRevealThrowUntil = 0;
-      clearHeroRevealThrowTimer();
+      resetHeroRevealThrow();
     }
     suppressActionTagAnimations = !hadSnapshot;
     state = next;
+    syncPendingFoldRevealReservation(next);
     rawSnapshot = snapshot;
     hasSnapshot = true;
     joined = joined || next.heroSeat >= 0 || next.phase !== "loading";
@@ -2809,6 +2813,14 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function resetHeroRevealThrow() {
+    clearHeroRevealThrowTimer();
+    heroRevealThrowKey = "";
+    heroRevealThrowPlayedKey = "";
+    heroRevealThrowIndexes = [];
+    heroRevealThrowUntil = 0;
+  }
+
   function scheduleHeroRevealThrowEnd() {
     clearHeroRevealThrowTimer();
     var remaining = heroRevealThrowUntil - Date.now();
@@ -2822,7 +2834,7 @@ window.TexasHoldem = (function () {
 
   function heroPublicRevealIndexes(snapshot) {
     var seatIndex = snapshot && snapshot.heroSeat;
-    if (seatIndex == null || seatIndex < 0) return [];
+    if (!snapshot || snapshot.phase !== "complete" || seatIndex == null || seatIndex < 0) return [];
     var revealed = snapshot.revealedCards && snapshot.revealedCards[seatIndex];
     if (!Array.isArray(revealed) || !revealed.length) return [];
     var indexes = normalizeCardIndexes(snapshot.revealedCardIndexes && snapshot.revealedCardIndexes[seatIndex]);
@@ -2847,29 +2859,42 @@ window.TexasHoldem = (function () {
     var nextHandKey = String(next && (next.handId || next.handNumber) || "");
     var previousRevealKey = heroPublicRevealKey(previous);
     var nextRevealKey = heroPublicRevealKey(next);
-    if (!nextRevealKey || !hadSnapshot || !previousHandKey || previousHandKey !== nextHandKey || !isHandActive(next.phase)) {
-      if (!nextRevealKey || previousHandKey !== nextHandKey || !isHandActive(next.phase)) {
-        heroRevealThrowKey = "";
-        heroRevealThrowIndexes = [];
-        heroRevealThrowUntil = 0;
-        clearHeroRevealThrowTimer();
-      }
+    if (previousHandKey && nextHandKey && previousHandKey !== nextHandKey) {
+      resetHeroRevealThrow();
+    }
+    if (!nextRevealKey || next.phase !== "complete") {
+      if (heroRevealThrowKey) resetHeroRevealThrow();
       return;
     }
-    if (previousRevealKey !== nextRevealKey) {
-      var previousIndexes = heroPublicRevealIndexes(previous);
-      var nextIndexes = heroPublicRevealIndexes(next);
-      var throwIndexes = nextIndexes.filter(function (index) { return previousIndexes.indexOf(index) < 0; });
-      heroRevealThrowKey = nextHandKey + ":" + nextRevealKey;
-      heroRevealThrowIndexes = throwIndexes.length ? throwIndexes : nextIndexes;
-      heroRevealThrowUntil = Date.now() + HERO_REVEAL_THROW_MS;
-      scheduleHeroRevealThrowEnd();
-    }
+    if (heroRevealThrowKey === nextRevealKey) return;
+    resetHeroRevealThrow();
+    heroRevealThrowKey = nextRevealKey;
+    heroRevealThrowIndexes = heroPublicRevealIndexes(next);
+    heroRevealThrowUntil = 0;
+    var canAnimate = !!(hadSnapshot &&
+      previousHandKey &&
+      previousHandKey === nextHandKey &&
+      previousRevealKey !== nextRevealKey);
+    heroRevealThrowPlayedKey = canAnimate ? "" : nextRevealKey;
+  }
+
+  function maybeStartHeroRevealThrow(stage) {
+    if (state.phase !== "complete" ||
+        stage === "action" ||
+        !heroRevealThrowKey ||
+        heroRevealThrowPlayedKey === heroRevealThrowKey ||
+        !heroRevealThrowIndexes.length) return false;
+    heroRevealThrowPlayedKey = heroRevealThrowKey;
+    heroRevealThrowUntil = Date.now() + HERO_REVEAL_THROW_MS;
+    scheduleHeroRevealThrowEnd();
+    return true;
   }
 
   function heroRevealCardClass(cardIndex) {
     var indexes = heroPublicRevealIndexes(state);
-    if (!isHandActive(state.phase) || indexes.indexOf(cardIndex) < 0) return "";
+    if (state.phase !== "complete" ||
+        resultStage() === "action" ||
+        indexes.indexOf(cardIndex) < 0) return "";
     var classes = ["is-hero-reveal-forward"];
     if (heroRevealThrowKey &&
         Date.now() < heroRevealThrowUntil &&
@@ -2890,8 +2915,32 @@ window.TexasHoldem = (function () {
       state.heroCards.length >= 2);
   }
 
+  function effectiveFoldRevealCards() {
+    var handKey = String(state.handId || state.handNumber || "");
+    if (pendingFoldRevealReservation &&
+        pendingFoldRevealReservation.handKey === handKey) {
+      return pendingFoldRevealReservation.indexes;
+    }
+    return state.heroRevealCards;
+  }
+
+  function syncPendingFoldRevealReservation(snapshot) {
+    if (!pendingFoldRevealReservation || !snapshot) return;
+    var handKey = String(snapshot.handId || snapshot.handNumber || "");
+    if (handKey !== pendingFoldRevealReservation.handKey ||
+        (!isHandActive(snapshot.phase) && snapshot.phase !== "complete")) {
+      pendingFoldRevealReservation = null;
+      return;
+    }
+    if (foldRevealSelectionKey(snapshot.heroRevealCards) ===
+        foldRevealSelectionKey(pendingFoldRevealReservation.indexes)) {
+      pendingFoldRevealReservation = null;
+    }
+  }
+
   function foldRevealButtonHtml(indexes) {
-    var selected = foldRevealSelectionKey(indexes) === foldRevealSelectionKey(state.heroRevealCards);
+    var selected = foldRevealSelectionKey(indexes) === foldRevealSelectionKey(effectiveFoldRevealCards());
+    var pending = !!(selected && pendingFoldRevealReservation);
     var cardIndexes = normalizeCardIndexes(indexes);
     var cards = cardIndexes.map(function (index) {
       return cardHtml(state.heroCards[index], null, "is-fold-reveal-card");
@@ -2902,7 +2951,7 @@ window.TexasHoldem = (function () {
         '<span class="holdem-fold-reveal-cards' + (cardIndexes.length > 1 ? " is-pair" : "") +
           '" aria-hidden="true">' + cards + '</span>' +
         '<strong>공개</strong>' +
-        (selected ? '<small>예약됨</small>' : "") +
+        (selected ? '<small>' + (pending ? '예약 중' : '예약됨') + '</small>' : "") +
       '</button>';
   }
 
@@ -2927,20 +2976,82 @@ window.TexasHoldem = (function () {
     for (var i = 0; i < buttons.length; i++) buttons[i].disabled = disabled;
   }
 
-  function reserveFoldReveal(rawIndexes) {
-    if (!canReserveFoldReveal() || requests.reveal_cards) return;
-    var indexes = normalizeCardIndexes(rawIndexes);
-    if (foldRevealSelectionKey(indexes) === foldRevealSelectionKey(state.heroRevealCards)) indexes = [];
-    invoke("reveal_cards", {
+  function foldRevealRetryAllowed(handKey) {
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    return !!(String(state.handId || state.handNumber || "") === handKey &&
+      (isHandActive(state.phase) || state.phase === "complete") &&
+      hero &&
+      hero.inHand &&
+      hero.folded &&
+      !hero.isBot &&
+      Array.isArray(state.heroCards) &&
+      state.heroCards.length >= 2);
+  }
+
+  function foldRevealResultReason(result) {
+    return text(firstDefined(
+      result && result.reason,
+      result && result.response && result.response.reason
+    ), 80);
+  }
+
+  function reserveFoldRevealAttempt(indexes, handKey, attempt) {
+    return invoke("reveal_cards", {
       cards: indexes,
       expectedVersion: state.version,
-      handId: state.handId
+      handId: handKey
     }, {
       key: "reveal_cards",
       label: "reveal_cards",
       broadcast: true,
-      ui: false
+      ui: false,
+      silent: true
+    }).then(function (result) {
+      if (result && result.ok) {
+        if (pendingFoldRevealReservation &&
+            pendingFoldRevealReservation.handKey === handKey) {
+          scheduleRefresh("reveal_confirm", true);
+        }
+        return result;
+      }
+      var reason = foldRevealResultReason(result);
+      if ((reason === "stale" || reason === "conflict") && attempt < 1) {
+        return refreshSnapshot("reveal_retry", true).then(function () {
+          if (!foldRevealRetryAllowed(handKey)) return result;
+          if (foldRevealSelectionKey(state.heroRevealCards) === foldRevealSelectionKey(indexes)) {
+            return { ok: true, recovered: true };
+          }
+          return reserveFoldRevealAttempt(indexes, handKey, attempt + 1);
+        });
+      }
+      if (pendingFoldRevealReservation &&
+          pendingFoldRevealReservation.handKey === handKey) {
+        pendingFoldRevealReservation = null;
+        renderControls();
+      }
+      var message = reasonMessage(reason, result && result.response && result.response.msg);
+      lastError = message;
+      if (api && typeof api.toast === "function") api.toast(message, 3000);
+      renderConnection();
+      return result || { ok: false, reason: reason || "server" };
     });
+  }
+
+  function reserveFoldReveal(rawIndexes) {
+    if (!canReserveFoldReveal() || requests.reveal_cards) return;
+    var indexes = normalizeCardIndexes(rawIndexes);
+    if (foldRevealSelectionKey(indexes) === foldRevealSelectionKey(effectiveFoldRevealCards())) indexes = [];
+    var handKey = String(state.handId || state.handNumber || "");
+    pendingFoldRevealReservation = {
+      handKey: handKey,
+      indexes: indexes.slice()
+    };
+    renderControls();
+    return reserveFoldRevealAttempt(
+      indexes,
+      handKey,
+      0
+    );
   }
 
   function queuedActionHandKey() {
@@ -4657,7 +4768,10 @@ window.TexasHoldem = (function () {
             if (revealClass) cardClasses.push(revealClass);
             return cardHtml(card, null, cardClasses.join(" "));
           }).join("");
-        } else if (state.revealedCards[absolute] && state.revealedCards[absolute].length) {
+        } else if (state.phase === "complete" &&
+            stage !== "action" &&
+            state.revealedCards[absolute] &&
+            state.revealedCards[absolute].length) {
           holesClass += " is-visible-cards is-revealed-cards";
           holes = state.revealedCards[absolute].map(function (card, cardIndex) {
             var comboClass = winnerCombo
@@ -5310,7 +5424,9 @@ window.TexasHoldem = (function () {
     if (state.phase !== "complete") return;
     var stage = resultStage();
     syncResultClasses(stage);
-    if (stage !== lastSeatResultStage) renderSeats();
+    var revealThrowStarted = maybeStartHeroRevealThrow(stage);
+    if (revealThrowStarted) lastSeatsHtml = "";
+    if (stage !== lastSeatResultStage || revealThrowStarted) renderSeats();
     renderBoard();
     setText("holdem-pot-amount", formatChips(animatedPotAmount()));
     setText("holdem-result-pot", formatChips(animatedPotAmount()));
@@ -5932,7 +6048,8 @@ window.TexasHoldem = (function () {
     clearAutoNextHand();
     clearAutoReadyForNextHand();
     clearBotTimer();
-    clearHeroRevealThrowTimer();
+    resetHeroRevealThrow();
+    pendingFoldRevealReservation = null;
     clearCommunityCardOpenSoundTimers();
     clearActionSoundTimers();
     stopAllinBgmSfx();
@@ -5945,9 +6062,6 @@ window.TexasHoldem = (function () {
     lastBoardHtml = "";
     lastSeatsHtml = "";
     lastSeatResultStage = "none";
-    heroRevealThrowKey = "";
-    heroRevealThrowIndexes = [];
-    heroRevealThrowUntil = 0;
   }
 
   function enter(nextApi) {
@@ -6228,6 +6342,8 @@ window.TexasHoldem = (function () {
       requestLeaveAfterHand: requestLeaveAfterHand,
       maybeLeaveRoomAfterHand: maybeLeaveRoomAfterHand,
       performMove: performMove,
+      reserveFoldReveal: reserveFoldReveal,
+      effectiveFoldRevealCards: effectiveFoldRevealCards,
       queuedActionOptions: queuedActionOptions,
       queuePreAction: queuePreAction,
       maybePerformQueuedAction: maybePerformQueuedAction,
@@ -6252,6 +6368,14 @@ window.TexasHoldem = (function () {
       getRawSnapshot: function () { return rawSnapshot; },
       getPendingMove: function () {
         return pendingMove ? Object.assign({}, pendingMove) : null;
+      },
+      getPendingFoldRevealReservation: function () {
+        return pendingFoldRevealReservation
+          ? {
+              handKey: pendingFoldRevealReservation.handKey,
+              indexes: pendingFoldRevealReservation.indexes.slice()
+            }
+          : null;
       },
       constants: {
         maxSeats: MAX_SEATS,

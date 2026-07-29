@@ -1497,9 +1497,15 @@
     }).filter(Boolean);
   }
 
-  function publicFoldedReveals(state) {
-    if (!PLAYING_PHASES[state.phase]) return [];
-    return foldedRevealShowdown(state);
+  function syncFoldedRevealShowdown(state, player) {
+    var seat = player ? player.seat : -1;
+    var rows = Array.isArray(state.showdown) ? state.showdown : [];
+    state.showdown = rows.filter(function (entry) {
+      return !entry || !entry.folded || integer(entry.seat, -1) !== seat;
+    });
+    foldedRevealShowdown(state).forEach(function (entry) {
+      if (entry.seat === seat) state.showdown.push(entry);
+    });
   }
 
   function winnerRevealShowdown(state) {
@@ -1951,11 +1957,14 @@
       } else if (type === "reveal_cards") {
         player = playerByNick(next, nick);
         if (!player) result = { ok: false, reason: "not_joined" };
-        else if (!PLAYING_PHASES[next.phase]) result = { ok: false, reason: "hand_inactive" };
+        else if (!PLAYING_PHASES[next.phase] &&
+            next.phase !== "hand_end" &&
+            next.phase !== "tournament_end") result = { ok: false, reason: "hand_inactive" };
         else if (!player.inHand || !player.folded || player.cards.length < 2) result = { ok: false, reason: "fold_required" };
         else if (player.isBot) result = { ok: false, reason: "human_only" };
         else {
           player.revealCards = normalizeRevealCards(cmd.cards || cmd.revealCards || cmd.cardIndexes);
+          if (!PLAYING_PHASES[next.phase]) syncFoldedRevealShowdown(next, player);
           next.lastEvent = {
             type: "reveal_cards_reserved",
             nick: nick,
@@ -2168,7 +2177,6 @@
       board: state.board.slice(),
       heroCards: viewerPlayer ? viewerPlayer.cards.slice() : [],
       heroRevealCards: viewerPlayer ? normalizeRevealCards(viewerPlayer.revealCards) : [],
-      revealedCards: publicFoldedReveals(state),
       currentBet: state.currentBet,
       lastFullRaiseSize: state.lastFullRaiseSize,
       pot: potTotal(state),

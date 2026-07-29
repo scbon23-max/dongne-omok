@@ -226,6 +226,10 @@ test("the endpoint action, poker move, version, and hand identity stay distinct"
   assert.match(edge, /POKER_ACTIONS\.has\(move\)\) command\.action = move/);
   assert.doesNotMatch(edge, /command\.action = safeText\(explicit\.action/);
   assert.match(edge, /const VERSIONED_ACTIONS = new Set\(\[[^\]]*"act"/);
+  assert.doesNotMatch(
+    edge,
+    /const VERSIONED_ACTIONS = new Set\(\[[^\]]*"reveal_cards"/
+  );
   assert.match(edge, /const expectedVersion = parseVersion\(body\.expectedVersion\)/);
   assert.match(
     edge,
