@@ -525,6 +525,7 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-screen\.is-actioning\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 110px \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
   assert.match(styles, /\.holdem-screen\.is-pre-actioning\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 112px \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
   assert.match(styles, /\.holdem-screen\.is-fold-revealing\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 132px \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
+  assert.match(styles, /\.holdem-screen\.is-keyboard-open\.is-actioning\.is-chat-open \.holdem-chat-row,[\s\S]*\.holdem-screen\.is-keyboard-open\.is-fold-revealing\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(6px,\s*env\(safe-area-inset-bottom\)\) \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
   assert.match(styles, /\.holdem-pre-action-panel\s*\{[\s\S]*bottom:\s*max\(8px,\s*env\(safe-area-inset-bottom\)\)/);
   assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-chat-toggle\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 62px\)/);
   assert.match(styles, /\.holdem-pre-action\.is-queued\s*\{[\s\S]*border-color:\s*rgba\(117, 238, 255, \.76\)/);
@@ -676,6 +677,7 @@ test("Hold'em chat keeps transient toasts separate from the recent typing histor
   assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*display:\s*flex/);
   assert.match(styles, /\.holdem-screen\.is-pre-actioning\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*\+ 166px/);
   assert.match(styles, /\.holdem-screen\.is-fold-revealing\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*\+ 186px/);
+  assert.match(styles, /\.holdem-screen\.is-keyboard-open\.is-actioning\.is-chat-focused \.holdem-chat-history,[\s\S]*\.holdem-screen\.is-keyboard-open\.is-fold-revealing\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*\+ 54px \+ var\(--holdem-keyboard-offset,\s*0px\)/);
   assert.match(styles, /\.holdem-screen\.is-actioning\.is-raise-menu-open\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*right:\s*calc\(33\.333% \+ 12px\)/);
 });
 
