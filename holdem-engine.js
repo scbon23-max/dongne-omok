@@ -330,6 +330,7 @@
       streetBet: 0,
       totalBet: 0,
       cards: [],
+      revealCards: [],
       revealed: false,
       lastAction: "",
       lastActionBet: null,
@@ -573,6 +574,7 @@
       }
       player.leaving = player.leaving === true;
       player.leavingIntent = player.leaving ? normalizeLeavingIntent(player.leavingIntent) || "leave" : "";
+      player.revealCards = normalizeRevealCards(player.revealCards);
     });
     if (state.settings.mode === "ring" && botPlayers(state).length > 0) {
       convertRingTableToPractice(state);
@@ -1096,7 +1098,7 @@
     winner.stack += amount;
     winner.winAmount += amount;
     state.pots = layers.pots;
-    state.showdown = [];
+    state.showdown = foldedRevealShowdown(state);
     state.actorSeat = null;
     state.actionDeadline = null;
     state.pendingSeats = [];
@@ -1165,7 +1167,7 @@
         name: player.evaluation.name,
         tiebreak: player.evaluation.tiebreak.slice()
       };
-    });
+    }).concat(foldedRevealShowdown(state));
     layers.pots.forEach(function (pot) {
       var candidates = pot.eligible.map(function (seat) { return state.seats[seat]; }).filter(Boolean);
       var winners = [];
@@ -1433,6 +1435,7 @@
       player.streetBet = 0;
       player.totalBet = 0;
       player.cards = [];
+      player.revealCards = [];
       player.revealed = false;
       player.lastAction = "";
       player.lastActionBet = null;
@@ -1470,6 +1473,33 @@
     if (!requestId) return;
     state.recentRequestIds.push(requestId);
     if (state.recentRequestIds.length > 128) state.recentRequestIds.splice(0, state.recentRequestIds.length - 128);
+  }
+
+  function normalizeRevealCards(value) {
+    var source = Array.isArray(value) ? value : [];
+    var out = [];
+    source.forEach(function (entry) {
+      var index = integer(entry, -1);
+      if ((index === 0 || index === 1) && out.indexOf(index) < 0) out.push(index);
+    });
+    return out.sort(function (a, b) { return a - b; });
+  }
+
+  function foldedRevealShowdown(state) {
+    return handPlayers(state).map(function (player) {
+      if (!player || !player.folded || !player.cards || player.cards.length < 2) return null;
+      var indexes = normalizeRevealCards(player.revealCards);
+      var cards = indexes.map(function (index) { return player.cards[index]; }).filter(Boolean);
+      if (!cards.length) return null;
+      return {
+        seat: player.seat,
+        nick: player.nick,
+        displayName: player.displayName || player.nick,
+        cards: cards,
+        folded: true,
+        revealCards: indexes
+      };
+    }).filter(Boolean);
   }
 
   function reserveBotIdentity(state) {
@@ -1708,6 +1738,7 @@
           player.streetBet = 0;
           player.totalBet = 0;
           player.cards = [];
+          player.revealCards = [];
           player.revealed = false;
           player.lastAction = "";
           player.lastActionBet = null;
@@ -1739,6 +1770,7 @@
           player.streetBet = 0;
           player.totalBet = 0;
           player.cards = [];
+          player.revealCards = [];
           player.revealed = false;
           player.lastAction = "";
           player.lastActionBet = null;
@@ -1876,6 +1908,24 @@
         else {
           result = applyPlayerAction(next, player, text(cmd.action, 16).toLowerCase(), cmd.amount, now);
           changed = result.ok;
+        }
+      } else if (type === "reveal_cards") {
+        player = playerByNick(next, nick);
+        if (!player) result = { ok: false, reason: "not_joined" };
+        else if (!PLAYING_PHASES[next.phase]) result = { ok: false, reason: "hand_inactive" };
+        else if (!player.inHand || !player.folded || player.cards.length < 2) result = { ok: false, reason: "fold_required" };
+        else if (player.isBot) result = { ok: false, reason: "human_only" };
+        else {
+          player.revealCards = normalizeRevealCards(cmd.cards || cmd.revealCards || cmd.cardIndexes);
+          next.lastEvent = {
+            type: "reveal_cards_reserved",
+            nick: nick,
+            seat: player.seat,
+            count: player.revealCards.length,
+            at: now
+          };
+          result = { ok: true };
+          changed = true;
         }
       } else if (type === "bot_act") {
         if (context.internalBot !== true) result = { ok: false, reason: "internal" };
@@ -2078,6 +2128,7 @@
         : null,
       board: state.board.slice(),
       heroCards: viewerPlayer ? viewerPlayer.cards.slice() : [],
+      heroRevealCards: viewerPlayer ? normalizeRevealCards(viewerPlayer.revealCards) : [],
       currentBet: state.currentBet,
       lastFullRaiseSize: state.lastFullRaiseSize,
       pot: potTotal(state),
@@ -2095,6 +2146,7 @@
       viewer: {
         seat: viewerPlayer ? viewerPlayer.seat : null,
         cards: viewerPlayer ? viewerPlayer.cards.slice() : [],
+        revealCards: viewerPlayer ? normalizeRevealCards(viewerPlayer.revealCards) : [],
         legalActions: viewerLegal,
         toCall: viewerLegal.callAmount,
         minBet: viewerLegal.minBet,
