@@ -109,26 +109,15 @@
 <section id="entry" class="screen entry-screen">
   <div class="entry-box">
     <img src="assets/login-title.png" alt="동네운동회 게임방" class="entry-logo">
-    <div class="entry-panel">
-      <div class="entry-panel-head">
-        <span>동네운동회 입장권</span>
-        <strong>닉네임으로 바로 들어가기</strong>
-      </div>
-      <label class="field-label" for="nick">닉네임</label>
-      <input id="nick" class="nick-input" type="text" maxlength="12" placeholder="동네운동회 닉네임" autocomplete="off">
-      <label class="field-label" for="pw">비밀번호</label>
-      <input id="pw" class="nick-input" type="password" maxlength="20" placeholder="비밀번호" autocomplete="off">
-      <div class="entry-options">
-        <label class="remember-row"><input id="remember-me" type="checkbox" checked><span>로그인 유지</span></label>
-        <span>처음이면 자동 가입</span>
-      </div>
-      <button id="enter-btn" class="btn-primary">입장하기</button>
-      <div id="login-msg" class="login-msg"></div>
-      <p class="entry-hint">
-        <b class="hl">모임에서 쓰는 닉네임 그대로</b>
-        같은 닉네임과 비밀번호로 다음에도 이어서 들어와요.
-      </p>
-    </div>
+    <input id="nick" class="nick-input" type="text" maxlength="12" placeholder="동네운동회 닉네임" autocomplete="off">
+    <input id="pw" class="nick-input" type="password" maxlength="20" placeholder="비밀번호" autocomplete="off">
+    <label class="remember-row"><input id="remember-me" type="checkbox" checked><span>로그인 유지</span></label>
+    <button id="enter-btn" class="btn-primary">입장하기</button>
+    <div id="login-msg" class="login-msg"></div>
+    <p class="entry-hint">
+      <b class="hl">동네운동회 모임 닉네임과 똑같이 쓰세요.</b>
+      처음이면 닉네임+비번으로 <b>가입</b>, 다음부턴 같은 걸로 로그인.
+    </p>
   </div>
   <img class="entry-people" src="assets/people.png" alt="">
 </section>

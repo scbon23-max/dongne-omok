@@ -24,129 +24,27 @@ body {
 .screen { min-height: 100dvh; display: flex; flex-direction: column; }
 
 /* ---------- 입장 ---------- */
-.entry-screen {
-  position: relative;
-  min-height: 100dvh;
-  height: 100dvh;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  padding: max(14px, env(safe-area-inset-top)) 16px 0;
-  background:
-    radial-gradient(circle at 18% 12%, rgba(255,244,204,.42), transparent 28%),
-    radial-gradient(circle at 84% 30%, rgba(255,188,96,.42), transparent 32%),
-    linear-gradient(180deg, #ff8b24 0%, #fa6f14 56%, #e85c0e 100%);
-}
-.entry-screen::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(135deg, rgba(255,255,255,.16) 0 12%, transparent 12% 100%) 0 0 / 46px 46px,
-    linear-gradient(315deg, rgba(255,255,255,.1) 0 10%, transparent 10% 100%) 0 0 / 46px 46px;
-  opacity: .32;
-}
-.entry-box {
-  position: relative;
-  z-index: 2;
-  width: min(100%, 392px);
-  flex: 0 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  margin-bottom: clamp(70px, 12vh, 110px);
-  padding: 0 0 10px;
-  text-align: center;
-}
-.entry-people {
-  position: absolute;
-  z-index: 1;
-  left: 50%;
-  bottom: 0;
-  width: min(106vw, 760px);
-  display: block;
-  margin: 0;
-  flex: 0 0 auto;
-  transform: translateX(-50%);
-  pointer-events: none;
-  filter: drop-shadow(0 -7px 14px rgba(90,24,0,.12));
-}
-.entry-logo { width: min(315px, 88vw); height: auto; margin: 0 auto 8px; display: block; filter: drop-shadow(0 10px 18px rgba(92,28,0,.18)); }
-.entry-panel {
-  width: 100%;
-  padding: 16px;
-  border: 1px solid rgba(255,255,255,.42);
-  border-radius: 18px;
-  background: #fff9ef;
-  box-shadow: 0 18px 34px rgba(109,31,0,.24), inset 0 1px 0 rgba(255,255,255,.72);
-}
-.entry-panel-head {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  margin: 0 0 12px;
-  text-align: left;
-}
-.entry-panel-head span {
-  color: #d95816;
-  font-size: 11px;
-  font-weight: 1000;
-}
-.entry-panel-head strong {
-  color: var(--navy);
-  font-size: 18px;
-  font-weight: 1000;
-}
-.field-label { display: block; text-align: left; font-size: 12px; color: #8a3c17; font-weight: 900; margin: 0 0 6px; }
+.entry-screen { background: #FA6F14; height: 100dvh; align-items: center; justify-content: flex-start; padding: 0; overflow: hidden; }
+.entry-box { width: 100%; max-width: 340px; text-align: center; padding: 40px 24px 8px; flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: center; }
+.entry-people { width: 100%; max-width: 760px; display: block; margin: 0 auto; flex: 0 0 auto; pointer-events: none; }
+.entry-logo { width: 260px; max-width: 84%; height: auto; margin: 0 auto 18px; display: block; }
+.field-label { display: block; text-align: left; font-size: 13px; color: var(--cream); font-weight: 700; margin-bottom: 6px; }
 .nick-input {
-  width: 100%;
-  height: 50px;
-  border: 2px solid #f0d3bc;
-  border-radius: 12px;
-  padding: 0 15px;
-  background: #fff;
-  color: var(--navy);
-  font-size: 17px;
-  font-weight: 800;
-  outline: none;
-  margin-bottom: 11px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+  width: 100%; height: 52px; border: none; border-radius: 14px; padding: 0 16px;
+  font-size: 18px; color: var(--navy); background: #fff; margin-bottom: 12px; outline: none;
 }
-.nick-input::placeholder { color: #b6907b; font-weight: 750; }
-.nick-input:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(243,97,42,.16); }
-.entry-options { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: -1px 0 12px; }
-.entry-options > span { color: #9d5b37; font-size: 11px; font-weight: 900; white-space: nowrap; }
-.remember-row { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--navy); font-size: 13px; font-weight: 900; cursor: pointer; }
-.remember-row input { width: 18px; height: 18px; accent-color: var(--orange); cursor: pointer; }
+.nick-input:focus { box-shadow: 0 0 0 3px rgba(255,255,255,.5); }
+.remember-row { display: flex; align-items: center; gap: 8px; margin: 2px 2px 12px; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; }
+.remember-row input { width: 18px; height: 18px; accent-color: var(--navy); cursor: pointer; }
 .btn-primary {
   width: 100%; height: 52px; border: none; border-radius: 14px; background: var(--navy);
   color: #fff; font-size: 17px; font-weight: 700; cursor: pointer;
 }
 .btn-primary:active { transform: scale(.98); }
-.entry-box .btn-primary {
-  height: 54px;
-  border-radius: 13px;
-  background: linear-gradient(180deg, #143a4c 0%, #0b2634 100%);
-  color: #fff;
-  font-size: 17px;
-  font-weight: 1000;
-  box-shadow: 0 9px 0 #061824, 0 14px 20px rgba(11,38,52,.2);
-}
-.entry-box .btn-primary:active { transform: translateY(4px); box-shadow: 0 5px 0 #061824, 0 8px 14px rgba(11,38,52,.18); }
-.entry-hint { margin-top: 12px; padding-top: 11px; border-top: 1px dashed #f0d3bc; color: #985437; font-size: 12px; font-weight: 850; line-height: 1.45; }
-.entry-hint b { color: #d95816; }
-.entry-hint .hl { display: block; margin-bottom: 3px; color: #d95816; font-size: 13px; font-weight: 1000; }
-.login-msg { margin-top: 11px; min-height: 18px; color: #c9481c; font-size: 13px; font-weight: 900; }
-@media (max-height: 700px) {
-  .entry-screen { overflow-y: auto; }
-  .entry-box { margin-bottom: 62px; padding-top: 4px; }
-  .entry-logo { width: min(252px, 78vw); margin-bottom: 5px; }
-  .entry-panel { padding: 13px; }
-  .entry-people { width: min(94vw, 540px); }
-}
+.entry-hint { margin-top: 14px; font-size: 12.5px; line-height: 1.6; color: var(--cream); }
+.entry-hint b { color: #fff; }
+.entry-hint .hl { display: block; font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 8px; }
+.login-msg { margin-top: 10px; font-size: 13px; font-weight: 700; color: #FFE08A; min-height: 18px; }
 
 /* ---------- 게임 선택 ---------- */
 .select-screen { background: var(--navy); align-items: center; justify-content: center; gap: 16px; padding: 24px; }
