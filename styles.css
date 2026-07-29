@@ -4674,7 +4674,7 @@ body.is-admin .feedback-user-compose { display: none; }
   --holdem-card-rank-width-auto: calc(var(--holdem-card-width, clamp(43px, 12vw, 74px)) * .36);
   --holdem-card-rank-ten-width-auto: calc(var(--holdem-card-width, clamp(43px, 12vw, 74px)) * .52);
   --holdem-card-rank-height-auto: calc(var(--holdem-card-width, clamp(43px, 12vw, 74px)) * .34);
-  --holdem-card-rank-top-auto: calc(var(--holdem-card-width, clamp(43px, 12vw, 74px)) * .07);
+  --holdem-card-rank-top-auto: calc(var(--holdem-card-width, clamp(43px, 12vw, 74px)) * .09);
   --holdem-card-rank-left-auto: calc(var(--holdem-card-width, clamp(43px, 12vw, 74px)) * .08);
   aspect-ratio: 2 / 3;
   flex: 0 0 auto;
@@ -6051,7 +6051,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-result-board .holdem-card,
 .holdem-result-cards .holdem-card {
   --holdem-card-width: 34px;
-  --holdem-card-rank-top: 3px;
+  --holdem-card-rank-top: 4px;
   --holdem-card-rank-left: 4px;
   --holdem-card-rank-width: 12px;
   --holdem-card-rank-ten-width: 18px;
@@ -6474,7 +6474,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-fold-reveal-cards .holdem-card {
   --holdem-card-width: clamp(27px, 6.8vw, 37px);
-  --holdem-card-rank-top: 3px;
+  --holdem-card-rank-top: 4px;
   --holdem-card-rank-left: 4px;
   --holdem-card-rank-width: clamp(10px, 2.5vw, 14px);
   --holdem-card-rank-ten-width: clamp(15px, 3.9vw, 21px);

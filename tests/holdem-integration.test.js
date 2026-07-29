@@ -284,6 +284,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{\s*top:\s*95%;\s*left:\s*50%;\s*\}/);
   assert.match(styles, /\.holdem-card\.back/);
   assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-width-auto:[\s\S]*var\(--holdem-card-width/);
+  assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-top-auto:\s*calc\(var\(--holdem-card-width,\s*clamp\(43px,\s*12vw,\s*74px\)\) \* \.09\)/);
   assert.match(styles, /\.holdem-card-rank svg,[\s\S]*\.holdem-card > \.rank svg\s*\{[\s\S]*fill: currentColor/);
   assert.match(controller, /"10": \{ viewBox: "7\.15 36\.26 115\.14 76\.02"/);
   assert.match(controller, /M62\.8 73\.97 C62\.8 60\.37/);
@@ -294,6 +295,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.doesNotMatch(styles, /repeating-linear-gradient\(28deg, transparent 0 5px, #c52835/);
   assert.match(styles, /@keyframes holdemCommunityCardBackFlip/);
   assert.match(styles, /\.is-community-flipping\.is-community-river-flipping\s*\{[\s\S]*animation-name:\s*holdemCommunityRiverFlip[\s\S]*animation-duration:\s*1800ms/);
+  assert.match(styles, /\.holdem-result-board \.holdem-card,[\s\S]*\.holdem-result-cards \.holdem-card\s*\{[\s\S]*--holdem-card-rank-top:\s*4px/);
   assert.match(styles, /@keyframes holdemCommunityRiverFlip\s*\{[\s\S]*74%\s*\{[^}]*rotateY\(158deg\)[\s\S]*78%\s*\{[^}]*rotateY\(92deg\)[\s\S]*100%\s*\{[^}]*rotateY\(0\)/);
   assert.match(styles, /@keyframes holdemCommunityRiverBackFlip\s*\{[\s\S]*0%, 76%\s*\{\s*opacity:\s*1[\s\S]*78%, 100%\s*\{\s*opacity:\s*0/);
   assert.match(controller, /COMMUNITY_RIVER_FLIP_MS = 1800/);
