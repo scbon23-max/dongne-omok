@@ -1985,21 +1985,22 @@ window.TexasHoldem = (function () {
     layer.dataset.payoutKey = key;
     stage.appendChild(layer);
 
-    var particlesPerWinner = targets.length > 1 ? 6 : 10;
+    var particlesPerWinner = targets.length > 1 ? 9 : 14;
     var longestMs = 0;
     targets.forEach(function (target, targetIndex) {
       target.node.classList.add("is-payout-receiving");
       for (var i = 0; i < particlesPerWinner; i++) {
         var particle = document.createElement("span");
         particle.className = "holdem-payout-particle";
-        var delay = targetIndex * 90 + i * 42 + Math.round(Math.random() * 50);
+        var delay = targetIndex * 90 + i * 34 + Math.round(Math.random() * 44);
         var duration = 720 + Math.round(Math.random() * 280);
         var side = i % 2 ? 1 : -1;
         var drift = (i - (particlesPerWinner - 1) / 2) * 8;
         var midRatio = .42 + Math.random() * .22;
         var midX = start.x + (target.end.x - start.x) * midRatio + side * (22 + Math.random() * 34);
         var midY = start.y + (target.end.y - start.y) * midRatio - (30 + Math.random() * 58) + drift;
-        var size = 5 + Math.random() * 5;
+        var sizeSteps = [4.5, 5.8, 7.2, 9.4, 12.2];
+        var size = sizeSteps[i % sizeSteps.length] + Math.random() * 1.15;
         particle.style.setProperty("--payout-start-x", start.x.toFixed(1) + "px");
         particle.style.setProperty("--payout-start-y", start.y.toFixed(1) + "px");
         particle.style.setProperty("--payout-mid-x", midX.toFixed(1) + "px");
