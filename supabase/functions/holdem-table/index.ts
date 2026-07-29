@@ -528,14 +528,14 @@ async function assetRankingRows(client: ReturnType<typeof createClient>) {
   const completedHands = new Map<string, number>();
   (Array.isArray(handRows) ? handRows : []).forEach((row) => {
     const nickname = safeText(row?.nickname, 40);
-    if (!nickname || adminNicknames.has(nickname)) return;
+    if (!nickname) return;
     completedHands.set(nickname, (completedHands.get(nickname) ?? 0) + 1);
   });
   const ranked = (Array.isArray(walletRows) ? walletRows : []).map((row) => {
     const nickname = safeText(row?.nickname, 40);
-    if (adminNicknames.has(nickname)) return null;
+    const isAdmin = adminNicknames.has(nickname);
     const handCount = completedHands.get(nickname) ?? 0;
-    if (handCount < RANKING_MIN_HANDS) return null;
+    if (!isAdmin && handCount < RANKING_MIN_HANDS) return null;
     const balance = Number(row?.balance);
     if (
       !nickname ||

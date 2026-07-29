@@ -471,9 +471,10 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.doesNotMatch(styles, /\.holdem-seat-action\s*\{[^}]*will-change:/);
   assert.match(styles, /\.holdem-seat-action\.is-action-enter\s*\{[\s\S]*animation:\s*holdemActionTagPop/);
   assert.match(styles, /\.holdem-seat-action\.is-action-enter\s*\{[\s\S]*will-change:\s*transform, filter, opacity/);
-  assert.match(styles, /\.holdem-seat-action\.action-allin\.is-action-enter\s*\{[\s\S]*animation:\s*holdemActionTagAllinPulse/);
-  assert.match(styles, /\.holdem-seat-action\.action-allin\.is-action-enter::before\s*\{[\s\S]*animation:\s*none/);
-  assert.match(styles, /@keyframes holdemActionTagAllinPulse[\s\S]*scale\(1\.18\)[\s\S]*rgba\(255,87,142,\s*\.24\)[\s\S]*scale\(1\)/);
+  assert.match(styles, /\.holdem-seat-action\.action-allin\s*\{[\s\S]*animation:\s*holdemActionTagAllinPulse 1\.12s ease-in-out infinite/);
+  assert.match(styles, /\.holdem-seat-action\.action-allin\.is-action-enter\s*\{[\s\S]*holdemActionTagPop \.48s[\s\S]*holdemActionTagAllinPulse 1\.12s ease-in-out \.48s infinite/);
+  assert.doesNotMatch(styles, /\.holdem-seat-action\.action-allin\.is-action-enter::before\s*\{/);
+  assert.match(styles, /@keyframes holdemActionTagAllinPulse[\s\S]*scale\(1\)[\s\S]*scale\(1\.07\)[\s\S]*rgba\(255,87,142,\s*\.2\)/);
   assert.match(controller, /if \(lastSeatsHtml !== nextHtml\)[\s\S]*box\.innerHTML = nextHtml/);
   assert.match(styles, /\.holdem-seat-action\.is-action-enter::before\s*\{[\s\S]*animation:\s*holdemActionTagShine/);
   assert.match(styles, /@keyframes holdemActionTagPop[\s\S]*scale\(1\.18\)[\s\S]*scale\(1\)/);

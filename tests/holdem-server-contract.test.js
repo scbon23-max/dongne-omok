@@ -47,7 +47,7 @@ const adminWalletMigration = fs.readFileSync(
     root,
     "supabase",
     "migrations",
-    "20260728214712_holdem_admin_wallet_100m.sql"
+    "202607290001_holdem_admin_wallet_100k.sql"
   ),
   "utf8"
 );
@@ -442,14 +442,14 @@ test("Hold'em wallets use 100-chip accounting and update atomically with ring ta
   assert.match(edge, /if \(action === "join"\) await cleanupExpiredTables\(client\)/);
 });
 
-test("the administrator receives exactly 100,000,000 total Hold'em assets", () => {
+test("the administrator receives exactly 100,000 total Hold'em assets and appears in ranking", () => {
   assert.match(
     adminWalletMigration,
     /target_nickname constant text := '\uad6c\ub098'/
   );
   assert.match(
     adminWalletMigration,
-    /target_assets constant bigint := 100000000/
+    /target_assets constant bigint := 100000/
   );
   assert.match(
     adminWalletMigration,
@@ -463,9 +463,13 @@ test("the administrator receives exactly 100,000,000 total Hold'em assets", () =
     adminWalletMigration,
     /balance \+ active_table_assets = target_assets/
   );
-  assert.match(
+  assert.doesNotMatch(
     edge,
     /if \(adminNicknames\.has\(nickname\)\) return null/
+  );
+  assert.match(
+    edge,
+    /if \(!isAdmin && handCount < RANKING_MIN_HANDS\) return null/
   );
 });
 
