@@ -196,6 +196,9 @@ window.TexasHoldem = (function () {
   var lastSeatsHtml = "";
   var lastSeatResultStage = "none";
   var communityRevealControlBlocked = false;
+  var chatKeyboardViewportBound = false;
+  var chatKeyboardWasOpen = false;
+  var chatKeyboardSyncTimer = null;
 
   var boundRoot = null;
   var demoState = null;
@@ -5006,6 +5009,65 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function holdemKeyboardOffset() {
+    if (typeof window === "undefined" || !window.visualViewport) return 0;
+    var viewport = window.visualViewport;
+    var layoutHeight = window.innerHeight ||
+      (document.documentElement && document.documentElement.clientHeight) ||
+      viewport.height || 0;
+    var offsetTop = Number(viewport.offsetTop) || 0;
+    var keyboard = layoutHeight - Number(viewport.height || 0) - offsetTop;
+    if (!Number.isFinite(keyboard)) return 0;
+    return Math.max(0, Math.round(keyboard));
+  }
+
+  function syncHoldemChatKeyboard(closeWhenHidden) {
+    var screen = root();
+    if (!screen) return;
+    var chatOpen = screen.classList.contains("is-chat-open");
+    var offset = chatOpen ? holdemKeyboardOffset() : 0;
+    screen.style.setProperty("--holdem-keyboard-offset", offset + "px");
+    screen.classList.toggle("is-keyboard-open", chatOpen && offset > 80);
+    if (!chatOpen) {
+      chatKeyboardWasOpen = false;
+      return;
+    }
+    if (offset > 80) {
+      chatKeyboardWasOpen = true;
+      return;
+    }
+    if (closeWhenHidden && chatKeyboardWasOpen) setChatOpen(false);
+  }
+
+  function scheduleHoldemChatKeyboardSync(closeWhenHidden) {
+    syncHoldemChatKeyboard(closeWhenHidden);
+    if (chatKeyboardSyncTimer) clearTimeout(chatKeyboardSyncTimer);
+    chatKeyboardSyncTimer = setTimeout(function () {
+      chatKeyboardSyncTimer = null;
+      syncHoldemChatKeyboard(closeWhenHidden);
+    }, 80);
+    setTimeout(function () { syncHoldemChatKeyboard(closeWhenHidden); }, 220);
+    setTimeout(function () { syncHoldemChatKeyboard(closeWhenHidden); }, 420);
+  }
+
+  function onHoldemVisualViewportChange() {
+    scheduleHoldemChatKeyboardSync(true);
+  }
+
+  function bindHoldemChatKeyboard() {
+    if (chatKeyboardViewportBound || typeof window === "undefined" || !window.visualViewport) return;
+    window.visualViewport.addEventListener("resize", onHoldemVisualViewportChange);
+    window.visualViewport.addEventListener("scroll", onHoldemVisualViewportChange);
+    chatKeyboardViewportBound = true;
+  }
+
+  function unbindHoldemChatKeyboard() {
+    if (!chatKeyboardViewportBound || typeof window === "undefined" || !window.visualViewport) return;
+    window.visualViewport.removeEventListener("resize", onHoldemVisualViewportChange);
+    window.visualViewport.removeEventListener("scroll", onHoldemVisualViewportChange);
+    chatKeyboardViewportBound = false;
+  }
+
   function setChatOpen(open, focusInput) {
     var screen = root();
     var input = $("holdem-chat-input");
@@ -5013,7 +5075,10 @@ window.TexasHoldem = (function () {
     open = !!open;
     if (screen) {
       screen.classList.toggle("is-chat-open", open);
-      if (!open) screen.classList.remove("is-chat-focused");
+      if (!open) {
+        screen.classList.remove("is-chat-focused");
+        screen.classList.remove("is-keyboard-open");
+      }
     }
     if (button) {
       button.setAttribute("aria-expanded", open ? "true" : "false");
@@ -5021,10 +5086,13 @@ window.TexasHoldem = (function () {
     }
     if (open && focusInput && input) {
       focusHoldemChatInput(input);
+      scheduleHoldemChatKeyboardSync(false);
     } else if (!open && input && document.activeElement === input) {
       input.blur();
     }
     if (!open) {
+      chatKeyboardWasOpen = false;
+      if (screen) screen.style.setProperty("--holdem-keyboard-offset", "0px");
       var overlay = $("holdem-chat-overlay");
       if (overlay) {
         overlay.dataset.holdemOverlayMode = "toast";
@@ -5284,6 +5352,7 @@ window.TexasHoldem = (function () {
     if (pollId) { clearInterval(pollId); pollId = null; }
     if (clockId) { clearInterval(clockId); clockId = null; }
     if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+    if (chatKeyboardSyncTimer) { clearTimeout(chatKeyboardSyncTimer); chatKeyboardSyncTimer = null; }
     clearAutoNextHand();
     clearAutoReadyForNextHand();
     clearBotTimer();
@@ -5341,6 +5410,7 @@ window.TexasHoldem = (function () {
     communityRevealControlBlocked = false;
     leaveAfterHandRequested = false;
     if (!bindDom()) throw new Error("텍사스 홀덤 화면을 찾을 수 없습니다.");
+    bindHoldemChatKeyboard();
     setChatOpen(false);
     bindHoldemAudioUnlock();
     syncAudio();
@@ -5356,6 +5426,7 @@ window.TexasHoldem = (function () {
     var wasJoined = active && joined;
     lifecycleGeneration += 1;
     stopTimers();
+    unbindHoldemChatKeyboard();
     active = false;
 
     if (wasJoined && previousRoom) {
