@@ -556,6 +556,7 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /if \(wonText\.length >= 12\) winGainClass \+= " is-tiny";[\s\S]*else if \(wonText\.length >= 9\) winGainClass \+= " is-compact"/);
   assert.match(styles, /\.holdem-payout-particles\s*\{[\s\S]*z-index:\s*29[\s\S]*pointer-events:\s*none/);
   assert.match(styles, /\.holdem-payout-particle\s*\{[\s\S]*radial-gradient[\s\S]*animation:\s*holdemPayoutParticleFlow/);
+  assert.doesNotMatch(styles, /\.holdem-payout-particle::after\s*\{/);
   assert.match(styles, /@keyframes holdemPayoutParticleFlow\s*\{[\s\S]*var\(--payout-start-x\)[\s\S]*var\(--payout-mid-x\)[\s\S]*var\(--payout-end-x\)/);
   assert.match(styles, /\.holdem-seat\.is-payout-receiving \.holdem-seat-avatar\s*\{[\s\S]*holdemWinnerReceivePulse/);
   assert.match(styles, /\.holdem-seat\.is-payout-receiving \.holdem-winner-result strong\s*\{[\s\S]*holdemWinnerBadgeReceive/);
