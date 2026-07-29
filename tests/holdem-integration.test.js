@@ -473,6 +473,10 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /hasAttribute\("data-card-front-skin"\)[\s\S]*setCardFrontSkin\(button\.getAttribute\("data-card-front-skin"\)\)/);
   assert.match(controller, /hasAttribute\("data-card-back-skin"\)[\s\S]*setCardBackSkin\(button\.getAttribute\("data-card-back-skin"\)\)/);
   assert.match(controller, /id === "holdem-unit-toggle"[\s\S]*toggleMoneyUnitMode\(\)/);
+  assert.match(styles, /\.holdem-settings-panel\s*\{[\s\S]*width:\s*min\(330px,\s*calc\(100vw - 24px\)\)[\s\S]*border-radius:\s*12px/);
+  assert.match(styles, /\.holdem-card-front-option\[aria-checked="true"\]::after\s*\{[\s\S]*border-radius:\s*50%/);
+  assert.match(styles, /\.holdem-card-back-option\[aria-checked="true"\]::after\s*\{[\s\S]*border-radius:\s*50%/);
+  assert.match(styles, /\.holdem-setting-toggle\s*\{[\s\S]*border-radius:\s*999px/);
   assert.match(controller, /show\("holdem-raise-panel", hasMove && canSize && raiseMenuOpen\)/);
   assert.match(controller, /var queuedAction = null/);
   assert.match(controller, /function queuedActionOptions\(\)[\s\S]*fold_check[\s\S]*maxCallAmount/);
