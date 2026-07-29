@@ -158,6 +158,8 @@ function controlTestDocument() {
     "holdem-refill-panel",
     "holdem-refill-btn",
     "holdem-refill-status",
+    "holdem-emoji-toggle",
+    "holdem-emoji-panel",
     "holdem-connection",
     "holdem-status",
   ];
@@ -1236,6 +1238,44 @@ test("public refresh messages are treated only as invalidation hints", () => {
   });
   assert.equal(handled, true);
   assert.equal(controller._test.getRawSnapshot(), null);
+});
+
+test("holdem emoji reactions send and render on the matching player avatar", () => {
+  const { document, elements } = resultTestDocument();
+  const sent = [];
+  const controller = loadController("alice", { document });
+  controller._test.setApi({
+    me: () => ({ nick: "alice" }),
+    roomId: () => "room-controller",
+    galleryAuth: () => ({ nick: "alice", hash: "a".repeat(64) }),
+    send: (message) => sent.push(message),
+  });
+  controller._test.setState(controller._test.normalizeSnapshot({
+    phase: "flop",
+    heroSeat: 0,
+    seats: [
+      { seat: 0, nick: "alice", stack: 10000, inHand: true },
+      { seat: 1, nick: "bob", stack: 9900, inHand: true },
+    ],
+  }, 16));
+
+  assert.equal(controller._test.sendHoldemEmoji("😎"), true);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].t, "holdem_emoji");
+  assert.equal(sent[0].game, "holdem");
+  assert.equal(sent[0].nick, "alice");
+  assert.equal(sent[0].emoji, "😎");
+  assert.match(elements["holdem-seats"].innerHTML, /holdem-seat-emoji-pop/);
+  assert.match(elements["holdem-seats"].innerHTML, /😎/);
+
+  const handled = controller.onMessage({
+    t: "holdem_emoji",
+    nick: "bob",
+    emoji: "👍",
+    id: "remote-emoji-1",
+  });
+  assert.equal(handled, true);
+  assert.match(elements["holdem-seats"].innerHTML, /👍/);
 });
 
 test("request ids and rendered cards stay bounded and accessible", () => {

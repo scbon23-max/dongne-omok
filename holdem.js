@@ -87,6 +87,12 @@ window.TexasHoldem = (function () {
     allin: 0.88,
     winner: 0.9
   };
+  var HOLDEM_REACTION_EMOJIS = [
+    "😅", "🤣", "🤪", "🤑", "🤔",
+    "😑", "😒", "😭", "😱", "😎",
+    "🥶", "👿", "🤬", "💩", "💯",
+    "👍", "👎", "🩷", "❓", "‼️"
+  ];
   var RESULT_SETTLE_MS = 1600;
   var RESULT_REVIEW_MS = 4000;
   var HOLDEM_SETTINGS_STORAGE_PREFIX = "dongne_holdem_settings:";
@@ -208,6 +214,11 @@ window.TexasHoldem = (function () {
   var chatKeyboardSyncTimers = [];
   var chatKeyboardHideTimer = null;
   var chatEnterKeyBound = false;
+  var emojiPanelOpen = false;
+  var seatEmojiReactions = Object.create(null);
+  var seatEmojiTimers = Object.create(null);
+  var seatEmojiSeenMessages = Object.create(null);
+  var seatEmojiSequence = 0;
 
   var boundRoot = null;
   var demoState = null;
@@ -281,6 +292,61 @@ window.TexasHoldem = (function () {
         "'": "&#39;"
       }[character];
     });
+  }
+
+  function holdemReactionEmoji(value) {
+    var emoji = String(value == null ? "" : value).trim();
+    return HOLDEM_REACTION_EMOJIS.indexOf(emoji) >= 0 ? emoji : "";
+  }
+
+  function seatEmojiKey(nick) {
+    return text(nick, 40);
+  }
+
+  function seatEmojiHtml(seat) {
+    var key = seatEmojiKey(seat && seat.nick);
+    var reaction = key ? seatEmojiReactions[key] : null;
+    if (!reaction) return "";
+    return '<span class="holdem-seat-emoji-pop" data-emoji-seq="' +
+      esc(reaction.seq) + '" aria-hidden="true">' + esc(reaction.emoji) + '</span>';
+  }
+
+  function clearSeatEmojiReactions() {
+    Object.keys(seatEmojiTimers).forEach(function (key) {
+      clearTimeout(seatEmojiTimers[key]);
+      delete seatEmojiTimers[key];
+    });
+    seatEmojiReactions = Object.create(null);
+    seatEmojiSeenMessages = Object.create(null);
+    lastSeatsHtml = "";
+  }
+
+  function showSeatEmoji(nick, emoji, messageId) {
+    var key = seatEmojiKey(nick);
+    emoji = holdemReactionEmoji(emoji);
+    if (!key || !emoji) return false;
+    var seenKey = text(messageId, 100);
+    if (seenKey) {
+      if (seatEmojiSeenMessages[seenKey]) return true;
+      seatEmojiSeenMessages[seenKey] = true;
+    }
+    if (seatEmojiTimers[key]) clearTimeout(seatEmojiTimers[key]);
+    seatEmojiReactions[key] = {
+      emoji: emoji,
+      seq: ++seatEmojiSequence
+    };
+    lastSeatsHtml = "";
+    renderSeats();
+    seatEmojiTimers[key] = setTimeout(function () {
+      delete seatEmojiTimers[key];
+      delete seatEmojiReactions[key];
+      lastSeatsHtml = "";
+      renderSeats();
+    }, 1900);
+    if (seatEmojiTimers[key] && typeof seatEmojiTimers[key].unref === "function") {
+      seatEmojiTimers[key].unref();
+    }
+    return true;
   }
 
   function setText(id, value) {
@@ -4539,6 +4605,7 @@ window.TexasHoldem = (function () {
           '<small>' + esc(resultHandLabel(absolute)) + '</small>' +
         '</div>';
       }
+      var emojiHtml = seat ? seatEmojiHtml(seat) : "";
 
       html.push(
         '<article class="' + classes.join(" ") + '" data-seat="' + absolute +
@@ -4549,6 +4616,7 @@ window.TexasHoldem = (function () {
           '<div class="holdem-seat-avatar" aria-hidden="true">' +
             (avatarSrc ? '<img src="' + esc(avatarSrc) + '" alt="">' : seat ? avatarNameHtml(name) :
               '<span class="holdem-seat-open-icon"><span></span><i></i></span>') +
+            emojiHtml +
           '</div>' +
           '<div class="holdem-seat-badges" aria-hidden="true">' + badges + '</div>' +
           leaveBadge +
@@ -5092,6 +5160,7 @@ window.TexasHoldem = (function () {
       screen.classList.toggle("is-raise-menu-open", hasMove && canSize && raiseMenuOpen);
       screen.classList.toggle("is-seat-selection", waiting && state.heroSeat < 0);
     }
+    renderEmojiControls();
     renderConnection();
   }
 
@@ -5271,6 +5340,47 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function renderEmojiControls() {
+    var screen = root();
+    var panel = $("holdem-emoji-panel");
+    var button = $("holdem-emoji-toggle");
+    if (screen) screen.classList.toggle("is-emoji-open", emojiPanelOpen);
+    if (panel) panel.classList.toggle("hidden", !emojiPanelOpen);
+    if (button) {
+      button.setAttribute("aria-expanded", emojiPanelOpen ? "true" : "false");
+      button.setAttribute("aria-label", emojiPanelOpen ? "이모지 액션 닫기" : "이모지 액션 열기");
+    }
+  }
+
+  function setEmojiPanelOpen(open) {
+    emojiPanelOpen = !!open;
+    renderEmojiControls();
+  }
+
+  function toggleEmojiPanel() {
+    setEmojiPanelOpen(!emojiPanelOpen);
+  }
+
+  function sendHoldemEmoji(value) {
+    var emoji = holdemReactionEmoji(value);
+    var nick = text(me().nick, 40);
+    if (!emoji || !nick) return false;
+    var messageId = requestId("emoji", nick + ":" + String(Date.now()) + ":" + String(Math.random()));
+    setEmojiPanelOpen(false);
+    showSeatEmoji(nick, emoji, messageId);
+    if (api && typeof api.send === "function") {
+      api.send({
+        t: "holdem_emoji",
+        game: "holdem",
+        nick: nick,
+        emoji: emoji,
+        id: messageId
+      });
+      return true;
+    }
+    return true;
+  }
+
   function focusHoldemChatInput(input) {
     if (!input) return;
     try {
@@ -5390,6 +5500,7 @@ window.TexasHoldem = (function () {
     var input = $("holdem-chat-input");
     var button = $("holdem-chat-toggle");
     open = !!open;
+    if (open && emojiPanelOpen) setEmojiPanelOpen(false);
     if (open) cancelHoldemChatKeyboardHide();
     if (screen) {
       screen.classList.toggle("is-chat-open", open);
@@ -5436,6 +5547,18 @@ window.TexasHoldem = (function () {
       closeBuyInDialog({ suppressAutoSeat: true });
       return;
     }
+    var emojiButton = event.target.closest("[data-holdem-emoji]");
+    if (emojiButton && screen.contains(emojiButton)) {
+      sendHoldemEmoji(emojiButton.getAttribute("data-holdem-emoji"));
+      return;
+    }
+    if (event.target.closest("#holdem-emoji-toggle")) {
+      toggleEmojiPanel();
+      return;
+    }
+    if (event.target.closest("#holdem-emoji-panel")) return;
+    if (emojiPanelOpen) setEmojiPanelOpen(false);
+
     var profileSeat = event.target.closest(".holdem-seat:not(.is-empty)");
     if (profileSeat && screen.contains(profileSeat)) {
       openProfileDialog(profileSeat.getAttribute("data-seat"));
@@ -5856,6 +5979,9 @@ window.TexasHoldem = (function () {
     communityRevealControlBlocked = false;
     leaveAfterHandRequested = false;
     spectateAfterHandRequested = false;
+    emojiPanelOpen = false;
+    clearSeatEmojiReactions();
+    renderEmojiControls();
   }
 
   function onReady() {
@@ -5869,6 +5995,9 @@ window.TexasHoldem = (function () {
   }
 
   function onMessage(message) {
+    if (message && message.t === "holdem_emoji") {
+      return showSeatEmoji(message.nick, message.emoji, message.id);
+    }
     if (!message || message.t !== "holdem_refresh") return false;
     // Never consume message.snapshot/message.cards. The only safe reaction to
     // a public notification is a personalized server fetch.
@@ -5990,6 +6119,10 @@ window.TexasHoldem = (function () {
       renderControls: renderControls,
       renderTimer: renderTimer,
       renderBoard: renderBoard,
+      renderSeats: renderSeats,
+      holdemReactionEmoji: holdemReactionEmoji,
+      sendHoldemEmoji: sendHoldemEmoji,
+      showSeatEmoji: showSeatEmoji,
       communityRevealBlocksActions: communityRevealBlocksActions,
       relativeSeat: relativeSeat,
       requestId: requestId,
