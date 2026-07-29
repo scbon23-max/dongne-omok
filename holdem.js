@@ -2651,6 +2651,11 @@ window.TexasHoldem = (function () {
     return normalizeCardIndexes(indexes).join(",");
   }
 
+  function heroRevealCardClass(cardIndex) {
+    var indexes = normalizeCardIndexes(state.heroRevealCards);
+    return indexes.indexOf(cardIndex) >= 0 ? "is-hero-reveal-thrown" : "";
+  }
+
   function canReserveFoldReveal() {
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
     return !!(isHandActive(state.phase) &&
@@ -4372,7 +4377,11 @@ window.TexasHoldem = (function () {
             var comboClass = winnerCombo
               ? (winnerCombo.holeCards[cardIndex] ? "is-winning-combo-card" : "is-winning-combo-muted")
               : "";
-            return cardHtml(card, null, comboClass);
+            var cardClasses = [];
+            var revealClass = heroRevealCardClass(cardIndex);
+            if (comboClass) cardClasses.push(comboClass);
+            if (revealClass) cardClasses.push(revealClass);
+            return cardHtml(card, null, cardClasses.join(" "));
           }).join("");
         } else if (state.revealedCards[absolute] && state.revealedCards[absolute].length) {
           holesClass += " is-visible-cards is-revealed-cards";

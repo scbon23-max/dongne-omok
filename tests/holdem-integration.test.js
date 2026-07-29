@@ -421,6 +421,10 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 56px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-seat-avatar-size\) \/ 2 - 24px\)/);
   assert.match(controller, /is-visible-cards is-revealed-cards/);
+  assert.match(controller, /function heroRevealCardClass\(cardIndex\)[\s\S]*normalizeCardIndexes\(state\.heroRevealCards\)/);
+  assert.match(controller, /heroRevealCardClass\(cardIndex\)/);
+  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card\.is-hero-reveal-thrown\s*\{[\s\S]*animation:\s*holdemHeroRevealThrow/);
+  assert.match(styles, /@keyframes holdemHeroRevealThrow[\s\S]*translate\(var\(--holdem-reveal-x/);
   assert.match(controller, /class="holdem-seat-open-icon"/);
   assert.match(controller, /seat \? readProfileAvatar\(seat\.nick\) : ""/);
   assert.match(controller, /role="button" tabindex="0"/);

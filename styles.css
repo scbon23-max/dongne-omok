@@ -5424,6 +5424,41 @@ body.is-admin .feedback-user-compose { display: none; }
   border-radius: var(--holdem-card-radius, 3px);
   transform: none;
 }
+.holdem-seat.is-me .holdem-hole-cards .holdem-card.is-hero-reveal-thrown {
+  --holdem-reveal-x: 0px;
+  --holdem-reveal-rotate: 0deg;
+  position: relative;
+  z-index: 18;
+  animation: holdemHeroRevealThrow 560ms cubic-bezier(.18,.95,.25,1.02) both;
+  filter: drop-shadow(0 10px 14px rgba(0,0,0,.38)) drop-shadow(0 0 10px rgba(255,231,154,.32));
+  will-change: transform, filter;
+}
+.holdem-seat.is-me .holdem-hole-cards .holdem-card:first-of-type.is-hero-reveal-thrown {
+  --holdem-reveal-x: -18px;
+  --holdem-reveal-rotate: -8deg;
+}
+.holdem-seat.is-me .holdem-hole-cards .holdem-card:last-of-type.is-hero-reveal-thrown {
+  --holdem-reveal-x: 18px;
+  --holdem-reveal-rotate: 8deg;
+  animation-delay: 70ms;
+}
+@keyframes holdemHeroRevealThrow {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    filter: brightness(.92) drop-shadow(0 2px 4px rgba(0,0,0,.18));
+  }
+  42% {
+    transform: translate(calc(var(--holdem-reveal-x, 0px) * .45), -22px) rotate(calc(var(--holdem-reveal-rotate, 0deg) * .42)) scale(1.06);
+    filter: brightness(1.1) drop-shadow(0 10px 12px rgba(0,0,0,.32)) drop-shadow(0 0 12px rgba(255,237,172,.42));
+  }
+  74% {
+    transform: translate(calc(var(--holdem-reveal-x, 0px) * 1.06), -47px) rotate(calc(var(--holdem-reveal-rotate, 0deg) * 1.05)) scale(1.09);
+  }
+  100% {
+    transform: translate(var(--holdem-reveal-x, 0px), -42px) rotate(var(--holdem-reveal-rotate, 0deg)) scale(1.08);
+    filter: brightness(1.06) drop-shadow(0 12px 15px rgba(0,0,0,.38)) drop-shadow(0 0 10px rgba(255,231,154,.32));
+  }
+}
 .holdem-announcer {
   position: absolute;
   z-index: 20;
