@@ -5920,11 +5920,18 @@ body.is-admin .feedback-user-compose { display: none; }
   background: linear-gradient(180deg, rgba(17,29,35,.97), rgba(7,12,15,.98));
   box-shadow: 0 -8px 34px rgba(0,0,0,.52);
 }
+.holdem-action-panel:not(.hidden) {
+  bottom: max(8px, env(safe-area-inset-bottom));
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
 .holdem-pre-action-panel {
   position: absolute;
   z-index: 49;
   right: 14px;
-  bottom: max(74px, calc(env(safe-area-inset-bottom) + 72px));
+  bottom: max(8px, env(safe-area-inset-bottom));
   left: 14px;
   max-width: 520px;
   margin: 0 auto;
@@ -6168,6 +6175,7 @@ body.is-admin .feedback-user-compose { display: none; }
   box-shadow: none;
 }
 .holdem-action-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 4px 7px; }
+.holdem-action-panel:not(.hidden) .holdem-action-summary { display: none; }
 .holdem-screen.is-actioning .holdem-action-summary { display: none; }
 .holdem-action-summary > div:first-child { display: flex; min-width: 0; flex-direction: column; }
 .holdem-action-summary span { color: #82cfc3; font-size: 9px; font-weight: 850; }
@@ -6279,15 +6287,23 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-action-amount-fit.is-long-amount { font-size: clamp(12px, 3.4vw, 17px); }
 .holdem-action-amount-fit.is-xl-amount { font-size: clamp(10px, 2.8vw, 14px); }
 .holdem-action-buttons { display: flex; gap: 7px; }
+.holdem-action-panel:not(.hidden) .holdem-action-buttons,
 .holdem-screen.is-actioning .holdem-action-buttons {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
+.holdem-action-panel:not(.hidden) .holdem-action-buttons > .holdem-action,
 .holdem-screen.is-actioning .holdem-action-buttons > .holdem-action { grid-row: 1; }
+.holdem-action-panel:not(.hidden) #holdem-fold-btn,
 .holdem-screen.is-actioning #holdem-fold-btn { grid-column: 1; }
+.holdem-action-panel:not(.hidden) #holdem-check-btn,
+.holdem-action-panel:not(.hidden) #holdem-call-btn,
 .holdem-screen.is-actioning #holdem-check-btn,
 .holdem-screen.is-actioning #holdem-call-btn { grid-column: 2; }
+.holdem-action-panel:not(.hidden) #holdem-bet-btn,
+.holdem-action-panel:not(.hidden) #holdem-raise-btn,
+.holdem-action-panel:not(.hidden) #holdem-allin-btn,
 .holdem-screen.is-actioning #holdem-bet-btn,
 .holdem-screen.is-actioning #holdem-raise-btn,
 .holdem-screen.is-actioning #holdem-allin-btn { grid-column: 3; }
@@ -6310,6 +6326,7 @@ body.is-admin .feedback-user-compose { display: none; }
   cursor: pointer;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 5px 12px rgba(0,0,0,.23);
 }
+.holdem-action-panel:not(.hidden) .holdem-action,
 .holdem-screen.is-actioning .holdem-action {
   min-height: 52px;
   border-radius: 7px;
@@ -6378,6 +6395,10 @@ body.is-admin .feedback-user-compose { display: none; }
   left: calc(8px + (100% - 16px) / 6 - 21px);
   right: auto;
   bottom: calc(max(8px, env(safe-area-inset-bottom)) + 60px);
+}
+.holdem-screen.is-pre-actioning .holdem-chat-toggle {
+  z-index: 53;
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 62px);
 }
 .holdem-chat-row {
   position: absolute;
@@ -6524,6 +6545,7 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-chat-row { right: 50%; left: auto; width: 720px; transform: translateX(50%); }
   .holdem-chat-toggle { left: calc(50% - 348px); right: auto; }
   .holdem-screen.is-actioning .holdem-chat-toggle { left: calc(50% - 261px); right: auto; }
+  .holdem-screen.is-pre-actioning .holdem-chat-toggle { left: calc(50% - 261px); right: auto; }
   .holdem-screen.is-actioning.is-raise-menu-open.is-chat-open .holdem-chat-row {
     right: calc(50% - 360px);
     left: auto;

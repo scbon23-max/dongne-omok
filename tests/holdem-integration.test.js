@@ -506,6 +506,9 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /syncTimerWarning\(info\)/);
   assert.match(styles, /@keyframes holdemSeatTimerUrgent/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-action-summary \{ display: none; \}/);
+  assert.match(styles, /\.holdem-action-panel:not\(\.hidden\)\s*\{[\s\S]*bottom:\s*max\(8px,\s*env\(safe-area-inset-bottom\)\)[\s\S]*background:\s*transparent/);
+  assert.match(styles, /\.holdem-action-panel:not\(\.hidden\) \.holdem-action-summary \{ display: none; \}/);
+  assert.match(styles, /\.holdem-action-panel:not\(\.hidden\) \.holdem-action-buttons,[\s\S]*\.holdem-screen\.is-actioning \.holdem-action-buttons\s*\{[\s\S]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel \{[\s\S]*position: absolute[\s\S]*left: auto[\s\S]*right: 0[\s\S]*bottom: 60px[\s\S]*width: calc\(\(100% - 16px\) \/ 3\)[\s\S]*pointer-events: none/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets\s*\{[\s\S]*display: flex[\s\S]*flex-direction: column[\s\S]*justify-content: flex-end[\s\S]*gap: 6px/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\s*\{[\s\S]*pointer-events: auto/);
@@ -518,7 +521,8 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.doesNotMatch(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet(?:-tier)?="(?:allin|eight-pot|four-pot|two-pot|pot|three-quarter|half|over)"\][^{]*\{[^}]*grid-(?:row|column):/);
   assert.match(styles, /\.holdem-screen\.is-raise-menu-open #holdem-bet-btn,[\s\S]*#holdem-raise-btn\s*\{[\s\S]*visibility: hidden/);
   assert.match(styles, /\.holdem-screen\.is-actioning:not\(\.is-chat-open\) \.holdem-chat-row \{[\s\S]*opacity: 0/);
-  assert.match(styles, /\.holdem-pre-action-panel\s*\{[\s\S]*bottom:\s*max\(74px,\s*calc\(env\(safe-area-inset-bottom\) \+ 72px\)\)/);
+  assert.match(styles, /\.holdem-pre-action-panel\s*\{[\s\S]*bottom:\s*max\(8px,\s*env\(safe-area-inset-bottom\)\)/);
+  assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-chat-toggle\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 62px\)/);
   assert.match(styles, /\.holdem-pre-action\.is-queued\s*\{[\s\S]*border-color:\s*rgba\(117, 238, 255, \.76\)/);
   assert.match(styles, /\.holdem-pre-action\.is-queued::after\s*\{[\s\S]*content:\s*"예약"/);
   assert.doesNotMatch(styles, /is-unreservable/);
