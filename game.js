@@ -248,6 +248,9 @@
       showChat: function (nick, text, overlaySide) {
         addChatTo("catchmind", nick, text, true, overlaySide === "right" ? "right" : "");
       },
+      showChatToast: function (nick, text, overlaySide) {
+        pushOverlay(activeFamily(), nick, text, overlaySide);
+      },
       playWarning: function () {
         initAudio();
         playSample(warnBuffer);
@@ -4643,13 +4646,17 @@
       renderHoldemChatHistory();
       return;
     }
+    pushOverlayToast(family, nick, text, overlaySide, ov);
+  }
+  function pushOverlayToast(family, nick, text, overlaySide, ov) {
+    ov = ov || $(gameUi(family).chatOverlayId); if (!ov) return;
     if (family === "holdem") {
       if (ov.dataset.holdemOverlayMode === "history") ov.innerHTML = "";
       ov.dataset.holdemOverlayMode = "toast";
     }
     var line = createOverlayLine(family, nick, text, overlaySide);
     ov.appendChild(line);
-    var maxLines = family === "catchmind" ? 5 : 3;
+    var maxLines = family === "catchmind" || family === "holdem" ? 5 : 3;
     while (ov.children.length > maxLines) ov.removeChild(ov.children[0]);
     refreshOverlayOpacity(family, ov);
     setTimeout(function () { line.classList.add("show"); refreshOverlayOpacity(family, ov); }, 20);
@@ -4659,7 +4666,7 @@
         if (line.parentNode) line.parentNode.removeChild(line);
         refreshOverlayOpacity(family, ov);
       }, 300);
-    }, 4500);
+    }, family === "holdem" ? 7000 : 4500);
   }
   function refreshOverlayOpacity(family, ov) {
     if (family !== "catchmind" || !ov) return;

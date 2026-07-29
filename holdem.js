@@ -5010,6 +5010,9 @@ window.TexasHoldem = (function () {
     if (sent) {
       input.value = "";
       setChatOpen(false);
+      if (api && typeof api.showChatToast === "function") {
+        api.showChatToast(text(me().nick, 40), value);
+      }
     }
   }
 
