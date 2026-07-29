@@ -535,7 +535,14 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-screen\.is-keyboard-open\.is-actioning\.is-chat-open \.holdem-chat-row,[\s\S]*\.holdem-screen\.is-keyboard-open\.is-fold-revealing\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(6px,\s*env\(safe-area-inset-bottom\)\) \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
   assert.match(styles, /\.holdem-pre-action-panel\s*\{[\s\S]*bottom:\s*max\(8px,\s*env\(safe-area-inset-bottom\)\)/);
   assert.match(styles, /\.holdem-fold-reveal-panel\s*\{[\s\S]*bottom:\s*max\(8px,\s*env\(safe-area-inset-bottom\)\)/);
-  assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-chat-toggle\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 62px\)/);
+  assert.match(styles, /\.holdem-chat-toggle\s*\{[\s\S]*left:\s*12px[\s\S]*bottom:\s*max\(66px,\s*calc\(env\(safe-area-inset-bottom\) \+ 62px\)\)/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-chat-toggle\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 68px\)/);
+  assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-chat-toggle\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 70px\)/);
+  assert.match(styles, /\.holdem-screen\.is-fold-revealing \.holdem-chat-toggle\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 68px\)/);
+  assert.doesNotMatch(styles, /\.holdem-screen\.is-actioning \.holdem-chat-toggle\s*\{[^}]*left:/);
+  assert.doesNotMatch(styles, /\.holdem-screen\.is-pre-actioning \.holdem-chat-toggle\s*\{[^}]*left:/);
+  assert.doesNotMatch(styles, /\.holdem-screen\.is-fold-revealing \.holdem-chat-toggle\s*\{[^}]*left:/);
+  assert.doesNotMatch(styles, /\.holdem-screen\.is-actioning \.holdem-chat-toggle \{ left: calc\(50% - 261px\)/);
   assert.match(styles, /\.holdem-pre-action\.is-queued\s*\{[\s\S]*border-color:\s*rgba\(117, 238, 255, \.76\)/);
   assert.match(styles, /\.holdem-pre-action\.is-queued::after\s*\{[\s\S]*content:\s*"예약"/);
   assert.doesNotMatch(styles, /is-unreservable/);
