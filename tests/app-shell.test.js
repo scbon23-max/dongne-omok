@@ -117,6 +117,20 @@ test("late-loaded game code still binds the interface", () => {
   assert.match(game, /if \(document\.readyState === "loading"\) document\.addEventListener\("DOMContentLoaded", bind\);\s*else bind\(\);/);
 });
 
+test("lobby warns non-Chrome browsers with OS-specific Chrome download links", () => {
+  assert.match(index, /id="lobby-chrome-warning"/);
+  assert.match(index, /Chrome 브라우저 권장/);
+  assert.match(index, /id="lobby-chrome-download"/);
+  assert.match(index, /id="lobby-copy-link"/);
+  assert.match(styles, /\.lobby-chrome-warning\s*\{/);
+  assert.match(game, /function isRecommendedChromeBrowser\(\)/);
+  assert.match(game, /kakaotalk/);
+  assert.match(game, /play\.google\.com\/store\/apps\/details\?id=com\.android\.chrome/);
+  assert.match(game, /apps\.apple\.com\/us\/app\/google-chrome\/id535886823/);
+  assert.match(game, /https:\/\/www\.google\.com\/chrome\//);
+  assert.match(game, /\$\("lobby-copy-link"\)\.addEventListener\("click", copyCurrentLinkForChrome\)/);
+});
+
 test("CatchMind keeps its level flow while the retired ranking UI stays removed", () => {
   const catalogContext = { window: {} };
   vm.createContext(catalogContext);

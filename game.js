@@ -480,11 +480,60 @@
     if (!lobbyMode) setLobbyConn("local");
   }
   var lobbyConnected = false;
+  function isRecommendedChromeBrowser() {
+    var ua = navigator.userAgent || "";
+    var vendor = navigator.vendor || "";
+    var lower = ua.toLowerCase();
+    if (lower.indexOf("kakaotalk") !== -1) return false;
+    if (/\bwv\b|; wv\)/i.test(ua)) return false;
+    if (lower.indexOf("samsungbrowser") !== -1 || lower.indexOf("naver") !== -1 || lower.indexOf("whale") !== -1) return false;
+    if (/edg|opr|opera|firefox|fxios/i.test(ua)) return false;
+    if (/CriOS/i.test(ua)) return true;
+    return /Chrome/i.test(ua) && /Google/i.test(vendor) && !/Chromium/i.test(ua);
+  }
+  function chromeDownloadUrl() {
+    var ua = navigator.userAgent || "";
+    if (/Android/i.test(ua)) return "https://play.google.com/store/apps/details?id=com.android.chrome";
+    if (/iPhone|iPad|iPod/i.test(ua)) return "https://apps.apple.com/us/app/google-chrome/id535886823";
+    return "https://www.google.com/chrome/";
+  }
+  function copyCurrentLinkForChrome() {
+    var url = location.href;
+    function done(ok) {
+      toast(ok ? "현재 링크를 복사했어요. Chrome 주소창에 붙여넣어 주세요." : "복사가 안 됐어요. 주소창의 링크를 직접 복사해 주세요.", ok ? 2600 : 3200);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function () { done(true); }, function () { done(false); });
+      return;
+    }
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = url;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      done(document.execCommand("copy"));
+      document.body.removeChild(ta);
+    } catch (e) {
+      done(false);
+    }
+  }
+  function updateLobbyChromeWarning() {
+    var box = $("lobby-chrome-warning");
+    var link = $("lobby-chrome-download");
+    if (!box) return;
+    var show = !isRecommendedChromeBrowser();
+    box.classList.toggle("hidden", !show);
+    if (link) link.href = chromeDownloadUrl();
+  }
   function showLobby() {
     $("entry").classList.add("hidden");
     hideGameScreens();
     $("lobby").classList.remove("hidden");
     document.body.classList.toggle("is-admin", me.isAdmin);
+    updateLobbyChromeWarning();
     prepareCatchPersonalState();
     if ($("lobby-feedback-label")) {
       $("lobby-feedback-label").textContent = me.isAdmin ? "버그·의견 접수함" : "버그·좋은 의견 보내기";
@@ -6941,6 +6990,7 @@
     // 로비
     $("lobby-menu-btn").addEventListener("click", openMenu);
     $("lobby-feedback-btn").addEventListener("click", openFeedbackModal);
+    $("lobby-copy-link").addEventListener("click", copyCurrentLinkForChrome);
     $("feedback-send-btn").addEventListener("click", submitFeedbackForm);
     $("lobby-catch-gallery-btn").addEventListener("click", function () {
       if (window.CatchMind && CatchMind.openGallery) CatchMind.openGallery(controllerApi());
