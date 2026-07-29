@@ -165,6 +165,7 @@ window.TexasHoldem = (function () {
   var autoReadyTimer = null;
   var autoReadyKey = "";
   var leaveAfterHandRequested = false;
+  var spectateAfterHandRequested = false;
   var resultFlow = null;
   var boardRevealState = { key: "", cards: [], revealAt: [], delayMs: [], soundKeys: [] };
   var communityCardOpenSfxEls = [];
@@ -2415,6 +2416,8 @@ window.TexasHoldem = (function () {
 
   function leaveTableForSpectate() {
     if (state.heroSeat < 0 || requests.seat_role) return Promise.resolve({ ok: false, reason: "not_joined" });
+    var hero = state.seats[state.heroSeat];
+    spectateAfterHandRequested = !!(hero && isHandActive(state.phase) && hero.inHand && !hero.folded);
     autoSeatSuppressed = true;
     autoSeatKey = "";
     return invoke("leave", {
@@ -2426,6 +2429,7 @@ window.TexasHoldem = (function () {
       broadcast: true
     }).then(function (result) {
       if (result && result.stale) return result;
+      if (!result || !result.ok) spectateAfterHandRequested = false;
       return refreshSnapshot(result && result.ok ? "spectating" : "spectate_retry", true);
     });
   }
@@ -2433,7 +2437,7 @@ window.TexasHoldem = (function () {
   function requestLeaveAfterHand() {
     if (state.heroSeat < 0 || requests.leave_after_hand) return Promise.resolve({ ok: false, reason: "not_joined" });
     var hero = state.seats[state.heroSeat];
-    if (!hero || !isHandActive(state.phase) || !hero.inHand) {
+    if (!hero || !isHandActive(state.phase) || !hero.inHand || hero.folded) {
       if (api && typeof api.leaveRoom === "function") api.leaveRoom();
       return Promise.resolve({ ok: true, reason: "leave_now" });
     }
@@ -2473,14 +2477,26 @@ window.TexasHoldem = (function () {
   }
 
   function maybeLeaveRoomAfterHand() {
-    if (!leaveAfterHandRequested || !active || !api || typeof api.leaveRoom !== "function") return;
+    if (!active) return;
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
-    if (hero && hero.leaving && isHandActive(state.phase)) return;
-    if (isBusy()) return;
-    leaveAfterHandRequested = false;
-    setTimeout(function () {
-      if (active && api && typeof api.leaveRoom === "function") api.leaveRoom();
-    }, 0);
+    var waitingForResult = state.phase === "complete" && !resultTransitionReady();
+    if (waitingForResult && !(hero && hero.folded)) return;
+    if (leaveAfterHandRequested) {
+      if (!api || typeof api.leaveRoom !== "function") return;
+      if (hero && hero.leaving && isHandActive(state.phase) && !hero.folded) return;
+      if (isBusy()) return;
+      leaveAfterHandRequested = false;
+      setTimeout(function () {
+        if (active && api && typeof api.leaveRoom === "function") api.leaveRoom();
+      }, 0);
+      return;
+    }
+    if (spectateAfterHandRequested || (hero && hero.leaving && hero.leavingIntent === "spectate" && !isHandActive(state.phase))) {
+      if (hero && hero.leaving && isHandActive(state.phase) && !hero.folded) return;
+      if (requests.seat_role) return;
+      spectateAfterHandRequested = false;
+      leaveTableForSpectate();
+    }
   }
 
   function humanSeatCount() {
@@ -5021,6 +5037,7 @@ window.TexasHoldem = (function () {
     }
     releaseResultSettlement();
     if (stage === "announced") renderHandResult();
+    maybeLeaveRoomAfterHand();
   }
 
   function renderPlayers(box, hint) {
@@ -5619,6 +5636,7 @@ window.TexasHoldem = (function () {
     lastSeatsHtml = "";
     communityRevealControlBlocked = false;
     leaveAfterHandRequested = false;
+    spectateAfterHandRequested = false;
     if (!bindDom()) throw new Error("텍사스 홀덤 화면을 찾을 수 없습니다.");
     bindHoldemChatKeyboard();
     setChatOpen(false);
@@ -5693,6 +5711,7 @@ window.TexasHoldem = (function () {
     lastWinnerSoundKey = "";
     communityRevealControlBlocked = false;
     leaveAfterHandRequested = false;
+    spectateAfterHandRequested = false;
   }
 
   function onReady() {
@@ -5752,7 +5771,7 @@ window.TexasHoldem = (function () {
 
   function isBusy() {
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
-    return !!(hero && isHandActive(state.phase) && hero.inHand);
+    return !!(hero && isHandActive(state.phase) && hero.inHand && !hero.folded);
   }
 
   function canChat() {

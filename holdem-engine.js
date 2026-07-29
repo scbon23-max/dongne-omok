@@ -1128,21 +1128,15 @@
         player.ready = true;
       } else if (player.stack <= 0) player.ready = false;
       else if (!player.leaving) player.ready = true;
-      if (state.settings.mode === "ring" && !player.isBot && player.nick) {
-        if (player.leaving) {
-          addWalletAdjustment(state, player.nick, player.stack, "cash_out");
-          delete state.ringStacks[player.nick];
-        } else {
-          state.ringStacks[player.nick] = clamp(
-            player.stack,
-            0,
-            100000000,
-            state.settings.startingStack
-          );
-        }
+      if (!player.leaving && state.settings.mode === "ring" && !player.isBot && player.nick) {
+        state.ringStacks[player.nick] = clamp(
+          player.stack,
+          0,
+          100000000,
+          state.settings.startingStack
+        );
       }
       player.waiting = true;
-      if (player.leaving) state.seats[seat] = null;
     });
   }
 
@@ -1398,6 +1392,7 @@
   }
 
   function startHand(state, now, context) {
+    removeLeavingPlayers(state);
     updateBlindLevel(state, now);
     var active = state.seats.filter(function (player) {
       return !!player && !player.leaving && player.stack > 0;
@@ -1528,6 +1523,17 @@
       }
       return row;
     }).filter(Boolean);
+  }
+
+  function removeLeavingPlayers(state) {
+    state.seats.forEach(function (player, seat) {
+      if (!player || !player.leaving) return;
+      if (state.settings.mode === "ring" && !player.isBot && player.nick) {
+        addWalletAdjustment(state, player.nick, player.stack, "cash_out");
+        delete state.ringStacks[player.nick];
+      }
+      state.seats[seat] = null;
+    });
   }
 
   function reserveBotIdentity(state) {
@@ -1709,7 +1715,7 @@
             changed = true;
           }
         }
-        else if (PLAYING_PHASES[next.phase] && player.inHand) {
+        else if (PLAYING_PHASES[next.phase] && player.inHand && !player.folded) {
           var leaveIntent = normalizeLeavingIntent(cmd.leaveIntent || cmd.intent || cmd.mode) || "leave";
           if (player.leaving) result = { ok: true, reason: "already_leaving" };
           else {

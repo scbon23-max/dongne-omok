@@ -139,7 +139,9 @@ test("leaving during an active hand reserves exit without folding immediately", 
   assert.equal(state.lastEvent.type, "leave_requested");
 
   state = apply(state, { type: "act", nick: actorNick, action: "fold" }, 121);
-  assert.equal(state.seats[actorSeat], null);
+  assert.ok(["hand_end", "tournament_end"].includes(state.phase));
+  assert.equal(state.seats[actorSeat].leaving, true);
+  assert.equal(state.seats[actorSeat].folded, true);
 });
 
 test("leaving again during an active hand cancels a reserved exit", () => {
@@ -173,7 +175,7 @@ test("leaving again during an active hand cancels a reserved exit", () => {
   assert.equal(result.state.lastEvent.type, "leave_cancelled");
 });
 
-test("a folded player can still reserve leaving until the active hand ends", () => {
+test("a folded player can leave immediately during an active hand", () => {
   const names = ["alice", "bob", "carol"];
   let state = tableWithPlayers(names);
   state = readyAndStart(state, names);
@@ -192,8 +194,8 @@ test("a folded player can still reserve leaving until the active hand ends", () 
   }, context(122));
 
   assert.equal(result.ok, true, result.reason);
-  assert.equal(result.state.seats[actorSeat].leaving, true);
-  assert.equal(result.state.seats[actorSeat].folded, true);
+  assert.equal(result.state.seats[actorSeat], null);
+  assert.equal(result.state.lastEvent.type, "left");
 });
 
 test("a full raise sets the minimum and cumulative short all-ins reopen action", () => {
@@ -1501,4 +1503,35 @@ test("active hand leaves preserve whether the player reserved spectating or room
 
   assert.equal(reservedExit.ok, true, reservedExit.reason);
   assert.equal(reservedExit.state.seats[exitSeat].leavingIntent, "leave");
+});
+
+test("reserved leaving players stay through results and are cleared before the next hand", () => {
+  const names = ["alice", "bob", "cara"];
+  let state = tableWithPlayers(names);
+  state = readyAndStart(state, names, 1100);
+  const leavingSeat = state.seats.findIndex((player, index) =>
+    player && player.inHand && index !== state.actorSeat && player.nick !== "alice");
+  const leavingNick = state.seats[leavingSeat].nick;
+
+  state = apply(state, {
+    type: "leave",
+    nick: leavingNick,
+    requestId: "leave:after-result",
+  }, 1101);
+  assert.equal(state.seats[leavingSeat].leaving, true);
+
+  state.phase = "hand_end";
+  state.seats.forEach((player) => {
+    if (player && !player.leaving && player.stack > 0) player.ready = true;
+  });
+  assert.equal(Engine.view(state, "alice").seats[leavingSeat].leaving, true);
+
+  const started = Engine.command(state, {
+    type: "start",
+    nick: "alice",
+    requestId: "start:after-leaver",
+  }, context(1102));
+
+  assert.equal(started.ok, true, started.reason);
+  assert.equal(started.state.seats[leavingSeat], null);
 });

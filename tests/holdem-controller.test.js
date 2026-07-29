@@ -922,6 +922,108 @@ test("pressing leave again cancels an active leave reservation", async () => {
   assert.equal(calls[0].payload.leaveIntent, undefined);
 });
 
+test("reserved room leave waits until the result review is complete", async () => {
+  const originalNow = Date.now;
+  let now = 1_800_000_000_000;
+  Date.now = () => now;
+  const leaveCalls = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      return Promise.resolve({
+        ok: true,
+        version: 12,
+        snapshot: {
+          phase: "flop",
+          version: 12,
+          handId: "leave-after-result",
+          heroSeat: 0,
+          actingSeat: 1,
+          seats: [
+            { seat: 0, nick: "alice", stack: 5000, inHand: true, leaving: true, leaveIntent: "leave", cardCount: 2 },
+            { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+          ],
+        },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  controller._test.setApi({
+    me: () => ({ nick: "alice" }),
+    roomId: () => "room-controller",
+    galleryAuth: () => ({ nick: "alice", hash: "a".repeat(64) }),
+    leaveRoom: () => leaveCalls.push("leave"),
+  });
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+  controller._test.setState(controller._test.normalizeSnapshot({
+    phase: "flop",
+    version: 11,
+    handId: "leave-after-result",
+    heroSeat: 0,
+    actingSeat: 1,
+    seats: [
+      { seat: 0, nick: "alice", stack: 5000, inHand: true, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+    ],
+  }, 11));
+
+  try {
+    await controller._test.requestLeaveAfterHand();
+    assert.deepEqual(leaveCalls, []);
+
+    controller._test.applySnapshot({
+      phase: "hand_end",
+      version: 13,
+      handId: "leave-after-result",
+      heroSeat: 0,
+      seats: [
+        { seat: 0, nick: "alice", stack: 5000, inHand: true, leaving: true, leaveIntent: "leave", cardCount: 2 },
+        { seat: 1, nick: "bob", stack: 10000, winAmount: 5000 },
+      ],
+      pot: 5000,
+      pots: [{ amount: 5000, winners: [1] }],
+      winners: ["bob"],
+    }, 13);
+    assert.deepEqual(leaveCalls, []);
+
+    now += 20_000;
+    controller._test.renderSettlementAnimation();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.deepEqual(leaveCalls, ["leave"]);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("folded players can leave immediately without waiting for results", async () => {
+  const leaveCalls = [];
+  const controller = loadController("alice");
+  controller._test.setApi({
+    me: () => ({ nick: "alice" }),
+    roomId: () => "room-controller",
+    galleryAuth: () => ({ nick: "alice", hash: "a".repeat(64) }),
+    leaveRoom: () => leaveCalls.push("leave"),
+  });
+  controller._test.setActive(true);
+  controller._test.setState(controller._test.normalizeSnapshot({
+    phase: "flop",
+    version: 11,
+    handId: "folded-leave-now",
+    heroSeat: 0,
+    actingSeat: 1,
+    seats: [
+      { seat: 0, nick: "alice", stack: 5000, inHand: true, folded: true, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+    ],
+  }, 11));
+
+  const result = await controller._test.requestLeaveAfterHand();
+
+  assert.equal(result.reason, "leave_now");
+  assert.deepEqual(leaveCalls, ["leave"]);
+  assert.equal(controller.isBusy(), false);
+});
+
 test("an all-in result finishes every reveal before opening the rebuy dialog", async () => {
   const calls = [];
   const db = {
@@ -1383,6 +1485,79 @@ test("switching to spectate leaves the current table seat", async () => {
   assert.equal(calls[0].action, "leave");
   assert.equal(calls[0].payload.expectedVersion, 1);
   assert.equal(calls[0].payload.leaveIntent, "spectate");
+});
+
+test("reserved spectating waits until the result review is complete", async () => {
+  const originalNow = Date.now;
+  let now = 1_800_000_000_000;
+  Date.now = () => now;
+  const calls = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 20 + calls.length,
+        snapshot: calls.length === 1
+          ? {
+            phase: "flop",
+            version: 21,
+            handId: "spectate-after-result",
+            heroSeat: 0,
+            actingSeat: 1,
+            seats: [
+              { seat: 0, nick: "alice", stack: 5000, inHand: true, leaving: true, leaveIntent: "spectate", cardCount: 2 },
+              { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+            ],
+          }
+          : { phase: "waiting", version: 22, heroSeat: -1, seats: [] },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+  controller._test.setState(controller._test.normalizeSnapshot({
+    phase: "flop",
+    version: 20,
+    handId: "spectate-after-result",
+    heroSeat: 0,
+    actingSeat: 1,
+    seats: [
+      { seat: 0, nick: "alice", stack: 5000, inHand: true, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+    ],
+  }, 20));
+
+  try {
+    await controller._test.leaveTableForSpectate();
+    assert.equal(calls.filter((call) => call.action === "leave").length, 1);
+
+    controller._test.applySnapshot({
+      phase: "hand_end",
+      version: 23,
+      handId: "spectate-after-result",
+      heroSeat: 0,
+      seats: [
+        { seat: 0, nick: "alice", stack: 5000, inHand: true, leaving: true, leaveIntent: "spectate", cardCount: 2 },
+        { seat: 1, nick: "bob", stack: 10000, winAmount: 5000 },
+      ],
+      pot: 5000,
+      pots: [{ amount: 5000, winners: [1] }],
+      winners: ["bob"],
+    }, 23);
+    assert.equal(calls.filter((call) => call.action === "leave").length, 1);
+
+    now += 20_000;
+    controller._test.renderSettlementAnimation();
+    await Promise.resolve();
+    await Promise.resolve();
+    const leaveCalls = calls.filter((call) => call.action === "leave");
+    assert.equal(leaveCalls.length, 2);
+    assert.equal(leaveCalls[1].payload.leaveIntent, "spectate");
+  } finally {
+    Date.now = originalNow;
+  }
 });
 
 test("ring rebuys use a separate wallet-backed server command", async () => {
