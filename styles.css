@@ -5045,7 +5045,7 @@ body.is-admin .feedback-user-compose { display: none; }
   place-items: center;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(255,255,255,.18), rgba(4,14,18,.26) 66%, rgba(4,14,18,.08));
-  font-size: clamp(36px, calc(var(--holdem-seat-avatar-size) * .768), 58px);
+  font-size: clamp(43px, calc(var(--holdem-seat-avatar-size) * .922), 70px);
   line-height: 1;
   pointer-events: none;
   text-shadow: 0 3px 8px rgba(0,0,0,.5);
