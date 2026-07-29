@@ -4294,6 +4294,9 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-card-front-preview.four-color .holdem-front-mini-card + .holdem-front-mini-card {
   margin-left: -7px;
 }
+.holdem-card-front-preview.four-color .holdem-front-mini-card {
+  border-color: transparent;
+}
 .holdem-front-mini-card {
   width: 24px;
   aspect-ratio: 2 / 3;
@@ -4657,7 +4660,7 @@ body.is-admin .feedback-user-compose { display: none; }
   --holdem-card-mark-top: 66%;
 }
 .holdem-screen[data-card-front-skin="four-color"] .holdem-card:not(.back):not(.empty) {
-  border-color: rgba(255,255,255,.72);
+  border-color: transparent;
   color: #fff;
   box-shadow: var(--holdem-card-shadow, 0 2px 7px rgba(0,0,0,.28));
 }

@@ -399,6 +399,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(index, /data-card-back-skin="lucky-clover"[\s\S]*data-card-back-skin="royal-candy"[\s\S]*data-card-back-skin="moon-chip"/);
   assert.match(index, /data-card-front-skin="classic"[\s\S]*data-card-front-skin="four-color"/);
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card:not\(\.back\):not\(\.empty\)\s*\{[\s\S]*color:\s*#fff/);
+  assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card:not\(\.back\):not\(\.empty\)\s*\{[\s\S]*border-color:\s*transparent/);
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card\[data-suit="d"\]\s*\{\s*background:\s*#2878d9/);
   assert.match(styles, /\.holdem-card\.back\s*\{[\s\S]*background: var\(--holdem-card-back-image\) center \/ 100% 100% no-repeat/);
   assert.match(styles, /\.holdem-screen\[data-card-back-skin="royal-candy"\]\s*\{[\s\S]*card-back-royal-candy\.png/);
