@@ -1123,9 +1123,10 @@ window.TexasHoldem = (function () {
       ready: !!firstDefined(entry.ready, entry.isReady, false),
       folded: !!firstDefined(entry.folded, status === "folded" || status === "fold"),
       allIn: !!firstDefined(entry.allIn, entry.allin, status === "allin" || status === "all_in"),
-      leaving: !!firstDefined(entry.leaving, entry.leaveAfterHand, entry.pendingLeave, status === "leaving"),
       lastAction: canonicalSeatAction(firstDefined(entry.lastAction, entry.recentAction, entry.action)),
       away: !!firstDefined(entry.away, entry.disconnected, status === "away" || status === "disconnected"),
+      leaving: !!firstDefined(entry.leaving, entry.leaveAfterHand, entry.pendingLeave, status === "leaving"),
+      leavingIntent: text(firstDefined(entry.leavingIntent, entry.leaveIntent, entry.pendingIntent), 24),
       sittingOut: !!firstDefined(entry.sittingOut, entry.spectator, status === "sitting_out"),
       inHand: bool(firstDefined(entry.inHand, entry.playing), status !== "out"),
       cardCount: clamp(integer(firstDefined(entry.cardCount, entry.holeCardCount, entry.hasCards ? 2 : 0), 0), 0, 2),
@@ -2352,7 +2353,8 @@ window.TexasHoldem = (function () {
     autoSeatSuppressed = true;
     autoSeatKey = "";
     return invoke("leave", {
-      expectedVersion: state.version
+      expectedVersion: state.version,
+      leaveIntent: "spectate"
     }, {
       key: "seat_role",
       label: "spectate",
@@ -2378,7 +2380,8 @@ window.TexasHoldem = (function () {
       return Promise.resolve({ ok: true, reason: "already_leaving" });
     }
     return invoke("leave", {
-      expectedVersion: state.version
+      expectedVersion: state.version,
+      leaveIntent: "leave"
     }, {
       key: "leave_after_hand",
       label: "leave_after_hand",
@@ -3630,8 +3633,8 @@ window.TexasHoldem = (function () {
   }
 
   function seatStatus(seat) {
+    if (seat && seat.leaving) return seat.leavingIntent === "spectate" ? "관전 예약" : "나가기 예약";
     if (!seat) return "빈 자리";
-    if (seat.leaving) return "나가기 예약";
     if (seat.isBot && seat.seat === state.actingSeat) return "생각 중";
     if (seat.folded) return "폴드";
     if (seat.allIn) return "올인";
@@ -3860,7 +3863,8 @@ window.TexasHoldem = (function () {
       var badges = "";
       if (absolute === state.dealerSeat) badges += "<span>D</span>";
       var leaveBadge = seat && seat.leaving
-        ? '<span class="holdem-seat-leave-badge" aria-hidden="true">나가기 예약</span>'
+        ? '<span class="holdem-seat-leave-badge" aria-hidden="true">' +
+          esc(seat.leavingIntent === "spectate" ? "관전 예약" : "나가기 예약") + '</span>'
         : "";
 
       var holes = "";
@@ -4907,7 +4911,8 @@ window.TexasHoldem = (function () {
       var body = {
         roomId: previousRoom,
         requestId: req,
-        expectedVersion: previousVersion
+        expectedVersion: previousVersion,
+        leaveIntent: "leave"
       };
       var leavePromise;
       if (demoMode()) leavePromise = demoInvoke("leave", body);

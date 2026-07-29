@@ -4275,19 +4275,6 @@ body.is-admin .feedback-user-compose { display: none; }
   animation: holdemPayoutParticleFlow var(--payout-duration, 840ms) cubic-bezier(.16,.74,.22,1) var(--payout-delay, 0ms) both;
   will-change: transform, opacity, filter;
 }
-.holdem-payout-particle::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  right: 34%;
-  width: calc(var(--payout-size, 7px) * 2.4);
-  height: 2px;
-  border-radius: 999px;
-  transform: translateY(-50%) rotate(-18deg);
-  transform-origin: right center;
-  background: linear-gradient(90deg, rgba(255,218,111,0), rgba(255,238,173,.65));
-  filter: blur(.7px);
-}
 .holdem-table-hint {
   position: absolute;
   z-index: 9;

@@ -323,6 +323,7 @@
       joinedAt: now,
       waiting: true,
       leaving: false,
+      leavingIntent: "",
       inHand: false,
       folded: false,
       allIn: false,
@@ -335,6 +336,15 @@
       winAmount: 0,
       handStartStack: null
     };
+  }
+
+  function normalizeLeavingIntent(value) {
+    value = text(value, 24).toLowerCase();
+    return value === "spectate" || value === "watch" || value === "observer"
+      ? "spectate"
+      : value === "leave" || value === "room_leave" || value === "exit"
+      ? "leave"
+      : "";
   }
 
   function createTable(options) {
@@ -561,6 +571,8 @@
           );
         }
       }
+      player.leaving = player.leaving === true;
+      player.leavingIntent = player.leaving ? normalizeLeavingIntent(player.leavingIntent) || "leave" : "";
     });
     if (state.settings.mode === "ring" && botPlayers(state).length > 0) {
       convertRingTableToPractice(state);
@@ -1501,6 +1513,7 @@
               next.seats[player.seat] = null;
               player.seat = requestedMoveSeat;
               player.leaving = false;
+              player.leavingIntent = "";
               next.seats[requestedMoveSeat] = player;
               next.lastEvent = { type: "seat_moved", nick: nick, seat: requestedMoveSeat, at: now };
               result = { ok: true };
@@ -1508,6 +1521,7 @@
             }
           } else {
             player.leaving = false;
+            player.leavingIntent = "";
             result = { ok: true, reason: "already_joined" };
             changed = true;
           }
@@ -1622,11 +1636,18 @@
         player = playerByNick(next, nick);
         if (!player) result = { ok: true, reason: "not_joined" };
         else if (PLAYING_PHASES[next.phase] && player.inHand) {
+          var leaveIntent = normalizeLeavingIntent(cmd.leaveIntent || cmd.intent || cmd.mode) || "leave";
           if (player.leaving) result = { ok: true, reason: "already_leaving" };
           else {
             player.leaving = true;
+            player.leavingIntent = leaveIntent;
             player.ready = false;
-            next.lastEvent = { type: "leave_requested", nick: nick, seat: player.seat, at: now };
+            next.lastEvent = {
+              type: leaveIntent === "spectate" ? "spectate_requested" : "leave_requested",
+              nick: nick,
+              seat: player.seat,
+              at: now
+            };
             result = { ok: true };
             changed = true;
           }
@@ -1911,6 +1932,7 @@
       ready: !!player.ready,
       waiting: !!player.waiting,
       leaving: !!player.leaving,
+      leavingIntent: player.leaving ? normalizeLeavingIntent(player.leavingIntent) || "leave" : "",
       inHand: !!player.inHand,
       folded: !!player.folded,
       allIn: !!player.allIn,
