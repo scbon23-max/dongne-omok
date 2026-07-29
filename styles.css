@@ -3988,6 +3988,7 @@ body.is-admin .feedback-user-compose { display: none; }
   --holdem-edge: #172932;
   --holdem-edge-light: #45616b;
   --holdem-gold: #f2c77d;
+  --holdem-keyboard-offset: 0px;
   position: relative;
   height: 100dvh;
   min-height: 0;
@@ -6352,7 +6353,7 @@ body.is-admin .feedback-user-compose { display: none; }
   position: absolute;
   z-index: 48;
   right: 8px;
-  bottom: max(6px, env(safe-area-inset-bottom));
+  bottom: calc(max(6px, env(safe-area-inset-bottom)) + var(--holdem-keyboard-offset, 0px));
   left: 8px;
   height: 44px;
   max-width: 720px;
@@ -6387,7 +6388,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-screen.is-actioning.is-chat-open .holdem-chat-row {
   z-index: 54;
-  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 110px);
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 110px + var(--holdem-keyboard-offset, 0px));
 }
 .holdem-screen.is-actioning.is-raise-menu-open.is-chat-open .holdem-chat-row {
   left: calc(33.333% + 8px);
@@ -6406,7 +6407,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-screen.is-chat-focused .holdem-chat-overlay {
   z-index: 49;
-  bottom: calc(max(6px, env(safe-area-inset-bottom)) + 54px);
+  bottom: calc(max(6px, env(safe-area-inset-bottom)) + 54px + var(--holdem-keyboard-offset, 0px));
   max-height: min(42dvh, 218px);
   overflow-y: auto;
   overflow-x: hidden;
@@ -6422,7 +6423,7 @@ body.is-admin .feedback-user-compose { display: none; }
   transform: none;
 }
 .holdem-screen.is-actioning.is-chat-focused .holdem-chat-overlay {
-  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 164px);
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 164px + var(--holdem-keyboard-offset, 0px));
 }
 #room-strip-holdem { display: none !important; }
 .room-badge.holdem,
