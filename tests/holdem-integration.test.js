@@ -352,7 +352,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-style:\s*dashed/);
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-color:\s*rgba\(213,239,235,\.12\)/);
   assert.match(styles, /\.holdem-board \.holdem-card \+ \.holdem-card\s*\{\s*margin-left:\s*0;\s*\}/);
-  assert.match(controller, /function relevantBestCardCodes\(evaluation\)[\s\S]*if \(category <= 0\) return relevant/);
+  assert.match(controller, /function relevantBestCardCodes\(evaluation\)[\s\S]*category === 0 \|\| category === 4 \|\| category === 5 \|\| category === 8/);
   assert.match(controller, /function heroCurrentHand\(\)[\s\S]*relevantBestCardCodes\(evaluation\)/);
   assert.match(controller, /class="holdem-hero-hand-badge"/);
   assert.doesNotMatch(controller, /holdem-hero-hand-badge">현재 /);
@@ -544,6 +544,12 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /function maybeAutoOpenRebuyDialog\(\)[\s\S]*if \(!resultTransitionReady\(\)\) return/);
   assert.match(controller, /function releaseResultTransitions\(\)[\s\S]*maybeAutoOpenRebuyDialog\(\)[\s\S]*scheduleAutoNextHand\(\)/);
   assert.match(styles, /\.holdem-result-panel\s*\{[\s\S]*display: none !important/);
+  assert.match(controller, /function resultWinningComboForSeat\(seatIndex\)[\s\S]*resultWinnerEvaluationForSeat\(seatIndex\)[\s\S]*winnerCombo\.holeCards\[cardIndex\] \? "is-winning-combo-card" : "is-winning-combo-muted"/);
+  assert.match(controller, /function resultWinningBoardCombo\(\)[\s\S]*dimCommunityCards:\s*true[\s\S]*resultCombo:\s*true/);
+  assert.match(controller, /var currentHand = resultWinningBoardCombo\(\) \|\| heroCurrentHand\(\)/);
+  assert.match(controller, /category === 0 \|\| category === 4 \|\| category === 5 \|\| category === 8/);
+  assert.match(styles, /\.holdem-card\.is-winning-combo-card\s*\{[\s\S]*border-color:\s*#ffe16d[\s\S]*box-shadow:/);
+  assert.match(styles, /\.holdem-card\.is-winning-combo-muted\s*\{[\s\S]*opacity:\s*\.28[\s\S]*grayscale/);
   assert.match(styles, /\.holdem-winner-result\s*\{/);
   assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);
   assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*min-width:\s*108px/);
