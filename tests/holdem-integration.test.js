@@ -561,7 +561,7 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(styles, /\.holdem-seat\.is-payout-receiving \.holdem-seat-avatar\s*\{[\s\S]*holdemWinnerReceivePulse/);
   assert.match(styles, /\.holdem-seat\.is-payout-receiving \.holdem-winner-result strong\s*\{[\s\S]*holdemWinnerBadgeReceive/);
   assert.match(controller, /var payoutParticleStreamKey = ""/);
-  assert.match(controller, /function startPayoutParticleStream\(key\)[\s\S]*particlesPerWinner = targets\.length > 1 \? 6 : 10[\s\S]*holdem-payout-particle/);
+  assert.match(controller, /function startPayoutParticleStream\(key\)[\s\S]*particlesPerWinner = targets\.length > 1 \? 9 : 14[\s\S]*holdem-payout-particle[\s\S]*var sizeSteps = \[4\.5, 5\.8, 7\.2, 9\.4, 12\.2\]/);
   assert.match(controller, /function maybeStartPayoutParticleStream\(\)[\s\S]*resultFlow\.settleStart[\s\S]*startPayoutParticleStream\(key\)/);
   assert.match(controller, /function renderSettlementAnimation\(\)[\s\S]*maybeStartPayoutParticleStream\(\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);
