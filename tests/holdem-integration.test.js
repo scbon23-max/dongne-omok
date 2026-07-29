@@ -503,7 +503,7 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /@keyframes holdemActionTagPop[\s\S]*scale\(1\.18\)[\s\S]*scale\(1\)/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);
   assert.match(controller, /timer\.setAttribute\("data-seconds", seconds\)/);
-  assert.match(styles, /\.holdem-seat-turn-timer\s*\{[\s\S]*top:\s*var\(--holdem-seat-timer-y\)[\s\S]*left:\s*var\(--holdem-seat-timer-x\)[\s\S]*width:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 16px\)/);
+  assert.match(styles, /\.holdem-seat-turn-timer\s*\{[\s\S]*top:\s*var\(--holdem-seat-timer-y\)[\s\S]*left:\s*var\(--holdem-seat-timer-x\)[\s\S]*width:\s*var\(--holdem-seat-avatar-size\)[\s\S]*height:\s*var\(--holdem-seat-avatar-size\)/);
   assert.match(styles, /\.holdem-seat-turn-timer::before\s*\{[\s\S]*conic-gradient\(#4df5d9 calc\(var\(--holdem-seat-timer-ratio\) \* 1turn\)/);
   assert.match(styles, /\.holdem-seat-turn-timer::after\s*\{[\s\S]*content:\s*attr\(data-seconds\)[\s\S]*right:\s*-1px[\s\S]*bottom:\s*-2px/);
   assert.match(styles, /\.holdem-seat-turn-timer::after\s*\{[\s\S]*border:\s*0/);

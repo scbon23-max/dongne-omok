@@ -5087,8 +5087,8 @@ body.is-admin .feedback-user-compose { display: none; }
   top: var(--holdem-seat-timer-y);
   left: var(--holdem-seat-timer-x);
   z-index: 6;
-  width: calc(var(--holdem-seat-avatar-size) + 16px);
-  height: calc(var(--holdem-seat-avatar-size) + 16px);
+  width: var(--holdem-seat-avatar-size);
+  height: var(--holdem-seat-avatar-size);
   display: grid;
   place-items: center;
   border-radius: 50%;
