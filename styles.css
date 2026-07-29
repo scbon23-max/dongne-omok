@@ -4741,8 +4741,8 @@ body.is-admin .feedback-user-compose { display: none; }
   --holdem-card-mark-top: 66%;
 }
 .holdem-card[data-suit="s"] {
-  --holdem-card-mark-width: 88%;
-  --holdem-card-mark-height: 64%;
+  --holdem-card-mark-width: 84%;
+  --holdem-card-mark-height: 60%;
   --holdem-card-mark-top: 66%;
 }
 .holdem-screen[data-card-front-skin="four-color"] .holdem-card:not(.back):not(.empty) {
