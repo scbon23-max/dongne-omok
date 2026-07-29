@@ -344,6 +344,7 @@ window.TexasHoldem = (function () {
       heroSeat: -1,
       perspectiveSeat: 0,
       heroCards: [],
+      heroRevealCards: [],
       revealedCards: [null, null, null, null, null, null],
       board: [],
       pot: 0,
@@ -627,6 +628,16 @@ window.TexasHoldem = (function () {
       if (card) cards.push(card);
     }
     return cards;
+  }
+
+  function normalizeCardIndexes(value) {
+    if (!Array.isArray(value)) return [];
+    var indexes = [];
+    value.forEach(function (entry) {
+      var index = integer(entry, -1);
+      if ((index === 0 || index === 1) && indexes.indexOf(index) < 0) indexes.push(index);
+    });
+    return indexes.sort(function (a, b) { return a - b; });
   }
 
   function communityCardKey(card) {
@@ -1332,6 +1343,12 @@ window.TexasHoldem = (function () {
       raw.holeCards,
       table.heroCards
     ), 2);
+    var heroRevealCards = normalizeCardIndexes(firstDefined(
+      viewer.revealCards,
+      viewer.revealCardIndexes,
+      raw.heroRevealCards,
+      table.heroRevealCards
+    ));
     if (heroSeat >= 0 && seats[heroSeat] && !seats[heroSeat].cardCount && heroCards.length) {
       seats[heroSeat].cardCount = heroCards.length;
     }
@@ -1447,6 +1464,7 @@ window.TexasHoldem = (function () {
       perspectiveSeat: heroSeat >= 0 ? heroSeat :
         safeSeat(firstDefined(viewer.perspectiveSeat, table.perspectiveSeat, dealerSeat, 0)),
       heroCards: heroCards,
+      heroRevealCards: heroRevealCards,
       revealedCards: revealedCards,
       board: normalizeCards(firstDefined(table.board, table.communityCards, table.community), 5),
       pot: pots.total,
@@ -2594,6 +2612,87 @@ window.TexasHoldem = (function () {
     }, function (error) {
       clearPendingMove(moveRequestId, true);
       throw error;
+    });
+  }
+
+  function ensureFoldRevealPanel() {
+    var panel = $("holdem-fold-reveal-panel");
+    if (panel) return panel;
+    var screen = root();
+    if (!screen || typeof document === "undefined") return null;
+    panel = document.createElement("section");
+    panel.id = "holdem-fold-reveal-panel";
+    panel.className = "holdem-fold-reveal-panel hidden";
+    panel.setAttribute("aria-label", "폴드 후 카드 공개 예약");
+    var chatToggle = $("holdem-chat-toggle");
+    if (chatToggle && chatToggle.parentNode) chatToggle.parentNode.insertBefore(panel, chatToggle);
+    else screen.appendChild(panel);
+    return panel;
+  }
+
+  function foldRevealSelectionKey(indexes) {
+    return normalizeCardIndexes(indexes).join(",");
+  }
+
+  function canReserveFoldReveal() {
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    return !!(isHandActive(state.phase) &&
+      hero &&
+      hero.inHand &&
+      hero.folded &&
+      !hero.isBot &&
+      Array.isArray(state.heroCards) &&
+      state.heroCards.length >= 2);
+  }
+
+  function foldRevealButtonHtml(indexes) {
+    var selected = foldRevealSelectionKey(indexes) === foldRevealSelectionKey(state.heroRevealCards);
+    var cards = normalizeCardIndexes(indexes).map(function (index) {
+      return cardHtml(state.heroCards[index], null, "is-fold-reveal-card");
+    }).join("");
+    return '<button class="holdem-fold-reveal-choice' + (selected ? " is-selected" : "") +
+      '" type="button" data-holdem-reveal-cards="' + esc(indexes.join(",")) +
+      '" aria-pressed="' + (selected ? "true" : "false") + '">' +
+        '<span class="holdem-fold-reveal-cards" aria-hidden="true">' + cards + '</span>' +
+        '<strong>공개</strong>' +
+        (selected ? '<small>예약됨</small>' : "") +
+      '</button>';
+  }
+
+  function renderFoldRevealControls(busy) {
+    var panel = ensureFoldRevealPanel();
+    if (!panel) return;
+    var visible = canReserveFoldReveal();
+    panel.classList.toggle("hidden", !visible);
+    panel.setAttribute("aria-hidden", visible ? "false" : "true");
+    if (!visible) {
+      if (panel.innerHTML) panel.innerHTML = "";
+      return;
+    }
+    var html = [
+      foldRevealButtonHtml([0]),
+      foldRevealButtonHtml([1]),
+      foldRevealButtonHtml([0, 1])
+    ].join("");
+    if (panel.innerHTML !== html) panel.innerHTML = html;
+    var disabled = !!(busy || requests.reveal_cards);
+    var buttons = panel.querySelectorAll("button[data-holdem-reveal-cards]");
+    for (var i = 0; i < buttons.length; i++) buttons[i].disabled = disabled;
+  }
+
+  function reserveFoldReveal(rawIndexes) {
+    if (!canReserveFoldReveal() || requests.reveal_cards) return;
+    var indexes = normalizeCardIndexes(rawIndexes);
+    if (foldRevealSelectionKey(indexes) === foldRevealSelectionKey(state.heroRevealCards)) indexes = [];
+    invoke("reveal_cards", {
+      cards: indexes,
+      expectedVersion: state.version,
+      handId: state.handId
+    }, {
+      key: "reveal_cards",
+      label: "reveal_cards",
+      broadcast: true,
+      ui: false
     });
   }
 
@@ -4827,6 +4926,7 @@ window.TexasHoldem = (function () {
     show("holdem-raise-panel", hasMove && canSize && raiseMenuOpen);
     if (canSize) syncRaiseControls();
     if (canSize) syncQuickBetButtons();
+    renderFoldRevealControls(busy);
     var slider = $("holdem-raise-slider");
     if (slider) slider.disabled = busy;
     var quick = root() ? root().querySelectorAll("[data-holdem-bet]") : [];
@@ -4837,6 +4937,7 @@ window.TexasHoldem = (function () {
       screen.classList.toggle("is-requesting", busy);
       screen.classList.toggle("is-actioning", hasMove);
       screen.classList.toggle("is-pre-actioning", hasPreAction);
+      screen.classList.toggle("is-fold-revealing", canReserveFoldReveal());
       screen.classList.toggle("is-raise-menu-open", hasMove && canSize && raiseMenuOpen);
       screen.classList.toggle("is-seat-selection", waiting && state.heroSeat < 0);
     }
@@ -5164,6 +5265,12 @@ window.TexasHoldem = (function () {
 
     var button = event.target.closest("button");
     if (!button || !screen.contains(button)) return;
+    if (button.hasAttribute("data-holdem-reveal-cards")) {
+      reserveFoldReveal(String(button.getAttribute("data-holdem-reveal-cards") || "")
+        .split(",")
+        .map(function (value) { return integer(value, -1); }));
+      return;
+    }
     var id = button.id;
     if (id === "holdem-settings-btn") {
       settingsOpen = !settingsOpen;

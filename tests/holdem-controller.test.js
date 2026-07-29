@@ -72,11 +72,25 @@ function fakeElement(initialClasses = []) {
     classList: fakeClassList(initialClasses),
     dataset: {},
     attributes: {},
+    children: [],
+    parentNode: null,
     textContent: "",
     innerHTML: "",
     disabled: false,
     setAttribute(name, value) {
       this.attributes[name] = String(value);
+    },
+    appendChild(child) {
+      child.parentNode = this;
+      this.children.push(child);
+      return child;
+    },
+    insertBefore(child, before) {
+      child.parentNode = this;
+      const index = this.children.indexOf(before);
+      if (index >= 0) this.children.splice(index, 0, child);
+      else this.children.push(child);
+      return child;
     },
     querySelector() {
       return null;
@@ -101,6 +115,9 @@ function resultTestDocument() {
     document: {
       getElementById(id) {
         return elements[id] || null;
+      },
+      createElement() {
+        return fakeElement();
       },
     },
     elements,
@@ -154,6 +171,9 @@ function controlTestDocument() {
     document: {
       getElementById(id) {
         return elements[id] || null;
+      },
+      createElement() {
+        return fakeElement();
       },
     },
     elements,

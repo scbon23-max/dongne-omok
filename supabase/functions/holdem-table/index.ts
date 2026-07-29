@@ -99,6 +99,7 @@ const ACTIONS = new Set([
   "settings",
   "start",
   "act",
+  "reveal_cards",
   "tick",
   "add_bot",
   "remove_bot",
@@ -112,13 +113,14 @@ const ACTIONS = new Set([
 const OWNER_ACTIONS = new Set(["settings", "add_bot", "remove_bot"]);
 const VERSIONED_ACTIONS = new Set([
   "act",
+  "reveal_cards",
   "add_bot",
   "remove_bot",
   "bot_step",
   "refill",
   "rebuy",
 ]);
-const HAND_SCOPED_ACTIONS = new Set(["act", "tick"]);
+const HAND_SCOPED_ACTIONS = new Set(["act", "reveal_cards", "tick"]);
 HAND_SCOPED_ACTIONS.add("bot_step");
 const POKER_ACTIONS = new Set([
   "fold",
