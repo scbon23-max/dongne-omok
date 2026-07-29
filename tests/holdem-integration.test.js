@@ -340,7 +340,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /scheduleCommunityCardOpenSfx\(card, index, boardRevealState\.delayMs\[index\]\)/);
   assert.match(controller, /syncAudio: syncAudio/);
   assert.match(controller, /ensureTimerWarningSfx\(\)/);
-  assert.match(controller, /function timerWarningKey\(info\)[\s\S]*info\.seconds < 1 \|\| info\.seconds > 10[\s\S]*info\.seconds[\s\S]*\.join\(":"\)/);
+  assert.match(controller, /function timerWarningKey\(info\)[\s\S]*info\.seconds < 1 \|\| info\.seconds > 5[\s\S]*info\.seconds[\s\S]*\.join\(":"\)/);
   assert.match(controller, /COMMUNITY_CARD_FLIP_STAGGER_MS = 120/);
   assert.match(controller, /lastBoardHtml !== html[\s\S]*board\.innerHTML = html/);
   assert.match(controller, /function tableHint\(\)[\s\S]*빈 좌석을 눌러 착석하세요/);
@@ -485,7 +485,8 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-seat-turn-timer\.urgent\s*\{[\s\S]*width:\s*var\(--holdem-seat-avatar-size\)[\s\S]*height:\s*var\(--holdem-seat-avatar-size\)/);
   assert.match(styles, /\.holdem-seat-turn-timer\.urgent::after\s*\{[\s\S]*inset:\s*0[\s\S]*width:\s*100%[\s\S]*height:\s*100%/);
   assert.match(styles, /\.holdem-seat-turn-timer\.urgent::before\s*\{[\s\S]*#ff433d/);
-  assert.match(controller, /function timerWarningKey\(info\)[\s\S]*info\.seconds > 10[\s\S]*state\.actingSeat !== state\.heroSeat/);
+  assert.match(controller, /urgent:\s*remaining <= 5000/);
+  assert.match(controller, /function timerWarningKey\(info\)[\s\S]*info\.seconds > 5[\s\S]*state\.actingSeat !== state\.heroSeat/);
   assert.match(controller, /function syncTimerWarning\(info\)[\s\S]*playTimerWarningSfx\(\)/);
   assert.match(controller, /syncTimerWarning\(info\)/);
   assert.match(styles, /@keyframes holdemSeatTimerUrgent/);

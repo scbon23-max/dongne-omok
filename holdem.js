@@ -3613,7 +3613,7 @@ window.TexasHoldem = (function () {
     return {
       seconds: Math.max(0, Math.ceil(remaining / 1000)),
       ratio: clamp(remaining / duration, 0, 1),
-      urgent: remaining <= 10000,
+      urgent: remaining <= 5000,
       active: true
     };
   }
@@ -3634,7 +3634,7 @@ window.TexasHoldem = (function () {
   }
 
   function timerWarningKey(info) {
-    if (!info || !info.active || info.seconds < 1 || info.seconds > 10) return "";
+    if (!info || !info.active || info.seconds < 1 || info.seconds > 5) return "";
     if (!isHandActive(state.phase) || state.heroSeat < 0 || state.actingSeat !== state.heroSeat) return "";
     return [
       state.handId || state.handNumber || "hand",
@@ -3648,7 +3648,7 @@ window.TexasHoldem = (function () {
   function syncTimerWarning(info) {
     var key = timerWarningKey(info);
     if (!key) {
-      if (!info || !info.active || info.seconds > 10 || state.actingSeat !== state.heroSeat) {
+      if (!info || !info.active || info.seconds > 5 || state.actingSeat !== state.heroSeat) {
         lastTimerWarningKey = "";
       }
       return;
