@@ -124,6 +124,7 @@ window.TexasHoldem = (function () {
   var pendingUiCount = 0;
   var pendingAction = "";
   var pendingMove = null;
+  var queuedAction = null;
   var requests = Object.create(null);
   var lifecycleGeneration = 0;
   var tickSentKey = "";
@@ -1634,8 +1635,10 @@ window.TexasHoldem = (function () {
       tickSentKey = "";
       tickRetryAt = 0;
     }
+    syncQueuedAction();
     refreshProfileAvatars(next, false);
     render();
+    maybePerformQueuedAction();
     maybeLeaveRoomAfterHand();
     return true;
   }
@@ -2576,6 +2579,151 @@ window.TexasHoldem = (function () {
       clearPendingMove(moveRequestId, true);
       throw error;
     });
+  }
+
+  function queuedActionHandKey() {
+    return String(state.handId || state.handNumber || "");
+  }
+
+  function heroSeatForAction() {
+    return state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+  }
+
+  function heroStreetToCall() {
+    var hero = heroSeatForAction();
+    if (!hero) return 0;
+    var heroBet = nonnegative(hero.bet, 0);
+    var tableBet = 0;
+    state.seats.forEach(function (seat) {
+      if (seat && seat.inHand && !seat.folded) {
+        tableBet = Math.max(tableBet, nonnegative(seat.bet, 0));
+      }
+    });
+    return Math.max(0, tableBet - heroBet);
+  }
+
+  function canQueueAction() {
+    var hero = heroSeatForAction();
+    return !!(isHandActive(state.phase) &&
+      hero &&
+      hero.inHand &&
+      !hero.folded &&
+      !hero.allIn &&
+      state.actingSeat >= 0 &&
+      state.actingSeat !== state.heroSeat &&
+      !communityRevealBlocksActions());
+  }
+
+  function queuedActionOptions() {
+    if (!canQueueAction()) return [];
+    var toCall = heroStreetToCall();
+    if (toCall > 0) {
+      return [
+        { button: "fold", action: "fold", move: "fold", label: "폴드", amount: 0 },
+        { button: "call", action: "call", move: "call", label: "콜", amount: toCall }
+      ];
+    }
+    return [
+      { button: "fold", action: "fold_check", move: "check", label: "폴드/체크", amount: 0 },
+      { button: "check", action: "check", move: "check", label: "체크", amount: 0 }
+    ];
+  }
+
+  function queuedOptionForButton(button) {
+    var options = queuedActionOptions();
+    for (var i = 0; i < options.length; i++) {
+      if (options[i].button === button) return options[i];
+    }
+    return null;
+  }
+
+  function queuedButtonSelected(button, option) {
+    if (!queuedAction) return false;
+    if (option && queuedAction.action === option.action) return true;
+    return button === "fold" && queuedAction.action === "fold_check";
+  }
+
+  function queuePreAction(button) {
+    var option = queuedOptionForButton(button);
+    if (!option) return false;
+    if (queuedButtonSelected(button, option)) queuedAction = null;
+    else {
+      queuedAction = {
+        action: option.action,
+        label: option.label,
+        maxCallAmount: option.action === "call" ? option.amount : 0,
+        handKey: queuedActionHandKey(),
+        heroSeat: state.heroSeat
+      };
+    }
+    renderControls();
+    return true;
+  }
+
+  function clearQueuedAction(renderAfter) {
+    if (!queuedAction) return;
+    queuedAction = null;
+    if (renderAfter) renderControls();
+  }
+
+  function queuedActionStaleForCurrentHand() {
+    if (!queuedAction) return false;
+    var hero = heroSeatForAction();
+    return !hero ||
+      !hero.inHand ||
+      hero.folded ||
+      hero.allIn ||
+      queuedAction.heroSeat !== state.heroSeat ||
+      queuedAction.handKey !== queuedActionHandKey() ||
+      !isHandActive(state.phase);
+  }
+
+  function queuedActionUnavailableBeforeTurn() {
+    if (!queuedAction || state.actingSeat === state.heroSeat) return false;
+    var toCall = heroStreetToCall();
+    if (queuedAction.action === "call") return toCall > queuedAction.maxCallAmount;
+    if (queuedAction.action === "check") return toCall > 0;
+    return false;
+  }
+
+  function syncQueuedAction() {
+    if (queuedAction && (queuedActionStaleForCurrentHand() || queuedActionUnavailableBeforeTurn())) {
+      queuedAction = null;
+    }
+  }
+
+  function queuedExecutableMove() {
+    if (!queuedAction || queuedActionStaleForCurrentHand()) return "";
+    if (state.actingSeat !== state.heroSeat || requests.move || pendingUiCount > 0) return "";
+    if (queuedAction.action === "fold_check") {
+      if (state.legal.check) return "check";
+      if (state.legal.fold) return "fold";
+      return "";
+    }
+    if (queuedAction.action === "call") {
+      var toCall = Math.max(0, nonnegative(state.toCall, heroStreetToCall()));
+      if (state.legal.call && toCall <= queuedAction.maxCallAmount) return "call";
+      return "";
+    }
+    if (queuedAction.action === "check" && state.legal.check) return "check";
+    if (queuedAction.action === "fold" && state.legal.fold) return "fold";
+    return "";
+  }
+
+  function maybePerformQueuedAction() {
+    if (!queuedAction) return;
+    if (queuedActionStaleForCurrentHand()) {
+      clearQueuedAction(true);
+      return;
+    }
+    if (state.actingSeat !== state.heroSeat) return;
+    var move = queuedExecutableMove();
+    if (!move) {
+      clearQueuedAction(true);
+      return;
+    }
+    queuedAction = null;
+    performMove(move);
   }
 
   function sizedMove() {
@@ -4529,6 +4677,8 @@ window.TexasHoldem = (function () {
     var revealBlockingActions = communityRevealBlocksActions();
     communityRevealControlBlocked = revealBlockingActions;
     var hasMove = !revealBlockingActions && moves.some(function (move) { return !!state.legal[move]; });
+    var preActionOptions = hasMove ? [] : queuedActionOptions();
+    var hasPreAction = preActionOptions.length > 0;
     var busy = pendingUiCount > 0;
     var isOwner = !!(text(me().nick, 40) && text(me().nick, 40) === state.ownerNick);
     var humanCount = humanSeatCount();
@@ -4546,7 +4696,7 @@ window.TexasHoldem = (function () {
       actionMenuKey = menuKey;
       raiseMenuOpen = false;
     }
-    if (!hasMove || !canSize) raiseMenuOpen = false;
+    if ((!hasMove && !hasPreAction) || !canSize) raiseMenuOpen = false;
 
     show("holdem-lobby", false);
     show("holdem-seat-controls", waiting && state.heroSeat >= 0);
@@ -4601,22 +4751,47 @@ window.TexasHoldem = (function () {
       setText("holdem-refill-status", refillStatus);
     }
 
-    show("holdem-action-panel", hasMove);
+    show("holdem-action-panel", hasMove || hasPreAction);
     moves.forEach(function (move) {
       var id = move === "allin" ? "holdem-allin-btn" : "holdem-" + move + "-btn";
       var visible = hasMove && !!state.legal[move];
       if (move === "allin" && canSize) visible = false;
+      var preOption = null;
+      if (!hasMove && hasPreAction) {
+        if (move === "fold") preOption = queuedOptionForButton("fold");
+        else if (move === "check") preOption = queuedOptionForButton("check");
+        else if (move === "call") preOption = queuedOptionForButton("call");
+        visible = !!preOption;
+      }
       show(id, visible);
-      disable(id, busy || !state.legal[move]);
+      disable(id, busy || (hasMove ? !state.legal[move] : !preOption));
+      var buttonNode = $(id);
+      if (buttonNode) {
+        buttonNode.classList.toggle("is-queued", !hasMove && queuedButtonSelected(
+          move === "fold" ? "fold" : move === "check" ? "check" : move === "call" ? "call" : "",
+          preOption
+        ));
+        buttonNode.setAttribute("aria-pressed", !hasMove && preOption && queuedButtonSelected(
+          preOption.button,
+          preOption
+        ) ? "true" : "false");
+      }
     });
-    var callAmount = state.toCall ? formatChips(state.toCall) : "";
+    var preCall = !hasMove ? queuedOptionForButton("call") : null;
+    var callAmount = hasMove
+      ? (state.toCall ? formatChips(state.toCall) : "")
+      : (preCall && preCall.amount ? formatChips(preCall.amount) : "");
+    var foldOption = !hasMove ? queuedOptionForButton("fold") : null;
+    var checkOption = !hasMove ? queuedOptionForButton("check") : null;
+    setText("holdem-fold-btn", !hasMove && foldOption ? foldOption.label : "폴드");
+    setText("holdem-check-btn", !hasMove && checkOption ? checkOption.label : "체크");
     setText("holdem-call-amount", callAmount);
     var callAmountNode = $("holdem-call-amount");
     if (callAmountNode) {
       callAmountNode.className = "holdem-action-call-amount holdem-action-amount-fit" + actionAmountFitClass(callAmount);
     }
-    setText("holdem-action-label", state.actingSeat === state.heroSeat ? "내 차례" : "행동 선택");
-    setText("holdem-hand-name", state.handName || "패를 확인하세요");
+    setText("holdem-action-label", hasPreAction ? "미리 선택" : state.actingSeat === state.heroSeat ? "내 차례" : "행동 선택");
+    setText("holdem-hand-name", hasPreAction ? "차례가 오면 자동 실행" : state.handName || "패를 확인하세요");
 
     show("holdem-raise-panel", hasMove && canSize && raiseMenuOpen);
     if (canSize) syncRaiseControls();
@@ -4629,7 +4804,8 @@ window.TexasHoldem = (function () {
     var screen = root();
     if (screen) {
       screen.classList.toggle("is-requesting", busy);
-      screen.classList.toggle("is-actioning", hasMove);
+      screen.classList.toggle("is-actioning", hasMove || hasPreAction);
+      screen.classList.toggle("is-pre-actioning", hasPreAction);
       screen.classList.toggle("is-raise-menu-open", hasMove && canSize && raiseMenuOpen);
       screen.classList.toggle("is-seat-selection", waiting && state.heroSeat < 0);
     }
@@ -4900,11 +5076,11 @@ window.TexasHoldem = (function () {
     } else if (id === "holdem-start-btn" || id === "holdem-table-start-btn") {
       startHand();
     } else if (id === "holdem-fold-btn") {
-      performMove("fold");
+      if (!queuePreAction("fold")) performMove("fold");
     } else if (id === "holdem-check-btn") {
-      performMove("check");
+      if (!queuePreAction("check")) performMove("check");
     } else if (id === "holdem-call-btn") {
-      performMove("call");
+      if (!queuePreAction("call")) performMove("call");
     } else if (id === "holdem-bet-btn") {
       if (!raiseMenuOpen && state.legal.bet) {
         raiseMenuOpen = true;
@@ -5305,6 +5481,12 @@ window.TexasHoldem = (function () {
       requestLeaveAfterHand: requestLeaveAfterHand,
       maybeLeaveRoomAfterHand: maybeLeaveRoomAfterHand,
       performMove: performMove,
+      queuedActionOptions: queuedActionOptions,
+      queuePreAction: queuePreAction,
+      maybePerformQueuedAction: maybePerformQueuedAction,
+      getQueuedAction: function () {
+        return queuedAction ? Object.assign({}, queuedAction) : null;
+      },
       applySnapshot: applySnapshot,
       invoke: invoke,
       setApi: function (nextApi) { api = nextApi; },

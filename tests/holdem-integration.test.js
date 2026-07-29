@@ -430,6 +430,10 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /id === "holdem-settings-btn"[\s\S]*settingsOpen = !settingsOpen/);
   assert.match(controller, /id === "holdem-unit-toggle"[\s\S]*toggleMoneyUnitMode\(\)/);
   assert.match(controller, /show\("holdem-raise-panel", hasMove && canSize && raiseMenuOpen\)/);
+  assert.match(controller, /var queuedAction = null/);
+  assert.match(controller, /function queuedActionOptions\(\)[\s\S]*fold_check[\s\S]*maxCallAmount/);
+  assert.match(controller, /function maybePerformQueuedAction\(\)[\s\S]*queuedExecutableMove\(\)[\s\S]*performMove\(move\)/);
+  assert.match(controller, /id === "holdem-fold-btn"[\s\S]*queuePreAction\("fold"\)[\s\S]*performMove\("fold"\)/);
   assert.match(controller, /id === "holdem-raise-btn"[\s\S]*raiseMenuOpen = true[\s\S]*renderControls\(\)/);
   assert.match(controller, /kind === "two-pot"[\s\S]*potAfterCall \* 2/);
   assert.match(controller, /kind === "four-pot"[\s\S]*potAfterCall \* 4/);
@@ -506,6 +510,8 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.doesNotMatch(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet(?:-tier)?="(?:allin|eight-pot|four-pot|two-pot|pot|three-quarter|half|over)"\][^{]*\{[^}]*grid-(?:row|column):/);
   assert.match(styles, /\.holdem-screen\.is-raise-menu-open #holdem-bet-btn,[\s\S]*#holdem-raise-btn\s*\{[\s\S]*visibility: hidden/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-chat-row \{[\s\S]*opacity: 0/);
+  assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-action\.is-queued\s*\{[\s\S]*border-color:\s*rgba\(117, 238, 255, \.72\)/);
+  assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-action\.is-queued::after\s*\{[\s\S]*content:\s*"예약"/);
 });
 
 test("hand results stay on the table without a popup and advance automatically", () => {

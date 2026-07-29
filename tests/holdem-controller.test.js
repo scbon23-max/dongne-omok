@@ -770,6 +770,86 @@ test("river action controls wait until the river card finishes opening", () => {
   }
 });
 
+test("pre-action buttons can be queued before the hero turn", () => {
+  const dom = controlTestDocument();
+  const controller = loadController("alice", { document: dom.document });
+  const snapshot = controller._test.normalizeSnapshot({
+    phase: "flop",
+    version: 10,
+    handId: "pre-action",
+    heroSeat: 0,
+    actingSeat: 1,
+    seats: [
+      { seat: 0, nick: "alice", stack: 5000, bet: 100, inHand: true, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 5000, bet: 300, inHand: true, cardCount: 2 },
+    ],
+  }, 10);
+  controller._test.setState(snapshot);
+  controller._test.renderControls();
+
+  assert.equal(dom.elements["holdem-action-panel"].classList.contains("hidden"), false);
+  assert.equal(dom.elements["holdem-fold-btn"].classList.contains("hidden"), false);
+  assert.equal(dom.elements["holdem-call-btn"].classList.contains("hidden"), false);
+  assert.equal(dom.elements["holdem-call-amount"].textContent, "200원");
+
+  assert.equal(controller._test.queuePreAction("call"), true);
+  assert.equal(dom.elements["holdem-call-btn"].classList.contains("is-queued"), true);
+  assert.equal(dom.elements["holdem-call-btn"].attributes["aria-pressed"], "true");
+  const queued = controller._test.getQueuedAction();
+  assert.equal(queued.action, "call");
+  assert.equal(queued.label, "콜");
+  assert.equal(queued.maxCallAmount, 200);
+  assert.equal(queued.handKey, "pre-action");
+  assert.equal(queued.heroSeat, 0);
+});
+
+test("queued calls do not auto-call a higher changed amount", () => {
+  const dom = controlTestDocument();
+  const calls = [];
+  const controller = loadController("alice", {
+    document: dom.document,
+    db: {
+      holdemInvoke(auth, action, payload) {
+        calls.push({ action, payload });
+        return Promise.resolve({ ok: true, version: 12, snapshot: controller.state });
+      },
+    },
+  });
+  controller._test.setActive(true);
+  const waiting = controller._test.normalizeSnapshot({
+    phase: "flop",
+    version: 10,
+    handId: "pre-action-protect",
+    heroSeat: 0,
+    actingSeat: 1,
+    seats: [
+      { seat: 0, nick: "alice", stack: 5000, bet: 100, inHand: true, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 5000, bet: 300, inHand: true, cardCount: 2 },
+    ],
+  }, 10);
+  controller._test.setState(waiting);
+  assert.equal(controller._test.queuePreAction("call"), true);
+
+  const raised = controller._test.normalizeSnapshot({
+    phase: "flop",
+    version: 11,
+    handId: "pre-action-protect",
+    heroSeat: 0,
+    actingSeat: 0,
+    actionInfo: { toCall: 500 },
+    legalActions: ["fold", "call"],
+    seats: [
+      { seat: 0, nick: "alice", stack: 5000, bet: 100, inHand: true, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 5000, bet: 600, inHand: true, cardCount: 2 },
+    ],
+  }, 11);
+  controller._test.setState(raised);
+  controller._test.maybePerformQueuedAction();
+
+  assert.equal(calls.length, 0);
+  assert.equal(controller._test.getQueuedAction(), null);
+});
+
 test("an all-in result finishes every reveal before opening the rebuy dialog", async () => {
   const calls = [];
   const db = {
