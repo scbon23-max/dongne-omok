@@ -6854,19 +6854,18 @@ body.is-admin .feedback-user-compose { display: none; }
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 8px;
-  background: rgba(255,255,255,.07);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #fff;
   font: inherit;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
   cursor: pointer;
   touch-action: manipulation;
 }
 .holdem-emoji-panel button:active {
   transform: scale(.95);
-  background: rgba(125,225,196,.18);
 }
 .holdem-screen.is-actioning .holdem-emoji-panel {
   bottom: calc(max(8px, env(safe-area-inset-bottom)) + 112px);
