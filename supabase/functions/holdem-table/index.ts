@@ -136,6 +136,7 @@ const MAX_SNAPSHOT_BYTES = 64 * 1024;
 const MAX_CAS_RETRIES = 5;
 const CHIP_UNIT = 100;
 const INITIAL_WALLET_BALANCE = 100000;
+const RANKING_MIN_HANDS = 5;
 const RING_MIN_BUY_IN = 10000;
 const RING_MAX_BUY_IN = 100000;
 const RING_ROOM_BUY_INS = new Set([15000, 30000, 75000]);
@@ -492,6 +493,9 @@ async function assetRankingRows(client: ReturnType<typeof createClient>) {
   }, {
     data: accountRows,
     error: accountError,
+  }, {
+    data: handRows,
+    error: handError,
   }] = await Promise.all([
     client
       .from("holdem_wallets")
@@ -506,8 +510,14 @@ async function assetRankingRows(client: ReturnType<typeof createClient>) {
       .select("nickname,is_admin")
       .eq("is_admin", true)
       .limit(500),
+    client
+      .from("holdem_hand_results")
+      .select("nickname")
+      .limit(10000),
   ]);
-  if (walletError || tableError || accountError) throw new Error("ranking_lookup");
+  if (walletError || tableError || accountError || handError) {
+    throw new Error("ranking_lookup");
+  }
 
   const adminNicknames = new Set(
     (Array.isArray(accountRows) ? accountRows : [])
@@ -515,9 +525,17 @@ async function assetRankingRows(client: ReturnType<typeof createClient>) {
       .filter((nickname) => nickname),
   );
   const holdings = tableHoldingsByNickname(Array.isArray(tableRows) ? tableRows : []);
+  const completedHands = new Map<string, number>();
+  (Array.isArray(handRows) ? handRows : []).forEach((row) => {
+    const nickname = safeText(row?.nickname, 40);
+    if (!nickname || adminNicknames.has(nickname)) return;
+    completedHands.set(nickname, (completedHands.get(nickname) ?? 0) + 1);
+  });
   const ranked = (Array.isArray(walletRows) ? walletRows : []).map((row) => {
     const nickname = safeText(row?.nickname, 40);
     if (adminNicknames.has(nickname)) return null;
+    const handCount = completedHands.get(nickname) ?? 0;
+    if (handCount < RANKING_MIN_HANDS) return null;
     const balance = Number(row?.balance);
     if (
       !nickname ||
@@ -532,12 +550,14 @@ async function assetRankingRows(client: ReturnType<typeof createClient>) {
     return {
       nickname,
       totalAssets,
+      handCount,
       updatedAt: safeText(row?.updated_at, 40),
       rank: 0,
     };
   }).filter((row): row is {
     nickname: string;
     totalAssets: number;
+    handCount: number;
     updatedAt: string;
     rank: number;
   } => row !== null).sort((left, right) => {
@@ -565,12 +585,14 @@ async function assetRanking(
     rank: row.rank,
     nickname: row.nickname,
     totalAssets: row.totalAssets,
+    handCount: row.handCount,
   });
   const viewer = ranked.find((row) => row.nickname === viewerNick);
   return {
     rows: ranked.slice(0, 100).map(publicRow),
     viewer: viewer ? publicRow(viewer) : null,
     totalPlayers: ranked.length,
+    minHands: RANKING_MIN_HANDS,
     initialAssets: INITIAL_WALLET_BALANCE,
     generatedAt: new Date().toISOString(),
   };
@@ -735,6 +757,8 @@ async function assetRankingDetail(
     rank: profile.rank,
     nickname: profile.nickname,
     totalAssets: profile.totalAssets,
+    handCount: profile.handCount,
+    minHands: RANKING_MIN_HANDS,
     todayNet,
     sevenDayNet,
     refillToday: refillSummary.today,

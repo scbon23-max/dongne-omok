@@ -83,11 +83,17 @@ test("the authenticated server ranking includes live table chips but exposes onl
   assert.match(edge, /\.from\("holdem_wallets"\)[\s\S]*\.select\("nickname,balance,updated_at"\)/);
   assert.match(edge, /\.from\("holdem_tables"\)[\s\S]*\.select\("state"\)/);
   assert.match(edge, /\.from\("accounts"\)[\s\S]*\.select\("nickname,is_admin"\)[\s\S]*\.eq\("is_admin", true\)/);
+  assert.match(edge, /const RANKING_MIN_HANDS = 5/);
+  assert.match(edge, /\.from\("holdem_hand_results"\)[\s\S]*\.select\("nickname"\)[\s\S]*\.limit\(10000\)/);
   assert.match(edge, /const adminNicknames = new Set\([\s\S]*safeText\(row\?\.nickname, 40\)/);
   assert.match(edge, /if \(adminNicknames\.has\(nickname\)\) return null/);
+  assert.match(edge, /const completedHands = new Map<string, number>\(\)/);
+  assert.match(edge, /const handCount = completedHands\.get\(nickname\) \?\? 0/);
+  assert.match(edge, /if \(handCount < RANKING_MIN_HANDS\) return null/);
   assert.match(edge, /right\.totalAssets - left\.totalAssets/);
   assert.match(edge, /rows:\s*ranked\.slice\(0, 100\)\.map\(publicRow\)/);
-  assert.match(edge, /const publicRow = \(row:[\s\S]*rank:\s*row\.rank,[\s\S]*nickname:\s*row\.nickname,[\s\S]*totalAssets:\s*row\.totalAssets/);
+  assert.match(edge, /const publicRow = \(row:[\s\S]*rank:\s*row\.rank,[\s\S]*nickname:\s*row\.nickname,[\s\S]*totalAssets:\s*row\.totalAssets,[\s\S]*handCount:\s*row\.handCount/);
+  assert.match(edge, /minHands:\s*RANKING_MIN_HANDS/);
   assert.doesNotMatch(edge, /const publicRow = \(row:[\s\S]{0,300}\bbalance:\s*row\.balance/);
 });
 
@@ -98,6 +104,8 @@ test("Hold'em ranking details expose session summaries without private hand data
   assert.match(edge, /assetRankingDetail\([\s\S]*safeText\(body\.targetNick, 40\)/);
   assert.match(edge, /\.from\("holdem_hand_results"\)[\s\S]*"session_date,small_blind,big_blind,net_amount,won_amount,revealed,hand_name,hand_category,is_winner,created_at,hand_no"/);
   assert.match(edge, /refillToday:[\s\S]*refillSevenDays:/);
+  assert.match(edge, /handCount:\s*profile\.handCount/);
+  assert.match(edge, /minHands:\s*RANKING_MIN_HANDS/);
   assert.match(edge, /biggestWin:[\s\S]*publicHandHighlight/);
   assert.doesNotMatch(edge, /\.from\("holdem_hand_results"\)[\s\S]{0,180}\.select\([\s\S]{0,120}"[^"]*(?:cards|opponent|room_id)[^"]*"/);
   assert.match(migration, /create table if not exists public\.holdem_hand_results/);
