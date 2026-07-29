@@ -6262,6 +6262,29 @@ body.is-admin .feedback-user-compose { display: none; }
   text-shadow: none;
   box-shadow: 0 5px 12px rgba(45, 184, 255, .32);
 }
+.holdem-screen.is-pre-actioning .holdem-action.is-unreservable {
+  border-color: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.42);
+  filter: grayscale(.45) saturate(.6);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 4px 10px rgba(0,0,0,.22);
+}
+.holdem-screen.is-pre-actioning .holdem-action.is-unreservable:disabled {
+  opacity: .54;
+}
+.holdem-screen.is-pre-actioning .holdem-action.is-unreservable::after {
+  content: "예약 불가";
+  position: absolute;
+  top: -9px;
+  right: 7px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(20, 24, 28, .86);
+  color: rgba(255,255,255,.68);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-shadow: none;
+}
 .holdem-action.fold { background: linear-gradient(#323b41, #1c2226); color: #d8dde0; }
 .holdem-action.call { background: linear-gradient(#1a6a64, #104844); color: #9af2df; }
 .holdem-action.raise { background: linear-gradient(#a9471e, #763014); color: #ffc6a6; }

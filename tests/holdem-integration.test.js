@@ -432,6 +432,7 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /show\("holdem-raise-panel", hasMove && canSize && raiseMenuOpen\)/);
   assert.match(controller, /var queuedAction = null/);
   assert.match(controller, /function queuedActionOptions\(\)[\s\S]*fold_check[\s\S]*maxCallAmount/);
+  assert.match(controller, /function unreservableMove\(move\)[\s\S]*toCall > 0[\s\S]*move === "raise"[\s\S]*move === "bet"/);
   assert.match(controller, /function maybePerformQueuedAction\(\)[\s\S]*queuedExecutableMove\(\)[\s\S]*performMove\(move\)/);
   assert.match(controller, /id === "holdem-fold-btn"[\s\S]*queuePreAction\("fold"\)[\s\S]*performMove\("fold"\)/);
   assert.match(controller, /id === "holdem-raise-btn"[\s\S]*raiseMenuOpen = true[\s\S]*renderControls\(\)/);
@@ -512,6 +513,8 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-screen\.is-actioning:not\(\.is-chat-open\) \.holdem-chat-row \{[\s\S]*opacity: 0/);
   assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-action\.is-queued\s*\{[\s\S]*border-color:\s*rgba\(117, 238, 255, \.72\)/);
   assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-action\.is-queued::after\s*\{[\s\S]*content:\s*"예약"/);
+  assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-action\.is-unreservable\s*\{[\s\S]*filter:\s*grayscale\(\.45\) saturate\(\.6\)/);
+  assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-action\.is-unreservable::after\s*\{[\s\S]*content:\s*"예약 불가"/);
 });
 
 test("hand results stay on the table without a popup and advance automatically", () => {

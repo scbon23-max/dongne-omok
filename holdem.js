@@ -2637,6 +2637,20 @@ window.TexasHoldem = (function () {
     return null;
   }
 
+  function queuedOptionForMove(move) {
+    if (move === "fold") return queuedOptionForButton("fold");
+    if (move === "check") return queuedOptionForButton("check");
+    if (move === "call") return queuedOptionForButton("call");
+    return null;
+  }
+
+  function unreservableMove(move) {
+    if (!canQueueAction()) return false;
+    var toCall = heroStreetToCall();
+    if (toCall > 0) return move === "raise";
+    return move === "bet";
+  }
+
   function queuedButtonSelected(button, option) {
     if (!queuedAction) return false;
     if (option && queuedAction.action === option.action) return true;
@@ -4757,20 +4771,21 @@ window.TexasHoldem = (function () {
       var visible = hasMove && !!state.legal[move];
       if (move === "allin" && canSize) visible = false;
       var preOption = null;
+      var preUnavailable = false;
       if (!hasMove && hasPreAction) {
-        if (move === "fold") preOption = queuedOptionForButton("fold");
-        else if (move === "check") preOption = queuedOptionForButton("check");
-        else if (move === "call") preOption = queuedOptionForButton("call");
-        visible = !!preOption;
+        preOption = queuedOptionForMove(move);
+        preUnavailable = !preOption && unreservableMove(move);
+        visible = !!preOption || preUnavailable;
       }
       show(id, visible);
-      disable(id, busy || (hasMove ? !state.legal[move] : !preOption));
+      disable(id, busy || (hasMove ? !state.legal[move] : !preOption || preUnavailable));
       var buttonNode = $(id);
       if (buttonNode) {
         buttonNode.classList.toggle("is-queued", !hasMove && queuedButtonSelected(
           move === "fold" ? "fold" : move === "check" ? "check" : move === "call" ? "call" : "",
           preOption
         ));
+        buttonNode.classList.toggle("is-unreservable", !hasMove && preUnavailable);
         buttonNode.setAttribute("aria-pressed", !hasMove && preOption && queuedButtonSelected(
           preOption.button,
           preOption

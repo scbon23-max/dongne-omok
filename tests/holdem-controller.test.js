@@ -790,6 +790,9 @@ test("pre-action buttons can be queued before the hero turn", () => {
   assert.equal(dom.elements["holdem-action-panel"].classList.contains("hidden"), false);
   assert.equal(dom.elements["holdem-fold-btn"].classList.contains("hidden"), false);
   assert.equal(dom.elements["holdem-call-btn"].classList.contains("hidden"), false);
+  assert.equal(dom.elements["holdem-raise-btn"].classList.contains("hidden"), false);
+  assert.equal(dom.elements["holdem-raise-btn"].disabled, true);
+  assert.equal(dom.elements["holdem-raise-btn"].classList.contains("is-unreservable"), true);
   assert.equal(dom.elements["holdem-call-amount"].textContent, "200원");
 
   assert.equal(controller._test.queuePreAction("call"), true);
