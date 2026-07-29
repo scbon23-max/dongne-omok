@@ -21,7 +21,7 @@
  *   #holdem-raise-btn, #holdem-allin-btn
  * Utility/chat: #holdem-settings-btn, #holdem-people-btn,
  *   #holdem-hands-btn, #holdem-rank-btn, #holdem-leave-btn, #holdem-chat-input,
- *   #holdem-chat-send, #holdem-chat-overlay
+ *   #holdem-chat-send, #holdem-chat-toggle, #holdem-chat-overlay
  * Quick bet buttons: [data-holdem-bet="half|three-quarter|pot|two-pot|four-pot|eight-pot|allin"]
  *
  * Seat/card classes intentionally match the Hold'em stylesheet:
@@ -4803,6 +4803,38 @@ window.TexasHoldem = (function () {
     if (sent) input.value = "";
   }
 
+  function setChatOpen(open, focusInput) {
+    var screen = root();
+    var input = $("holdem-chat-input");
+    var button = $("holdem-chat-toggle");
+    open = !!open;
+    if (screen) {
+      screen.classList.toggle("is-chat-open", open);
+      if (!open) screen.classList.remove("is-chat-focused");
+    }
+    if (button) {
+      button.setAttribute("aria-expanded", open ? "true" : "false");
+      button.setAttribute("aria-label", open ? "채팅 닫기" : "채팅 열기");
+    }
+    if (open && focusInput && input) {
+      setTimeout(function () { input.focus(); }, 0);
+    } else if (!open && input && document.activeElement === input) {
+      input.blur();
+    }
+    if (!open) {
+      var overlay = $("holdem-chat-overlay");
+      if (overlay) {
+        overlay.dataset.holdemOverlayMode = "toast";
+        overlay.innerHTML = "";
+      }
+    }
+  }
+
+  function toggleChatOpen() {
+    var screen = root();
+    setChatOpen(!(screen && screen.classList.contains("is-chat-open")), true);
+  }
+
   function onRootClick(event) {
     var screen = root();
     if (!screen || !event.target || !event.target.closest) return;
@@ -4874,6 +4906,8 @@ window.TexasHoldem = (function () {
     } else if (id === "holdem-leave-btn") {
       if (isBusy()) requestLeaveAfterHand();
       else if (api && typeof api.leaveRoom === "function") api.leaveRoom();
+    } else if (id === "holdem-chat-toggle") {
+      toggleChatOpen();
     } else if (id === "holdem-chat-send") {
       sendChat();
     } else if (id === "holdem-join-request-btn") {
@@ -4954,6 +4988,10 @@ window.TexasHoldem = (function () {
     if (event.key === "Escape" && settingsOpen) {
       settingsOpen = false;
       renderSettings();
+      return;
+    }
+    if (event.key === "Escape" && root() && root().classList.contains("is-chat-open")) {
+      setChatOpen(false);
       return;
     }
     if ((event.key === "Enter" || event.key === " ") && event.target &&
@@ -5089,6 +5127,7 @@ window.TexasHoldem = (function () {
     communityRevealControlBlocked = false;
     leaveAfterHandRequested = false;
     if (!bindDom()) throw new Error("텍사스 홀덤 화면을 찾을 수 없습니다.");
+    setChatOpen(false);
     bindHoldemAudioUnlock();
     syncAudio();
     render();
