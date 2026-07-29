@@ -33,6 +33,7 @@ test("Hold'em places a dedicated asset ranking beside the hand guide", () => {
   assert.match(index, /id="holdem-asset-ranking-mine"/);
   assert.match(index, /id="holdem-asset-ranking-list"/);
   assert.match(index, /id="holdem-asset-ranking-detail"/);
+  assert.match(index, /5핸드 이상 진행해야 순위권에 반영됩니다/);
   assert.match(index, /현재 테이블에 가져간 칩까지 모두 합친 총자산 기준입니다/);
 });
 
