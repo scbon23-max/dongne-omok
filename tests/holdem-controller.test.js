@@ -344,6 +344,168 @@ test("a move shows its local action tag immediately and clears it after rejectio
   controller.leave();
 });
 
+test("server confirmation does not replay an already animated local action tag", async () => {
+  let finishAction;
+  const harness = resultTestDocument();
+  const db = {
+    holdemInvoke() {
+      return new Promise((resolve) => {
+        finishAction = resolve;
+      });
+    },
+  };
+  const controller = loadController("alice", {
+    db,
+    document: harness.document,
+  });
+  const state = controller._test.emptyState();
+  state.version = 7;
+  state.phase = "flop";
+  state.handId = "12";
+  state.handNumber = 12;
+  state.actionSeq = 4;
+  state.heroSeat = 0;
+  state.perspectiveSeat = 0;
+  state.actingSeat = 0;
+  state.toCall = 200;
+  state.legal = { call: true };
+  state.seats[0] = {
+    seat: 0,
+    nick: "alice",
+    displayName: "alice",
+    stack: 9600,
+    bet: 400,
+    inHand: true,
+    lastAction: "",
+  };
+  state.seats[1] = {
+    seat: 1,
+    nick: "bob",
+    displayName: "bob",
+    stack: 9400,
+    bet: 600,
+    inHand: true,
+    lastAction: "raise",
+  };
+  controller._test.setState(state);
+  controller._test.setHasSnapshot(true);
+  controller._test.setActive(true);
+
+  const resultPromise = controller._test.performMove("call");
+  assert.match(harness.elements["holdem-seats"].innerHTML, /\baction-call is-pending is-action-enter\b/);
+
+  finishAction({
+    ok: true,
+    version: 8,
+    snapshot: {
+      phase: "flop",
+      handId: "12",
+      handNo: 12,
+      actionSeq: 5,
+      actorSeat: 1,
+      seats: [
+        {
+          seat: 0,
+          nick: "alice",
+          displayName: "alice",
+          stack: 9400,
+          streetBet: 600,
+          totalBet: 600,
+          inHand: true,
+          lastAction: "call",
+        },
+        {
+          seat: 1,
+          nick: "bob",
+          displayName: "bob",
+          stack: 9400,
+          streetBet: 600,
+          totalBet: 600,
+          inHand: true,
+          lastAction: "raise",
+        },
+      ],
+      viewer: {
+        seat: 0,
+        cards: [],
+        legalActions: { actions: [] },
+      },
+      actionHistory: [
+        {
+          seq: 5,
+          handNo: 12,
+          phase: "flop",
+          seat: 0,
+          nick: "alice",
+          action: "call",
+          amount: 600,
+        },
+      ],
+    },
+  });
+  const result = await resultPromise;
+
+  assert.equal(result.ok, true);
+  assert.match(harness.elements["holdem-seats"].innerHTML, /\baction-call\b/);
+  assert.doesNotMatch(harness.elements["holdem-seats"].innerHTML, /\bis-pending\b/);
+  assert.doesNotMatch(harness.elements["holdem-seats"].innerHTML, /\bis-action-enter\b/);
+  controller.leave();
+});
+
+test("local action reconciliation covers every poker action without hiding mismatches", () => {
+  const controller = loadController();
+  const matches = controller._test.pendingMoveMatchesActionEntry;
+  const snapshot = { handId: "12", handNumber: 12 };
+  const cases = [
+    { action: "check", pendingAmount: 0, confirmedAmount: 0 },
+    { action: "fold", pendingAmount: 0, confirmedAmount: 400 },
+    { action: "call", pendingAmount: 600, confirmedAmount: 600 },
+    { action: "bet", pendingAmount: 800, confirmedAmount: 800 },
+    { action: "raise", pendingAmount: 1200, confirmedAmount: 1200 },
+    { action: "allin", pendingAmount: 9600, confirmedAmount: 9600 },
+  ];
+
+  cases.forEach(({ action, pendingAmount, confirmedAmount }) => {
+    assert.equal(matches(
+      {
+        seat: 0,
+        action,
+        amount: pendingAmount,
+        actionSeq: 4,
+        handId: "12",
+      },
+      {
+        seat: 0,
+        action,
+        amount: confirmedAmount,
+        seq: 5,
+      },
+      snapshot,
+    ), true, action);
+  });
+
+  assert.equal(matches(
+    { seat: 0, action: "call", amount: 600, actionSeq: 4, handId: "12" },
+    { seat: 0, action: "allin", amount: 600, seq: 5 },
+    snapshot,
+  ), true);
+  assert.equal(matches(
+    { seat: 0, action: "raise", amount: 1200, actionSeq: 4, handId: "12" },
+    { seat: 1, action: "raise", amount: 1200, seq: 5 },
+    snapshot,
+  ), false);
+  assert.equal(matches(
+    { seat: 0, action: "raise", amount: 1200, actionSeq: 4, handId: "12" },
+    { seat: 0, action: "raise", amount: 1200, seq: 6 },
+    snapshot,
+  ), false);
+  assert.equal(matches(
+    { seat: 0, action: "raise", amount: 1200, actionSeq: 4, handId: "12" },
+    { seat: 0, action: "raise", amount: 1400, seq: 5 },
+    snapshot,
+  ), false);
+});
+
 test("central pot readout omits the side pot subline", () => {
   const controller = loadController();
   const base = {

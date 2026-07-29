@@ -599,6 +599,8 @@ test("the browser sends only server commands and public refresh hints", () => {
   assert.match(controller, /holdem_refresh/);
   assert.match(controller, /pendingMove = \{[\s\S]*requestId: moveRequestId[\s\S]*action: move[\s\S]*amount: pendingMoveAmount/);
   assert.match(controller, /renderSeats\(\);[\s\S]*invoke\("act", payload/);
+  assert.match(controller, /function pendingMoveMatchesActionEntry\(move, entry, snapshot\)[\s\S]*confirmedSeq !== expectedSeq/);
+  assert.match(controller, /pendingMoveMatchesActionEntry\(confirmedPendingMove, entry, next\)[\s\S]*actionTagAnimationKeys\[actionTagKey\] = true/);
   assert.match(controller, /scheduleRefresh\("broadcast", true, 0\)/);
   assert.match(controller, /var pendingUiCount = 0/);
   assert.match(controller, /var busy = pendingUiCount > 0/);

@@ -1607,14 +1607,17 @@ window.TexasHoldem = (function () {
     if ((!next.version || next.version === state.version) &&
         responseOrder && responseOrder < lastAppliedResponse) return false;
 
-    if (pendingMove && next.version > pendingMove.version) pendingMove = null;
+    var confirmedPendingMove = pendingMove && next.version > pendingMove.version
+      ? pendingMove
+      : null;
+    if (confirmedPendingMove) pendingMove = null;
     var hadSnapshot = hasSnapshot;
     var previousDeadlineKey = state.version + ":" + state.deadlineAt;
     var nextDeadlineKey = next.version + ":" + next.deadlineAt;
     var previousHandKey = String(state.handId || state.handNumber || "");
     var nextHandKey = String(next.handId || next.handNumber || "");
     syncResultFlow(state, next);
-    syncActionSounds(state, next, hadSnapshot);
+    syncActionSounds(state, next, hadSnapshot, confirmedPendingMove);
     syncTurnStartSound(state, next, hadSnapshot);
     if (previousHandKey && nextHandKey && previousHandKey !== nextHandKey) {
       actionTagAnimationKeys = Object.create(null);
@@ -1698,12 +1701,39 @@ window.TexasHoldem = (function () {
     ].join(":");
   }
 
+  function pendingMoveMatchesActionEntry(move, entry, snapshot) {
+    if (!move || !entry || !snapshot) return false;
+    var pendingSeat = safeSeat(move.seat);
+    var confirmedSeat = safeSeat(entry.seat);
+    if (pendingSeat < 0 || confirmedSeat !== pendingSeat) return false;
+
+    var pendingAction = actionSoundKind(move.action);
+    var confirmedAction = actionSoundKind(entry.action);
+    var becameAllIn = confirmedAction === "allin" &&
+      (pendingAction === "call" || pendingAction === "bet" || pendingAction === "raise");
+    if (!pendingAction || !confirmedAction ||
+        (pendingAction !== confirmedAction && !becameAllIn)) return false;
+
+    var expectedSeq = Math.max(0, integer(move.actionSeq, 0)) + 1;
+    var confirmedSeq = Math.max(0, integer(entry.seq, 0));
+    if (confirmedSeq && confirmedSeq !== expectedSeq) return false;
+
+    var pendingHand = String(move.handId || move.handNumber || "");
+    var confirmedHand = String(snapshot.handId || snapshot.handNumber || "");
+    if (pendingHand && confirmedHand && pendingHand !== confirmedHand) return false;
+
+    var pendingAmount = Math.max(0, integer(move.amount, 0));
+    var confirmedAmount = Math.max(0, integer(entry.amount, 0));
+    if (pendingAmount && confirmedAmount && pendingAmount !== confirmedAmount) return false;
+    return true;
+  }
+
   function allinBgmKey(snapshot) {
     if (!snapshot) return "";
     return String(snapshot.handId || snapshot.handNumber || snapshot.version || "hand");
   }
 
-  function syncActionSounds(previous, next, hadSnapshot) {
+  function syncActionSounds(previous, next, hadSnapshot, confirmedPendingMove) {
     var entries = actionSoundEntries(next);
     var latest = entries.length ? entries[entries.length - 1] : null;
     var latestKey = actionSoundEntryKey(latest, next);
@@ -1738,7 +1768,13 @@ window.TexasHoldem = (function () {
       lastActionSoundKey = entryKey;
       var kind = actionSoundKind(entry.action);
       var actionTagKey = actionTagEntryKey(entry, next);
-      if (actionTagKey) pendingActionTagAnimationKeys[actionTagKey] = true;
+      if (actionTagKey) {
+        if (pendingMoveMatchesActionEntry(confirmedPendingMove, entry, next)) {
+          actionTagAnimationKeys[actionTagKey] = true;
+        } else {
+          pendingActionTagAnimationKeys[actionTagKey] = true;
+        }
+      }
       scheduleActionSfx(kind, (entryIndex - firstNewIndex) * 90);
       if (kind === "allin") {
         var bgmKey = allinBgmKey(next);
@@ -2518,6 +2554,8 @@ window.TexasHoldem = (function () {
       requestId: moveRequestId,
       version: state.version,
       handId: state.handId,
+      handNumber: state.handNumber,
+      actionSeq: state.actionSeq,
       seat: state.heroSeat,
       action: move,
       amount: pendingMoveAmount(move, amount)
@@ -5238,6 +5276,7 @@ window.TexasHoldem = (function () {
       cardHtml: cardHtml,
       seatActionLabel: seatActionLabel,
       seatActionClass: seatActionClass,
+      pendingMoveMatchesActionEntry: pendingMoveMatchesActionEntry,
       handRankings: handRankings,
       resultBoardVisibleCount: resultBoardVisibleCount,
       resultStage: resultStage,
