@@ -188,6 +188,8 @@ window.TexasHoldem = (function () {
   var actionTagAnimationKeys = Object.create(null);
   var pendingActionTagAnimationKeys = Object.create(null);
   var suppressActionTagAnimations = false;
+  var payoutParticleStreamKey = "";
+  var payoutParticleCleanupTimer = null;
   var lastBoardHtml = "";
   var lastSeatsHtml = "";
   var lastSeatResultStage = "none";
@@ -1803,9 +1805,11 @@ window.TexasHoldem = (function () {
     var key = resultKeyOf(next);
     if (!key) {
       resultFlow = null;
+      resetPayoutParticleStream();
       return;
     }
     if (resultFlow && resultFlow.key === key) return;
+    resetPayoutParticleStream();
     var now = Date.now();
     var fromStacks = [];
     var toStacks = [];
@@ -1911,6 +1915,114 @@ window.TexasHoldem = (function () {
     if (Number.isFinite(from) && Number.isFinite(to) && to > from) return to - from;
     var seat = state.seats[seatIndex];
     return nonnegative(seat && seat.winAmount, 0);
+  }
+
+  function removePayoutParticleLayer() {
+    if (payoutParticleCleanupTimer) {
+      clearTimeout(payoutParticleCleanupTimer);
+      payoutParticleCleanupTimer = null;
+    }
+    var stage = $("holdem-stage");
+    if (stage && typeof stage.querySelector === "function") {
+      var layer = stage.querySelector(".holdem-payout-particles");
+      if (layer && layer.parentNode) layer.parentNode.removeChild(layer);
+    }
+    var screen = root();
+    if (!screen || typeof screen.querySelectorAll !== "function") return;
+    var receiving = screen.querySelectorAll(".holdem-seat.is-payout-receiving");
+    for (var i = 0; i < receiving.length; i++) {
+      receiving[i].classList.remove("is-payout-receiving");
+    }
+  }
+
+  function resetPayoutParticleStream() {
+    payoutParticleStreamKey = "";
+    removePayoutParticleLayer();
+  }
+
+  function payoutParticleKey() {
+    if (state.phase !== "complete" || !resultFlow || !state.winners.length) return "";
+    return [
+      resultFlow.key,
+      resultFlow.potFrom,
+      state.winners.join("|")
+    ].join(":");
+  }
+
+  function centerInStage(node, stageRect) {
+    if (!node || typeof node.getBoundingClientRect !== "function") return null;
+    var rect = node.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2 - stageRect.left,
+      y: rect.top + rect.height / 2 - stageRect.top
+    };
+  }
+
+  function startPayoutParticleStream(key) {
+    if (typeof document === "undefined") return false;
+    var stage = $("holdem-stage");
+    var pot = $("holdem-pot");
+    if (!stage || !pot || typeof stage.getBoundingClientRect !== "function") return false;
+    var stageRect = stage.getBoundingClientRect();
+    var start = centerInStage(pot, stageRect);
+    if (!start) return false;
+    var targets = [];
+    for (var seatIndex = 0; seatIndex < MAX_SEATS; seatIndex++) {
+      if (!resultFlow.winnerSeats[seatIndex]) continue;
+      var seatNode = root() && root().querySelector('.holdem-seat[data-seat="' + seatIndex + '"]');
+      if (!seatNode) continue;
+      var avatar = seatNode.querySelector(".holdem-seat-avatar") || seatNode;
+      var end = centerInStage(avatar, stageRect);
+      if (!end) continue;
+      targets.push({ node: seatNode, end: end });
+    }
+    if (!targets.length) return false;
+    removePayoutParticleLayer();
+    var layer = document.createElement("div");
+    layer.className = "holdem-payout-particles";
+    layer.setAttribute("aria-hidden", "true");
+    layer.dataset.payoutKey = key;
+    stage.appendChild(layer);
+
+    var particlesPerWinner = targets.length > 1 ? 6 : 10;
+    var longestMs = 0;
+    targets.forEach(function (target, targetIndex) {
+      target.node.classList.add("is-payout-receiving");
+      for (var i = 0; i < particlesPerWinner; i++) {
+        var particle = document.createElement("span");
+        particle.className = "holdem-payout-particle";
+        var delay = targetIndex * 90 + i * 42 + Math.round(Math.random() * 50);
+        var duration = 720 + Math.round(Math.random() * 280);
+        var side = i % 2 ? 1 : -1;
+        var drift = (i - (particlesPerWinner - 1) / 2) * 8;
+        var midRatio = .42 + Math.random() * .22;
+        var midX = start.x + (target.end.x - start.x) * midRatio + side * (22 + Math.random() * 34);
+        var midY = start.y + (target.end.y - start.y) * midRatio - (30 + Math.random() * 58) + drift;
+        var size = 5 + Math.random() * 5;
+        particle.style.setProperty("--payout-start-x", start.x.toFixed(1) + "px");
+        particle.style.setProperty("--payout-start-y", start.y.toFixed(1) + "px");
+        particle.style.setProperty("--payout-mid-x", midX.toFixed(1) + "px");
+        particle.style.setProperty("--payout-mid-y", midY.toFixed(1) + "px");
+        particle.style.setProperty("--payout-end-x", target.end.x.toFixed(1) + "px");
+        particle.style.setProperty("--payout-end-y", target.end.y.toFixed(1) + "px");
+        particle.style.setProperty("--payout-size", size.toFixed(1) + "px");
+        particle.style.setProperty("--payout-delay", delay + "ms");
+        particle.style.setProperty("--payout-duration", duration + "ms");
+        layer.appendChild(particle);
+        longestMs = Math.max(longestMs, delay + duration);
+      }
+    });
+    payoutParticleCleanupTimer = setTimeout(removePayoutParticleLayer, longestMs + 420);
+    return true;
+  }
+
+  function maybeStartPayoutParticleStream() {
+    if (state.phase !== "complete" || !resultFlow || resultFlow.potFrom <= 0) return;
+    var now = Date.now();
+    if (now < resultFlow.settleStart || now > resultFlow.settleEnd + 180) return;
+    var key = payoutParticleKey();
+    if (!key || key === payoutParticleStreamKey) return;
+    if (startPayoutParticleStream(key)) payoutParticleStreamKey = key;
   }
 
   function requestId(prefix, stableSuffix) {
@@ -4393,6 +4505,7 @@ window.TexasHoldem = (function () {
     renderBoard();
     setText("holdem-pot-amount", formatChips(animatedPotAmount()));
     setText("holdem-result-pot", formatChips(animatedPotAmount()));
+    maybeStartPayoutParticleStream();
     for (var i = 0; i < MAX_SEATS; i++) {
       var seat = state.seats[i];
       if (!seat) continue;
@@ -4727,6 +4840,7 @@ window.TexasHoldem = (function () {
     actionTagAnimationKeys = Object.create(null);
     pendingActionTagAnimationKeys = Object.create(null);
     suppressActionTagAnimations = false;
+    resetPayoutParticleStream();
     lastBoardHtml = "";
     lastSeatsHtml = "";
     lastSeatResultStage = "none";
