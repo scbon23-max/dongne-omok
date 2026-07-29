@@ -4806,6 +4806,30 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function focusHoldemChatInput(input) {
+    if (!input) return;
+    try {
+      input.focus({ preventScroll: true });
+    } catch (err) {
+      input.focus();
+    }
+    var length = input.value ? input.value.length : 0;
+    if (typeof input.setSelectionRange === "function") {
+      try { input.setSelectionRange(length, length); } catch (err2) {}
+    }
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(function () {
+        if (document.activeElement !== input) {
+          try {
+            input.focus({ preventScroll: true });
+          } catch (err3) {
+            input.focus();
+          }
+        }
+      });
+    }
+  }
+
   function setChatOpen(open, focusInput) {
     var screen = root();
     var input = $("holdem-chat-input");
@@ -4820,7 +4844,7 @@ window.TexasHoldem = (function () {
       button.setAttribute("aria-label", open ? "채팅 닫기" : "채팅 열기");
     }
     if (open && focusInput && input) {
-      setTimeout(function () { input.focus(); }, 0);
+      focusHoldemChatInput(input);
     } else if (!open && input && document.activeElement === input) {
       input.blur();
     }
