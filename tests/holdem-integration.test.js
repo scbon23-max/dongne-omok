@@ -380,7 +380,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.doesNotMatch(controller, /isNextHandStart \? "다음 핸드" : "시작하기"/);
   assert.doesNotMatch(controller, /id === "holdem-start-btn" \|\| id === "holdem-next-btn" \|\| id === "holdem-table-start-btn"/);
   assert.match(controller, /id === "holdem-start-btn" \|\| id === "holdem-table-start-btn"/);
-  assert.match(styles, /\.holdem-card\.back\s*\{[\s\S]*repeating-linear-gradient\(28deg, transparent 0 9px, #c52835 9px 15px/);
+  assert.match(styles, /\.holdem-card\.back\s*\{[\s\S]*repeating-linear-gradient\(28deg, transparent 0 5px, #c52835 5px 11px/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\s*\{[\s\S]*top: -3px[\s\S]*translate\(-50%, -45%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\.is-revealed-cards\s*\{[\s\S]*z-index:\s*24[\s\S]*translate\(-50%, -72%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*--holdem-card-width:\s*clamp\(16px,\s*4\.6vw,\s*24px\)/);

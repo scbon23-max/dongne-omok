@@ -4459,7 +4459,7 @@ body.is-admin .feedback-user-compose { display: none; }
   border-color: #f0c9c2;
   border-radius: var(--holdem-card-radius, 4px);
   background:
-    repeating-linear-gradient(28deg, transparent 0 9px, #c52835 9px 15px, transparent 15px 24px, rgba(226,86,88,.7) 24px 28px, transparent 28px 38px),
+    repeating-linear-gradient(28deg, transparent 0 5px, #c52835 5px 11px, transparent 11px 16px, rgba(226,86,88,.72) 16px 20px, transparent 20px 27px),
     linear-gradient(180deg, #fffdf9, #f3eee7);
   box-shadow: inset 0 0 0 3px #fff7f1, inset 0 0 0 6px #b51f30, 0 3px 8px rgba(0,0,0,.35);
 }
@@ -4500,7 +4500,7 @@ body.is-admin .feedback-user-compose { display: none; }
   inset: 0;
   border-radius: inherit;
   background:
-    repeating-linear-gradient(28deg, transparent 0 9px, #c52835 9px 15px, transparent 15px 24px, rgba(226,86,88,.7) 24px 28px, transparent 28px 38px),
+    repeating-linear-gradient(28deg, transparent 0 5px, #c52835 5px 11px, transparent 11px 16px, rgba(226,86,88,.72) 16px 20px, transparent 20px 27px),
     linear-gradient(180deg, #fffdf9, #f3eee7);
   box-shadow: inset 0 0 0 3px #fff7f1, inset 0 0 0 6px #b51f30;
   animation: holdemCommunityCardBackFlip 620ms cubic-bezier(.2, .72, .18, 1) both;
