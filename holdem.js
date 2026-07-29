@@ -338,9 +338,7 @@ window.TexasHoldem = (function () {
 
   function restoreHoldemSettings() {
     var saved = readStoredHoldemSettings();
-    if (saved.moneyUnitMode === "bb" || saved.moneyUnitMode === "chips") {
-      moneyUnitMode = saved.moneyUnitMode;
-    }
+    moneyUnitMode = saved.moneyUnitMode === "bb" ? "bb" : "chips";
   }
 
   function roomId() {

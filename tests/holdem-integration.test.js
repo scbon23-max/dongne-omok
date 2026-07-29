@@ -441,7 +441,7 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /var raiseMenuOpen = false/);
   assert.match(controller, /var moneyUnitMode = "chips"/);
   assert.match(controller, /HOLDEM_SETTINGS_STORAGE_PREFIX = "dongne_holdem_settings:"/);
-  assert.match(controller, /function restoreHoldemSettings\(\)[\s\S]*saved\.moneyUnitMode === "bb" \|\| saved\.moneyUnitMode === "chips"[\s\S]*moneyUnitMode = saved\.moneyUnitMode/);
+  assert.match(controller, /function restoreHoldemSettings\(\)[\s\S]*moneyUnitMode = saved\.moneyUnitMode === "bb" \? "bb" : "chips"/);
   assert.match(controller, /function enter\(nextApi\)[\s\S]*api = nextApi;[\s\S]*restoreHoldemSettings\(\)/);
   assert.match(controller, /function toggleMoneyUnitMode\(\)[\s\S]*moneyUnitMode === "bb" \? "chips" : "bb"/);
   assert.match(controller, /function setMoneyUnitMode\(mode\)[\s\S]*writeStoredHoldemSettings\(\{ moneyUnitMode: moneyUnitMode \}\)/);
