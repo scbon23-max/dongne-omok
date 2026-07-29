@@ -248,6 +248,9 @@
       showChat: function (nick, text, overlaySide) {
         addChatTo("catchmind", nick, text, true, overlaySide === "right" ? "right" : "");
       },
+      showChatToast: function (nick, text, overlaySide) {
+        pushOverlay(activeFamily(), nick, text, overlaySide);
+      },
       playWarning: function () {
         initAudio();
         playSample(warnBuffer);
@@ -4643,6 +4646,10 @@
       renderHoldemChatHistory();
       return;
     }
+    pushOverlayToast(family, nick, text, overlaySide, ov);
+  }
+  function pushOverlayToast(family, nick, text, overlaySide, ov) {
+    ov = ov || $(gameUi(family).chatOverlayId); if (!ov) return;
     if (family === "holdem") {
       if (ov.dataset.holdemOverlayMode === "history") ov.innerHTML = "";
       ov.dataset.holdemOverlayMode = "toast";
