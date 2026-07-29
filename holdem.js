@@ -199,6 +199,7 @@ window.TexasHoldem = (function () {
   var chatKeyboardViewportBound = false;
   var chatKeyboardWasOpen = false;
   var chatKeyboardSyncTimer = null;
+  var chatEnterKeyBound = false;
 
   var boundRoot = null;
   var demoState = null;
@@ -5277,6 +5278,31 @@ window.TexasHoldem = (function () {
     }, 160);
   }
 
+  function shouldOpenChatFromEnter(event) {
+    if (!event || event.key !== "Enter" || event.isComposing ||
+        event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return false;
+    var target = event.target;
+    if (!target || !target.closest) return true;
+    if (target.id === "holdem-chat-input") return false;
+    if (target.closest("input, textarea, select, button, a, [contenteditable='true']")) return false;
+    if (target.closest(".holdem-profile-dialog, .holdem-buyin-dialog, .holdem-settings-panel")) return false;
+    return true;
+  }
+
+  function openChatFromEnter(event) {
+    if (!shouldOpenChatFromEnter(event)) return false;
+    event.preventDefault();
+    setChatOpen(true, true);
+    return true;
+  }
+
+  function onDocumentKeydown(event) {
+    var screen = root();
+    if (!active || !screen || screen.classList.contains("hidden")) return;
+    if (event.target && screen.contains(event.target)) return;
+    openChatFromEnter(event);
+  }
+
   function onRootKeydown(event) {
     if (event.key === "Escape" && profileDialogOpen) {
       closeProfileDialog();
@@ -5295,6 +5321,7 @@ window.TexasHoldem = (function () {
       setChatOpen(false);
       return;
     }
+    if (openChatFromEnter(event)) return;
     if ((event.key === "Enter" || event.key === " ") && event.target &&
         event.target.closest && event.target.closest(".holdem-seat:not(.is-empty)")) {
       var profileSeat = event.target.closest(".holdem-seat:not(.is-empty)");
@@ -5342,7 +5369,13 @@ window.TexasHoldem = (function () {
     var screen = root();
     if (!screen) return false;
     ensureSeatControls();
-    if (boundRoot === screen) return true;
+    if (boundRoot === screen) {
+      if (!chatEnterKeyBound && typeof document !== "undefined") {
+        document.addEventListener("keydown", onDocumentKeydown);
+        chatEnterKeyBound = true;
+      }
+      return true;
+    }
     if (boundRoot) {
       boundRoot.removeEventListener("click", onRootClick);
       boundRoot.removeEventListener("input", onRootInput);
@@ -5356,6 +5389,10 @@ window.TexasHoldem = (function () {
     boundRoot.addEventListener("change", onRootChange);
     boundRoot.addEventListener("focusout", onRootFocusOut);
     boundRoot.addEventListener("keydown", onRootKeydown);
+    if (!chatEnterKeyBound && typeof document !== "undefined") {
+      document.addEventListener("keydown", onDocumentKeydown);
+      chatEnterKeyBound = true;
+    }
     return true;
   }
 
@@ -5448,6 +5485,10 @@ window.TexasHoldem = (function () {
     lifecycleGeneration += 1;
     stopTimers();
     unbindHoldemChatKeyboard();
+    if (chatEnterKeyBound && typeof document !== "undefined") {
+      document.removeEventListener("keydown", onDocumentKeydown);
+      chatEnterKeyBound = false;
+    }
     active = false;
 
     if (wasJoined && previousRoom) {
