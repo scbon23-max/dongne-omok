@@ -4432,13 +4432,13 @@ body.is-admin .feedback-user-compose { display: none; }
   --holdem-card-mark-top: 66%;
 }
 .holdem-card.back {
-  border-color: #c9d5d6;
+  border-color: #f0c0b8;
   border-radius: var(--holdem-card-radius, 4px);
   background:
-    radial-gradient(circle, rgba(255,255,255,.16) 0 1px, transparent 1.5px) 0 0 / 8px 8px,
-    repeating-linear-gradient(45deg, rgba(255,255,255,.04) 0 4px, transparent 4px 8px),
-    #173e4a;
-  box-shadow: inset 0 0 0 3px #ecede8, inset 0 0 0 5px #1f6470, 0 3px 8px rgba(0,0,0,.35);
+    radial-gradient(circle, rgba(255,238,232,.2) 0 1px, transparent 1.5px) 0 0 / 8px 8px,
+    repeating-linear-gradient(45deg, rgba(255,255,255,.055) 0 4px, transparent 4px 8px),
+    linear-gradient(145deg, #b63235, #68141f 64%, #48101a);
+  box-shadow: inset 0 0 0 3px #ffe5dd, inset 0 0 0 5px #8f1e2a, 0 3px 8px rgba(0,0,0,.35);
 }
 .holdem-card.empty {
   border: 1px dashed rgba(213,239,235,.09);
@@ -4477,10 +4477,10 @@ body.is-admin .feedback-user-compose { display: none; }
   inset: 0;
   border-radius: inherit;
   background:
-    radial-gradient(circle, rgba(255,255,255,.16) 0 1px, transparent 1.5px) 0 0 / 8px 8px,
-    repeating-linear-gradient(45deg, rgba(255,255,255,.04) 0 4px, transparent 4px 8px),
-    #173e4a;
-  box-shadow: inset 0 0 0 3px #ecede8, inset 0 0 0 5px #1f6470;
+    radial-gradient(circle, rgba(255,238,232,.2) 0 1px, transparent 1.5px) 0 0 / 8px 8px,
+    repeating-linear-gradient(45deg, rgba(255,255,255,.055) 0 4px, transparent 4px 8px),
+    linear-gradient(145deg, #b63235, #68141f 64%, #48101a);
+  box-shadow: inset 0 0 0 3px #ffe5dd, inset 0 0 0 5px #8f1e2a;
   animation: holdemCommunityCardBackFlip 620ms cubic-bezier(.2, .72, .18, 1) both;
   animation-delay: var(--holdem-community-flip-delay, 0ms);
   pointer-events: none;
@@ -5253,7 +5253,7 @@ body.is-admin .feedback-user-compose { display: none; }
   transform: none;
 }
 .holdem-seat:not(.is-me) .holdem-hole-cards {
-  top: 1px;
+  top: -3px;
   transform: translate(-50%, -45%);
 }
 .holdem-seat:not(.is-me) .holdem-hole-cards.is-revealed-cards {
@@ -5271,8 +5271,8 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-seat:not(.is-me) .holdem-hole-cards .holdem-card.back {
   --holdem-card-width: clamp(16px, 4.6vw, 24px);
   --holdem-card-radius: 2px;
-  border-color: #a8bdc0;
-  box-shadow: inset 0 0 0 1px #ecede8, inset 0 0 0 2px #1f6470, 0 1px 3px rgba(0,0,0,.32);
+  border-color: #e8a9a0;
+  box-shadow: inset 0 0 0 1px #ffe5dd, inset 0 0 0 2px #8f1e2a, 0 1px 3px rgba(0,0,0,.32);
 }
 .holdem-seat:not(.is-me) .holdem-hole-cards.is-revealed-cards .holdem-card:not(.back):not(.empty) {
   --holdem-card-width: clamp(30px, 8vw, 42px);
