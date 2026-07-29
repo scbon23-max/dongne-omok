@@ -89,6 +89,7 @@ window.TexasHoldem = (function () {
   };
   var RESULT_SETTLE_MS = 1600;
   var RESULT_REVIEW_MS = 4000;
+  var HOLDEM_SETTINGS_STORAGE_PREFIX = "dongne_holdem_settings:";
   var PROFILE_AVATAR_STORAGE_PREFIX = "dongne_holdem_profile_avatar:";
   var PROFILE_AVATAR_SIZE = 256;
   var PROFILE_AVATAR_MAX_DATA_URL_LENGTH = 76000;
@@ -307,6 +308,39 @@ window.TexasHoldem = (function () {
   function auth() {
     var value = api && typeof api.galleryAuth === "function" ? api.galleryAuth() : null;
     return isObject(value) ? value : { nick: me().nick || "", hash: "" };
+  }
+
+  function holdemSettingsStorageKey() {
+    return HOLDEM_SETTINGS_STORAGE_PREFIX + encodeURIComponent(text(me().nick, 40) || "guest");
+  }
+
+  function readStoredHoldemSettings() {
+    if (typeof localStorage === "undefined") return {};
+    try {
+      var saved = JSON.parse(localStorage.getItem(holdemSettingsStorageKey()) || "{}");
+      return isObject(saved) ? saved : {};
+    } catch (_error) {
+      return {};
+    }
+  }
+
+  function writeStoredHoldemSettings(next) {
+    if (typeof localStorage === "undefined") return false;
+    try {
+      var current = readStoredHoldemSettings();
+      Object.keys(next || {}).forEach(function (key) { current[key] = next[key]; });
+      localStorage.setItem(holdemSettingsStorageKey(), JSON.stringify(current));
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function restoreHoldemSettings() {
+    var saved = readStoredHoldemSettings();
+    if (saved.moneyUnitMode === "bb" || saved.moneyUnitMode === "chips") {
+      moneyUnitMode = saved.moneyUnitMode;
+    }
   }
 
   function roomId() {
@@ -4385,6 +4419,7 @@ window.TexasHoldem = (function () {
       return;
     }
     moneyUnitMode = nextMode;
+    writeStoredHoldemSettings({ moneyUnitMode: moneyUnitMode });
     renderHeader();
     renderSeats();
     renderHandResult();
@@ -5710,6 +5745,7 @@ window.TexasHoldem = (function () {
   function enter(nextApi) {
     leave();
     api = nextApi;
+    restoreHoldemSettings();
     active = true;
     connected = true;
     joined = false;
