@@ -213,6 +213,20 @@ test("the controller consumes the engine's personalized snapshot contract", () =
   assert.equal(normalized.bigBlind, 200);
 });
 
+test("reserved leave state is kept for seat display", () => {
+  const controller = loadController();
+  const normalized = controller._test.normalizeSnapshot({
+    phase: "flop",
+    seats: [
+      { seat: 0, nick: "alice", stack: 9800, leaving: true },
+      { seat: 1, nick: "bob", stack: 9900 },
+    ],
+  }, 8);
+
+  assert.equal(normalized.seats[0].leaving, true);
+  assert.equal(normalized.seats[1].leaving, false);
+});
+
 test("seat action tags fall back to the latest server action history", () => {
   const controller = loadController();
   const normalized = controller._test.normalizeSnapshot({

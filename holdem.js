@@ -1121,6 +1121,7 @@ window.TexasHoldem = (function () {
       ready: !!firstDefined(entry.ready, entry.isReady, false),
       folded: !!firstDefined(entry.folded, status === "folded" || status === "fold"),
       allIn: !!firstDefined(entry.allIn, entry.allin, status === "allin" || status === "all_in"),
+      leaving: !!firstDefined(entry.leaving, entry.leaveAfterHand, entry.pendingLeave, status === "leaving"),
       lastAction: canonicalSeatAction(firstDefined(entry.lastAction, entry.recentAction, entry.action)),
       away: !!firstDefined(entry.away, entry.disconnected, status === "away" || status === "disconnected"),
       sittingOut: !!firstDefined(entry.sittingOut, entry.spectator, status === "sitting_out"),
@@ -3710,6 +3711,7 @@ window.TexasHoldem = (function () {
       if (isActive) classes.push("is-active");
       if (seat && seat.folded) classes.push("is-folded");
       if (seat && seat.allIn) classes.push("is-allin");
+      if (seat && seat.leaving) classes.push("is-leaving");
       if (seat && seat.away) classes.push("is-away");
       if (seat && seat.isBot) classes.push("is-bot");
       var isWinner = !!(seat && (seat.winner || winners[seat.nick]));
@@ -3745,6 +3747,9 @@ window.TexasHoldem = (function () {
         : (seatedAloneWithBotsEnabled() ? "빈 좌석, AI 추가" : "빈 좌석, 앉기");
       var badges = "";
       if (absolute === state.dealerSeat) badges += "<span>D</span>";
+      var leaveBadge = seat && seat.leaving
+        ? '<span class="holdem-seat-leave-badge" aria-hidden="true">나가기 예약</span>'
+        : "";
 
       var holes = "";
       var holesClass = "holdem-hole-cards";
@@ -3789,6 +3794,7 @@ window.TexasHoldem = (function () {
               '<span class="holdem-seat-open-icon"><span></span><i></i></span>') +
           '</div>' +
           '<div class="holdem-seat-badges" aria-hidden="true">' + badges + '</div>' +
+          leaveBadge +
           (seat ? '<strong class="holdem-seat-name">' + esc(name) + '</strong>' : "") +
           (seat ? '<span class="holdem-seat-stack">' + formatChips(displayStack) + '</span>' : "") +
           (isActive && state.deadlineAt
