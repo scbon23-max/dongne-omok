@@ -6424,7 +6424,7 @@ body.is-admin .feedback-user-compose { display: none; }
   bottom: calc(max(8px, env(safe-area-inset-bottom)) + 118px);
 }
 .holdem-screen.is-fold-revealing .holdem-emoji-panel {
-  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 168px);
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 112px);
 }
 .holdem-refill-panel {
   position: absolute;
@@ -6837,7 +6837,7 @@ body.is-admin .feedback-user-compose { display: none; }
   position: absolute;
   z-index: 56;
   left: 12px;
-  bottom: max(166px, calc(env(safe-area-inset-bottom) + 162px));
+  bottom: max(112px, calc(env(safe-area-inset-bottom) + 108px));
   width: min(228px, calc(100vw - 24px));
   padding: 8px;
   display: grid;
@@ -6869,10 +6869,10 @@ body.is-admin .feedback-user-compose { display: none; }
   background: rgba(125,225,196,.18);
 }
 .holdem-screen.is-actioning .holdem-emoji-panel {
-  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 168px);
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 112px);
 }
 .holdem-screen.is-pre-actioning .holdem-emoji-panel {
-  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 170px);
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 114px);
 }
 .holdem-chat-row {
   position: absolute;
