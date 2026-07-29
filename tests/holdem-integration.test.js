@@ -420,13 +420,15 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 56px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-seat-avatar-size\) \/ 2 - 24px\)/);
   assert.match(controller, /is-visible-cards is-revealed-cards/);
-  assert.match(controller, /function heroRevealCardClass\(cardIndex\)[\s\S]*normalizeCardIndexes\(state\.heroRevealCards\)/);
+  assert.match(controller, /function heroRevealCardClass\(cardIndex\)[\s\S]*heroPublicRevealIndexes\(state\)/);
   assert.match(controller, /function syncHeroRevealThrow\(previous, next, hadSnapshot\)[\s\S]*previousRevealKey !== nextRevealKey/);
-  assert.match(controller, /heroRevealThrowRenderedKey !== heroRevealThrowKey/);
+  assert.match(controller, /function heroPublicRevealKey\(snapshot\)[\s\S]*snapshot\.revealedCards/);
+  assert.match(controller, /heroRevealThrowUntil = Date\.now\(\) \+ HERO_REVEAL_THROW_MS/);
   assert.match(controller, /heroRevealCardClass\(cardIndex\)/);
   assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card\.is-hero-reveal-forward\s*\{[\s\S]*transform:\s*translate\(var\(--holdem-reveal-x/);
   assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card\.is-hero-reveal-throwing\s*\{[\s\S]*animation:\s*holdemHeroRevealThrow/);
   assert.match(styles, /@keyframes holdemHeroRevealThrow[\s\S]*translate\(var\(--holdem-reveal-x/);
+  assert.match(styles, /\.holdem-fold-reveal-choice\s*\{[\s\S]*min-height:\s*52px/);
   assert.match(controller, /class="holdem-seat-open-icon"/);
   assert.match(controller, /seat \? readProfileAvatar\(seat\.nick\) : ""/);
   assert.match(controller, /role="button" tabindex="0"/);

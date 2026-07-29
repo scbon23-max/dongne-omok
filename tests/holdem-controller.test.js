@@ -638,6 +638,55 @@ test("hand-end snapshots map to the completed UI and expose only server showdown
   assert.ok(normalized.showdown.some((row) => row.handName));
 });
 
+test("active folded reveals drive a one-shot hero throw without being cut off by refreshes", () => {
+  const originalNow = Date.now;
+  let now = 1_800_000_000_000;
+  Date.now = () => now;
+  const dom = resultTestDocument();
+  const controller = loadController("alice", { document: dom.document });
+  const heroCards = ["As", "7d"];
+  function snapshot(revealCards, version) {
+    return {
+      version,
+      phase: "flop",
+      handId: "reveal-hand",
+      mode: "ring",
+      seats: [
+        { seat: 0, nick: "alice", displayName: "alice", stack: 10000, inHand: true, folded: true, cardCount: 2 },
+        { seat: 1, nick: "bob", displayName: "bob", stack: 10000, inHand: true, folded: false, cardCount: 2 },
+      ],
+      viewer: { seat: 0, cards: heroCards, revealCards },
+      revealedCards: revealCards.length
+        ? [{ seat: 0, cards: revealCards.map((index) => heroCards[index]), revealCards }]
+        : [],
+      board: ["2c", "3c", "4c"],
+      actingSeat: 1,
+      legalActions: {},
+    };
+  }
+
+  try {
+    assert.equal(controller._test.applySnapshot(snapshot([], 1), 1, 1), true);
+    assert.equal(dom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-throwing"), false);
+
+    assert.equal(controller._test.applySnapshot(snapshot([0], 2), 2, 2), true);
+    assert.equal(dom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-forward"), true);
+    assert.equal(dom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-throwing"), true);
+
+    now += 120;
+    assert.equal(controller._test.applySnapshot(snapshot([0], 3), 3, 3), true);
+    assert.equal(dom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-throwing"), true);
+
+    now += 900;
+    assert.equal(controller._test.applySnapshot(snapshot([0], 4), 4, 4), true);
+    assert.equal(dom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-forward"), true);
+    assert.equal(dom.elements["holdem-seats"].innerHTML.includes("is-hero-reveal-throwing"), false);
+  } finally {
+    controller.leave();
+    Date.now = originalNow;
+  }
+});
+
 test("completed snapshots recover winners from pot seats and authoritative payouts", () => {
   const controller = loadController();
   const base = {

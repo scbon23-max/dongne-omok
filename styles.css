@@ -6136,7 +6136,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-fold-reveal-choice {
   position: relative;
   min-width: 0;
-  min-height: 58px;
+  min-height: 52px;
   padding: 7px 7px 6px;
   display: flex;
   align-items: center;

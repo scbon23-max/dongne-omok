@@ -553,6 +553,32 @@ test("a folded AI keeps its cards hidden when the hand ends by folds", () => {
   botCards.forEach((card) => assert.equal(completedSerialized.includes(`"${card}"`), false));
 });
 
+test("folded card reveals are public during the active hand", () => {
+  const names = ["alice", "bob", "cara"];
+  let state = readyAndStart(tableWithPlayers(names), names);
+  const folder = state.seats[state.actorSeat];
+  const foldedCards = folder.cards.slice();
+  state = apply(state, {
+    type: "act",
+    nick: folder.nick,
+    action: "fold",
+  }, 130);
+  assert.equal(state.phase !== "hand_end", true);
+  state = apply(state, {
+    type: "reveal_cards",
+    nick: folder.nick,
+    cards: [0],
+  }, 131);
+
+  const viewer = state.seats.find((player) => player && player.nick !== folder.nick && !player.folded);
+  const activeView = Engine.view(state, viewer.nick);
+  const row = activeView.revealedCards.find((entry) => entry.seat === folder.seat);
+  assert.ok(row);
+  assert.deepEqual(row.cards, [foldedCards[0]]);
+  assert.deepEqual(row.revealCards, [0]);
+  assert.equal(JSON.stringify(activeView).includes(`"${foldedCards[1]}"`), false);
+});
+
 test("an AI that wins by folds reveals its winner hand after the hand", () => {
   let state = tableWithPlayers(["owner"]);
   state = apply(state, {

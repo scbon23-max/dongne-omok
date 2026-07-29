@@ -59,6 +59,7 @@ window.TexasHoldem = (function () {
   var COMMUNITY_RIVER_FLIP_MS = 1800;
   var COMMUNITY_RIVER_OPEN_CUE_MS = 1400;
   var COMMUNITY_CARD_FLIP_STAGGER_MS = 120;
+  var HERO_REVEAL_THROW_MS = 760;
   var HOLDEM_SFX_POOL_SIZE = 2;
   var COMMUNITY_CARD_OPEN_SFX_SRC = "assets/holdem/community-card-open.mp3";
   var COMMUNITY_CARD_OPEN_SFX_VOLUME = 0.78;
@@ -197,8 +198,9 @@ window.TexasHoldem = (function () {
   var lastSeatsHtml = "";
   var lastSeatResultStage = "none";
   var heroRevealThrowKey = "";
-  var heroRevealThrowRenderedKey = "";
   var heroRevealThrowIndexes = [];
+  var heroRevealThrowUntil = 0;
+  var heroRevealThrowTimer = null;
   var communityRevealControlBlocked = false;
   var chatKeyboardViewportBound = false;
   var chatKeyboardWasOpen = false;
@@ -351,6 +353,7 @@ window.TexasHoldem = (function () {
       heroCards: [],
       heroRevealCards: [],
       revealedCards: [null, null, null, null, null, null],
+      revealedCardIndexes: [null, null, null, null, null, null],
       board: [],
       pot: 0,
       lastRake: 0,
@@ -1400,25 +1403,39 @@ window.TexasHoldem = (function () {
     var dealerSeat = safeSeat(firstDefined(table.dealerSeat, table.buttonSeat, table.dealer));
     var phase = phaseKey(firstDefined(table.phase, table.street, table.status));
     var revealedCards = [null, null, null, null, null, null];
+    var revealedCardIndexes = [null, null, null, null, null, null];
     var showdownRows = [];
+    function addRevealedCards(entry, pushShowdown) {
+      if (!isObject(entry)) return;
+      var revealedSeat = safeSeat(firstDefined(entry.seat, entry.index, entry.position));
+      var cards = normalizeCards(entry.cards, 2);
+      if (revealedSeat < 0 || !cards.length) return;
+      revealedCards[revealedSeat] = cards;
+      revealedCardIndexes[revealedSeat] = normalizeCardIndexes(firstDefined(
+        entry.revealCards,
+        entry.revealCardIndexes,
+        entry.cardIndexes
+      ));
+      if (pushShowdown) {
+        showdownRows.push({
+          seat: revealedSeat,
+          nick: text(firstDefined(entry.nick, entry.nickname, entry.name), 40),
+          displayName: text(firstDefined(entry.displayName, entry.label, entry.nick, entry.nickname), 40),
+          cards: cards,
+          handName: text(firstDefined(entry.handName, entry.handLabel, entry.name), 80),
+          handCategory: integer(firstDefined(entry.handCategory, entry.category), -1),
+          folded: !!firstDefined(entry.folded, false),
+          testReveal: !!firstDefined(entry.testReveal, entry.aiReveal, false)
+        });
+      }
+    }
+    [table.revealedCards, table.foldedReveals, table.publicReveals].forEach(function (rows) {
+      if (!Array.isArray(rows)) return;
+      rows.forEach(function (entry) { addRevealedCards(entry, false); });
+    });
     if ((phase === "complete" || phase === "showdown") && Array.isArray(table.showdown)) {
       table.showdown.forEach(function (entry) {
-        if (!isObject(entry)) return;
-        var revealedSeat = safeSeat(firstDefined(entry.seat, entry.index, entry.position));
-        var cards = normalizeCards(entry.cards, 2);
-        if (revealedSeat >= 0) {
-          revealedCards[revealedSeat] = cards;
-          showdownRows.push({
-            seat: revealedSeat,
-            nick: text(firstDefined(entry.nick, entry.nickname, entry.name), 40),
-            displayName: text(firstDefined(entry.displayName, entry.label, entry.nick, entry.nickname), 40),
-            cards: cards,
-            handName: text(firstDefined(entry.handName, entry.handLabel, entry.name), 80),
-            handCategory: integer(firstDefined(entry.handCategory, entry.category), -1),
-            folded: !!firstDefined(entry.folded, false),
-            testReveal: !!firstDefined(entry.testReveal, entry.aiReveal, false)
-          });
-        }
+        addRevealedCards(entry, true);
       });
     }
     var canReadyValue = firstDefined(viewer.canReady, raw.canReady, table.canReady);
@@ -1471,6 +1488,7 @@ window.TexasHoldem = (function () {
       heroCards: heroCards,
       heroRevealCards: heroRevealCards,
       revealedCards: revealedCards,
+      revealedCardIndexes: revealedCardIndexes,
       board: normalizeCards(firstDefined(table.board, table.communityCards, table.community), 5),
       pot: pots.total,
       lastRake: nonnegative(firstDefined(table.lastRake, raw.lastRake), 0),
@@ -1652,8 +1670,9 @@ window.TexasHoldem = (function () {
       actionTagAnimationKeys = Object.create(null);
       pendingActionTagAnimationKeys = Object.create(null);
       heroRevealThrowKey = "";
-      heroRevealThrowRenderedKey = "";
       heroRevealThrowIndexes = [];
+      heroRevealThrowUntil = 0;
+      clearHeroRevealThrowTimer();
     }
     suppressActionTagAnimations = !hadSnapshot;
     state = next;
@@ -2658,32 +2677,77 @@ window.TexasHoldem = (function () {
     return normalizeCardIndexes(indexes).join(",");
   }
 
+  function clearHeroRevealThrowTimer() {
+    if (heroRevealThrowTimer) {
+      clearTimeout(heroRevealThrowTimer);
+      heroRevealThrowTimer = null;
+    }
+  }
+
+  function scheduleHeroRevealThrowEnd() {
+    clearHeroRevealThrowTimer();
+    var remaining = heroRevealThrowUntil - Date.now();
+    if (remaining <= 0) return;
+    heroRevealThrowTimer = setTimeout(function () {
+      heroRevealThrowTimer = null;
+      heroRevealThrowUntil = 0;
+      renderSeats();
+    }, remaining + 30);
+  }
+
+  function heroPublicRevealIndexes(snapshot) {
+    var seatIndex = snapshot && snapshot.heroSeat;
+    if (seatIndex == null || seatIndex < 0) return [];
+    var revealed = snapshot.revealedCards && snapshot.revealedCards[seatIndex];
+    if (!Array.isArray(revealed) || !revealed.length) return [];
+    var indexes = normalizeCardIndexes(snapshot.revealedCardIndexes && snapshot.revealedCardIndexes[seatIndex]);
+    return indexes.length ? indexes : normalizeCardIndexes(snapshot.heroRevealCards);
+  }
+
+  function heroPublicRevealKey(snapshot) {
+    var indexes = heroPublicRevealIndexes(snapshot);
+    if (!indexes.length) return "";
+    var seatIndex = snapshot.heroSeat;
+    var revealed = snapshot.revealedCards && snapshot.revealedCards[seatIndex] || [];
+    return [
+      snapshot.handId || snapshot.handNumber || "hand",
+      seatIndex,
+      foldRevealSelectionKey(indexes),
+      revealed.map(communityCardKey).join("|")
+    ].join(":");
+  }
+
   function syncHeroRevealThrow(previous, next, hadSnapshot) {
     var previousHandKey = String(previous && (previous.handId || previous.handNumber) || "");
     var nextHandKey = String(next && (next.handId || next.handNumber) || "");
-    var previousRevealKey = foldRevealSelectionKey(previous && previous.heroRevealCards);
-    var nextRevealKey = foldRevealSelectionKey(next && next.heroRevealCards);
+    var previousRevealKey = heroPublicRevealKey(previous);
+    var nextRevealKey = heroPublicRevealKey(next);
     if (!nextRevealKey || !hadSnapshot || !previousHandKey || previousHandKey !== nextHandKey || !isHandActive(next.phase)) {
       if (!nextRevealKey || previousHandKey !== nextHandKey || !isHandActive(next.phase)) {
         heroRevealThrowKey = "";
-        heroRevealThrowRenderedKey = "";
         heroRevealThrowIndexes = [];
+        heroRevealThrowUntil = 0;
+        clearHeroRevealThrowTimer();
       }
       return;
     }
     if (previousRevealKey !== nextRevealKey) {
+      var previousIndexes = heroPublicRevealIndexes(previous);
+      var nextIndexes = heroPublicRevealIndexes(next);
+      var throwIndexes = nextIndexes.filter(function (index) { return previousIndexes.indexOf(index) < 0; });
       heroRevealThrowKey = nextHandKey + ":" + nextRevealKey;
-      heroRevealThrowRenderedKey = "";
-      heroRevealThrowIndexes = normalizeCardIndexes(next.heroRevealCards);
+      heroRevealThrowIndexes = throwIndexes.length ? throwIndexes : nextIndexes;
+      heroRevealThrowUntil = Date.now() + HERO_REVEAL_THROW_MS;
+      scheduleHeroRevealThrowEnd();
     }
   }
 
   function heroRevealCardClass(cardIndex) {
-    var indexes = normalizeCardIndexes(state.heroRevealCards);
+    var indexes = heroPublicRevealIndexes(state);
     if (!isHandActive(state.phase) || indexes.indexOf(cardIndex) < 0) return "";
     var classes = ["is-hero-reveal-forward"];
     if (heroRevealThrowKey &&
-        heroRevealThrowRenderedKey !== heroRevealThrowKey &&
+        Date.now() < heroRevealThrowUntil &&
         heroRevealThrowIndexes.indexOf(cardIndex) >= 0) {
       classes.push("is-hero-reveal-throwing");
     }
@@ -4416,9 +4480,6 @@ window.TexasHoldem = (function () {
             if (revealClass) cardClasses.push(revealClass);
             return cardHtml(card, null, cardClasses.join(" "));
           }).join("");
-          if (heroRevealThrowKey && heroRevealThrowRenderedKey !== heroRevealThrowKey) {
-            heroRevealThrowRenderedKey = heroRevealThrowKey;
-          }
         } else if (state.revealedCards[absolute] && state.revealedCards[absolute].length) {
           holesClass += " is-visible-cards is-revealed-cards";
           holes = state.revealedCards[absolute].map(function (card, cardIndex) {
@@ -5628,6 +5689,7 @@ window.TexasHoldem = (function () {
     clearAutoNextHand();
     clearAutoReadyForNextHand();
     clearBotTimer();
+    clearHeroRevealThrowTimer();
     clearCommunityCardOpenSoundTimers();
     clearActionSoundTimers();
     stopAllinBgmSfx();
@@ -5640,6 +5702,9 @@ window.TexasHoldem = (function () {
     lastBoardHtml = "";
     lastSeatsHtml = "";
     lastSeatResultStage = "none";
+    heroRevealThrowKey = "";
+    heroRevealThrowIndexes = [];
+    heroRevealThrowUntil = 0;
   }
 
   function enter(nextApi) {

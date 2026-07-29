@@ -1497,6 +1497,11 @@
     }).filter(Boolean);
   }
 
+  function publicFoldedReveals(state) {
+    if (!PLAYING_PHASES[state.phase]) return [];
+    return foldedRevealShowdown(state);
+  }
+
   function winnerRevealShowdown(state) {
     var seats = [];
     (Array.isArray(state.pots) ? state.pots : []).forEach(function (pot) {
@@ -2163,6 +2168,7 @@
       board: state.board.slice(),
       heroCards: viewerPlayer ? viewerPlayer.cards.slice() : [],
       heroRevealCards: viewerPlayer ? normalizeRevealCards(viewerPlayer.revealCards) : [],
+      revealedCards: publicFoldedReveals(state),
       currentBet: state.currentBet,
       lastFullRaiseSize: state.lastFullRaiseSize,
       pot: potTotal(state),
