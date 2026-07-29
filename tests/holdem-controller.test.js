@@ -107,6 +107,53 @@ function resultTestDocument() {
   };
 }
 
+function controlTestDocument() {
+  const ids = [
+    "holdemgame",
+    "holdem-board",
+    "holdem-action-panel",
+    "holdem-fold-btn",
+    "holdem-check-btn",
+    "holdem-call-btn",
+    "holdem-bet-btn",
+    "holdem-raise-btn",
+    "holdem-allin-btn",
+    "holdem-raise-panel",
+    "holdem-call-amount",
+    "holdem-action-label",
+    "holdem-hand-name",
+    "holdem-lobby",
+    "holdem-seat-controls",
+    "holdem-bot-controls",
+    "holdem-bot-note",
+    "holdem-bot-count",
+    "holdem-bot-add-btn",
+    "holdem-bot-fill-btn",
+    "holdem-bot-remove-btn",
+    "holdem-table-start-btn",
+    "holdem-ready-btn",
+    "holdem-start-btn",
+    "holdem-refill-panel",
+    "holdem-refill-btn",
+    "holdem-refill-status",
+    "holdem-connection",
+    "holdem-status",
+  ];
+  const elements = {};
+  ids.forEach((id) => {
+    elements[id] = fakeElement(id === "holdem-action-panel" ? ["hidden"] : []);
+  });
+  elements.holdemgame.querySelectorAll = () => [];
+  return {
+    document: {
+      getElementById(id) {
+        return elements[id] || null;
+      },
+    },
+    elements,
+  };
+}
+
 function serverView() {
   let state = Engine.createTable({
     roomId: "room-controller",
@@ -415,6 +462,59 @@ test("completed all-in boards reveal flop, turn, and river in order", () => {
     assert.equal(controller._test.resultBoardVisibleCount(), 4);
     now += controller._test.constants.resultBoardRevealStepMs;
     assert.equal(controller._test.resultBoardVisibleCount(), 5);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("river action controls wait until the river card finishes opening", () => {
+  const dom = controlTestDocument();
+  const controller = loadController("alice", { document: dom.document });
+  const baseSnapshot = {
+    handId: "river-open-delay",
+    handNumber: 3,
+    heroSeat: 0,
+    actingSeat: 0,
+    ownerNick: "alice",
+    smallBlind: 100,
+    bigBlind: 200,
+    seats: [
+      { seat: 0, nick: "alice", stack: 10000, inHand: true, cards: ["As", "Ad"] },
+      { seat: 1, nick: "bob", stack: 10000, inHand: true, cardCount: 2 },
+    ],
+  };
+  const originalNow = Date.now;
+  let now = 1_950_000_000_000;
+  Date.now = () => now;
+  try {
+    const turn = controller._test.normalizeSnapshot(Object.assign({}, baseSnapshot, {
+      phase: "turn",
+      version: 30,
+      board: ["Ah", "Kd", "Qs", "Jc"],
+      legalActions: [],
+    }), 30);
+    controller._test.setState(turn);
+    controller._test.renderBoard();
+
+    const river = controller._test.normalizeSnapshot(Object.assign({}, baseSnapshot, {
+      phase: "river",
+      version: 31,
+      board: ["Ah", "Kd", "Qs", "Jc", "2d"],
+      legalActions: ["fold", "call"],
+      callAmount: 200,
+    }), 31);
+    controller._test.setState(river);
+    controller._test.renderBoard();
+    controller._test.renderControls();
+
+    assert.equal(controller._test.communityRevealBlocksActions(), true);
+    assert.equal(dom.elements["holdem-action-panel"].classList.contains("hidden"), true);
+
+    now += controller._test.constants.communityRiverFlipMs + 1;
+    controller._test.renderTimer();
+
+    assert.equal(controller._test.communityRevealBlocksActions(), false);
+    assert.equal(dom.elements["holdem-action-panel"].classList.contains("hidden"), false);
   } finally {
     Date.now = originalNow;
   }

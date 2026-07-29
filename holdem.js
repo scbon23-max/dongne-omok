@@ -191,6 +191,7 @@ window.TexasHoldem = (function () {
   var lastBoardHtml = "";
   var lastSeatsHtml = "";
   var lastSeatResultStage = "none";
+  var communityRevealControlBlocked = false;
 
   var boundRoot = null;
   var demoState = null;
@@ -3834,6 +3835,15 @@ window.TexasHoldem = (function () {
     return cardHtml(card, null, highlightClass);
   }
 
+  function communityRevealBlocksActions(now) {
+    if (!isHandActive(state.phase) || state.board.length < 5 || !state.board[4]) return false;
+    var key = communityCardKey(state.board[4]);
+    if (boardRevealState.cards[4] !== key) return true;
+    var revealAt = boardRevealState.revealAt[4];
+    if (!revealAt) return false;
+    return (now || Date.now()) <= revealAt + COMMUNITY_RIVER_FLIP_MS;
+  }
+
   function renderBoard() {
     var board = $("holdem-board");
     if (!board) return;
@@ -4195,7 +4205,9 @@ window.TexasHoldem = (function () {
     var waiting = state.phase === "waiting";
     var completed = state.phase === "complete";
     var moves = ["fold", "check", "call", "bet", "raise", "allin"];
-    var hasMove = moves.some(function (move) { return !!state.legal[move]; });
+    var revealBlockingActions = communityRevealBlocksActions();
+    communityRevealControlBlocked = revealBlockingActions;
+    var hasMove = !revealBlockingActions && moves.some(function (move) { return !!state.legal[move]; });
     var busy = pendingUiCount > 0;
     var isOwner = !!(text(me().nick, 40) && text(me().nick, 40) === state.ownerNick);
     var humanCount = humanSeatCount();
@@ -4308,6 +4320,12 @@ window.TexasHoldem = (function () {
     renderSeatTimers();
     renderSettlementAnimation();
     releaseResultTransitions();
+    var revealBlockingActions = communityRevealBlocksActions();
+    if (revealBlockingActions || communityRevealControlBlocked) {
+      communityRevealControlBlocked = revealBlockingActions;
+      renderBoard();
+      renderControls();
+    }
     var timer = $("holdem-timer");
     if (!timer) return;
     if (!state.deadlineAt) {
@@ -4745,6 +4763,7 @@ window.TexasHoldem = (function () {
     suppressActionTagAnimations = false;
     lastBoardHtml = "";
     lastSeatsHtml = "";
+    communityRevealControlBlocked = false;
     leaveAfterHandRequested = false;
     if (!bindDom()) throw new Error("텍사스 홀덤 화면을 찾을 수 없습니다.");
     bindHoldemAudioUnlock();
@@ -4809,6 +4828,7 @@ window.TexasHoldem = (function () {
     lastActionSoundKey = "";
     lastAllinBgmKey = "";
     lastWinnerSoundKey = "";
+    communityRevealControlBlocked = false;
     leaveAfterHandRequested = false;
   }
 
@@ -4939,6 +4959,10 @@ window.TexasHoldem = (function () {
       resultTransitionDelayMs: resultTransitionDelayMs,
       resultTransitionReady: resultTransitionReady,
       renderSettlementAnimation: renderSettlementAnimation,
+      renderControls: renderControls,
+      renderTimer: renderTimer,
+      renderBoard: renderBoard,
+      communityRevealBlocksActions: communityRevealBlocksActions,
       relativeSeat: relativeSeat,
       requestId: requestId,
       joinTable: joinTable,
