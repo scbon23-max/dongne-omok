@@ -74,6 +74,9 @@ Deno.serve(async (request) => {
     const roomName = safeText(body.roomName, 80);
     const game = safeText(body.game, 30);
     if (!roomName || !game) return response({ ok: false, reason: "invalid_room" });
+    if (game === "holdem_tournament" || game === "holdem_turbo") {
+      return response({ ok: false, reason: "invalid_game" });
+    }
     const buyIn = game === "holdem_ring"
       ? ringBuyIn(body.buyIn)
       : 0;

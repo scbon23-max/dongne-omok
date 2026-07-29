@@ -1156,20 +1156,13 @@
         <strong id="create-holdem-wallet-balance">불러오는 중</strong>
         <small id="create-holdem-wallet-status">자산을 확인하고 있어요</small>
       </div>
-      <div class="setting-title create-holdem-section-title">게임 방식</div>
-      <div id="create-holdem-mode" class="create-mode-list create-holdem-mode-list" aria-hidden="false">
-        <button class="create-mode-card create-holdem-mode-card active" type="button" data-holdem-mode="ring" aria-pressed="true">
+      <div class="setting-title create-holdem-section-title hidden" hidden aria-hidden="true">게임 방식</div>
+      <div id="create-holdem-mode" class="create-mode-list create-holdem-mode-list hidden" hidden aria-hidden="true">
+        <button class="create-mode-card create-holdem-mode-card active hidden" type="button" data-holdem-mode="ring" aria-pressed="true" hidden>
           <span class="create-holdem-mode-icon ring" aria-hidden="true">₩</span>
           <span class="create-mode-copy">
             <strong>홀덤</strong>
             <span>바이인을 정하고 바로 시작 · 최대 6명</span>
-          </span>
-        </button>
-        <button class="create-mode-card create-holdem-mode-card create-holdem-tournament-card" type="button" data-holdem-mode="tournament" aria-pressed="false" aria-disabled="false">
-          <span class="create-holdem-mode-icon tournament" aria-hidden="true">♠</span>
-          <span class="create-mode-copy">
-            <strong>토너먼트</strong>
-            <span>블라인드 상승 · 마지막 1인 승리</span>
           </span>
         </button>
       </div>
@@ -1184,7 +1177,7 @@
           </button>
         </div>
       </div>
-      <div id="create-holdem-buyin-group" class="create-holdem-buyin-group hidden">
+      <div id="create-holdem-buyin-group" class="create-holdem-buyin-group">
         <div class="create-holdem-buyin-head">
           <span class="setting-title">참가비용 범위</span>
         </div>

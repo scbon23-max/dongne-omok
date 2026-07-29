@@ -37,6 +37,7 @@ test("room leases atomically limit each account to one owned room", () => {
   assert.doesNotMatch(edge, /HOLDEM_TOURNAMENT_GAMES/);
   assert.doesNotMatch(edge, /HOLDEM_TOURNAMENT_GAMES\.has\(game\) && !account\.isAdmin/);
   assert.doesNotMatch(edge, /reason: "forbidden"/);
+  assert.match(edge, /game === "holdem_tournament" \|\| game === "holdem_turbo"[\s\S]*reason: "invalid_game"/);
   assert.match(holdemMigration, /add column if not exists config jsonb/i);
   assert.match(holdemMigration, /active_config jsonb/i);
   assert.match(

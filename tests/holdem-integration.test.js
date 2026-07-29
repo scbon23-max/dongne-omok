@@ -40,7 +40,7 @@ test("Hold'em is an available six-player controller game", () => {
   assert.match(game, /var iconClass = "create-game-icon" \+ \(id === "holdem" \? " holdem" : ""\)/);
 });
 
-test("Hold'em room creation shows assets, opens tournaments, and selects a ring buy-in", () => {
+test("Hold'em room creation shows assets, hides tournaments, and selects a ring buy-in", () => {
   const context = { window: {} };
   vm.createContext(context);
   vm.runInContext(catalogSource, context, { filename: "game-catalog.js" });
@@ -48,8 +48,8 @@ test("Hold'em room creation shows assets, opens tournaments, and selects a ring 
   for (const id of ["holdem_tournament", "holdem_turbo"]) {
     const definition = context.window.GameCatalog.get(id);
     assert.equal(definition.family, "holdem");
-    assert.equal(definition.createAdminOnly, false);
-    assert.equal(definition.discoverable, true);
+    assert.equal(definition.createAdminOnly, true);
+    assert.equal(definition.discoverable, false);
   }
   const ring = context.window.GameCatalog.get("holdem_ring");
   assert.equal(ring.family, "holdem");
@@ -69,12 +69,8 @@ test("Hold'em room creation shows assets, opens tournaments, and selects a ring 
   assert.match(index, /오늘 잃은 금액/);
   assert.doesNotMatch(index, /MY STACK/);
   assert.doesNotMatch(index, /현금과 무관한/);
-  assert.ok(
-    index.indexOf('data-holdem-mode="ring"') <
-      index.indexOf('data-holdem-mode="tournament"')
-  );
-  assert.doesNotMatch(index, /data-holdem-mode="tournament"[^>]*hidden/);
-  assert.doesNotMatch(index, /id="create-holdem-mode"\s+class="[^"]*\bhidden\b/);
+  assert.doesNotMatch(index, /data-holdem-mode="tournament"/);
+  assert.match(index, /id="create-holdem-mode"\s+class="[^"]*\bhidden\b[^"]*"[^>]*hidden[^>]*aria-hidden="true"/);
   assert.match(index, /data-holdem-mode="ring"/);
   assert.match(index, /data-holdem-speed="normal"/);
   assert.match(index, /data-holdem-speed="turbo"/);
@@ -112,13 +108,13 @@ test("Hold'em room creation shows assets, opens tournaments, and selects a ring 
   assert.match(game, /recordHoldemAssetSnapshot\(me\.nick, totalAssets\)/);
   assert.match(game, /openHoldemAssetRecordDialog\(me\.nick, totalAssets\)/);
   assert.match(game, /totalAssets[\s\S]*tableBalance[\s\S]*현재 테이블에서 사용 중/);
-  assert.match(game, /mode = mode === "tournament" \? "tournament" : "ring"/);
-  assert.match(game, /modeBox\.hidden = false/);
-  assert.match(game, /modeCards\[i\]\.hidden = false/);
+  assert.match(game, /mode = "ring"/);
+  assert.match(game, /modeBox\.hidden = true/);
+  assert.match(game, /modeCards\[i\]\.hidden = true/);
   assert.doesNotMatch(game, /토너먼트 방은 관리자만 만들 수 있어요/);
   assert.match(game, /function holdemCreateGameId\(mode, speed\)/);
   assert.match(game, /return "holdem_ring"/);
-  assert.match(game, /speed === "turbo" \? "holdem_turbo" : "holdem_tournament"/);
+  assert.doesNotMatch(game, /speed === "turbo" \? "holdem_turbo" : "holdem_tournament"/);
   assert.match(game, /createRoom\([\s\S]*holdemCreateGameId\(createHoldemMode, createHoldemSpeed\)[\s\S]*buyIn: createHoldemBuyIn/);
   assert.match(db, /async function getHoldemWallet\(auth\)/);
   assert.match(styles, /\.room-badge\.holdem_ring/);
@@ -129,8 +125,11 @@ test("room visibility follows the catalog and Hold'em rooms are public", () => {
   const context = { window: {} };
   vm.createContext(context);
   vm.runInContext(catalogSource, context, { filename: "game-catalog.js" });
-  for (const id of ["holdem", "holdem_tournament", "holdem_turbo", "holdem_ring"]) {
+  for (const id of ["holdem", "holdem_ring"]) {
     assert.equal(context.window.GameCatalog.get(id).discoverable, true);
+  }
+  for (const id of ["holdem_tournament", "holdem_turbo"]) {
+    assert.equal(context.window.GameCatalog.get(id).discoverable, false);
   }
   assert.match(
     game,

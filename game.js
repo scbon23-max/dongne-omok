@@ -539,7 +539,7 @@
     for (var i = 0; i < HOLDEM_BUY_IN_OPTIONS.length; i++) {
       if (HOLDEM_BUY_IN_OPTIONS[i].amount === amount) return HOLDEM_BUY_IN_OPTIONS[i];
     }
-    return HOLDEM_BUY_IN_OPTIONS[1];
+    return HOLDEM_BUY_IN_OPTIONS[0];
   }
   function holdemBuyInForBalance(balance, preferred) {
     var available = Math.max(0, Math.floor(Number(balance) || 0));
@@ -574,8 +574,8 @@
       var saved = JSON.parse(localStorage.getItem(holdemCreateSelectionStorageKey()) || "null");
       if (!saved || saved.version !== 1) return null;
       return {
-        mode: saved.mode === "tournament" ? "tournament" : "ring",
-        speed: saved.speed === "turbo" ? "turbo" : "normal",
+        mode: "ring",
+        speed: "normal",
         buyIn: normalizeHoldemBuyIn(saved.buyIn)
       };
     } catch (e) {
@@ -587,8 +587,8 @@
     try {
       localStorage.setItem(holdemCreateSelectionStorageKey(), JSON.stringify({
         version: 1,
-        mode: mode === "tournament" ? "tournament" : "ring",
-        speed: speed === "turbo" ? "turbo" : "normal",
+        mode: "ring",
+        speed: "normal",
         buyIn: normalizeHoldemBuyIn(buyIn, createHoldemBuyIn)
       }));
     } catch (e) {}
@@ -5866,22 +5866,22 @@
     renderHoldemWalletControls(activeCreateHoldemMode);
   }
   function renderCreateHoldemMode(mode, speed) {
-    mode = mode === "tournament" ? "tournament" : "ring";
+    mode = "ring";
     activeCreateHoldemMode = mode;
-    speed = speed === "turbo" ? "turbo" : "normal";
+    speed = "normal";
     var modeBox = $("create-holdem-mode");
     if (modeBox) {
-      modeBox.hidden = false;
-      modeBox.classList.remove("hidden");
-      modeBox.setAttribute("aria-hidden", "false");
+      modeBox.hidden = true;
+      modeBox.classList.add("hidden");
+      modeBox.setAttribute("aria-hidden", "true");
       var modeCards = modeBox.querySelectorAll("[data-holdem-mode]");
       for (var i = 0; i < modeCards.length; i++) {
         var cardMode = modeCards[i].getAttribute("data-holdem-mode");
         var modeActive = cardMode === mode;
-        modeCards[i].hidden = false;
-        modeCards[i].classList.remove("hidden");
-        modeCards[i].disabled = false;
-        modeCards[i].setAttribute("aria-disabled", "false");
+        modeCards[i].hidden = true;
+        modeCards[i].classList.add("hidden");
+        modeCards[i].disabled = cardMode !== "ring";
+        modeCards[i].setAttribute("aria-disabled", cardMode === "ring" ? "false" : "true");
         modeCards[i].classList.toggle("active", modeActive);
         modeCards[i].setAttribute("aria-pressed", modeActive ? "true" : "false");
       }
@@ -5896,26 +5896,25 @@
       }
     }
     if ($("create-holdem-speed-group")) {
-      $("create-holdem-speed-group").hidden = mode !== "tournament";
-      $("create-holdem-speed-group").classList.toggle("hidden", mode !== "tournament");
-      $("create-holdem-speed-group").setAttribute("aria-hidden", mode !== "tournament" ? "true" : "false");
+      $("create-holdem-speed-group").hidden = true;
+      $("create-holdem-speed-group").classList.add("hidden");
+      $("create-holdem-speed-group").setAttribute("aria-hidden", "true");
     }
     if ($("create-holdem-buyin-group")) {
-      $("create-holdem-buyin-group").classList.toggle("hidden", mode !== "ring");
+      $("create-holdem-buyin-group").classList.remove("hidden");
     }
     if ($("create-holdem-rule-summary")) {
       $("create-holdem-rule-summary").textContent =
         holdemRingSummaryLabel(createHoldemBuyIn);
     }
     if ($("create-holdem-mode-confirm")) {
-      $("create-holdem-mode-confirm").textContent = mode === "tournament" ? "토너먼트 방 만들기" : "링게임 방 만들기";
+      $("create-holdem-mode-confirm").textContent = "홀덤 방 만들기";
     }
     renderHoldemWalletControls(mode);
     return mode;
   }
   function holdemCreateGameId(mode, speed) {
-    if (mode === "ring") return "holdem_ring";
-    return speed === "turbo" ? "holdem_turbo" : "holdem_tournament";
+    return "holdem_ring";
   }
   function openMenu() {
     if ($("menu-main")) $("menu-main").classList.remove("hidden");
