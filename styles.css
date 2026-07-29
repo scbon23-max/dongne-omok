@@ -4669,10 +4669,9 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-screen[data-card-front-skin="four-color"] .holdem-card[data-suit="d"] { background: #2878d9; }
 .holdem-screen[data-card-front-skin="four-color"] .holdem-card[data-suit="c"] { background: #148848; }
 .holdem-card.back {
-  --holdem-card-back-image: url("assets/holdem/card-back-lucky-clover.png");
   border-color: transparent;
   border-radius: var(--holdem-card-radius, 4px);
-  background: var(--holdem-card-back-image) center / 100% 100% no-repeat;
+  background: var(--holdem-card-back-image, url("assets/holdem/card-back-lucky-clover.png")) center / 100% 100% no-repeat;
   box-shadow: 0 3px 8px rgba(0,0,0,.35);
 }
 .holdem-screen[data-card-back-skin="lucky-clover"] {

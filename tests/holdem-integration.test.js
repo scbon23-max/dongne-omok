@@ -401,7 +401,9 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card:not\(\.back\):not\(\.empty\)\s*\{[\s\S]*color:\s*#fff/);
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card:not\(\.back\):not\(\.empty\)\s*\{[\s\S]*border-color:\s*transparent/);
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card\[data-suit="d"\]\s*\{\s*background:\s*#2878d9/);
-  assert.match(styles, /\.holdem-card\.back\s*\{[\s\S]*background: var\(--holdem-card-back-image\) center \/ 100% 100% no-repeat/);
+  assert.match(styles, /\.holdem-card\.back\s*\{[\s\S]*background: var\(--holdem-card-back-image, url\("assets\/holdem\/card-back-lucky-clover\.png"\)\) center \/ 100% 100% no-repeat/);
+  const cardBackRule = styles.match(/\.holdem-card\.back\s*\{([\s\S]*?)\}/)?.[1] || "";
+  assert.doesNotMatch(cardBackRule, /--holdem-card-back-image:/);
   assert.match(styles, /\.holdem-screen\[data-card-back-skin="royal-candy"\]\s*\{[\s\S]*card-back-royal-candy\.png/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\s*\{[\s\S]*top: -3px[\s\S]*translate\(-50%, -45%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\.is-revealed-cards\s*\{[\s\S]*z-index:\s*24[\s\S]*translate\(-50%, -72%\)/);
