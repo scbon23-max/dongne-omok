@@ -1098,7 +1098,7 @@
     winner.stack += amount;
     winner.winAmount += amount;
     state.pots = layers.pots;
-    state.showdown = foldedRevealShowdown(state);
+    state.showdown = winnerRevealShowdown(state).concat(foldedRevealShowdown(state));
     state.actorSeat = null;
     state.actionDeadline = null;
     state.pendingSeats = [];
@@ -1499,6 +1499,34 @@
         folded: true,
         revealCards: indexes
       };
+    }).filter(Boolean);
+  }
+
+  function winnerRevealShowdown(state) {
+    var seats = [];
+    (Array.isArray(state.pots) ? state.pots : []).forEach(function (pot) {
+      (Array.isArray(pot && pot.winners) ? pot.winners : []).forEach(function (seat) {
+        seat = integer(seat, -1);
+        if (seat >= 0 && seats.indexOf(seat) < 0) seats.push(seat);
+      });
+    });
+    return seats.map(function (seat) {
+      var player = state.seats[seat];
+      if (!player || player.folded || !player.cards || player.cards.length < 2) return null;
+      var row = {
+        seat: player.seat,
+        nick: player.nick,
+        displayName: player.displayName || player.nick,
+        cards: player.cards.slice(0, 2),
+        winner: true
+      };
+      if (state.board.length >= 3) {
+        var evaluation = evaluateSeven(player.cards.concat(state.board));
+        row.category = evaluation.category;
+        row.name = evaluation.name;
+        row.tiebreak = evaluation.tiebreak.slice();
+      }
+      return row;
     }).filter(Boolean);
   }
 

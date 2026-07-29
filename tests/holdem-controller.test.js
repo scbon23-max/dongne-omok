@@ -1004,7 +1004,7 @@ test("an all-in result finishes every reveal before opening the rebuy dialog", a
   }
 });
 
-test("the completed UI does not receive an AI winner's cards without a showdown", () => {
+test("the completed UI reveals a fold winner's hand from server showdown", () => {
   const controller = loadController();
   const ctx = { now: 1_800_000_000_000, randomInt: () => 0 };
   let state = Engine.createTable({
@@ -1022,6 +1022,7 @@ test("the completed UI does not receive an AI winner's cards without a showdown"
     state = result.state;
   }
   const bot = state.seats.find((seat) => seat && seat.isBot);
+  const botCards = bot.cards.slice();
   const owner = state.seats[state.actorSeat];
   assert.equal(owner.nick, "alice");
   state = Engine.command(state, {
@@ -1031,11 +1032,13 @@ test("the completed UI does not receive an AI winner's cards without a showdown"
   }, ctx).state;
 
   const snapshot = Engine.view(state, "alice");
-  assert.equal(snapshot.showdown.some((entry) => entry.seat === bot.seat), false);
+  const winnerRow = snapshot.showdown.find((entry) => entry.seat === bot.seat);
+  assert.ok(winnerRow);
+  assert.deepEqual(winnerRow.cards, botCards);
   const normalized = controller._test.normalizeSnapshot(snapshot, 14);
   assert.equal(normalized.phase, "complete");
-  assert.equal(normalized.revealedCards[bot.seat], null);
-  assert.equal(normalized.showdown.some((entry) => entry.seat === bot.seat), false);
+  assert.deepEqual(Array.from(normalized.revealedCards[bot.seat], (card) => `${card.rank}${card.suit}`), botCards);
+  assert.ok(normalized.showdown.some((entry) => entry.seat === bot.seat));
 });
 
 test("completed AI tables are immediately eligible for automatic next hand", () => {
