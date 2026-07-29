@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260730-holdem-river-flip-back-skin-v1">
+<meta name="app-build" content="20260730-holdem-settings-compact-v2">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -763,57 +763,61 @@
         </div>
         <div class="holdem-setting-row">
           <div>
-            <span>금액 표시 단위</span>
+            <span>금액 단위</span>
             <small id="holdem-unit-label">원 단위</small>
           </div>
-          <button id="holdem-unit-toggle" class="holdem-setting-toggle" type="button" aria-pressed="false">
-            BB
-          </button>
+          <div class="holdem-unit-options" role="radiogroup" aria-label="금액 표시 단위">
+            <button class="holdem-unit-option" type="button" data-money-unit-mode="chips" role="radio" aria-checked="true">원</button>
+            <button class="holdem-unit-option" type="button" data-money-unit-mode="bb" role="radio" aria-checked="false">BB</button>
+          </div>
         </div>
         <div class="holdem-setting-card-fronts" aria-labelledby="holdem-card-front-title">
-          <div>
+          <div class="holdem-setting-section-head">
             <span id="holdem-card-front-title">카드 앞면 스킨</span>
             <small id="holdem-card-front-label">기본 스킨</small>
           </div>
           <div class="holdem-card-front-options" role="radiogroup" aria-label="카드 앞면 스킨">
             <button class="holdem-card-front-option" type="button" data-card-front-skin="classic" role="radio" aria-checked="true">
-              <span class="holdem-card-front-copy">
-                <strong>기본</strong>
-                <small>흰 바탕 2색</small>
-              </span>
               <span class="holdem-card-front-preview" aria-hidden="true">
                 <span class="holdem-front-mini-card classic spade">A♠</span>
                 <span class="holdem-front-mini-card classic heart">Q♥</span>
               </span>
+              <span class="holdem-card-front-copy">
+                <strong>클래식</strong>
+                <small>2색</small>
+              </span>
             </button>
             <button class="holdem-card-front-option" type="button" data-card-front-skin="four-color" role="radio" aria-checked="false">
-              <span class="holdem-card-front-copy">
-                <strong>사색</strong>
-                <small>색 바탕 흰 무늬</small>
-              </span>
               <span class="holdem-card-front-preview four-color" aria-hidden="true">
                 <span class="holdem-front-mini-card spade">A♠</span>
                 <span class="holdem-front-mini-card heart">K♥</span>
                 <span class="holdem-front-mini-card diamond">Q♦</span>
                 <span class="holdem-front-mini-card club">J♣</span>
               </span>
+              <span class="holdem-card-front-copy">
+                <strong>사색</strong>
+                <small>4색</small>
+              </span>
             </button>
           </div>
         </div>
         <div class="holdem-setting-card-backs" aria-labelledby="holdem-card-back-title">
-          <div>
+          <div class="holdem-setting-section-head">
             <span id="holdem-card-back-title">카드 뒷면 스킨</span>
             <small id="holdem-card-back-label">럭키 클로버</small>
           </div>
           <div class="holdem-card-back-options" role="radiogroup" aria-label="카드 뒷면 스킨">
             <button class="holdem-card-back-option" type="button" data-card-back-skin="lucky-clover" role="radio" aria-checked="true" aria-label="럭키 클로버">
               <span class="holdem-card-back-thumb" aria-hidden="true"></span>
+              <span class="holdem-card-back-name">클로버</span>
             </button>
             <button class="holdem-card-back-option" type="button" data-card-back-skin="royal-candy" role="radio" aria-checked="false" aria-label="로열 캔디">
               <span class="holdem-card-back-thumb" aria-hidden="true"></span>
+              <span class="holdem-card-back-name">캔디</span>
             </button>
             <button class="holdem-card-back-option" type="button" data-card-back-skin="moon-chip" role="radio" aria-checked="false" aria-label="문칩">
               <span class="holdem-card-back-thumb" aria-hidden="true"></span>
+              <span class="holdem-card-back-name">문칩</span>
             </button>
           </div>
         </div>

@@ -4607,15 +4607,17 @@ window.TexasHoldem = (function () {
     if (settingsButton) settingsButton.setAttribute("aria-expanded", settingsOpen ? "true" : "false");
     applyCardFrontSkin();
     applyCardBackSkin();
-    var unitToggle = $("holdem-unit-toggle");
     var isBb = moneyUnitMode === "bb";
     setText("holdem-unit-label", isBb ? "BB \uB2E8\uC704" : "\uC6D0 \uB2E8\uC704");
-    if (unitToggle) {
-      unitToggle.setAttribute("aria-pressed", isBb ? "true" : "false");
-      unitToggle.textContent = isBb ? "\uC6D0" : "BB";
-    }
-    setText("holdem-card-front-label", CARD_FRONT_SKINS[cardFrontSkin] || CARD_FRONT_SKINS[DEFAULT_CARD_FRONT_SKIN]);
     var screen = root();
+    var unitOptions = screen && typeof screen.querySelectorAll === "function"
+      ? screen.querySelectorAll(".holdem-unit-option")
+      : [];
+    Array.prototype.forEach.call(unitOptions, function (option) {
+      var selected = option.getAttribute("data-money-unit-mode") === moneyUnitMode;
+      option.setAttribute("aria-checked", selected ? "true" : "false");
+    });
+    setText("holdem-card-front-label", CARD_FRONT_SKINS[cardFrontSkin] || CARD_FRONT_SKINS[DEFAULT_CARD_FRONT_SKIN]);
     var frontOptions = screen && typeof screen.querySelectorAll === "function"
       ? screen.querySelectorAll(".holdem-card-front-option")
       : [];
@@ -5775,6 +5777,10 @@ window.TexasHoldem = (function () {
         .map(function (value) { return integer(value, -1); }));
       return;
     }
+    if (button.hasAttribute("data-money-unit-mode")) {
+      setMoneyUnitMode(button.getAttribute("data-money-unit-mode"));
+      return;
+    }
     if (button.hasAttribute("data-card-back-skin")) {
       setCardBackSkin(button.getAttribute("data-card-back-skin"));
       return;
@@ -5814,8 +5820,6 @@ window.TexasHoldem = (function () {
     } else if (id === "holdem-settings-close") {
       settingsOpen = false;
       renderSettings();
-    } else if (id === "holdem-unit-toggle") {
-      toggleMoneyUnitMode();
     } else if (id === "holdem-people-btn") {
       if (api && typeof api.openPlayers === "function") api.openPlayers();
     } else if (id === "holdem-hands-btn") {
