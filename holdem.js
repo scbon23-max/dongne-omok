@@ -3349,19 +3349,12 @@ window.TexasHoldem = (function () {
       var evaluation = engine.evaluateSeven(cards);
       if (!evaluation || !evaluation.name) return null;
       var bestCards = relevantBestCardCodes(evaluation);
-      var isHighCard = Number(evaluation.category) === 0;
-      var holeCards = Object.create(null);
       var communityCards = Object.create(null);
-      if (isHighCard) {
-        state.heroCards.forEach(function (card, index) {
-          if (engineCardCode(card)) holeCards[index] = true;
-        });
-      }
       state.board.forEach(function (card, index) {
         var code = engineCardCode(card);
-        if (!isHighCard && code && bestCards[code]) communityCards[index] = true;
+        if (code && bestCards[code]) communityCards[index] = true;
       });
-      return { name: evaluation.name, holeCards: holeCards, communityCards: communityCards };
+      return { name: evaluation.name, communityCards: communityCards };
     } catch (error) {
       return null;
     }
@@ -4362,7 +4355,7 @@ window.TexasHoldem = (function () {
           holes = state.heroCards.map(function (card, cardIndex) {
             var comboClass = winnerCombo
               ? (winnerCombo.holeCards[cardIndex] ? "is-winning-combo-card" : "is-winning-combo-muted")
-              : (currentHand && currentHand.holeCards[cardIndex] ? "is-hero-made-hand-card" : "");
+              : "";
             return cardHtml(card, null, comboClass);
           }).join("");
         } else if (state.revealedCards[absolute] && state.revealedCards[absolute].length) {
@@ -5822,6 +5815,7 @@ window.TexasHoldem = (function () {
       seatActionLabel: seatActionLabel,
       seatActionClass: seatActionClass,
       pendingMoveMatchesActionEntry: pendingMoveMatchesActionEntry,
+      heroCurrentHand: heroCurrentHand,
       handRankings: handRankings,
       resultBoardVisibleCount: resultBoardVisibleCount,
       resultStage: resultStage,

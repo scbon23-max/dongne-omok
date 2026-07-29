@@ -11,7 +11,7 @@ const source = fs.readFileSync(path.join(__dirname, "..", "holdem.js"), "utf8");
 const indexSource = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 
 function loadController(nick = "alice", options = {}) {
-  const window = { __HOLDEM_TEST__: true };
+  const window = { __HOLDEM_TEST__: true, HoldemEngine: Engine };
   const context = {
     window,
     Db: options.db,
@@ -1103,6 +1103,48 @@ test("request ids and rendered cards stay bounded and accessible", () => {
   assert.match(rankings.html, /holdem-hand-row/);
   assert.match(rankings.html, /holdem-card empty/);
   assert.match(controller._test.cardHtml(null, "back"), /aria-label="비공개 카드"/);
+});
+
+test("high card shows its label without highlighting either hole or board cards", () => {
+  const controller = loadController();
+  const state = controller._test.emptyState();
+  state.phase = "flop";
+  state.heroCards = [
+    { rank: "A", suit: "s" },
+    { rank: "K", suit: "d" },
+  ];
+  state.board = [
+    { rank: "9", suit: "h" },
+    { rank: "7", suit: "s" },
+    { rank: "4", suit: "c" },
+  ];
+  controller._test.setState(state);
+
+  const currentHand = controller._test.heroCurrentHand();
+  assert.equal(currentHand.name, "하이카드");
+  assert.equal(currentHand.holeCards, undefined);
+  assert.deepEqual(Object.keys(currentHand.communityCards), []);
+});
+
+test("made hands highlight only community cards used by the combination", () => {
+  const controller = loadController();
+  const state = controller._test.emptyState();
+  state.phase = "flop";
+  state.heroCards = [
+    { rank: "A", suit: "s" },
+    { rank: "K", suit: "d" },
+  ];
+  state.board = [
+    { rank: "A", suit: "h" },
+    { rank: "7", suit: "s" },
+    { rank: "4", suit: "c" },
+  ];
+  controller._test.setState(state);
+
+  const currentHand = controller._test.heroCurrentHand();
+  assert.equal(currentHand.name, "원페어");
+  assert.equal(currentHand.holeCards, undefined);
+  assert.deepEqual(Object.keys(currentHand.communityCards), ["0"]);
 });
 
 test("ring refill status survives controller normalization", () => {
