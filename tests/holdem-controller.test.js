@@ -968,6 +968,7 @@ test("switching to spectate leaves the current table seat", async () => {
 
   assert.equal(calls[0].action, "leave");
   assert.equal(calls[0].payload.expectedVersion, 1);
+  assert.equal(calls[0].payload.leaveIntent, "spectate");
 });
 
 test("ring rebuys use a separate wallet-backed server command", async () => {

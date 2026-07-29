@@ -1434,3 +1434,36 @@ test("ring tables switch to asset-backed chips only when a second human joins", 
     ],
   );
 });
+
+test("active hand leaves preserve whether the player reserved spectating or room exit", () => {
+  const names = ["alice", "bob", "cara"];
+  let state = tableWithPlayers(names);
+  state = readyAndStart(state, names, 700);
+  const seat = state.seats.findIndex((player, index) => player && player.inHand && index !== state.actorSeat);
+  const nick = state.seats[seat].nick;
+
+  const reservedSpectate = Engine.command(state, {
+    type: "leave",
+    nick,
+    leaveIntent: "spectate",
+    requestId: "leave:spectate",
+  }, context(800));
+
+  assert.equal(reservedSpectate.ok, true, reservedSpectate.reason);
+  assert.equal(reservedSpectate.state.seats[seat].leaving, true);
+  assert.equal(reservedSpectate.state.seats[seat].leavingIntent, "spectate");
+  assert.equal(Engine.view(reservedSpectate.state, "alice").seats[seat].leavingIntent, "spectate");
+
+  state = readyAndStart(tableWithPlayers(names), names, 900);
+  const exitSeat = state.seats.findIndex((player, index) => player && player.inHand && index !== state.actorSeat);
+  const exitNick = state.seats[exitSeat].nick;
+  const reservedExit = Engine.command(state, {
+    type: "leave",
+    nick: exitNick,
+    leaveIntent: "leave",
+    requestId: "leave:room",
+  }, context(1000));
+
+  assert.equal(reservedExit.ok, true, reservedExit.reason);
+  assert.equal(reservedExit.state.seats[exitSeat].leavingIntent, "leave");
+});

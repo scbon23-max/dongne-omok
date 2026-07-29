@@ -522,6 +522,16 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /function displayedBuyInBalance\(bounds, newGame\)[\s\S]*walletBalance - selected/);
   assert.match(index, /id="holdem-profile-role-action"[^>]*>관전하기</);
   assert.match(engine, /ready:\s*stack > 0/);
+  assert.match(engine, /leavingIntent:\s*""/);
+  assert.match(engine, /function normalizeLeavingIntent\(value\)/);
+  assert.match(engine, /var leaveIntent = normalizeLeavingIntent\(cmd\.leaveIntent/);
+  assert.match(engine, /player\.leavingIntent = leaveIntent/);
+  assert.match(engine, /leavingIntent: player\.leaving \? normalizeLeavingIntent\(player\.leavingIntent\) \|\| "leave" : ""/);
+  assert.match(controller, /leaving:\s*!!firstDefined\(entry\.leaving/);
+  assert.match(controller, /leavingIntent:\s*text\(firstDefined\(entry\.leavingIntent/);
+  assert.match(controller, /seat\.leavingIntent === "spectate" \? "관전 예약" : "나가기 예약"/);
+  assert.match(controller, /leaveIntent:\s*"spectate"/);
+  assert.match(controller, /leaveIntent:\s*"leave"/);
   assert.match(engine, /function startHand\(state, now, context\)[\s\S]*!player\.leaving && player\.stack > 0/);
   assert.match(controller, /function ensureSeatControls\(\)[\s\S]*appendChild\(button\)/);
   assert.match(styles, /\.holdem-seat-controls\s*\{/);

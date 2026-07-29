@@ -363,8 +363,8 @@ test("room creation keeps Hold'em public and joinable from the list", () => {
   assert.match(index, /<small>최소<\/small><b>10,000원<\/b>[\s\S]*<small>최대<\/small><b>20,000원<\/b>/);
   assert.match(index, /<small>최소<\/small><b>20,000원<\/b>[\s\S]*<small>최대<\/small><b>40,000원<\/b>/);
   assert.match(index, /<small>최소<\/small><b>50,000원<\/b>[\s\S]*<small>최대<\/small><b>100,000원<\/b>/);
-  assert.doesNotMatch(index, /id="create-holdem-mode"\s+class="[^"]*\bhidden\b/);
-  assert.doesNotMatch(index, /data-holdem-mode="tournament"[^>]*hidden/);
+  assert.match(index, /id="create-holdem-mode"\s+class="[^"]*\bhidden\b[^"]*"[^>]*hidden[^>]*aria-hidden="true"/);
+  assert.doesNotMatch(index, /data-holdem-mode="tournament"/);
   assert.match(game, /if \(!canEnterGame\(game\)\) \{[\s\S]*game === "catchmind" \? "캐치마인드는 점검 중이라 이용할 수 없어요"/);
   assert.match(game, /function renderRoomList\(\)[\s\S]*roomIsDiscoverable\(r\.game\)[\s\S]*canEnterGame\(r\.game\)/);
   assert.match(game, /if \(step === "alk-mode" && !ENABLE_ALK_TERRITORY\) step = "game"/);
