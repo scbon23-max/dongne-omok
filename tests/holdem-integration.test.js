@@ -638,11 +638,14 @@ test("the browser sends only server commands and public refresh hints", () => {
   assert.match(controller, /invoke\("refill"/);
 });
 
-test("Hold'em chat focus scrolls previous chat lines above the keyboard", () => {
+test("Hold'em chat keeps transient toasts separate from the recent typing history", () => {
   assert.match(index, /id="holdem-chat-overlay"/);
+  assert.match(index, /id="holdem-chat-history"[^>]*role="log"/);
   assert.match(index, /id="holdem-chat-input"/);
   assert.match(game, /function renderHoldemChatHistory\(\)/);
-  assert.match(game, /Db\.getChatHistory\(chatRoomOf\(curGame\), 200\)/);
+  assert.match(game, /Db\.getChatHistory\(requestedRoom, 200\)/);
+  assert.match(game, /requestedGeneration !== chatLoadGeneration/);
+  assert.match(game, /requestedRoom !== chatRoomOf\(curGame\)/);
   assert.match(game, /!panel && g === "holdem"/);
   assert.match(game, /var holdemHistCount = \{\}/);
   assert.match(game, /var holdemMerged = \[\]/);
@@ -650,20 +653,29 @@ test("Hold'em chat focus scrolls previous chat lines above the keyboard", () => 
   assert.match(game, /holdemMerged\.push\(\{ game: "holdem", who: m\.nick, text: m\.text \}\)/);
   assert.match(game, /holdemMerged\.forEach\(function \(sc\) \{ sessionChat\.push\(sc\); \}\)/);
   assert.match(game, /renderHoldemChatHistory\(\);\s*return;/);
-  assert.match(game, /var history = \[\]/);
+  assert.match(game, /var recent = \[\]/);
+  assert.match(game, /recent\.length < 5/);
   assert.match(game, /row\.game !== "holdem"/);
-  assert.match(game, /overlay\.scrollTop = overlay\.scrollHeight/);
+  assert.match(game, /historySurface\.scrollTop = historySurface\.scrollHeight/);
   assert.match(game, /line\.classList\.add\("show"\)/);
-  assert.match(game, /holdemOverlayMode = "history"/);
-  assert.match(game, /holdemOverlayMode === "history"[\s\S]*ov\.innerHTML = ""/);
-  assert.match(game, /holdemOverlayMode = "toast"/);
   assert.match(game, /holdem-chat-input"\)\.addEventListener\("focus"/);
   assert.match(game, /holdem-chat-input"\)\.addEventListener\("blur"[\s\S]*setHoldemChatFocusState\(false\)/);
   assert.doesNotMatch(game, /holdem-chat-input"\)\.addEventListener\("blur"[\s\S]{0,140}setTimeout/);
-  assert.match(game, /holdem-chat-overlay"\)\.innerHTML = ""/);
-  assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-overlay\s*\{[\s\S]*overflow-y:\s*auto/);
-  assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-overlay\s*\{[\s\S]*-webkit-overflow-scrolling:\s*touch/);
-  assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-overlay \.ov-line\s*\{[\s\S]*opacity:\s*1[\s\S]*transform:\s*none/);
+  assert.match(game, /toastSurface\.innerHTML = ""/);
+  assert.match(game, /holdem-chat-history"\)\.innerHTML = ""/);
+  assert.doesNotMatch(game + controller, /holdemOverlayMode|holdemToastUntil/);
+  assert.match(controller, /api\.sendChat\(value, \{ suppressOverlay: true \}\)/);
+  assert.match(controller, /api\.showChatToast\(text\(me\(\)\.nick, 40\), value, "", "holdem"\)/);
+  assert.match(game, /var showImmediately = !\(options && options\.suppressOverlay\)/);
+  assert.match(controller, /function clearHoldemChatKeyboardSyncTimers\(\)/);
+  assert.match(controller, /function cancelHoldemChatKeyboardHide\(\)/);
+  assert.match(controller, /chatKeyboardHideTimer = setTimeout\(function \(\)[\s\S]*setChatOpen\(false\);[\s\S]*\}, 220\)/);
+  assert.match(styles, /\.holdem-chat-history\s*\{[\s\S]*overflow-y:\s*auto/);
+  assert.match(styles, /\.holdem-chat-history\s*\{[\s\S]*-webkit-overflow-scrolling:\s*touch/);
+  assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*display:\s*flex/);
+  assert.match(styles, /\.holdem-screen\.is-pre-actioning\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*\+ 166px/);
+  assert.match(styles, /\.holdem-screen\.is-fold-revealing\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*\+ 186px/);
+  assert.match(styles, /\.holdem-screen\.is-actioning\.is-raise-menu-open\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*right:\s*calc\(33\.333% \+ 12px\)/);
 });
 
 test("the rules and UI clearly identify KRW-unit assets and standard no-limit play", () => {

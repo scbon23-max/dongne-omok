@@ -71,7 +71,7 @@
   var hitBuffer = null, hitLoading = false, lastHitAt = 0;
   var alkRouletteBuffer = null, alkRouletteLoading = false;
   var prevSeats = { black: null, white: null }, seatSoundArmed = false;
-  var oldestChatTs = null, loadingOlder = false, noMoreChat = false;
+  var oldestChatTs = null, loadingOlder = false, noMoreChat = false, chatLoadGeneration = 0;
   var sessionChat = [];
   var preview = null;
   var instantReplay = null;
@@ -233,7 +233,7 @@
       syncHostInputs: function (nicks) {
         if (netMode && Net.syncDirectInputs) Net.syncDirectInputs(nicks, me.nick, amHost);
       },
-      sendChat: function (text) { return sendChatText(activeFamily(), text); },
+      sendChat: function (text, options) { return sendChatText(activeFamily(), text, options); },
       relayChat: function (nick, text, overlaySide) {
         nick = String(nick || "").slice(0, 40);
         text = String(text || "").trim().slice(0, 80);
@@ -248,8 +248,8 @@
       showChat: function (nick, text, overlaySide) {
         addChatTo("catchmind", nick, text, true, overlaySide === "right" ? "right" : "");
       },
-      showChatToast: function (nick, text, overlaySide) {
-        pushOverlay(activeFamily(), nick, text, overlaySide);
+      showChatToast: function (nick, text, overlaySide, family) {
+        pushOverlay(family || activeFamily(), nick, text, overlaySide);
       },
       playWarning: function () {
         initAudio();
@@ -2121,7 +2121,12 @@
     if (!window.Db || !curRoomId) return;
     var g = activeFamily();
     var panel = gameUi(g).chatLogId;
-    Db.getChatHistory(chatRoomOf(curGame), 200).then(function (msgs) {
+    var requestedRoom = chatRoomOf(curGame);
+    var requestedGeneration = chatLoadGeneration;
+    Db.getChatHistory(requestedRoom, 200).then(function (msgs) {
+      if (requestedGeneration !== chatLoadGeneration ||
+          requestedRoom !== chatRoomOf(curGame) ||
+          g !== activeFamily()) return;
       if (msgs.length) oldestChatTs = msgs[0].created_at;
       if (msgs.length < 200) noMoreChat = true;
       if (!panel && g === "holdem") {
@@ -2182,12 +2187,17 @@
     inp.value = "";
   }
   function resetRoomChat() {
+    chatLoadGeneration += 1;
     var seen = {};
     (window.GameCatalog ? GameCatalog.families() : ["omok", "alk"]).forEach(function (family) {
       var id = gameUi(family).chatLogId;
       if (!id || seen[id]) return;
       seen[id] = true;
       var log = $(id); if (log) log.innerHTML = "";
+    });
+    ["holdem-chat-overlay", "holdem-chat-history"].forEach(function (id) {
+      var surface = $(id);
+      if (surface) surface.innerHTML = "";
     });
     oldestChatTs = null; loadingOlder = false; noMoreChat = false;
     sessionChat = [];
@@ -4567,28 +4577,23 @@
   }
   function renderHoldemChatHistory() {
     var screen = $("holdemgame");
-    var overlay = $("holdem-chat-overlay");
+    var historySurface = $("holdem-chat-history");
     var focused = holdemChatInputFocused();
     if (screen) screen.classList.toggle("is-chat-focused", focused);
-    if (!overlay || !focused) return;
-    var shouldStickToBottom = overlay.scrollTop + overlay.clientHeight >= overlay.scrollHeight - 12;
-    var history = [];
-    for (var i = 0; i < sessionChat.length; i++) {
+    if (!historySurface || !focused) return;
+    var recent = [];
+    for (var i = sessionChat.length - 1; i >= 0 && recent.length < 5; i--) {
       var row = sessionChat[i];
       if (!row || row.game !== "holdem" || !row.text || row.who === "__sys") continue;
-      history.push(row);
+      recent.unshift(row);
     }
-    overlay.dataset.holdemOverlayMode = "history";
-    overlay.innerHTML = "";
-    for (var j = 0; j < history.length; j++) {
-      var line = createOverlayLine("holdem", history[j].who, history[j].text);
+    historySurface.innerHTML = "";
+    for (var j = 0; j < recent.length; j++) {
+      var line = createOverlayLine("holdem", recent[j].who, recent[j].text);
       line.classList.add("show");
-      overlay.appendChild(line);
+      historySurface.appendChild(line);
     }
-    if (shouldStickToBottom || overlay.dataset.holdemJustFocused === "1") {
-      overlay.scrollTop = overlay.scrollHeight;
-      delete overlay.dataset.holdemJustFocused;
-    }
+    historySurface.scrollTop = historySurface.scrollHeight;
   }
   function renderUnread(game) {
     if (unreadCount[game] == null) unreadCount[game] = 0;
@@ -4650,11 +4655,6 @@
   }
   function pushOverlayToast(family, nick, text, overlaySide, ov) {
     ov = ov || $(gameUi(family).chatOverlayId); if (!ov) return;
-    if (family === "holdem") {
-      if (ov.dataset.holdemOverlayMode === "history") ov.innerHTML = "";
-      ov.dataset.holdemOverlayMode = "toast";
-      ov.dataset.holdemToastUntil = String(Date.now() + 7000);
-    }
     var line = createOverlayLine(family, nick, text, overlaySide);
     ov.appendChild(line);
     var maxLines = family === "catchmind" || family === "holdem" ? 5 : 3;
@@ -4678,16 +4678,17 @@
     }
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (m) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[m]; }); }
-  function sendChatText(game, text) {
+  function sendChatText(game, text, options) {
     game = gameFamily(game);
     var v = String(text || "").trim().slice(0, 80); if (!v) return false;
     var ctrl = gameController(game);
     if (ctrl && ctrl.canChat && !ctrl.canChat(me.nick)) return false;
+    var showImmediately = !(options && options.suppressOverlay);
     if (netMode) {
-      addChatTo(game, me.nick, v, true);
+      addChatTo(game, me.nick, v, showImmediately);
       Net.send({ t: "chat", game: game, nick: me.nick, text: v });
       if (window.Db) Db.addChatMsg(chatRoomOf(game), me.nick, v);
-    } else addChatTo(game, me.nick, v, true);
+    } else addChatTo(game, me.nick, v, showImmediately);
     return true;
   }
   function sendChat(game) {
@@ -4701,16 +4702,12 @@
     var screen = $("holdemgame");
     if (screen) screen.classList.toggle("is-chat-focused", !!focused && activeFamily() === "holdem");
     if (focused) {
-      var overlay = $("holdem-chat-overlay");
-      if (overlay) overlay.dataset.holdemJustFocused = "1";
+      var toastSurface = $("holdem-chat-overlay");
+      if (toastSurface) toastSurface.innerHTML = "";
       renderHoldemChatHistory();
     }
-    else if ($("holdem-chat-overlay")) {
-      var overlay = $("holdem-chat-overlay");
-      overlay.dataset.holdemOverlayMode = "toast";
-      if (Date.now() >= Number(overlay.dataset.holdemToastUntil || 0)) {
-        $("holdem-chat-overlay").innerHTML = "";
-      }
+    else if ($("holdem-chat-history")) {
+      $("holdem-chat-history").innerHTML = "";
     }
   }
 
