@@ -422,8 +422,11 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-seat-avatar-size\) \/ 2 - 24px\)/);
   assert.match(controller, /is-visible-cards is-revealed-cards/);
   assert.match(controller, /function heroRevealCardClass\(cardIndex\)[\s\S]*normalizeCardIndexes\(state\.heroRevealCards\)/);
+  assert.match(controller, /function syncHeroRevealThrow\(previous, next, hadSnapshot\)[\s\S]*previousRevealKey !== nextRevealKey/);
+  assert.match(controller, /heroRevealThrowRenderedKey !== heroRevealThrowKey/);
   assert.match(controller, /heroRevealCardClass\(cardIndex\)/);
-  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card\.is-hero-reveal-thrown\s*\{[\s\S]*animation:\s*holdemHeroRevealThrow/);
+  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card\.is-hero-reveal-forward\s*\{[\s\S]*transform:\s*translate\(var\(--holdem-reveal-x/);
+  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card\.is-hero-reveal-throwing\s*\{[\s\S]*animation:\s*holdemHeroRevealThrow/);
   assert.match(styles, /@keyframes holdemHeroRevealThrow[\s\S]*translate\(var\(--holdem-reveal-x/);
   assert.match(controller, /class="holdem-seat-open-icon"/);
   assert.match(controller, /seat \? readProfileAvatar\(seat\.nick\) : ""/);
@@ -528,9 +531,10 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-screen\.is-actioning:not\(\.is-chat-open\) \.holdem-chat-row \{[\s\S]*opacity: 0/);
   assert.match(styles, /\.holdem-screen\.is-actioning\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 110px \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
   assert.match(styles, /\.holdem-screen\.is-pre-actioning\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 112px \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
-  assert.match(styles, /\.holdem-screen\.is-fold-revealing\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 132px \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
+  assert.match(styles, /\.holdem-screen\.is-fold-revealing\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 110px \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
   assert.match(styles, /\.holdem-screen\.is-keyboard-open\.is-actioning\.is-chat-open \.holdem-chat-row,[\s\S]*\.holdem-screen\.is-keyboard-open\.is-fold-revealing\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(6px,\s*env\(safe-area-inset-bottom\)\) \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
   assert.match(styles, /\.holdem-pre-action-panel\s*\{[\s\S]*bottom:\s*max\(8px,\s*env\(safe-area-inset-bottom\)\)/);
+  assert.match(styles, /\.holdem-fold-reveal-panel\s*\{[\s\S]*bottom:\s*max\(8px,\s*env\(safe-area-inset-bottom\)\)/);
   assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-chat-toggle\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 62px\)/);
   assert.match(styles, /\.holdem-pre-action\.is-queued\s*\{[\s\S]*border-color:\s*rgba\(117, 238, 255, \.76\)/);
   assert.match(styles, /\.holdem-pre-action\.is-queued::after\s*\{[\s\S]*content:\s*"예약"/);
@@ -680,7 +684,7 @@ test("Hold'em chat keeps transient toasts separate from the recent typing histor
   assert.match(styles, /\.holdem-chat-history\s*\{[\s\S]*-webkit-overflow-scrolling:\s*touch/);
   assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*display:\s*flex/);
   assert.match(styles, /\.holdem-screen\.is-pre-actioning\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*\+ 166px/);
-  assert.match(styles, /\.holdem-screen\.is-fold-revealing\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*\+ 186px/);
+  assert.match(styles, /\.holdem-screen\.is-fold-revealing\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*\+ 164px/);
   assert.match(styles, /\.holdem-screen\.is-keyboard-open\.is-actioning\.is-chat-focused \.holdem-chat-history,[\s\S]*\.holdem-screen\.is-keyboard-open\.is-fold-revealing\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*\+ 54px \+ var\(--holdem-keyboard-offset,\s*0px\)/);
   assert.match(styles, /\.holdem-screen\.is-actioning\.is-raise-menu-open\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*right:\s*calc\(33\.333% \+ 12px\)/);
 });

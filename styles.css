@@ -5482,22 +5482,30 @@ body.is-admin .feedback-user-compose { display: none; }
   border-radius: var(--holdem-card-radius, 3px);
   transform: none;
 }
-.holdem-seat.is-me .holdem-hole-cards .holdem-card.is-hero-reveal-thrown {
+.holdem-seat.is-me .holdem-hole-cards .holdem-card.is-hero-reveal-forward {
   --holdem-reveal-x: 0px;
   --holdem-reveal-rotate: 0deg;
   position: relative;
   z-index: 18;
-  animation: holdemHeroRevealThrow 560ms cubic-bezier(.18,.95,.25,1.02) both;
+  transform: translate(var(--holdem-reveal-x, 0px), -42px) rotate(var(--holdem-reveal-rotate, 0deg)) scale(1.08);
   filter: drop-shadow(0 10px 14px rgba(0,0,0,.38)) drop-shadow(0 0 10px rgba(255,231,154,.32));
+}
+.holdem-seat.is-folded.is-me .holdem-hole-cards .holdem-card.is-hero-reveal-forward {
+  filter: saturate(1.04) brightness(1.08) drop-shadow(0 10px 14px rgba(0,0,0,.38)) drop-shadow(0 0 10px rgba(255,231,154,.32));
+}
+.holdem-seat.is-me .holdem-hole-cards .holdem-card.is-hero-reveal-throwing {
+  animation: holdemHeroRevealThrow 560ms cubic-bezier(.18,.95,.25,1.02) both;
   will-change: transform, filter;
 }
-.holdem-seat.is-me .holdem-hole-cards .holdem-card:first-of-type.is-hero-reveal-thrown {
+.holdem-seat.is-me .holdem-hole-cards .holdem-card:first-of-type.is-hero-reveal-forward {
   --holdem-reveal-x: -18px;
   --holdem-reveal-rotate: -8deg;
 }
-.holdem-seat.is-me .holdem-hole-cards .holdem-card:last-of-type.is-hero-reveal-thrown {
+.holdem-seat.is-me .holdem-hole-cards .holdem-card:last-of-type.is-hero-reveal-forward {
   --holdem-reveal-x: 18px;
   --holdem-reveal-rotate: 8deg;
+}
+.holdem-seat.is-me .holdem-hole-cards .holdem-card:last-of-type.is-hero-reveal-throwing {
   animation-delay: 70ms;
 }
 @keyframes holdemHeroRevealThrow {
@@ -6128,9 +6136,9 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-fold-reveal-panel {
   position: absolute;
-  z-index: 49;
+  z-index: 50;
   right: 8px;
-  bottom: max(56px, calc(env(safe-area-inset-bottom) + 51px));
+  bottom: max(8px, env(safe-area-inset-bottom));
   left: 8px;
   max-width: 720px;
   margin: 0 auto;
@@ -6240,7 +6248,10 @@ body.is-admin .feedback-user-compose { display: none; }
   color: #101517;
 }
 .holdem-screen.is-fold-revealing .holdem-chat-toggle {
-  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 126px);
+  z-index: 53;
+  left: calc(8px + (100% - 16px) / 6 - 21px);
+  right: auto;
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 60px);
 }
 .holdem-refill-panel {
   position: absolute;
@@ -6683,7 +6694,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-screen.is-fold-revealing.is-chat-open .holdem-chat-row {
   z-index: 54;
-  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 132px + var(--holdem-keyboard-offset, 0px));
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 110px + var(--holdem-keyboard-offset, 0px));
 }
 .holdem-screen.is-keyboard-open.is-actioning.is-chat-open .holdem-chat-row,
 .holdem-screen.is-keyboard-open.is-pre-actioning.is-chat-open .holdem-chat-row,
@@ -6708,7 +6719,7 @@ body.is-admin .feedback-user-compose { display: none; }
   bottom: calc(max(8px, env(safe-area-inset-bottom)) + 120px);
 }
 .holdem-screen.is-fold-revealing .holdem-chat-overlay {
-  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 142px);
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 120px);
 }
 .holdem-screen.is-actioning.is-raise-menu-open .holdem-chat-overlay {
   right: calc(33.333% + 12px);
@@ -6753,7 +6764,7 @@ body.is-admin .feedback-user-compose { display: none; }
   bottom: calc(max(8px, env(safe-area-inset-bottom)) + 166px + var(--holdem-keyboard-offset, 0px));
 }
 .holdem-screen.is-fold-revealing.is-chat-focused .holdem-chat-history {
-  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 186px + var(--holdem-keyboard-offset, 0px));
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 164px + var(--holdem-keyboard-offset, 0px));
 }
 .holdem-screen.is-keyboard-open.is-actioning.is-chat-focused .holdem-chat-history,
 .holdem-screen.is-keyboard-open.is-pre-actioning.is-chat-focused .holdem-chat-history,

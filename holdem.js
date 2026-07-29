@@ -196,6 +196,9 @@ window.TexasHoldem = (function () {
   var lastBoardHtml = "";
   var lastSeatsHtml = "";
   var lastSeatResultStage = "none";
+  var heroRevealThrowKey = "";
+  var heroRevealThrowRenderedKey = "";
+  var heroRevealThrowIndexes = [];
   var communityRevealControlBlocked = false;
   var chatKeyboardViewportBound = false;
   var chatKeyboardWasOpen = false;
@@ -1644,9 +1647,13 @@ window.TexasHoldem = (function () {
     syncResultFlow(state, next);
     syncActionSounds(state, next, hadSnapshot, confirmedPendingMove);
     syncTurnStartSound(state, next, hadSnapshot);
+    syncHeroRevealThrow(state, next, hadSnapshot);
     if (previousHandKey && nextHandKey && previousHandKey !== nextHandKey) {
       actionTagAnimationKeys = Object.create(null);
       pendingActionTagAnimationKeys = Object.create(null);
+      heroRevealThrowKey = "";
+      heroRevealThrowRenderedKey = "";
+      heroRevealThrowIndexes = [];
     }
     suppressActionTagAnimations = !hadSnapshot;
     state = next;
@@ -2651,9 +2658,36 @@ window.TexasHoldem = (function () {
     return normalizeCardIndexes(indexes).join(",");
   }
 
+  function syncHeroRevealThrow(previous, next, hadSnapshot) {
+    var previousHandKey = String(previous && (previous.handId || previous.handNumber) || "");
+    var nextHandKey = String(next && (next.handId || next.handNumber) || "");
+    var previousRevealKey = foldRevealSelectionKey(previous && previous.heroRevealCards);
+    var nextRevealKey = foldRevealSelectionKey(next && next.heroRevealCards);
+    if (!nextRevealKey || !hadSnapshot || !previousHandKey || previousHandKey !== nextHandKey || !isHandActive(next.phase)) {
+      if (!nextRevealKey || previousHandKey !== nextHandKey || !isHandActive(next.phase)) {
+        heroRevealThrowKey = "";
+        heroRevealThrowRenderedKey = "";
+        heroRevealThrowIndexes = [];
+      }
+      return;
+    }
+    if (previousRevealKey !== nextRevealKey) {
+      heroRevealThrowKey = nextHandKey + ":" + nextRevealKey;
+      heroRevealThrowRenderedKey = "";
+      heroRevealThrowIndexes = normalizeCardIndexes(next.heroRevealCards);
+    }
+  }
+
   function heroRevealCardClass(cardIndex) {
     var indexes = normalizeCardIndexes(state.heroRevealCards);
-    return indexes.indexOf(cardIndex) >= 0 ? "is-hero-reveal-thrown" : "";
+    if (!isHandActive(state.phase) || indexes.indexOf(cardIndex) < 0) return "";
+    var classes = ["is-hero-reveal-forward"];
+    if (heroRevealThrowKey &&
+        heroRevealThrowRenderedKey !== heroRevealThrowKey &&
+        heroRevealThrowIndexes.indexOf(cardIndex) >= 0) {
+      classes.push("is-hero-reveal-throwing");
+    }
+    return classes.join(" ");
   }
 
   function canReserveFoldReveal() {
@@ -4383,6 +4417,9 @@ window.TexasHoldem = (function () {
             if (revealClass) cardClasses.push(revealClass);
             return cardHtml(card, null, cardClasses.join(" "));
           }).join("");
+          if (heroRevealThrowKey && heroRevealThrowRenderedKey !== heroRevealThrowKey) {
+            heroRevealThrowRenderedKey = heroRevealThrowKey;
+          }
         } else if (state.revealedCards[absolute] && state.revealedCards[absolute].length) {
           holesClass += " is-visible-cards is-revealed-cards";
           holes = state.revealedCards[absolute].map(function (card, cardIndex) {
