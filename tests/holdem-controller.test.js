@@ -859,6 +859,49 @@ test("queued calls do not auto-call a higher changed amount", () => {
   assert.equal(controller._test.getQueuedAction(), null);
 });
 
+test("pressing leave again cancels an active leave reservation", async () => {
+  const calls = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 12,
+        snapshot: {
+          phase: "flop",
+          version: 12,
+          handId: "leave-cancel",
+          heroSeat: 0,
+          actingSeat: 1,
+          seats: [
+            { seat: 0, nick: "alice", stack: 5000, inHand: true, leaving: false, cardCount: 2 },
+            { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+          ],
+        },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  controller._test.setActive(true);
+  controller._test.setState(controller._test.normalizeSnapshot({
+    phase: "flop",
+    version: 11,
+    handId: "leave-cancel",
+    heroSeat: 0,
+    actingSeat: 1,
+    seats: [
+      { seat: 0, nick: "alice", stack: 5000, inHand: true, leaving: true, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+    ],
+  }, 11));
+
+  await controller._test.requestLeaveAfterHand();
+
+  assert.equal(calls[0].action, "leave");
+  assert.equal(calls[0].payload.cancelLeave, true);
+  assert.equal(calls[0].payload.leaveIntent, undefined);
+});
+
 test("an all-in result finishes every reveal before opening the rebuy dialog", async () => {
   const calls = [];
   const db = {

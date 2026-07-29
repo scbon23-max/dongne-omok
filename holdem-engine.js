@@ -1635,6 +1635,22 @@
       } else if (type === "leave") {
         player = playerByNick(next, nick);
         if (!player) result = { ok: true, reason: "not_joined" };
+        else if (cmd.cancelLeave === true) {
+          if (!player.leaving) result = { ok: true, reason: "not_leaving" };
+          else {
+            var cancelledIntent = normalizeLeavingIntent(player.leavingIntent) || "leave";
+            player.leaving = false;
+            player.leavingIntent = "";
+            next.lastEvent = {
+              type: cancelledIntent === "spectate" ? "spectate_cancelled" : "leave_cancelled",
+              nick: nick,
+              seat: player.seat,
+              at: now
+            };
+            result = { ok: true };
+            changed = true;
+          }
+        }
         else if (PLAYING_PHASES[next.phase] && player.inHand) {
           var leaveIntent = normalizeLeavingIntent(cmd.leaveIntent || cmd.intent || cmd.mode) || "leave";
           if (player.leaving) result = { ok: true, reason: "already_leaving" };

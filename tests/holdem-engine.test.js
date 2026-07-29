@@ -142,6 +142,37 @@ test("leaving during an active hand reserves exit without folding immediately", 
   assert.equal(state.seats[actorSeat], null);
 });
 
+test("leaving again during an active hand cancels a reserved exit", () => {
+  const names = ["alice", "bob"];
+  let state = tableWithPlayers(names);
+  state = readyAndStart(state, names);
+
+  const actorSeat = state.actorSeat;
+  const actorNick = state.seats[actorSeat].nick;
+  state = apply(state, {
+    type: "leave",
+    nick: actorNick,
+    requestId: "leave:reserve-cancel-a",
+  }, 121);
+
+  assert.equal(state.seats[actorSeat].leaving, true);
+  assert.equal(state.seats[actorSeat].inHand, true);
+
+  const result = Engine.command(state, {
+    type: "leave",
+    nick: actorNick,
+    cancelLeave: true,
+    requestId: "leave:reserve-cancel-b",
+  }, context(122));
+
+  assert.equal(result.ok, true, result.reason);
+  assert.equal(result.changed, true);
+  assert.equal(result.state.seats[actorSeat].leaving, false);
+  assert.equal(result.state.seats[actorSeat].leavingIntent, "");
+  assert.equal(result.state.seats[actorSeat].inHand, true);
+  assert.equal(result.state.lastEvent.type, "leave_cancelled");
+});
+
 test("a folded player can still reserve leaving until the active hand ends", () => {
   const names = ["alice", "bob", "carol"];
   let state = tableWithPlayers(names);

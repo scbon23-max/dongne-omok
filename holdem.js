@@ -2420,10 +2420,22 @@ window.TexasHoldem = (function () {
     }
     leaveAfterHandRequested = true;
     if (hero.leaving) {
-      if (api && typeof api.toast === "function") {
-        api.toast("나가기 예약 중이에요. 현재 핸드가 끝나면 나갑니다.", 2400);
-      }
-      return Promise.resolve({ ok: true, reason: "already_leaving" });
+      leaveAfterHandRequested = false;
+      return invoke("leave", {
+        expectedVersion: state.version,
+        cancelLeave: true
+      }, {
+        key: "leave_after_hand",
+        label: "leave_after_hand_cancel",
+        broadcast: true
+      }).then(function (result) {
+        if (result && result.stale) return result;
+        if (result && result.ok && api && typeof api.toast === "function") {
+          api.toast("나가기 예약을 취소했어요.", 2200);
+        }
+        if (!result || !result.ok) leaveAfterHandRequested = true;
+        return refreshSnapshot(result && result.ok ? "leave_cancelled" : "leave_cancel_retry", true);
+      });
     }
     return invoke("leave", {
       expectedVersion: state.version,

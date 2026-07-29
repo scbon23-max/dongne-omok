@@ -543,6 +543,9 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(engine, /leavingIntent:\s*""/);
   assert.match(engine, /function normalizeLeavingIntent\(value\)/);
   assert.match(engine, /var leaveIntent = normalizeLeavingIntent\(cmd\.leaveIntent/);
+  assert.match(engine, /cmd\.cancelLeave === true/);
+  assert.match(engine, /player\.leaving = false[\s\S]*player\.leavingIntent = ""/);
+  assert.match(engine, /type: cancelledIntent === "spectate" \? "spectate_cancelled" : "leave_cancelled"/);
   assert.match(engine, /player\.leavingIntent = leaveIntent/);
   assert.match(engine, /leavingIntent: player\.leaving \? normalizeLeavingIntent\(player\.leavingIntent\) \|\| "leave" : ""/);
   assert.match(controller, /leaving:\s*!!firstDefined\(entry\.leaving/);
@@ -550,6 +553,8 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /seat\.leavingIntent === "spectate" \? "관전 예약" : "나가기 예약"/);
   assert.match(controller, /leaveIntent:\s*"spectate"/);
   assert.match(controller, /leaveIntent:\s*"leave"/);
+  assert.match(controller, /cancelLeave:\s*true/);
+  assert.match(controller, /leaveAfterHandRequested = false[\s\S]*leave_after_hand_cancel/);
   assert.match(engine, /function startHand\(state, now, context\)[\s\S]*!player\.leaving && player\.stack > 0/);
   assert.match(controller, /function ensureSeatControls\(\)[\s\S]*appendChild\(button\)/);
   assert.match(styles, /\.holdem-seat-controls\s*\{/);
