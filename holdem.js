@@ -2647,13 +2647,15 @@ window.TexasHoldem = (function () {
 
   function foldRevealButtonHtml(indexes) {
     var selected = foldRevealSelectionKey(indexes) === foldRevealSelectionKey(state.heroRevealCards);
-    var cards = normalizeCardIndexes(indexes).map(function (index) {
+    var cardIndexes = normalizeCardIndexes(indexes);
+    var cards = cardIndexes.map(function (index) {
       return cardHtml(state.heroCards[index], null, "is-fold-reveal-card");
     }).join("");
     return '<button class="holdem-fold-reveal-choice' + (selected ? " is-selected" : "") +
       '" type="button" data-holdem-reveal-cards="' + esc(indexes.join(",")) +
       '" aria-pressed="' + (selected ? "true" : "false") + '">' +
-        '<span class="holdem-fold-reveal-cards" aria-hidden="true">' + cards + '</span>' +
+        '<span class="holdem-fold-reveal-cards' + (cardIndexes.length > 1 ? " is-pair" : "") +
+          '" aria-hidden="true">' + cards + '</span>' +
         '<strong>공개</strong>' +
         (selected ? '<small>예약됨</small>' : "") +
       '</button>';
