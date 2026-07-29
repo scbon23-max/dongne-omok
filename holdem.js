@@ -123,6 +123,7 @@ window.TexasHoldem = (function () {
   var pendingCount = 0;
   var pendingUiCount = 0;
   var pendingAction = "";
+  var pendingMove = null;
   var requests = Object.create(null);
   var lifecycleGeneration = 0;
   var tickSentKey = "";
@@ -1606,6 +1607,7 @@ window.TexasHoldem = (function () {
     if ((!next.version || next.version === state.version) &&
         responseOrder && responseOrder < lastAppliedResponse) return false;
 
+    if (pendingMove && next.version > pendingMove.version) pendingMove = null;
     var hadSnapshot = hasSnapshot;
     var previousDeadlineKey = state.version + ":" + state.deadlineAt;
     var nextDeadlineKey = next.version + ":" + next.deadlineAt;
@@ -2316,13 +2318,13 @@ window.TexasHoldem = (function () {
     });
   }
 
-  function scheduleRefresh(reason, force) {
+  function scheduleRefresh(reason, force, delayMs) {
     if (!active) return;
     if (refreshTimer) clearTimeout(refreshTimer);
     refreshTimer = setTimeout(function () {
       refreshTimer = null;
       refreshSnapshot(reason || "refresh", !!force);
-    }, REFRESH_DEBOUNCE_MS);
+    }, delayMs == null ? REFRESH_DEBOUNCE_MS : clamp(integer(delayMs, 0), 0, 1000));
   }
 
   function joinTable(preferredSeat, buyInAmount) {
@@ -2470,9 +2472,40 @@ window.TexasHoldem = (function () {
       state.canManageBots && humanSeatCount() === 1;
   }
 
+  function pendingMoveAmount(move, amount) {
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    if (!hero) return 0;
+    if (move === "call") return hero.bet + Math.min(state.toCall, hero.stack);
+    if (move === "allin") return hero.bet + hero.stack;
+    if ((move === "bet" || move === "raise") && Number.isFinite(Number(amount))) {
+      return Math.max(0, Math.round(Number(amount)));
+    }
+    return 0;
+  }
+
+  function pendingMoveAnimationKey(move) {
+    if (!move) return "";
+    return [
+      state.handId || state.handNumber || "hand",
+      "pending",
+      move.requestId,
+      move.seat,
+      move.action,
+      move.amount || 0
+    ].join(":");
+  }
+
+  function clearPendingMove(request, shouldRender) {
+    if (!pendingMove || (request && pendingMove.requestId !== request)) return false;
+    pendingMove = null;
+    if (shouldRender) renderSeats();
+    return true;
+  }
+
   function performMove(move, amount) {
     move = canonicalMove(move);
     if (!state.legal[move] || requests.move) return;
+    var moveRequestId = requestId("act");
     var payload = {
       move: move,
       expectedVersion: state.version,
@@ -2481,10 +2514,29 @@ window.TexasHoldem = (function () {
     if ((move === "bet" || move === "raise") && Number.isFinite(Number(amount))) {
       payload.amount = Math.max(0, Math.round(Number(amount)));
     }
-    invoke("act", payload, {
+    pendingMove = {
+      requestId: moveRequestId,
+      version: state.version,
+      handId: state.handId,
+      seat: state.heroSeat,
+      action: move,
+      amount: pendingMoveAmount(move, amount)
+    };
+    var animationKey = pendingMoveAnimationKey(pendingMove);
+    if (animationKey) pendingActionTagAnimationKeys[animationKey] = true;
+    renderSeats();
+    var promise = invoke("act", payload, {
       key: "move",
       label: move,
-      broadcast: true
+      broadcast: true,
+      requestId: moveRequestId
+    });
+    return Promise.resolve(promise).then(function (result) {
+      clearPendingMove(moveRequestId, true);
+      return result;
+    }, function (error) {
+      clearPendingMove(moveRequestId, true);
+      throw error;
     });
   }
 
@@ -3724,12 +3776,22 @@ window.TexasHoldem = (function () {
     return latest;
   }
 
+  function pendingMoveForSeat(seat) {
+    if (!seat || !pendingMove || state.phase === "waiting") return null;
+    if (pendingMove.version !== state.version || pendingMove.handId !== state.handId) return null;
+    return pendingMove.seat === seat.seat ? pendingMove : null;
+  }
+
   function seatDisplayAction(seat) {
     if (!seat) return "";
+    var optimistic = pendingMoveForSeat(seat);
+    if (optimistic) return optimistic.action;
     return seat.lastAction || (latestSeatActionHistory(seat) || {}).action || "";
   }
 
   function seatDisplayActionAmount(seat) {
+    var optimistic = pendingMoveForSeat(seat);
+    if (optimistic) return optimistic.amount > 0 ? formatChips(optimistic.amount) : "";
     var latest = latestSeatActionHistory(seat);
     if (seat && seat.bet > 0) return formatChips(seat.bet);
     return latest && latest.amount > 0 ? formatChips(latest.amount) : "";
@@ -3774,10 +3836,14 @@ window.TexasHoldem = (function () {
 
   function seatActionClass(seat) {
     var action = seatDisplayAction(seat);
-    return action ? "action-" + action.replace(/_/g, "-") : "";
+    var className = action ? "action-" + action.replace(/_/g, "-") : "";
+    if (className && pendingMoveForSeat(seat)) className += " is-pending";
+    return className;
   }
 
   function seatActionAnimationKey(seat, absolute) {
+    var optimistic = pendingMoveForSeat(seat);
+    if (optimistic) return pendingMoveAnimationKey(optimistic);
     var latest = latestSeatActionHistory(seat);
     var action = latest && actionSoundKind(latest.action);
     if (!seat || !latest || !action) return "";
@@ -5017,6 +5083,7 @@ window.TexasHoldem = (function () {
     pendingCount = 0;
     pendingUiCount = 0;
     pendingAction = "";
+    pendingMove = null;
     lastTimerWarningKey = "";
     lastTurnSoundKey = "";
     actionTagAnimationKeys = Object.create(null);
@@ -5060,7 +5127,7 @@ window.TexasHoldem = (function () {
     // a public notification is a personalized server fetch.
     var hintedVersion = Math.max(0, integer(message.version, 0));
     if (!hasSnapshot || !hintedVersion || hintedVersion > state.version) {
-      scheduleRefresh("broadcast", true);
+      scheduleRefresh("broadcast", true, 0);
     }
     return true;
   }
@@ -5190,6 +5257,7 @@ window.TexasHoldem = (function () {
       leaveTableForSpectate: leaveTableForSpectate,
       requestLeaveAfterHand: requestLeaveAfterHand,
       maybeLeaveRoomAfterHand: maybeLeaveRoomAfterHand,
+      performMove: performMove,
       applySnapshot: applySnapshot,
       invoke: invoke,
       setApi: function (nextApi) { api = nextApi; },
@@ -5206,6 +5274,9 @@ window.TexasHoldem = (function () {
       },
       getLifecycleGeneration: function () { return lifecycleGeneration; },
       getRawSnapshot: function () { return rawSnapshot; },
+      getPendingMove: function () {
+        return pendingMove ? Object.assign({}, pendingMove) : null;
+      },
       constants: {
         maxSeats: MAX_SEATS,
         pollMs: POLL_MS,

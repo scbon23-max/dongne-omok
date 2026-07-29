@@ -596,6 +596,9 @@ test("the browser sends only server commands and public refresh hints", () => {
   assert.match(db, /sb\.functions\.invoke\("holdem-table"/);
   assert.match(controller, /Db\.holdemInvoke/);
   assert.match(controller, /holdem_refresh/);
+  assert.match(controller, /pendingMove = \{[\s\S]*requestId: moveRequestId[\s\S]*action: move[\s\S]*amount: pendingMoveAmount/);
+  assert.match(controller, /renderSeats\(\);[\s\S]*invoke\("act", payload/);
+  assert.match(controller, /scheduleRefresh\("broadcast", true, 0\)/);
   assert.match(controller, /var pendingUiCount = 0/);
   assert.match(controller, /var busy = pendingUiCount > 0/);
   assert.doesNotMatch(controller, /api\.send\(\{[^}]*\b(?:deck|burn|holeCards|cards)\b/s);

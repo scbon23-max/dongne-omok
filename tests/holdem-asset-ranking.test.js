@@ -84,7 +84,7 @@ test("the authenticated server ranking includes live table chips but exposes onl
   assert.match(edge, /const ACTIONS = new Set\(\[[\s\S]*"wallet",[\s\S]*"ranking"/);
   assert.match(edge, /const rankingAction = action === "ranking"/);
   assert.match(edge, /const roomlessAction = walletAction \|\| rankingAction \|\| rankingDetailAction/);
-  assert.match(edge, /const account = await verifyAccount\([\s\S]*if \(!account\) return jsonResponse/);
+  assert.match(edge, /const accountPromise = verifyAccount\([\s\S]*const \[account, initialTable\] = await Promise\.all\([\s\S]*if \(!account\) return jsonResponse/);
   assert.match(edge, /if \(rankingAction\) \{[\s\S]*await cleanupExpiredTables\(client\)[\s\S]*assetRanking\(client, account\.nick\)/);
   assert.match(edge, /function tableHoldingsByNickname\(rows: unknown\[\]\)/);
   assert.match(edge, /settings\.assetBacked !== true/);

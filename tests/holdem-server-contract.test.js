@@ -51,6 +51,15 @@ const adminWalletMigration = fs.readFileSync(
   ),
   "utf8"
 );
+const realtimeRefreshMigration = fs.readFileSync(
+  path.join(
+    root,
+    "supabase",
+    "migrations",
+    "202607290002_holdem_realtime_refresh.sql"
+  ),
+  "utf8"
+);
 const edge = fs.readFileSync(
   path.join(root, "supabase", "functions", "holdem-table", "index.ts"),
   "utf8"
@@ -143,6 +152,45 @@ test("the edge function authenticates the account and never trusts a payload nic
   assert.match(
     edge,
     /const command = commandPayload\(body, action, account\.nick\)/
+  );
+});
+
+test("routine table reads run together and active hands skip refill lookups", () => {
+  assert.match(
+    edge,
+    /const \[account, initialTable\] = await Promise\.all\(\[\s*accountPromise,\s*tablePromise,\s*\]\)/
+  );
+  assert.match(
+    edge,
+    /roomlessAction \|\| action === "join"[\s\S]*\?\s*Promise\.resolve\(null\)\s*:\s*loadTable\(client, roomId\)/
+  );
+  assert.match(
+    edge,
+    /if \(action === "join"\) \{[\s\S]*await cleanupExpiredTables\(client\)[\s\S]*\[lease, table\] = await Promise\.all\(\[\s*activeLease\(client, roomId\),\s*loadTable\(client, roomId\)/
+  );
+  assert.match(
+    edge,
+    /const activeHand = isRecord\(state\)[\s\S]*ACTIVE_HAND_PHASES\.has[\s\S]*const status = activeHand\s*\?\s*null\s*:\s*await ringRefillStatus/
+  );
+});
+
+test("committed table versions broadcast only a safe refresh hint", () => {
+  assert.match(
+    realtimeRefreshMigration,
+    /create or replace function public\.broadcast_holdem_table_refresh\(\)/
+  );
+  assert.match(realtimeRefreshMigration, /perform realtime\.send\(/);
+  assert.match(
+    realtimeRefreshMigration,
+    /'t', 'holdem_refresh'[\s\S]*'version', new\.version/
+  );
+  assert.match(
+    realtimeRefreshMigration,
+    /'m',\s*'room:' \|\| new\.room_id,\s*false/
+  );
+  assert.doesNotMatch(
+    realtimeRefreshMigration,
+    /'(snapshot|cards|holeCards|deck|burn)'/
   );
 });
 
@@ -439,7 +487,10 @@ test("Hold'em wallets use 100-chip accounting and update atomically with ring ta
     edge,
     /if \(walletAction\) \{[\s\S]*await cleanupExpiredTables\(client\)[\s\S]*walletProfile/
   );
-  assert.match(edge, /if \(action === "join"\) await cleanupExpiredTables\(client\)/);
+  assert.match(
+    edge,
+    /if \(action === "join"\) \{[\s\S]*await cleanupExpiredTables\(client\)[\s\S]*activeLease\(client, roomId\)[\s\S]*loadTable\(client, roomId\)/
+  );
 });
 
 test("the administrator receives exactly 100,000 total Hold'em assets and appears in ranking", () => {
