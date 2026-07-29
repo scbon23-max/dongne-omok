@@ -112,9 +112,15 @@ function controlTestDocument() {
     "holdemgame",
     "holdem-board",
     "holdem-action-panel",
+    "holdem-pre-action-panel",
+    "holdem-pre-action-title",
     "holdem-fold-btn",
     "holdem-check-btn",
     "holdem-call-btn",
+    "holdem-pre-fold-btn",
+    "holdem-pre-check-btn",
+    "holdem-pre-call-btn",
+    "holdem-pre-call-amount",
     "holdem-bet-btn",
     "holdem-raise-btn",
     "holdem-allin-btn",
@@ -141,7 +147,7 @@ function controlTestDocument() {
   ];
   const elements = {};
   ids.forEach((id) => {
-    elements[id] = fakeElement(id === "holdem-action-panel" ? ["hidden"] : []);
+    elements[id] = fakeElement(id === "holdem-action-panel" || id === "holdem-pre-action-panel" ? ["hidden"] : []);
   });
   elements.holdemgame.querySelectorAll = () => [];
   return {
@@ -787,17 +793,17 @@ test("pre-action buttons can be queued before the hero turn", () => {
   controller._test.setState(snapshot);
   controller._test.renderControls();
 
-  assert.equal(dom.elements["holdem-action-panel"].classList.contains("hidden"), false);
-  assert.equal(dom.elements["holdem-fold-btn"].classList.contains("hidden"), false);
-  assert.equal(dom.elements["holdem-call-btn"].classList.contains("hidden"), false);
-  assert.equal(dom.elements["holdem-raise-btn"].classList.contains("hidden"), false);
-  assert.equal(dom.elements["holdem-raise-btn"].disabled, true);
-  assert.equal(dom.elements["holdem-raise-btn"].classList.contains("is-unreservable"), true);
-  assert.equal(dom.elements["holdem-call-amount"].textContent, "200원");
+  assert.equal(dom.elements["holdem-action-panel"].classList.contains("hidden"), true);
+  assert.equal(dom.elements["holdem-pre-action-panel"].classList.contains("hidden"), false);
+  assert.equal(dom.elements["holdem-pre-fold-btn"].classList.contains("hidden"), false);
+  assert.equal(dom.elements["holdem-pre-call-btn"].classList.contains("hidden"), false);
+  assert.equal(dom.elements["holdem-pre-check-btn"].classList.contains("hidden"), true);
+  assert.equal(dom.elements["holdem-pre-call-amount"].textContent, "200원");
 
   assert.equal(controller._test.queuePreAction("call"), true);
-  assert.equal(dom.elements["holdem-call-btn"].classList.contains("is-queued"), true);
-  assert.equal(dom.elements["holdem-call-btn"].attributes["aria-pressed"], "true");
+  assert.equal(dom.elements["holdem-pre-call-btn"].classList.contains("is-queued"), true);
+  assert.equal(dom.elements["holdem-pre-call-btn"].attributes["aria-pressed"], "true");
+  assert.equal(dom.elements["holdem-pre-action-title"].textContent, "예약됨");
   const queued = controller._test.getQueuedAction();
   assert.equal(queued.action, "call");
   assert.equal(queued.label, "콜");

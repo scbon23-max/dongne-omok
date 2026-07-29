@@ -2640,20 +2640,6 @@ window.TexasHoldem = (function () {
     return null;
   }
 
-  function queuedOptionForMove(move) {
-    if (move === "fold") return queuedOptionForButton("fold");
-    if (move === "check") return queuedOptionForButton("check");
-    if (move === "call") return queuedOptionForButton("call");
-    return null;
-  }
-
-  function unreservableMove(move) {
-    if (!canQueueAction()) return false;
-    var toCall = heroStreetToCall();
-    if (toCall > 0) return move === "raise";
-    return move === "bet";
-  }
-
   function queuedButtonSelected(button, option) {
     if (!queuedAction) return false;
     if (option && queuedAction.action === option.action) return true;
@@ -2675,6 +2661,38 @@ window.TexasHoldem = (function () {
     }
     renderControls();
     return true;
+  }
+
+  function renderPreActionPanel(options, busy, hasMove) {
+    options = Array.isArray(options) ? options : [];
+    var visible = !hasMove && options.length > 0;
+    show("holdem-pre-action-panel", visible);
+    setText("holdem-pre-action-title", queuedAction && visible ? "예약됨" : "예약 가능");
+    ["fold", "check", "call"].forEach(function (button) {
+      var option = null;
+      for (var i = 0; i < options.length; i++) {
+        if (options[i].button === button) { option = options[i]; break; }
+      }
+      var id = "holdem-pre-" + button + "-btn";
+      show(id, visible && !!option);
+      disable(id, busy || !option);
+      var node = $(id);
+      if (!node) return;
+      var selected = visible && !!option && queuedButtonSelected(button, option);
+      node.classList.toggle("is-queued", selected);
+      node.setAttribute("aria-pressed", selected ? "true" : "false");
+      if (option && button !== "call") node.textContent = option.label;
+    });
+    var callOption = null;
+    for (var j = 0; j < options.length; j++) {
+      if (options[j].button === "call") { callOption = options[j]; break; }
+    }
+    var preCallAmount = callOption && callOption.amount ? formatChips(callOption.amount) : "";
+    setText("holdem-pre-call-amount", preCallAmount);
+    var callAmountNode = $("holdem-pre-call-amount");
+    if (callAmountNode) {
+      callAmountNode.className = "holdem-action-call-amount holdem-action-amount-fit" + actionAmountFitClass(preCallAmount);
+    }
   }
 
   function clearQueuedAction(renderAfter) {
@@ -4768,41 +4786,23 @@ window.TexasHoldem = (function () {
       setText("holdem-refill-status", refillStatus);
     }
 
-    show("holdem-action-panel", hasMove || hasPreAction);
+    show("holdem-action-panel", hasMove);
     moves.forEach(function (move) {
       var id = move === "allin" ? "holdem-allin-btn" : "holdem-" + move + "-btn";
       var visible = hasMove && !!state.legal[move];
       if (move === "allin" && canSize) visible = false;
-      var preOption = null;
-      var preUnavailable = false;
-      if (!hasMove && hasPreAction) {
-        preOption = queuedOptionForMove(move);
-        preUnavailable = !preOption && unreservableMove(move);
-        visible = !!preOption || preUnavailable;
-      }
       show(id, visible);
-      disable(id, busy || (hasMove ? !state.legal[move] : !preOption || preUnavailable));
+      disable(id, busy || !state.legal[move]);
       var buttonNode = $(id);
       if (buttonNode) {
-        buttonNode.classList.toggle("is-queued", !hasMove && queuedButtonSelected(
-          move === "fold" ? "fold" : move === "check" ? "check" : move === "call" ? "call" : "",
-          preOption
-        ));
-        buttonNode.classList.toggle("is-unreservable", !hasMove && preUnavailable);
-        buttonNode.setAttribute("aria-pressed", !hasMove && preOption && queuedButtonSelected(
-          preOption.button,
-          preOption
-        ) ? "true" : "false");
+        buttonNode.classList.remove("is-queued");
+        buttonNode.setAttribute("aria-pressed", "false");
       }
     });
-    var preCall = !hasMove ? queuedOptionForButton("call") : null;
-    var callAmount = hasMove
-      ? (state.toCall ? formatChips(state.toCall) : "")
-      : (preCall && preCall.amount ? formatChips(preCall.amount) : "");
-    var foldOption = !hasMove ? queuedOptionForButton("fold") : null;
-    var checkOption = !hasMove ? queuedOptionForButton("check") : null;
-    setText("holdem-fold-btn", !hasMove && foldOption ? foldOption.label : "폴드");
-    setText("holdem-check-btn", !hasMove && checkOption ? checkOption.label : "체크");
+    renderPreActionPanel(preActionOptions, busy, hasMove);
+    var callAmount = state.toCall ? formatChips(state.toCall) : "";
+    setText("holdem-fold-btn", "폴드");
+    setText("holdem-check-btn", "체크");
     setText("holdem-call-amount", callAmount);
     var callAmountNode = $("holdem-call-amount");
     if (callAmountNode) {
@@ -4822,7 +4822,7 @@ window.TexasHoldem = (function () {
     var screen = root();
     if (screen) {
       screen.classList.toggle("is-requesting", busy);
-      screen.classList.toggle("is-actioning", hasMove || hasPreAction);
+      screen.classList.toggle("is-actioning", hasMove);
       screen.classList.toggle("is-pre-actioning", hasPreAction);
       screen.classList.toggle("is-raise-menu-open", hasMove && canSize && raiseMenuOpen);
       screen.classList.toggle("is-seat-selection", waiting && state.heroSeat < 0);
@@ -5219,6 +5219,12 @@ window.TexasHoldem = (function () {
       removeBot();
     } else if (id === "holdem-start-btn" || id === "holdem-table-start-btn") {
       startHand();
+    } else if (id === "holdem-pre-fold-btn") {
+      queuePreAction("fold");
+    } else if (id === "holdem-pre-check-btn") {
+      queuePreAction("check");
+    } else if (id === "holdem-pre-call-btn") {
+      queuePreAction("call");
     } else if (id === "holdem-fold-btn") {
       if (!queuePreAction("fold")) performMove("fold");
     } else if (id === "holdem-check-btn") {

@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260729-holdem-pre-action-availability-v2">
+<meta name="app-build" content="20260729-holdem-pre-action-separate-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -911,6 +911,15 @@
         <button id="holdem-call-btn" class="holdem-action call hidden" type="button"><span id="holdem-call-amount" class="holdem-action-call-amount"></span><span class="holdem-action-call-label">콜</span></button>
         <button id="holdem-bet-btn" class="holdem-action raise hidden" type="button">벳</button>
         <button id="holdem-raise-btn" class="holdem-action raise hidden" type="button">레이즈</button>
+      </div>
+    </section>
+
+    <section id="holdem-pre-action-panel" class="holdem-pre-action-panel hidden" aria-label="예약 액션">
+      <div id="holdem-pre-action-title" class="holdem-pre-action-title">예약 가능</div>
+      <div id="holdem-pre-action-buttons" class="holdem-pre-action-buttons">
+        <button id="holdem-pre-fold-btn" class="holdem-pre-action fold hidden" type="button">폴드</button>
+        <button id="holdem-pre-check-btn" class="holdem-pre-action call hidden" type="button">체크</button>
+        <button id="holdem-pre-call-btn" class="holdem-pre-action call hidden" type="button"><span id="holdem-pre-call-amount" class="holdem-action-call-amount"></span><span class="holdem-action-call-label">콜</span></button>
       </div>
     </section>
 

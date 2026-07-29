@@ -197,6 +197,8 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-bot-fill-btn",
     "holdem-bot-remove-btn",
     "holdem-action-panel",
+    "holdem-pre-action-panel",
+    "holdem-pre-action-title",
     "holdem-refill-panel",
     "holdem-refill-btn",
     "holdem-buyin-backdrop",
@@ -205,6 +207,10 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-fold-btn",
     "holdem-check-btn",
     "holdem-call-btn",
+    "holdem-pre-fold-btn",
+    "holdem-pre-check-btn",
+    "holdem-pre-call-btn",
+    "holdem-pre-call-amount",
     "holdem-bet-btn",
     "holdem-raise-btn",
     "holdem-allin-btn",
@@ -432,8 +438,9 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /show\("holdem-raise-panel", hasMove && canSize && raiseMenuOpen\)/);
   assert.match(controller, /var queuedAction = null/);
   assert.match(controller, /function queuedActionOptions\(\)[\s\S]*fold_check[\s\S]*maxCallAmount/);
-  assert.match(controller, /function unreservableMove\(move\)[\s\S]*toCall > 0[\s\S]*move === "raise"[\s\S]*move === "bet"/);
+  assert.match(controller, /function renderPreActionPanel\(options, busy, hasMove\)[\s\S]*holdem-pre-action-panel[\s\S]*holdem-pre-call-amount/);
   assert.match(controller, /function maybePerformQueuedAction\(\)[\s\S]*queuedExecutableMove\(\)[\s\S]*performMove\(move\)/);
+  assert.match(controller, /id === "holdem-pre-fold-btn"[\s\S]*queuePreAction\("fold"\)/);
   assert.match(controller, /id === "holdem-fold-btn"[\s\S]*queuePreAction\("fold"\)[\s\S]*performMove\("fold"\)/);
   assert.match(controller, /id === "holdem-raise-btn"[\s\S]*raiseMenuOpen = true[\s\S]*renderControls\(\)/);
   assert.match(controller, /kind === "two-pot"[\s\S]*potAfterCall \* 2/);
@@ -511,10 +518,11 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.doesNotMatch(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet(?:-tier)?="(?:allin|eight-pot|four-pot|two-pot|pot|three-quarter|half|over)"\][^{]*\{[^}]*grid-(?:row|column):/);
   assert.match(styles, /\.holdem-screen\.is-raise-menu-open #holdem-bet-btn,[\s\S]*#holdem-raise-btn\s*\{[\s\S]*visibility: hidden/);
   assert.match(styles, /\.holdem-screen\.is-actioning:not\(\.is-chat-open\) \.holdem-chat-row \{[\s\S]*opacity: 0/);
-  assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-action\.is-queued\s*\{[\s\S]*border-color:\s*rgba\(117, 238, 255, \.72\)/);
-  assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-action\.is-queued::after\s*\{[\s\S]*content:\s*"예약"/);
-  assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-action\.is-unreservable\s*\{[\s\S]*filter:\s*grayscale\(\.45\) saturate\(\.6\)/);
-  assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-action\.is-unreservable::after\s*\{[\s\S]*content:\s*"예약 불가"/);
+  assert.match(styles, /\.holdem-pre-action-panel\s*\{[\s\S]*bottom:\s*max\(74px,\s*calc\(env\(safe-area-inset-bottom\) \+ 72px\)\)/);
+  assert.match(styles, /\.holdem-pre-action\.is-queued\s*\{[\s\S]*border-color:\s*rgba\(117, 238, 255, \.76\)/);
+  assert.match(styles, /\.holdem-pre-action\.is-queued::after\s*\{[\s\S]*content:\s*"예약"/);
+  assert.doesNotMatch(styles, /is-unreservable/);
+  assert.doesNotMatch(controller, /unreservableMove/);
 });
 
 test("hand results stay on the table without a popup and advance automatically", () => {
