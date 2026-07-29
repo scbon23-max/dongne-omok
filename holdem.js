@@ -4800,7 +4800,10 @@ window.TexasHoldem = (function () {
       api.send({ t: "chat", game: "holdem", nick: text(me().nick, 40), text: value });
       sent = true;
     }
-    if (sent) input.value = "";
+    if (sent) {
+      input.value = "";
+      setChatOpen(false);
+    }
   }
 
   function setChatOpen(open, focusInput) {
@@ -4976,6 +4979,15 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function onRootFocusOut(event) {
+    if (!event.target || event.target.id !== "holdem-chat-input") return;
+    setTimeout(function () {
+      var input = $("holdem-chat-input");
+      if (input && document.activeElement === input) return;
+      setChatOpen(false);
+    }, 160);
+  }
+
   function onRootKeydown(event) {
     if (event.key === "Escape" && profileDialogOpen) {
       closeProfileDialog();
@@ -5046,12 +5058,14 @@ window.TexasHoldem = (function () {
       boundRoot.removeEventListener("click", onRootClick);
       boundRoot.removeEventListener("input", onRootInput);
       boundRoot.removeEventListener("change", onRootChange);
+      boundRoot.removeEventListener("focusout", onRootFocusOut);
       boundRoot.removeEventListener("keydown", onRootKeydown);
     }
     boundRoot = screen;
     boundRoot.addEventListener("click", onRootClick);
     boundRoot.addEventListener("input", onRootInput);
     boundRoot.addEventListener("change", onRootChange);
+    boundRoot.addEventListener("focusout", onRootFocusOut);
     boundRoot.addEventListener("keydown", onRootKeydown);
     return true;
   }

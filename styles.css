@@ -6264,7 +6264,8 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-chat-toggle {
   position: absolute;
   z-index: 49;
-  right: 12px;
+  left: 12px;
+  right: auto;
   bottom: max(58px, calc(env(safe-area-inset-bottom) + 54px));
   width: 42px;
   height: 42px;
@@ -6289,7 +6290,8 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-screen.is-actioning .holdem-chat-toggle {
   z-index: 53;
-  right: calc(8px + (100% - 16px) / 6 - 21px);
+  left: calc(8px + (100% - 16px) / 6 - 21px);
+  right: auto;
   bottom: calc(max(8px, env(safe-area-inset-bottom)) + 60px);
 }
 .holdem-chat-row {
@@ -6435,8 +6437,8 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-lobby-panel { width: 390px; }
   .holdem-action-panel { right: 50%; left: auto; width: 720px; transform: translateX(50%); }
   .holdem-chat-row { right: 50%; left: auto; width: 720px; transform: translateX(50%); }
-  .holdem-chat-toggle { right: calc(50% - 348px); }
-  .holdem-screen.is-actioning .holdem-chat-toggle { right: calc(50% - 264px); }
+  .holdem-chat-toggle { left: calc(50% - 348px); right: auto; }
+  .holdem-screen.is-actioning .holdem-chat-toggle { left: calc(50% - 261px); right: auto; }
   .holdem-screen.is-actioning.is-raise-menu-open.is-chat-open .holdem-chat-row {
     right: calc(50% - 360px);
     left: auto;
