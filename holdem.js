@@ -4832,7 +4832,7 @@ window.TexasHoldem = (function () {
   }
 
   function communityCardHtml(card, index, newRevealIndex, now, currentHand) {
-    if (!card) return cardHtml(null);
+    if (!card) return cardHtml(null, "back");
     var cardClasses = [];
     if (currentHand && currentHand.communityCards[index]) {
       cardClasses.push(currentHand.resultCombo ? "is-winning-combo-card" : "is-hero-made-hand-card");
@@ -4887,7 +4887,7 @@ window.TexasHoldem = (function () {
         html += communityCardHtml(card, i, newRevealIndex, now, currentHand);
         newRevealIndex += 1;
       } else {
-        html += card ? communityCardHtml(card, i, 0, now, currentHand) : cardHtml(null);
+        html += card ? communityCardHtml(card, i, 0, now, currentHand) : cardHtml(null, "back");
       }
     }
     if (lastBoardHtml !== html) {
