@@ -5117,7 +5117,7 @@ body.is-admin .feedback-user-compose { display: none; }
   height: 23px;
   display: grid;
   place-items: center;
-  border: 2px solid rgba(223,255,248,.88);
+  border: 0;
   border-radius: 999px;
   background: rgba(3,19,24,.96);
   color: #dffff8;
