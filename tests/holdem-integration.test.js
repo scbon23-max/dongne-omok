@@ -198,7 +198,6 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-bot-remove-btn",
     "holdem-action-panel",
     "holdem-pre-action-panel",
-    "holdem-pre-action-title",
     "holdem-refill-panel",
     "holdem-refill-btn",
     "holdem-buyin-backdrop",
@@ -447,6 +446,8 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /var queuedAction = null/);
   assert.match(controller, /function queuedActionOptions\(\)[\s\S]*fold_check[\s\S]*maxCallAmount/);
   assert.match(controller, /function renderPreActionPanel\(options, busy, hasMove\)[\s\S]*holdem-pre-action-panel[\s\S]*holdem-pre-call-amount/);
+  assert.doesNotMatch(index, /id="holdem-pre-action-title"/);
+  assert.doesNotMatch(styles, /\.holdem-pre-action-title\s*\{/);
   assert.match(controller, /function maybePerformQueuedAction\(\)[\s\S]*queuedExecutableMove\(\)[\s\S]*performMove\(move\)/);
   assert.match(controller, /id === "holdem-pre-fold-btn"[\s\S]*queuePreAction\("fold"\)/);
   assert.match(controller, /id === "holdem-fold-btn"[\s\S]*queuePreAction\("fold"\)[\s\S]*performMove\("fold"\)/);

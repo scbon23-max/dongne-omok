@@ -130,7 +130,6 @@ function controlTestDocument() {
     "holdem-board",
     "holdem-action-panel",
     "holdem-pre-action-panel",
-    "holdem-pre-action-title",
     "holdem-fold-btn",
     "holdem-check-btn",
     "holdem-call-btn",
@@ -823,7 +822,6 @@ test("pre-action buttons can be queued before the hero turn", () => {
   assert.equal(controller._test.queuePreAction("call"), true);
   assert.equal(dom.elements["holdem-pre-call-btn"].classList.contains("is-queued"), true);
   assert.equal(dom.elements["holdem-pre-call-btn"].attributes["aria-pressed"], "true");
-  assert.equal(dom.elements["holdem-pre-action-title"].textContent, "예약됨");
   const queued = controller._test.getQueuedAction();
   assert.equal(queued.action, "call");
   assert.equal(queued.label, "콜");

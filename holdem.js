@@ -2837,7 +2837,6 @@ window.TexasHoldem = (function () {
     options = Array.isArray(options) ? options : [];
     var visible = !hasMove && options.length > 0;
     show("holdem-pre-action-panel", visible);
-    setText("holdem-pre-action-title", queuedAction && visible ? "예약됨" : "예약 가능");
     ["fold", "check", "call"].forEach(function (button) {
       var option = null;
       for (var i = 0; i < options.length; i++) {

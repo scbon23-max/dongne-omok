@@ -6061,20 +6061,6 @@ body.is-admin .feedback-user-compose { display: none; }
   margin: 0 auto;
   pointer-events: auto;
 }
-.holdem-pre-action-title {
-  width: max-content;
-  max-width: 100%;
-  margin: 0 auto 7px;
-  padding: 3px 10px;
-  border: 1px solid rgba(118,229,255,.28);
-  border-radius: 999px;
-  background: rgba(7,16,22,.72);
-  color: rgba(213,247,255,.88);
-  font-size: 11px;
-  font-weight: 1000;
-  line-height: 1.2;
-  box-shadow: 0 8px 22px rgba(0,0,0,.28);
-}
 .holdem-pre-action-buttons {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
