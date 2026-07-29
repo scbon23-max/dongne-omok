@@ -256,6 +256,25 @@ test("seat action tags preserve latest bet and raise amounts from action history
   assert.equal(controller._test.seatActionLabel(normalized.seats[0]), "레이즈 2,400원");
 });
 
+test("seat action tags show all-in amounts from action history", () => {
+  const controller = loadController();
+  const normalized = controller._test.normalizeSnapshot({
+    phase: "turn",
+    actionSeq: 13,
+    seats: [
+      { seat: 0, nick: "alice", stack: 0, inHand: true, allIn: true },
+      { seat: 1, nick: "bob", stack: 7000, inHand: true },
+    ],
+    actionHistory: [
+      { seq: 13, seat: 0, action: "allin", amount: 2400 },
+    ],
+  }, 10);
+
+  controller._test.setState(normalized);
+
+  assert.equal(controller._test.seatActionLabel(normalized.seats[0]), "올인 2,400원");
+});
+
 test("central pot readout omits the side pot subline", () => {
   const controller = loadController();
   const base = {

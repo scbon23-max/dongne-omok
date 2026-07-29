@@ -3559,7 +3559,7 @@ window.TexasHoldem = (function () {
       call: "콜" + amountSuffix,
       bet: "베팅" + amountSuffix,
       raise: "레이즈" + amountSuffix,
-      allin: "올인",
+      allin: "올인" + amountSuffix,
       small_blind: formatChips(seat.bet || state.smallBlind),
       big_blind: formatChips(seat.bet || state.bigBlind)
     };
@@ -3568,7 +3568,7 @@ window.TexasHoldem = (function () {
 
   function seatActionAmountLabel(seat) {
     var action = seatDisplayAction(seat);
-    if (!seat || (action !== "bet" && action !== "raise")) return "";
+    if (!seat || (action !== "bet" && action !== "raise" && action !== "allin")) return "";
     return seatDisplayActionAmount(seat);
   }
 
