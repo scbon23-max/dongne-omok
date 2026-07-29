@@ -6790,28 +6790,27 @@ body.is-admin .feedback-user-compose { display: none; }
   height: 42px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(125,225,196,.22);
-  border-radius: 50%;
-  background: rgba(14,31,38,.94);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #fff;
   font: inherit;
-  font-size: 20px;
+  font-size: 32px;
   line-height: 1;
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.08);
-  transition: transform .16s ease, border-color .16s ease, background .16s ease, opacity .16s ease;
+  text-shadow: 0 3px 9px rgba(0,0,0,.56);
+  transition: transform .16s ease, filter .16s ease, opacity .16s ease;
   touch-action: manipulation;
 }
 .holdem-emoji-toggle {
   bottom: max(116px, calc(env(safe-area-inset-bottom) + 112px));
-  font-size: 21px;
+  font-size: 33px;
 }
 .holdem-emoji-toggle:active,
 .holdem-chat-toggle:active { transform: scale(.96); }
 .holdem-screen.is-emoji-open .holdem-emoji-toggle,
 .holdem-screen.is-chat-open .holdem-chat-toggle {
-  border-color: rgba(125,225,196,.5);
-  background: linear-gradient(180deg, #1a7f72, #0f4d49);
+  filter: drop-shadow(0 0 8px rgba(125,225,196,.5));
 }
 .holdem-screen.is-actioning .holdem-chat-toggle,
 .holdem-screen.is-actioning .holdem-emoji-toggle {
