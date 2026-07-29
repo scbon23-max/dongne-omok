@@ -96,6 +96,12 @@ window.TexasHoldem = (function () {
   var RESULT_SETTLE_MS = 1600;
   var RESULT_REVIEW_MS = 4000;
   var HOLDEM_SETTINGS_STORAGE_PREFIX = "dongne_holdem_settings:";
+  var DEFAULT_CARD_BACK_SKIN = "lucky-clover";
+  var CARD_BACK_SKINS = {
+    "lucky-clover": "럭키 클로버",
+    "royal-candy": "로열 캔디",
+    "moon-chip": "문칩"
+  };
   var PROFILE_AVATAR_STORAGE_PREFIX = "dongne_holdem_profile_avatar:";
   var PROFILE_AVATAR_SIZE = 256;
   var PROFILE_AVATAR_MAX_DATA_URL_LENGTH = 76000;
@@ -116,6 +122,7 @@ window.TexasHoldem = (function () {
   var state = emptyState();
   var rawSnapshot = null;
   var moneyUnitMode = "chips";
+  var cardBackSkin = DEFAULT_CARD_BACK_SKIN;
   var settingsOpen = false;
 
   var pollId = null;
@@ -402,9 +409,16 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function normalizeCardBackSkin(value) {
+    return Object.prototype.hasOwnProperty.call(CARD_BACK_SKINS, value)
+      ? value
+      : DEFAULT_CARD_BACK_SKIN;
+  }
+
   function restoreHoldemSettings() {
     var saved = readStoredHoldemSettings();
     moneyUnitMode = saved.moneyUnitMode === "bb" ? "bb" : "chips";
+    cardBackSkin = normalizeCardBackSkin(saved.cardBackSkin);
   }
 
   function roomId() {
@@ -4467,6 +4481,7 @@ window.TexasHoldem = (function () {
     show("holdem-settings-panel", settingsOpen);
     var settingsButton = $("holdem-settings-btn");
     if (settingsButton) settingsButton.setAttribute("aria-expanded", settingsOpen ? "true" : "false");
+    applyCardBackSkin();
     var unitToggle = $("holdem-unit-toggle");
     var isBb = moneyUnitMode === "bb";
     setText("holdem-unit-label", isBb ? "BB \uB2E8\uC704" : "\uC6D0 \uB2E8\uC704");
@@ -4474,6 +4489,31 @@ window.TexasHoldem = (function () {
       unitToggle.setAttribute("aria-pressed", isBb ? "true" : "false");
       unitToggle.textContent = isBb ? "\uC6D0" : "BB";
     }
+    setText("holdem-card-back-label", CARD_BACK_SKINS[cardBackSkin] || CARD_BACK_SKINS[DEFAULT_CARD_BACK_SKIN]);
+    var screen = root();
+    var options = screen && typeof screen.querySelectorAll === "function"
+      ? screen.querySelectorAll(".holdem-card-back-option")
+      : [];
+    Array.prototype.forEach.call(options, function (option) {
+      var selected = normalizeCardBackSkin(option.getAttribute("data-card-back-skin")) === cardBackSkin;
+      option.setAttribute("aria-checked", selected ? "true" : "false");
+    });
+  }
+
+  function applyCardBackSkin() {
+    var screen = root();
+    if (screen && screen.dataset) screen.dataset.cardBackSkin = cardBackSkin;
+  }
+
+  function setCardBackSkin(skin) {
+    var nextSkin = normalizeCardBackSkin(skin);
+    if (cardBackSkin === nextSkin) {
+      renderSettings();
+      return;
+    }
+    cardBackSkin = nextSkin;
+    writeStoredHoldemSettings({ cardBackSkin: cardBackSkin });
+    renderSettings();
   }
 
   function setMoneyUnitMode(mode) {
@@ -5579,6 +5619,10 @@ window.TexasHoldem = (function () {
         .map(function (value) { return integer(value, -1); }));
       return;
     }
+    if (button.hasAttribute("data-card-back-skin")) {
+      setCardBackSkin(button.getAttribute("data-card-back-skin"));
+      return;
+    }
     var id = button.id;
     if (id === "holdem-settings-btn") {
       settingsOpen = !settingsOpen;
@@ -5867,6 +5911,7 @@ window.TexasHoldem = (function () {
     leave();
     api = nextApi;
     restoreHoldemSettings();
+    applyCardBackSkin();
     active = true;
     connected = true;
     joined = false;

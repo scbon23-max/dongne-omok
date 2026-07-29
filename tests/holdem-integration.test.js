@@ -17,6 +17,11 @@ const controller = read("holdem.js");
 const engine = read("holdem-engine.js");
 const config = read(path.join("supabase", "config.toml"));
 const profileAvatarMigration = read(path.join("supabase", "migrations", "202607280001_account_profile_avatars.sql"));
+const cardBackAssets = [
+  "assets/holdem/card-back-lucky-clover.png",
+  "assets/holdem/card-back-royal-candy.png",
+  "assets/holdem/card-back-moon-chip.png",
+];
 
 test("Hold'em is an available six-player controller game", () => {
   const context = { window: {} };
@@ -387,11 +392,17 @@ test("the six-seat table exposes every required game control", () => {
   assert.doesNotMatch(controller, /isNextHandStart \? "다음 핸드" : "시작하기"/);
   assert.doesNotMatch(controller, /id === "holdem-start-btn" \|\| id === "holdem-next-btn" \|\| id === "holdem-table-start-btn"/);
   assert.match(controller, /id === "holdem-start-btn" \|\| id === "holdem-table-start-btn"/);
-  assert.match(styles, /\.holdem-card\.back\s*\{[\s\S]*repeating-linear-gradient\(28deg, transparent 0 5px, #c52835 5px 11px/);
+  cardBackAssets.forEach((asset) => {
+    assert.ok(fs.existsSync(path.join(root, asset)), `${asset} should exist`);
+    assert.match(styles, new RegExp(asset.replace(/[/.]/g, "\\$&")));
+  });
+  assert.match(index, /data-card-back-skin="lucky-clover"[\s\S]*data-card-back-skin="royal-candy"[\s\S]*data-card-back-skin="moon-chip"/);
+  assert.match(styles, /\.holdem-card\.back\s*\{[\s\S]*background: var\(--holdem-card-back-image\) center \/ 100% 100% no-repeat/);
+  assert.match(styles, /\.holdem-screen\[data-card-back-skin="royal-candy"\]\s*\{[\s\S]*card-back-royal-candy\.png/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\s*\{[\s\S]*top: -3px[\s\S]*translate\(-50%, -45%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\.is-revealed-cards\s*\{[\s\S]*z-index:\s*24[\s\S]*translate\(-50%, -72%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*--holdem-card-width:\s*clamp\(16px,\s*4\.6vw,\s*24px\)/);
-  assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*box-shadow:\s*inset 0 0 0 1px #fff7f1/);
+  assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*box-shadow:\s*0 1px 3px rgba\(0,0,0,\.32\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\.is-revealed-cards \.holdem-card:not\(\.back\):not\(\.empty\)\s*\{[\s\S]*--holdem-card-width:\s*clamp\(30px,\s*8vw,\s*42px\)/);
   assert.match(styles, /\.holdem-hole-cards \.holdem-card \+ \.holdem-card \{ margin-left: -5px; \}/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back \+ \.holdem-card\.back \{ margin-left: -10px; \}/);
@@ -440,13 +451,16 @@ test("the six-seat table exposes every required game control", () => {
 test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /var raiseMenuOpen = false/);
   assert.match(controller, /var moneyUnitMode = "chips"/);
+  assert.match(controller, /var cardBackSkin = DEFAULT_CARD_BACK_SKIN/);
   assert.match(controller, /HOLDEM_SETTINGS_STORAGE_PREFIX = "dongne_holdem_settings:"/);
-  assert.match(controller, /function restoreHoldemSettings\(\)[\s\S]*moneyUnitMode = saved\.moneyUnitMode === "bb" \? "bb" : "chips"/);
+  assert.match(controller, /function restoreHoldemSettings\(\)[\s\S]*moneyUnitMode = saved\.moneyUnitMode === "bb" \? "bb" : "chips"[\s\S]*cardBackSkin = normalizeCardBackSkin\(saved\.cardBackSkin\)/);
   assert.match(controller, /function enter\(nextApi\)[\s\S]*api = nextApi;[\s\S]*restoreHoldemSettings\(\)/);
   assert.match(controller, /function toggleMoneyUnitMode\(\)[\s\S]*moneyUnitMode === "bb" \? "chips" : "bb"/);
   assert.match(controller, /function setMoneyUnitMode\(mode\)[\s\S]*writeStoredHoldemSettings\(\{ moneyUnitMode: moneyUnitMode \}\)/);
+  assert.match(controller, /function setCardBackSkin\(skin\)[\s\S]*writeStoredHoldemSettings\(\{ cardBackSkin: cardBackSkin \}\)/);
   assert.match(controller, /var settingsOpen = false/);
   assert.match(controller, /id === "holdem-settings-btn"[\s\S]*settingsOpen = !settingsOpen/);
+  assert.match(controller, /hasAttribute\("data-card-back-skin"\)[\s\S]*setCardBackSkin\(button\.getAttribute\("data-card-back-skin"\)\)/);
   assert.match(controller, /id === "holdem-unit-toggle"[\s\S]*toggleMoneyUnitMode\(\)/);
   assert.match(controller, /show\("holdem-raise-panel", hasMove && canSize && raiseMenuOpen\)/);
   assert.match(controller, /var queuedAction = null/);
