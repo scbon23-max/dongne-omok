@@ -2983,6 +2983,7 @@ window.TexasHoldem = (function () {
     var relevant = Object.create(null);
     if (!evaluation || !Array.isArray(evaluation.cards)) return relevant;
     var category = Number(evaluation.category) || 0;
+    if (category === 0) return relevant;
     var groupedRanks = [];
     if (category === 1 || category === 3 || category === 7) {
       groupedRanks = [evaluation.tiebreak[0]];
@@ -3012,12 +3013,19 @@ window.TexasHoldem = (function () {
       var evaluation = engine.evaluateSeven(cards);
       if (!evaluation || !evaluation.name) return null;
       var bestCards = relevantBestCardCodes(evaluation);
+      var isHighCard = Number(evaluation.category) === 0;
+      var holeCards = Object.create(null);
       var communityCards = Object.create(null);
+      if (isHighCard) {
+        state.heroCards.forEach(function (card, index) {
+          if (engineCardCode(card)) holeCards[index] = true;
+        });
+      }
       state.board.forEach(function (card, index) {
         var code = engineCardCode(card);
-        if (code && bestCards[code]) communityCards[index] = true;
+        if (!isHighCard && code && bestCards[code]) communityCards[index] = true;
       });
-      return { name: evaluation.name, communityCards: communityCards };
+      return { name: evaluation.name, holeCards: holeCards, communityCards: communityCards };
     } catch (error) {
       return null;
     }
@@ -4018,7 +4026,7 @@ window.TexasHoldem = (function () {
           holes = state.heroCards.map(function (card, cardIndex) {
             var comboClass = winnerCombo
               ? (winnerCombo.holeCards[cardIndex] ? "is-winning-combo-card" : "is-winning-combo-muted")
-              : "";
+              : (currentHand && currentHand.holeCards[cardIndex] ? "is-hero-made-hand-card" : "");
             return cardHtml(card, null, comboClass);
           }).join("");
         } else if (state.revealedCards[absolute] && state.revealedCards[absolute].length) {

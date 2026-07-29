@@ -4480,7 +4480,8 @@ body.is-admin .feedback-user-compose { display: none; }
   --holdem-card-shadow: 0 1px 4px rgba(0,0,0,.24);
   transform-origin: 50% 50%;
 }
-.holdem-board .holdem-card.is-hero-made-hand-card {
+.holdem-board .holdem-card.is-hero-made-hand-card,
+.holdem-hole-cards .holdem-card.is-hero-made-hand-card {
   z-index: 2;
   border-color: #ffd569;
   box-shadow:
