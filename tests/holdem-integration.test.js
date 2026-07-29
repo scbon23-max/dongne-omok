@@ -521,6 +521,9 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.doesNotMatch(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet(?:-tier)?="(?:allin|eight-pot|four-pot|two-pot|pot|three-quarter|half|over)"\][^{]*\{[^}]*grid-(?:row|column):/);
   assert.match(styles, /\.holdem-screen\.is-raise-menu-open #holdem-bet-btn,[\s\S]*#holdem-raise-btn\s*\{[\s\S]*visibility: hidden/);
   assert.match(styles, /\.holdem-screen\.is-actioning:not\(\.is-chat-open\) \.holdem-chat-row \{[\s\S]*opacity: 0/);
+  assert.match(styles, /\.holdem-screen\.is-actioning\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 110px \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
+  assert.match(styles, /\.holdem-screen\.is-pre-actioning\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 112px \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
+  assert.match(styles, /\.holdem-screen\.is-fold-revealing\.is-chat-open \.holdem-chat-row\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 132px \+ var\(--holdem-keyboard-offset,\s*0px\)\)/);
   assert.match(styles, /\.holdem-pre-action-panel\s*\{[\s\S]*bottom:\s*max\(8px,\s*env\(safe-area-inset-bottom\)\)/);
   assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-chat-toggle\s*\{[\s\S]*bottom:\s*calc\(max\(8px,\s*env\(safe-area-inset-bottom\)\) \+ 62px\)/);
   assert.match(styles, /\.holdem-pre-action\.is-queued\s*\{[\s\S]*border-color:\s*rgba\(117, 238, 255, \.76\)/);

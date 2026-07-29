@@ -6533,7 +6533,16 @@ body.is-admin .feedback-user-compose { display: none; }
   bottom: calc(max(8px, env(safe-area-inset-bottom)) + 110px + var(--holdem-keyboard-offset, 0px));
 }
 .holdem-screen.is-actioning.is-raise-menu-open.is-chat-open .holdem-chat-row {
-  left: calc(33.333% + 8px);
+  right: calc(33.333% + 8px);
+  left: 8px;
+}
+.holdem-screen.is-pre-actioning.is-chat-open .holdem-chat-row {
+  z-index: 54;
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 112px + var(--holdem-keyboard-offset, 0px));
+}
+.holdem-screen.is-fold-revealing.is-chat-open .holdem-chat-row {
+  z-index: 54;
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 132px + var(--holdem-keyboard-offset, 0px));
 }
 .holdem-chat-overlay {
   z-index: 25;
@@ -6638,8 +6647,8 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-screen.is-actioning .holdem-chat-toggle { left: calc(50% - 261px); right: auto; }
   .holdem-screen.is-pre-actioning .holdem-chat-toggle { left: calc(50% - 261px); right: auto; }
   .holdem-screen.is-actioning.is-raise-menu-open.is-chat-open .holdem-chat-row {
-    right: calc(50% - 360px);
-    left: auto;
+    right: auto;
+    left: calc(50% - 360px);
     width: 470px;
     transform: none;
   }
