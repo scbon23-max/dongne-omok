@@ -2619,7 +2619,7 @@ window.TexasHoldem = (function () {
     var panel = $("holdem-fold-reveal-panel");
     if (panel) return panel;
     var screen = root();
-    if (!screen || typeof document === "undefined") return null;
+    if (!screen || typeof document === "undefined" || typeof document.createElement !== "function") return null;
     panel = document.createElement("section");
     panel.id = "holdem-fold-reveal-panel";
     panel.className = "holdem-fold-reveal-panel hidden";
@@ -5112,7 +5112,11 @@ window.TexasHoldem = (function () {
       input.value = "";
       setChatOpen(false);
       if (api && typeof api.showChatToast === "function") {
-        api.showChatToast(text(me().nick, 40), value);
+        setTimeout(function () {
+          if (api && typeof api.showChatToast === "function") {
+            api.showChatToast(text(me().nick, 40), value);
+          }
+        }, 40);
       }
     }
   }
@@ -5228,7 +5232,9 @@ window.TexasHoldem = (function () {
       var overlay = $("holdem-chat-overlay");
       if (overlay) {
         overlay.dataset.holdemOverlayMode = "toast";
-        overlay.innerHTML = "";
+        if (Date.now() >= Number(overlay.dataset.holdemToastUntil || 0)) {
+          overlay.innerHTML = "";
+        }
       }
     }
   }

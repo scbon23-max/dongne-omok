@@ -4653,6 +4653,7 @@
     if (family === "holdem") {
       if (ov.dataset.holdemOverlayMode === "history") ov.innerHTML = "";
       ov.dataset.holdemOverlayMode = "toast";
+      ov.dataset.holdemToastUntil = String(Date.now() + 7000);
     }
     var line = createOverlayLine(family, nick, text, overlaySide);
     ov.appendChild(line);
@@ -4705,8 +4706,11 @@
       renderHoldemChatHistory();
     }
     else if ($("holdem-chat-overlay")) {
-      $("holdem-chat-overlay").dataset.holdemOverlayMode = "toast";
-      $("holdem-chat-overlay").innerHTML = "";
+      var overlay = $("holdem-chat-overlay");
+      overlay.dataset.holdemOverlayMode = "toast";
+      if (Date.now() >= Number(overlay.dataset.holdemToastUntil || 0)) {
+        $("holdem-chat-overlay").innerHTML = "";
+      }
     }
   }
 
