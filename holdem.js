@@ -4709,6 +4709,7 @@ window.TexasHoldem = (function () {
       if (seat && seat.leaving) classes.push("is-leaving");
       if (seat && seat.away) classes.push("is-away");
       if (seat && seat.isBot) classes.push("is-bot");
+      if (seat && seatEmojiReactions[seatEmojiKey(seat.nick)]) classes.push("is-emoji-reacting");
       var isWinner = !!(seat && (seat.winner || winners[seat.nick]));
       if (isWinner && revealWinner) classes.push("is-winner");
 
