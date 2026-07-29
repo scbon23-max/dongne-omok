@@ -289,6 +289,61 @@ test("seat action tags show all-in amounts from action history", () => {
   assert.equal(controller._test.seatActionLabel(normalized.seats[0]), "올인 2,400원");
 });
 
+test("a move shows its local action tag immediately and clears it after rejection", async () => {
+  let finishAction;
+  const calls = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return new Promise((resolve) => {
+        finishAction = resolve;
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const state = controller._test.emptyState();
+  state.version = 7;
+  state.phase = "flop";
+  state.handId = "12";
+  state.handNumber = 12;
+  state.heroSeat = 0;
+  state.perspectiveSeat = 0;
+  state.actingSeat = 0;
+  state.legal = { raise: true };
+  state.seats[0] = {
+    seat: 0,
+    nick: "alice",
+    displayName: "alice",
+    stack: 9600,
+    bet: 400,
+    lastAction: "",
+  };
+  controller._test.setState(state);
+  controller._test.setActive(true);
+
+  const resultPromise = controller._test.performMove("raise", 1200);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].action, "act");
+  assert.equal(calls[0].payload.move, "raise");
+  assert.equal(controller._test.getPendingMove().amount, 1200);
+  assert.equal(controller._test.seatActionLabel(state.seats[0]), "레이즈 1,200원");
+  assert.match(controller._test.seatActionClass(state.seats[0]), /\bis-pending\b/);
+
+  finishAction({
+    ok: false,
+    reason: "stale",
+    version: 7,
+    snapshot: null,
+  });
+  const result = await resultPromise;
+
+  assert.equal(result.ok, false);
+  assert.equal(controller._test.getPendingMove(), null);
+  assert.equal(controller._test.seatActionLabel(state.seats[0]), "");
+  controller.leave();
+});
+
 test("central pot readout omits the side pot subline", () => {
   const controller = loadController();
   const base = {

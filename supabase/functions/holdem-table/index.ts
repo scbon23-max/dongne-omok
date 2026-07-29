@@ -128,6 +128,7 @@ const POKER_ACTIONS = new Set([
   "raise",
   "allin",
 ]);
+const ACTIVE_HAND_PHASES = new Set(["preflop", "flop", "turn", "river"]);
 const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,100}$/;
 const MAX_BODY_BYTES = 16 * 1024;
@@ -930,7 +931,11 @@ async function publicTableResponse(
   const snapshot = sanitizedSnapshot(engine, state, nick);
   const refill = ringSettings(state);
   if (refill && isRecord(snapshot)) {
-    const status = await ringRefillStatus(client, nick, refill.dailyLimit);
+    const activeHand = isRecord(state) &&
+      ACTIVE_HAND_PHASES.has(safeText(state.phase, 24));
+    const status = activeHand
+      ? null
+      : await ringRefillStatus(client, nick, refill.dailyLimit);
     const engineAllowsRefill = snapshot.canRefill === true;
     snapshot.ringRefill = {
       amount: refill.amount,
@@ -1242,13 +1247,22 @@ Deno.serve(async (request) => {
   const client = createClient(url, serviceKey, {
     auth: { persistSession: false },
   });
-  const account = await verifyAccount(
-    client,
-    isRecord(body.auth) ? body.auth : undefined,
-  );
-  if (!account) return jsonResponse({ ok: false, reason: "auth" }, 401);
 
   try {
+    const accountPromise = verifyAccount(
+      client,
+      isRecord(body.auth) ? body.auth : undefined,
+    );
+    const tablePromise: Promise<TableRow | null> =
+      roomlessAction || action === "join"
+      ? Promise.resolve(null)
+      : loadTable(client, roomId);
+    const [account, initialTable] = await Promise.all([
+      accountPromise,
+      tablePromise,
+    ]);
+    if (!account) return jsonResponse({ ok: false, reason: "auth" }, 401);
+
     if (walletAction) {
       await cleanupExpiredTables(client);
       return jsonResponse({
@@ -1278,9 +1292,15 @@ Deno.serve(async (request) => {
       return jsonResponse({ ok: false, reason: "server_config" }, 500);
     }
 
-    if (action === "join") await cleanupExpiredTables(client);
-    const lease = await activeLease(client, roomId);
-    let table = await loadTable(client, roomId);
+    let lease: LeaseInfo | null = null;
+    let table = initialTable;
+    if (action === "join") {
+      await cleanupExpiredTables(client);
+      [lease, table] = await Promise.all([
+        activeLease(client, roomId),
+        loadTable(client, roomId),
+      ]);
+    }
     const requestedAt = Date.now();
     const expectedVersion = parseVersion(body.expectedVersion);
     const expectedHandId = safeText(body.handId, 80);
