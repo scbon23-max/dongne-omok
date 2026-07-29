@@ -96,6 +96,11 @@ window.TexasHoldem = (function () {
   var RESULT_SETTLE_MS = 1600;
   var RESULT_REVIEW_MS = 4000;
   var HOLDEM_SETTINGS_STORAGE_PREFIX = "dongne_holdem_settings:";
+  var DEFAULT_CARD_FRONT_SKIN = "classic";
+  var CARD_FRONT_SKINS = {
+    "classic": "\uAE30\uBCF8 \uC2A4\uD0A8",
+    "four-color": "\uC0AC\uC0C9 \uC2A4\uD0A8"
+  };
   var DEFAULT_CARD_BACK_SKIN = "lucky-clover";
   var CARD_BACK_SKINS = {
     "lucky-clover": "럭키 클로버",
@@ -122,6 +127,7 @@ window.TexasHoldem = (function () {
   var state = emptyState();
   var rawSnapshot = null;
   var moneyUnitMode = "chips";
+  var cardFrontSkin = DEFAULT_CARD_FRONT_SKIN;
   var cardBackSkin = DEFAULT_CARD_BACK_SKIN;
   var settingsOpen = false;
 
@@ -415,9 +421,16 @@ window.TexasHoldem = (function () {
       : DEFAULT_CARD_BACK_SKIN;
   }
 
+  function normalizeCardFrontSkin(value) {
+    return Object.prototype.hasOwnProperty.call(CARD_FRONT_SKINS, value)
+      ? value
+      : DEFAULT_CARD_FRONT_SKIN;
+  }
+
   function restoreHoldemSettings() {
     var saved = readStoredHoldemSettings();
     moneyUnitMode = saved.moneyUnitMode === "bb" ? "bb" : "chips";
+    cardFrontSkin = normalizeCardFrontSkin(saved.cardFrontSkin);
     cardBackSkin = normalizeCardBackSkin(saved.cardBackSkin);
   }
 
@@ -4481,6 +4494,7 @@ window.TexasHoldem = (function () {
     show("holdem-settings-panel", settingsOpen);
     var settingsButton = $("holdem-settings-btn");
     if (settingsButton) settingsButton.setAttribute("aria-expanded", settingsOpen ? "true" : "false");
+    applyCardFrontSkin();
     applyCardBackSkin();
     var unitToggle = $("holdem-unit-toggle");
     var isBb = moneyUnitMode === "bb";
@@ -4489,8 +4503,16 @@ window.TexasHoldem = (function () {
       unitToggle.setAttribute("aria-pressed", isBb ? "true" : "false");
       unitToggle.textContent = isBb ? "\uC6D0" : "BB";
     }
-    setText("holdem-card-back-label", CARD_BACK_SKINS[cardBackSkin] || CARD_BACK_SKINS[DEFAULT_CARD_BACK_SKIN]);
+    setText("holdem-card-front-label", CARD_FRONT_SKINS[cardFrontSkin] || CARD_FRONT_SKINS[DEFAULT_CARD_FRONT_SKIN]);
     var screen = root();
+    var frontOptions = screen && typeof screen.querySelectorAll === "function"
+      ? screen.querySelectorAll(".holdem-card-front-option")
+      : [];
+    Array.prototype.forEach.call(frontOptions, function (option) {
+      var selected = normalizeCardFrontSkin(option.getAttribute("data-card-front-skin")) === cardFrontSkin;
+      option.setAttribute("aria-checked", selected ? "true" : "false");
+    });
+    setText("holdem-card-back-label", CARD_BACK_SKINS[cardBackSkin] || CARD_BACK_SKINS[DEFAULT_CARD_BACK_SKIN]);
     var options = screen && typeof screen.querySelectorAll === "function"
       ? screen.querySelectorAll(".holdem-card-back-option")
       : [];
@@ -4500,9 +4522,25 @@ window.TexasHoldem = (function () {
     });
   }
 
+  function applyCardFrontSkin() {
+    var screen = root();
+    if (screen && screen.dataset) screen.dataset.cardFrontSkin = cardFrontSkin;
+  }
+
   function applyCardBackSkin() {
     var screen = root();
     if (screen && screen.dataset) screen.dataset.cardBackSkin = cardBackSkin;
+  }
+
+  function setCardFrontSkin(skin) {
+    var nextSkin = normalizeCardFrontSkin(skin);
+    if (cardFrontSkin === nextSkin) {
+      renderSettings();
+      return;
+    }
+    cardFrontSkin = nextSkin;
+    writeStoredHoldemSettings({ cardFrontSkin: cardFrontSkin });
+    renderSettings();
   }
 
   function setCardBackSkin(skin) {
@@ -5328,6 +5366,7 @@ window.TexasHoldem = (function () {
     var screen = root();
     if (!screen) return;
     screen.dataset.phase = state.phase;
+    screen.dataset.cardFrontSkin = normalizeCardFrontSkin(cardFrontSkin);
     screen.classList.toggle("is-playing", isHandActive(state.phase));
     screen.classList.toggle("is-connected", connected);
     syncResultClasses();
@@ -5621,6 +5660,10 @@ window.TexasHoldem = (function () {
     }
     if (button.hasAttribute("data-card-back-skin")) {
       setCardBackSkin(button.getAttribute("data-card-back-skin"));
+      return;
+    }
+    if (button.hasAttribute("data-card-front-skin")) {
+      setCardFrontSkin(button.getAttribute("data-card-front-skin"));
       return;
     }
     var id = button.id;

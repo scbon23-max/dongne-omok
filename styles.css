@@ -4179,6 +4179,8 @@ body.is-admin .feedback-user-compose { display: none; }
   top: max(52px, calc(env(safe-area-inset-top) + 44px));
   right: 8px;
   width: min(260px, calc(100vw - 24px));
+  max-height: calc(100dvh - max(70px, calc(env(safe-area-inset-top) + 62px)));
+  overflow-y: auto;
   padding: 12px;
   border: 1px solid rgba(119,225,210,.22);
   border-radius: 8px;
@@ -4188,6 +4190,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-settings-head,
 .holdem-setting-row,
+.holdem-setting-card-fronts,
 .holdem-setting-card-backs {
   display: flex;
   justify-content: space-between;
@@ -4213,6 +4216,7 @@ body.is-admin .feedback-user-compose { display: none; }
   border-radius: 8px;
   background: rgba(255,255,255,.055);
 }
+.holdem-setting-card-fronts,
 .holdem-setting-card-backs {
   flex-direction: column;
   margin-top: 8px;
@@ -4222,23 +4226,100 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-setting-row span,
 .holdem-setting-row small,
+.holdem-setting-card-fronts span,
+.holdem-setting-card-fronts small,
 .holdem-setting-card-backs span,
 .holdem-setting-card-backs small {
   display: block;
 }
 .holdem-setting-row span,
+.holdem-setting-card-fronts span,
 .holdem-setting-card-backs span {
   color: #effafa;
   font-size: 13px;
   font-weight: 900;
 }
 .holdem-setting-row small,
+.holdem-setting-card-fronts small,
 .holdem-setting-card-backs small {
   margin-top: 2px;
   color: #8edbd0;
   font-size: 11px;
   font-weight: 800;
 }
+.holdem-card-front-options {
+  display: grid;
+  gap: 8px;
+}
+.holdem-card-front-option {
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px !important;
+  border: 1px solid rgba(167,224,217,.24) !important;
+  border-radius: 8px !important;
+  background: rgba(1,15,19,.44) !important;
+  text-align: left;
+}
+.holdem-card-front-option[aria-checked="true"] {
+  border-color: #f2c77d !important;
+  box-shadow: 0 0 0 2px rgba(242,199,125,.24);
+}
+.holdem-card-front-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.holdem-card-front-copy strong {
+  color: #effafa;
+  font-size: 12px;
+  font-weight: 950;
+}
+.holdem-card-front-copy small {
+  overflow: hidden;
+  color: #83aeb0;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.holdem-card-front-preview {
+  display: flex;
+  align-items: center;
+}
+.holdem-card-front-preview .holdem-front-mini-card + .holdem-front-mini-card {
+  margin-left: -5px;
+}
+.holdem-card-front-preview.four-color .holdem-front-mini-card + .holdem-front-mini-card {
+  margin-left: -7px;
+}
+.holdem-front-mini-card {
+  width: 24px;
+  aspect-ratio: 2 / 3;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.68);
+  border-radius: 4px;
+  color: #fff;
+  font-family: "Arial Black", Arial, Helvetica, sans-serif;
+  font-size: 9px;
+  font-weight: 950;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0,0,0,.24);
+}
+.holdem-front-mini-card.classic {
+  border-color: #dfe2e3;
+  background: #fff;
+}
+.holdem-front-mini-card.classic.spade,
+.holdem-front-mini-card.classic.club { color: #090d0e; }
+.holdem-front-mini-card.classic.heart,
+.holdem-front-mini-card.classic.diamond { color: #d92832; }
+.holdem-front-mini-card.spade { background: #171d22; }
+.holdem-front-mini-card.heart { background: #d92832; }
+.holdem-front-mini-card.diamond { background: #2878d9; }
+.holdem-front-mini-card.club { background: #148848; }
 .holdem-card-back-options {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4575,6 +4656,15 @@ body.is-admin .feedback-user-compose { display: none; }
   --holdem-card-mark-height: 64%;
   --holdem-card-mark-top: 66%;
 }
+.holdem-screen[data-card-front-skin="four-color"] .holdem-card:not(.back):not(.empty) {
+  border-color: rgba(255,255,255,.72);
+  color: #fff;
+  box-shadow: var(--holdem-card-shadow, 0 2px 7px rgba(0,0,0,.28));
+}
+.holdem-screen[data-card-front-skin="four-color"] .holdem-card[data-suit="s"] { background: #171d22; }
+.holdem-screen[data-card-front-skin="four-color"] .holdem-card[data-suit="h"] { background: #d92832; }
+.holdem-screen[data-card-front-skin="four-color"] .holdem-card[data-suit="d"] { background: #2878d9; }
+.holdem-screen[data-card-front-skin="four-color"] .holdem-card[data-suit="c"] { background: #148848; }
 .holdem-card.back {
   --holdem-card-back-image: url("assets/holdem/card-back-lucky-clover.png");
   border-color: transparent;
