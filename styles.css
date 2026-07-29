@@ -6110,8 +6110,8 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-raise-panel { margin-bottom: 8px; padding: 8px 9px; border-radius: 11px; background: rgba(255,255,255,.045); }
 .holdem-screen.is-actioning .holdem-raise-panel {
   position: absolute;
-  left: 0;
-  right: auto;
+  left: auto;
+  right: 0;
   bottom: 60px;
   width: calc((100% - 16px) / 3);
   min-width: 0;
@@ -6201,12 +6201,12 @@ body.is-admin .feedback-user-compose { display: none; }
   gap: 8px;
 }
 .holdem-screen.is-actioning .holdem-action-buttons > .holdem-action { grid-row: 1; }
-.holdem-screen.is-actioning #holdem-fold-btn { grid-column: 3; }
+.holdem-screen.is-actioning #holdem-fold-btn { grid-column: 1; }
 .holdem-screen.is-actioning #holdem-check-btn,
 .holdem-screen.is-actioning #holdem-call-btn { grid-column: 2; }
 .holdem-screen.is-actioning #holdem-bet-btn,
 .holdem-screen.is-actioning #holdem-raise-btn,
-.holdem-screen.is-actioning #holdem-allin-btn { grid-column: 1; }
+.holdem-screen.is-actioning #holdem-allin-btn { grid-column: 3; }
 .holdem-screen.is-raise-menu-open #holdem-bet-btn,
 .holdem-screen.is-raise-menu-open #holdem-raise-btn {
   visibility: hidden;
