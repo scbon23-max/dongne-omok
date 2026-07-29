@@ -57,7 +57,7 @@ test("Hold'em ranking stays readable and scrollable on narrow mobile screens", (
 test("the Hold'em controller opens its own asset ranking flow", () => {
   assert.match(controller, /id === "holdem-rank-btn"[\s\S]*api\.openHoldemRank\(\)/);
   assert.match(game, /openHoldemRank:\s*function \(\) \{ openHoldemAssetRanking\(\); \}/);
-  assert.match(game, /function openHoldemAssetRanking\(\)/);
+  assert.match(game, /function openHoldemAssetRanking\(targetNick\)/);
   assert.match(game, /Db\.getHoldemAssetRanking\(\{[\s\S]*nick:\s*me\.nick,[\s\S]*hash:\s*sessionAuthHash/);
   assert.match(game, /function normalizeHoldemAssetRankingRow\(value\)/);
   assert.match(game, /function renderHoldemAssetRankingDetail\(detail\)/);
@@ -70,6 +70,18 @@ test("the Hold'em controller opens its own asset ranking flow", () => {
   assert.match(game, /holdem-asset-ranking-row[\s\S]*holdem-asset-ranking-me-tag/);
   assert.match(game, /holdem-asset-ranking-close[\s\S]*closeHoldemAssetRanking/);
   assert.match(game, /holdem-asset-ranking-detail"\)\.addEventListener\("click"[\s\S]*backToHoldemAssetRankingList/);
+});
+
+test("the lobby overall ranking places Hold'em first and uses asset totals", () => {
+  assert.match(index, /id="rank-tabs"[\s\S]*data-g="holdem"[\s\S]*data-g="omok"[\s\S]*data-g="alk"/);
+  assert.match(game, /function lobbyRankGames\(\) \{[\s\S]*return \["holdem"\]\.concat\(rankableGames\(\)/);
+  assert.match(game, /rankTab = tabs\[0\] \|\| "holdem"/);
+  assert.match(game, /tabs\.innerHTML = lobbyRankGames\(\)\.map/);
+  assert.match(game, /if \(rankTab === "holdem"\) \{[\s\S]*rank-season"\)\.style\.display = "none"[\s\S]*loadLobbyHoldemRanking\(\)/);
+  assert.match(game, /function loadLobbyHoldemRanking\(\)[\s\S]*Db\.getHoldemAssetRanking\(\{[\s\S]*nick: me\.nick,[\s\S]*hash: sessionAuthHash/);
+  assert.match(game, /function renderLobbyHoldemRanking\(ranking\)[\s\S]*data-lobby-holdem-rank-nick/);
+  assert.match(game, /openHoldemAssetRanking\(targetNick\)/);
+  assert.match(styles, /\.rank-lobby-holdem \.holdem-asset-ranking-list\s*\{[\s\S]*max-height:/);
 });
 
 test("the browser requests rankings and ranking details without exposing a room identifier", () => {

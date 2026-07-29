@@ -2783,6 +2783,30 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   font-weight: 800;
   line-height: 1.4;
 }
+.rank-lobby-holdem {
+  min-width: 0;
+}
+.rank-lobby-holdem .holdem-asset-ranking-mine {
+  margin: 0 0 10px;
+  border-radius: 8px;
+}
+.rank-lobby-holdem .holdem-asset-ranking-columns {
+  padding-right: 10px;
+  padding-left: 10px;
+}
+.rank-lobby-holdem .holdem-asset-ranking-list {
+  max-height: min(48dvh, 390px);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 8px;
+}
+.rank-lobby-holdem .holdem-asset-ranking-row {
+  padding-right: 10px;
+  padding-left: 10px;
+}
+.rank-lobby-holdem .holdem-asset-ranking-note {
+  padding: 10px 2px 0;
+  border-top: 0;
+}
 .holdem-asset-ranking-detail {
   margin: 10px 14px 0;
   padding: 12px;

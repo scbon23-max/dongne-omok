@@ -129,6 +129,9 @@
   function rankableGames() {
     return visibleGameIds(window.GameCatalog ? GameCatalog.rankableIds() : ["omok", "alk", "alk_terr"]);
   }
+  function lobbyRankGames() {
+    return ["holdem"].concat(rankableGames().filter(function (id) { return id !== "holdem"; }));
+  }
   function emptyScoreMap() {
     var out = {};
     rankableGames().forEach(function (id) { out[id] = {}; });
@@ -3940,6 +3943,9 @@
   }
 
   var rankGame = "omok", rankTab = "omok", rankSeasons = [], rankSeasonIdx = 0;
+  var lobbyHoldemRankingCache = null;
+  var lobbyHoldemRankingPending = false;
+  var lobbyHoldemRankingRequestSeq = 0;
   function shownRankGame() { return rankGame === "all" ? rankTab : rankGame; }
   function rankTitle() { return rankGame === "all" ? "전체 랭킹" : (window.GameCatalog ? GameCatalog.rankName(rankGame) : (rankGame === "alk" ? "알까기 랭킹" : rankGame === "alk_terr" ? "점령전 랭킹" : "오목 랭킹")); }
   function renderRankInfo() {
@@ -3953,7 +3959,11 @@
   }
   async function openRank(game) {
     var ranks = rankableGames();
+    var tabs = lobbyRankGames();
     rankGame = (game === "all" || ranks.indexOf(game) >= 0) ? game : "omok";
+    lobbyHoldemRankingRequestSeq += 1;
+    lobbyHoldemRankingCache = null;
+    lobbyHoldemRankingPending = false;
     $("rank-modal").classList.remove("hidden");
     $("rank-detail").classList.add("hidden");
     $("rank-list").classList.remove("hidden");
@@ -3961,14 +3971,38 @@
     if ($("rank-season")) { $("rank-season").style.display = ""; $("rank-season").innerHTML = ""; }
     $("rank-title").textContent = rankTitle();
     $("rank-list").innerHTML = '<p class="players-hint">불러오는 중…</p>';
+    if (rankGame === "all") {
+      rankTab = tabs[0] || "holdem";
+      renderRankTabs();
+      $("rank-tabs").classList.remove("hidden");
+      var initialTabs = $("rank-tabs").querySelectorAll(".rtab");
+      for (var ti = 0; ti < initialTabs.length; ti++) {
+        initialTabs[ti].classList.toggle(
+          "active",
+          initialTabs[ti].getAttribute("data-g") === rankTab
+        );
+      }
+      if ($("rank-season")) $("rank-season").style.display = "none";
+      if ($("rank-info-btn")) $("rank-info-btn").classList.add("hidden");
+      loadLobbyHoldemRanking();
+    }
     try {
-      var accts = await withTimeout(Db.listAccounts(), 8000);
+      var accts;
+      var all;
+      if (rankGame === "all") {
+        var overallData = await Promise.all([
+          withTimeout(Db.listAccounts(), 8000),
+          withTimeout(Db.getGames(), 8000)
+        ]);
+        accts = overallData[0];
+        all = overallData[1];
+      } else {
+        accts = await withTimeout(Db.listAccounts(), 8000);
+      }
       var accSet = {};
       accts.forEach(function (a) { accSet[a.nickname] = 1; });
       window.__accSet = accSet;
       if (rankGame === "all") {
-        rankTab = ranks[0] || "omok";
-        var all = await withTimeout(Db.getGames(), 8000);
         var byType = {};
         ranks.forEach(function (id) { byType[id] = []; });
         all.forEach(function (g) { var t = g.game || "omok"; if (byType[t]) byType[t].push(g); });
@@ -3982,7 +4016,8 @@
       rankSeasonIdx = rankSeasons.length - 1;
       renderSeason();
     } catch (e) {
-      if (!$("rank-modal").classList.contains("hidden")) {
+      if (!$("rank-modal").classList.contains("hidden") &&
+          !(rankGame === "all" && rankTab === "holdem")) {
         $("rank-list").innerHTML = '<p class="players-hint">불러오지 못했어요. 잠시 후 다시 눌러 주세요.</p>';
       }
     }
@@ -4002,10 +4037,109 @@
       .sort(function (a, b) { return b.score - a.score; });
     return { ranked: ranked, provisional: provisional };
   }
+  function lobbyHoldemRankingVisible() {
+    var modal = $("rank-modal");
+    return !!modal && !modal.classList.contains("hidden") &&
+      rankGame === "all" && rankTab === "holdem";
+  }
+  function renderLobbyHoldemRankingStatus(message) {
+    var list = $("rank-list");
+    if (!list) return;
+    list.innerHTML = '<p class="players-hint">' + esc(message) + '</p>';
+  }
+  function bindLobbyHoldemRankingRows() {
+    var list = $("rank-list");
+    if (!list) return;
+    var rows = list.querySelectorAll("[data-lobby-holdem-rank-nick]");
+    for (var i = 0; i < rows.length; i++) {
+      rows[i].addEventListener("click", function () {
+        var targetNick = this.getAttribute("data-lobby-holdem-rank-nick");
+        $("rank-modal").classList.add("hidden");
+        openHoldemAssetRanking(targetNick);
+      });
+    }
+  }
+  function renderLobbyHoldemRanking(ranking) {
+    ranking = ranking && typeof ranking === "object" ? ranking : {};
+    var rows = (Array.isArray(ranking.rows) ? ranking.rows : [])
+      .map(normalizeHoldemAssetRankingRow)
+      .filter(Boolean);
+    var viewer = normalizeHoldemAssetRankingRow(ranking.viewer);
+    var totalPlayers = Math.max(rows.length, Math.floor(Number(ranking.totalPlayers) || 0));
+    var initialAssets = Math.max(
+      0,
+      Math.floor(Number(ranking.initialAssets) || HOLDEM_INITIAL_ASSETS)
+    );
+    var minHands = Math.max(1, Math.floor(Number(ranking.minHands) || 5));
+    var mineHtml = viewer
+      ? '<div class="holdem-asset-ranking-mine">' +
+        '<span>내 순위</span><strong>' + esc(viewer.rank + "위" +
+        (totalPlayers ? " / " + totalPlayers + "명" : "")) + '</strong>' +
+        '<small>총자산 ' + esc(formatHoldemAsset(viewer.totalAssets)) + '</small></div>'
+      : "";
+    var rowsHtml = rows.length
+      ? rows.map(function (row) {
+        var isMe = row.nickname === me.nick;
+        return '<button class="holdem-asset-ranking-row' + (isMe ? ' is-me' : '') +
+          '" type="button" data-lobby-holdem-rank-nick="' + esc(row.nickname) +
+          '" role="listitem">' +
+          holdemAssetRankingPositionHtml(row.rank) +
+          '<span class="holdem-asset-ranking-player"><strong>' + esc(row.nickname) +
+          (isMe ? '<i class="holdem-asset-ranking-me-tag">나</i>' : '') + '</strong>' +
+          holdemAssetRankingDeltaHtml(row.totalAssets, initialAssets) + '</span>' +
+          '<strong class="holdem-asset-ranking-assets">' +
+          esc(formatHoldemAsset(row.totalAssets)) + '</strong></button>';
+      }).join("")
+      : '<p class="holdem-asset-ranking-status">아직 홀덤 자산 기록이 없습니다.</p>';
+    $("rank-list").innerHTML = '<section class="rank-lobby-holdem">' + mineHtml +
+      '<div class="holdem-asset-ranking-columns" aria-hidden="true">' +
+      '<span>순위</span><span>플레이어</span><span>총자산</span></div>' +
+      '<div class="holdem-asset-ranking-list" role="list">' + rowsHtml + '</div>' +
+      '<p class="holdem-asset-ranking-note">' + minHands +
+      '핸드 이상 진행한 플레이어의 총자산 순위입니다.</p></section>';
+    bindLobbyHoldemRankingRows();
+  }
+  function loadLobbyHoldemRanking() {
+    if (lobbyHoldemRankingCache) {
+      renderLobbyHoldemRanking(lobbyHoldemRankingCache);
+      return;
+    }
+    renderLobbyHoldemRankingStatus("홀덤 자산 랭킹을 불러오는 중입니다.");
+    if (lobbyHoldemRankingPending) return;
+    if (!window.Db || typeof Db.getHoldemAssetRanking !== "function" ||
+        !me.nick || !sessionAuthHash) {
+      renderLobbyHoldemRankingStatus("홀덤 자산 랭킹을 불러올 수 없습니다.");
+      return;
+    }
+    lobbyHoldemRankingPending = true;
+    var requestSeq = ++lobbyHoldemRankingRequestSeq;
+    Promise.resolve(Db.getHoldemAssetRanking({
+      nick: me.nick,
+      hash: sessionAuthHash
+    })).then(function (result) {
+      if (requestSeq !== lobbyHoldemRankingRequestSeq) return;
+      lobbyHoldemRankingPending = false;
+      if (!result || !result.ok || !result.ranking) {
+        if (lobbyHoldemRankingVisible()) {
+          renderLobbyHoldemRankingStatus("홀덤 자산 랭킹을 불러오지 못했습니다.");
+        }
+        return;
+      }
+      lobbyHoldemRankingCache = result.ranking;
+      if (lobbyHoldemRankingVisible()) renderLobbyHoldemRanking(result.ranking);
+    }, function () {
+      if (requestSeq !== lobbyHoldemRankingRequestSeq) return;
+      lobbyHoldemRankingPending = false;
+      if (lobbyHoldemRankingVisible()) {
+        renderLobbyHoldemRankingStatus("홀덤 자산 랭킹을 불러오지 못했습니다.");
+      }
+    });
+  }
   function renderRankTabs() {
     var tabs = $("rank-tabs"); if (!tabs) return;
-    tabs.innerHTML = rankableGames().map(function (id) {
-      return '<button class="rtab" data-g="' + esc(id) + '">' + esc(gameName(id)) + '</button>';
+    tabs.innerHTML = lobbyRankGames().map(function (id) {
+      var label = id === "holdem" ? "홀덤" : gameName(id);
+      return '<button class="rtab" data-g="' + esc(id) + '">' + esc(label) + '</button>';
     }).join("");
     var tbtns = tabs.querySelectorAll(".rtab");
     for (var i = 0; i < tbtns.length; i++) {
@@ -4018,8 +4152,6 @@
     $("rank-title").textContent = rankTitle();
     $("rank-detail").classList.add("hidden");
     $("rank-list").classList.remove("hidden");
-    if ($("rank-season")) $("rank-season").style.display = "";
-    renderSeasonBar(s, isCur);
     var tabs = $("rank-tabs");
     if (rankGame === "all") {
       if (tabs) {
@@ -4028,10 +4160,22 @@
         var tbtns = tabs.querySelectorAll(".rtab");
         for (var i = 0; i < tbtns.length; i++) tbtns[i].classList.toggle("active", tbtns[i].getAttribute("data-g") === rankTab);
       }
+      if (rankTab === "holdem") {
+        if ($("rank-season")) $("rank-season").style.display = "none";
+        if ($("rank-info-btn")) $("rank-info-btn").classList.add("hidden");
+        loadLobbyHoldemRanking();
+        return;
+      }
+    } else if (tabs) {
+      tabs.classList.add("hidden");
+    }
+    if ($("rank-info-btn")) $("rank-info-btn").classList.remove("hidden");
+    if ($("rank-season")) $("rank-season").style.display = "";
+    renderSeasonBar(s, isCur);
+    if (rankGame === "all") {
       var r = computeSeasonRank((window.__gamesAll || {})[rankTab], s);
       renderRank(r.ranked, r.provisional);
     } else {
-      if (tabs) tabs.classList.add("hidden");
       var r2 = computeSeasonRank(window.__games, s);
       renderRank(r2.ranked, r2.provisional);
     }
@@ -5722,7 +5866,8 @@
     backdrop.classList.add("hidden");
     backdrop.setAttribute("aria-hidden", "true");
   }
-  function openHoldemAssetRanking() {
+  function openHoldemAssetRanking(targetNick) {
+    targetNick = String(targetNick || "").trim().slice(0, 40);
     var backdrop = $("holdem-asset-ranking-backdrop");
     if (!backdrop) return;
     backdrop.classList.remove("hidden");
@@ -5747,6 +5892,7 @@
         return;
       }
       renderHoldemAssetRanking(result.ranking);
+      if (targetNick) loadHoldemAssetRankingDetail(targetNick);
     }, function () {
       if (requestSeq !== holdemAssetRankingRequestSeq) return;
       showHoldemAssetRankingStatus("랭킹을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
