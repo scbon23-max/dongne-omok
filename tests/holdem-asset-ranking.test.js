@@ -40,6 +40,10 @@ test("Hold'em places a dedicated asset ranking beside the hand guide", () => {
 test("Hold'em ranking stays readable and scrollable on narrow mobile screens", () => {
   assert.match(styles, /\.holdem-asset-ranking-dialog\s*\{[\s\S]*max-height:\s*min\(86dvh,\s*680px\)/);
   assert.match(styles, /\.holdem-asset-ranking-list\s*\{[\s\S]*overflow-y:\s*auto/);
+  assert.match(styles, /\.holdem-asset-ranking-dialog\.is-detail\s*\{[\s\S]*grid-template-rows:\s*auto minmax\(0,\s*1fr\)/);
+  assert.match(styles, /\.holdem-asset-ranking-dialog\.is-detail \.holdem-asset-ranking-list,[\s\S]*display:\s*none/);
+  assert.match(styles, /\.holdem-asset-ranking-dialog\.is-detail \.holdem-asset-ranking-detail\s*\{[\s\S]*overflow-y:\s*auto/);
+  assert.match(styles, /\.holdem-asset-ranking-detail-nav\s*\{[\s\S]*position:\s*sticky/);
   assert.match(styles, /\.holdem-asset-ranking-row\s*\{[\s\S]*grid-template-columns:/);
   assert.match(styles, /\.holdem-asset-ranking-player strong\s*\{[\s\S]*text-overflow:\s*ellipsis/);
   assert.match(styles, /\.holdem-asset-ranking-assets\s*\{[\s\S]*font-variant-numeric:\s*tabular-nums/);
@@ -57,10 +61,15 @@ test("the Hold'em controller opens its own asset ranking flow", () => {
   assert.match(game, /Db\.getHoldemAssetRanking\(\{[\s\S]*nick:\s*me\.nick,[\s\S]*hash:\s*sessionAuthHash/);
   assert.match(game, /function normalizeHoldemAssetRankingRow\(value\)/);
   assert.match(game, /function renderHoldemAssetRankingDetail\(detail\)/);
+  assert.match(game, /function setHoldemAssetRankingView\(view\)/);
+  assert.match(game, /function backToHoldemAssetRankingList\(\)/);
+  assert.match(game, /data-holdem-ranking-back/);
+  assert.match(game, /holdem-asset-ranking-detail-hero/);
   assert.match(game, /Db\.getHoldemAssetRankingDetail\(\{[\s\S]*hash:\s*sessionAuthHash[\s\S]*\}, targetNick\)/);
   assert.match(game, /data-holdem-rank-nick/);
   assert.match(game, /holdem-asset-ranking-row[\s\S]*holdem-asset-ranking-me-tag/);
   assert.match(game, /holdem-asset-ranking-close[\s\S]*closeHoldemAssetRanking/);
+  assert.match(game, /holdem-asset-ranking-detail"\)\.addEventListener\("click"[\s\S]*backToHoldemAssetRankingList/);
 });
 
 test("the browser requests rankings and ranking details without exposing a room identifier", () => {

@@ -5553,13 +5553,36 @@
       (handName ? '<em>' + esc(handName) + '</em>' : '<em>공개된 족보 없음</em>') +
       '</span>';
   }
+  function setHoldemAssetRankingView(view) {
+    var dialog = document.querySelector(".holdem-asset-ranking-dialog");
+    var detailMode = view === "detail";
+    if (dialog) dialog.classList.toggle("is-detail", detailMode);
+    if ($("holdem-asset-ranking-title")) {
+      $("holdem-asset-ranking-title").textContent = detailMode ? "플레이어 기록" : "자산 랭킹";
+    }
+  }
+  function backToHoldemAssetRankingList() {
+    setHoldemAssetRankingView("list");
+    var detail = $("holdem-asset-ranking-detail");
+    if (detail) {
+      detail.classList.add("hidden");
+      detail.innerHTML = "";
+    }
+  }
+  function holdemAssetRankingBackHtml() {
+    return '<div class="holdem-asset-ranking-detail-nav">' +
+      '<button type="button" data-holdem-ranking-back>← 랭킹</button>' +
+      '<span>상세 기록</span></div>';
+  }
   function renderHoldemAssetRankingDetail(detail) {
     detail = normalizeHoldemAssetRankingDetail(detail);
     var box = $("holdem-asset-ranking-detail");
     if (!box) return;
+    setHoldemAssetRankingView("detail");
     if (!detail) {
       box.classList.remove("hidden");
-      box.innerHTML = '<p class="holdem-asset-ranking-status">최근 기록을 불러오지 못했습니다.</p>';
+      box.innerHTML = holdemAssetRankingBackHtml() +
+        '<p class="holdem-asset-ranking-status">최근 기록을 불러오지 못했습니다.</p>';
       return;
     }
     var refillNote = detail.refillToday || detail.refillSevenDays
@@ -5582,8 +5605,11 @@
       }).join("")
       : '<p class="holdem-asset-ranking-status">아직 완료된 세션 기록이 없습니다.</p>';
     box.classList.remove("hidden");
-    box.innerHTML = '<div class="holdem-asset-ranking-detail-head">' +
-      '<span>PLAYER DETAIL</span><strong>' + esc(detail.nickname) + '</strong></div>' +
+    box.innerHTML = holdemAssetRankingBackHtml() +
+      '<div class="holdem-asset-ranking-detail-hero">' +
+      holdemAssetRankingPositionHtml(detail.rank) +
+      '<div><small>PLAYER</small><strong>' + esc(detail.nickname) + '</strong>' +
+      '<em>' + esc(formatHoldemAsset(detail.totalAssets)) + '</em></div></div>' +
       '<div class="holdem-asset-ranking-metrics">' +
       '<span><small>현재 순위</small><strong>' + esc(detail.rank + "위") + '</strong></span>' +
       '<span><small>총자산</small><strong>' + esc(formatHoldemAsset(detail.totalAssets)) + '</strong></span>' +
@@ -5596,8 +5622,10 @@
   function showHoldemAssetRankingDetailStatus(message) {
     var box = $("holdem-asset-ranking-detail");
     if (!box) return;
+    setHoldemAssetRankingView("detail");
     box.classList.remove("hidden");
-    box.innerHTML = '<p class="holdem-asset-ranking-status">' + esc(message) + '</p>';
+    box.innerHTML = holdemAssetRankingBackHtml() +
+      '<p class="holdem-asset-ranking-status">' + esc(message) + '</p>';
   }
   function loadHoldemAssetRankingDetail(targetNick) {
     targetNick = String(targetNick || "").trim().slice(0, 40);
@@ -5649,6 +5677,7 @@
     }
     var detail = $("holdem-asset-ranking-detail");
     if (detail) detail.classList.add("hidden");
+    setHoldemAssetRankingView("list");
     var list = $("holdem-asset-ranking-list");
     if (!list) return;
     if (!rows.length) {
@@ -5674,10 +5703,12 @@
     if (list) list.innerHTML = '<p class="holdem-asset-ranking-status">' + esc(message) + '</p>';
     var detail = $("holdem-asset-ranking-detail");
     if (detail) detail.classList.add("hidden");
+    setHoldemAssetRankingView("list");
   }
   function closeHoldemAssetRanking() {
     holdemAssetRankingRequestSeq += 1;
     holdemAssetRankingDetailSeq += 1;
+    backToHoldemAssetRankingList();
     var backdrop = $("holdem-asset-ranking-backdrop");
     if (!backdrop) return;
     backdrop.classList.add("hidden");
@@ -5688,6 +5719,7 @@
     if (!backdrop) return;
     backdrop.classList.remove("hidden");
     backdrop.setAttribute("aria-hidden", "false");
+    backToHoldemAssetRankingList();
     showHoldemAssetRankingStatus("랭킹을 불러오는 중입니다.");
     var requestSeq = ++holdemAssetRankingRequestSeq;
     if (!window.Db || typeof Db.getHoldemAssetRanking !== "function" ||
@@ -6842,6 +6874,9 @@
       var row = event.target.closest("[data-holdem-rank-nick]");
       if (!row || !this.contains(row)) return;
       loadHoldemAssetRankingDetail(row.getAttribute("data-holdem-rank-nick"));
+    });
+    $("holdem-asset-ranking-detail").addEventListener("click", function (event) {
+      if (event.target.closest("[data-holdem-ranking-back]")) backToHoldemAssetRankingList();
     });
     $("create-holdem-mode").addEventListener("click", function (event) {
       var card = event.target.closest("[data-holdem-mode]");
