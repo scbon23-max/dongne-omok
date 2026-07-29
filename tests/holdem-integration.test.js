@@ -509,7 +509,7 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet="half"\] \{ order: 7; \}/);
   assert.doesNotMatch(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\[data-holdem-bet(?:-tier)?="(?:allin|eight-pot|four-pot|two-pot|pot|three-quarter|half|over)"\][^{]*\{[^}]*grid-(?:row|column):/);
   assert.match(styles, /\.holdem-screen\.is-raise-menu-open #holdem-bet-btn,[\s\S]*#holdem-raise-btn\s*\{[\s\S]*visibility: hidden/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-chat-row \{[\s\S]*opacity: 0/);
+  assert.match(styles, /\.holdem-screen\.is-actioning:not\(\.is-chat-open\) \.holdem-chat-row \{[\s\S]*opacity: 0/);
   assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-action\.is-queued\s*\{[\s\S]*border-color:\s*rgba\(117, 238, 255, \.72\)/);
   assert.match(styles, /\.holdem-screen\.is-pre-actioning \.holdem-action\.is-queued::after\s*\{[\s\S]*content:\s*"예약"/);
 });
