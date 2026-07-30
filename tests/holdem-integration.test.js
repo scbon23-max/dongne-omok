@@ -409,7 +409,9 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card:not\(\.back\):not\(\.empty\)\s*\{[\s\S]*border-color:\s*transparent/);
   assert.match(styles, /\.holdem-card\[data-suit="s"\]\s*\{[\s\S]*--holdem-card-mark-width:\s*84%[\s\S]*--holdem-card-mark-height:\s*60%/);
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card\[data-suit="s"\]\s*\{\s*background:\s*#323a40/);
-  assert.match(styles, /\.holdem-front-mini-card\.spade\s*\{\s*background:\s*#323a40/);
+  assert.match(styles, /\.holdem-front-mini-card\.classic\s*\{[\s\S]*background:\s*#fff/);
+  assert.doesNotMatch(styles, /(?:^|\n)\.holdem-front-mini-card\.spade\s*\{\s*background:\s*#323a40/);
+  assert.match(styles, /\.holdem-card-front-preview\.four-color \.holdem-front-mini-card\.spade\s*\{\s*background:\s*#323a40/);
   assert.match(styles, /\.holdem-front-mini-card\s*\{[\s\S]*font-size:\s*15px/);
   assert.match(styles, /\.holdem-card\[data-suit="d"\]\s*\{\s*color:\s*#e3434c/);
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card\[data-suit="h"\]\s*\{\s*background:\s*#e3434c/);
