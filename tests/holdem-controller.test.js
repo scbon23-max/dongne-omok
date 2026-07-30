@@ -604,23 +604,29 @@ test("practice join request controls are present and normalized", () => {
     pendingJoinRequests: [{
       nick: "guest",
       targetNick: "owner",
+      buyIn: 15000,
       requestedAt: 1_800_000_000_000,
       expiresAt: 1_800_000_060_000,
     }],
-    newGameBuyInRequired: true,
+    newGameBuyInRequired: false,
   }, 14);
 
   assert.equal(normalized.practiceMode, true);
-  assert.equal(normalized.newGameBuyInRequired, true);
+  assert.equal(normalized.newGameBuyInRequired, false);
   assert.deepEqual(JSON.parse(JSON.stringify(normalized.pendingJoinRequests)), [{
     nick: "guest",
     targetNick: "owner",
+    buyIn: 15000,
     requestedAt: 1_800_000_000_000,
     expiresAt: 1_800_000_060_000,
   }]);
   assert.match(indexSource, /id="holdem-join-request-btn"/);
   assert.match(indexSource, /id="holdem-join-request-alert"/);
-  assert.match(source, /function requestPracticeJoin\(\)/);
+  assert.match(source, /function requestPracticeJoin\(buyInAmount\)/);
+  assert.match(source, /function openPracticeJoinBuyIn\(\)/);
+  assert.match(source, /buyInMode = mode === "rebuy" \|\| mode === "new_game" \|\| mode === "join_request"/);
+  assert.match(source, /if \(state\.practiceMode\) \{[\s\S]*autoSeatKey = "ai-practice"/);
+  assert.match(source, /state\.practiceMode && state\.heroSeat < 0[\s\S]*빈자리에 바로 앉을 수 없어요/);
   assert.match(source, /function resolvePracticeJoin\(accepted\)/);
   assert.match(source, /openBuyInDialog\("new_game", state\.heroSeat\)/);
 });

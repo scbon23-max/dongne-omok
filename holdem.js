@@ -1320,6 +1320,7 @@ window.TexasHoldem = (function () {
       return {
         nick: nick,
         targetNick: targetNick,
+        buyIn: nonnegative(firstDefined(entry.buyIn, entry.amount), 0),
         requestedAt: requestedAt,
         expiresAt: expiresAt
       };
@@ -2668,10 +2669,6 @@ window.TexasHoldem = (function () {
     return state.seats.filter(function (seat) { return seat && !seat.isBot; }).length;
   }
 
-  function occupiedSeatCount() {
-    return state.seats.filter(Boolean).length;
-  }
-
   function firstEmptySeat() {
     for (var i = 0; i < state.seats.length; i++) {
       if (!state.seats[i]) return i;
@@ -2697,28 +2694,45 @@ window.TexasHoldem = (function () {
 
   function canRequestPracticeJoin() {
     return state.practiceMode && state.heroSeat < 0 && state.botCount > 0 &&
-      humanSeatCount() === 1 && occupiedSeatCount() < MAX_SEATS;
+      humanSeatCount() === 1;
   }
 
-  function requestPracticeJoin() {
+  function requestPracticeJoin(buyInAmount) {
     if (!canRequestPracticeJoin() || requests.join_request || ownJoinRequest()) return;
-    invoke("join_request", {}, {
+    return invoke("join_request", {
+      buyIn: normalizeBuyInAmount(buyInAmount)
+    }, {
       key: "join_request",
       label: "join_request",
       broadcast: true
+    }).then(function (result) {
+      if (result && result.ok && api && typeof api.toast === "function") {
+        api.toast("같이 플레이 요청을 보냈어요. 수락되면 AI 연습이 종료됩니다.", 2600);
+      }
+      return result;
     });
+  }
+
+  function openPracticeJoinBuyIn() {
+    if (!canRequestPracticeJoin() || requests.join_request || ownJoinRequest()) return false;
+    return openBuyInDialog("join_request", firstEmptySeat());
   }
 
   function resolvePracticeJoin(accepted) {
     var request = incomingJoinRequest();
     if (!request || requests.resolve_join_request) return;
-    invoke("resolve_join_request", {
+    return invoke("resolve_join_request", {
       requester: request.nick,
       accepted: accepted === true
     }, {
       key: "resolve_join_request",
       label: accepted ? "accept_join" : "decline_join",
       broadcast: true
+    }).then(function (result) {
+      if (result && result.ok && accepted && api && typeof api.toast === "function") {
+        api.toast("AI 연습을 종료하고 사람끼리 하는 정식 게임으로 전환했어요.", 3000);
+      }
+      return result;
     });
   }
 
@@ -3457,6 +3471,12 @@ window.TexasHoldem = (function () {
   function requestHumanSeatJoin(seatIndex) {
     var targetSeat = safeSeat(seatIndex);
     if (targetSeat < 0 || state.seats[targetSeat]) return false;
+    if (state.practiceMode && state.heroSeat < 0) {
+      if (api && typeof api.toast === "function") {
+        api.toast("AI 연습 중에는 빈자리에 바로 앉을 수 없어요. 같이 플레이 요청을 보내주세요.", 3000);
+      }
+      return false;
+    }
     if (state.mode === "ring") {
       openBuyInDialog("join", targetSeat);
       return true;
@@ -4086,8 +4106,8 @@ window.TexasHoldem = (function () {
     return Math.max(bounds.min, Math.min(max, amount));
   }
 
-  function displayedBuyInBalance(bounds, newGame) {
-    if (newGame || !buyInWallet) return null;
+  function displayedBuyInBalance(bounds) {
+    if (!buyInWallet) return null;
     var selected = normalizeBuyInAmount(buyInValue || bounds.defaultAmount);
     var walletBalance = Math.max(0, Math.floor(Number(buyInWallet.balance) || 0));
     return Math.max(0, walletBalance - selected);
@@ -4134,14 +4154,16 @@ window.TexasHoldem = (function () {
 
   function openBuyInDialog(mode, seat) {
     if (state.phase === "complete" && !resultTransitionReady()) return false;
-    buyInMode = mode === "rebuy" || mode === "new_game" ? mode : "join";
+    buyInMode = mode === "rebuy" || mode === "new_game" || mode === "join_request"
+      ? mode
+      : "join";
     buyInSeat = safeSeat(seat);
     buyInDialogOpen = true;
     buyInWallet = null;
     buyInWalletPending = false;
     buyInValue = tableBuyInBounds(null).defaultAmount;
     renderBuyInDialog();
-    if (buyInMode !== "new_game") loadBuyInWallet();
+    loadBuyInWallet();
     return true;
   }
 
@@ -4202,6 +4224,8 @@ window.TexasHoldem = (function () {
         label: "new_game",
         broadcast: true
       });
+    } else if (action === "join_request") {
+      return requestPracticeJoin(amount);
     } else if (!requests.join) {
       return joinTable(seat, amount);
     }
@@ -4221,6 +4245,10 @@ window.TexasHoldem = (function () {
       if (state.heroSeat >= 0) autoSeatKey = "";
       return;
     }
+    if (state.practiceMode) {
+      autoSeatKey = "ai-practice";
+      return;
+    }
     var targetSeat = firstEmptySeat();
     if (targetSeat < 0) {
       autoSeatKey = "full";
@@ -4238,22 +4266,23 @@ window.TexasHoldem = (function () {
     var bounds = tableBuyInBounds(buyInWallet);
     var lacksAssets = !!buyInWallet && bounds.selectableMax < bounds.min;
     var newGame = buyInMode === "new_game";
-    var title = newGame ? "새 게임 참가금액" :
+    var joinRequest = buyInMode === "join_request";
+    var title = joinRequest ? "같이 플레이 참가금액" : newGame ? "새 게임 참가금액" :
       buyInMode === "rebuy" ? "다시 참여할 금액" : "착석 금액 선택";
     backdrop.classList.toggle("hidden", !buyInDialogOpen);
     backdrop.setAttribute("aria-hidden", buyInDialogOpen ? "false" : "true");
     setText("holdem-buyin-title", title);
     setText("holdem-buyin-range", formatChips(bounds.min) + " ~ " + formatChips(bounds.max));
-    setText("holdem-buyin-balance", newGame
-      ? "실제 자산 미사용"
-      : buyInWalletPending
+    setText("holdem-buyin-balance", buyInWalletPending
       ? "확인 중"
       : buyInWallet
-        ? formatAsset(displayedBuyInBalance(bounds, newGame))
+        ? formatAsset(displayedBuyInBalance(bounds))
         : "확인 불가");
     setText("holdem-buyin-amount", formatChips(buyInValue || bounds.defaultAmount));
-    setText("holdem-buyin-note", newGame
-      ? "선택한 금액으로 모든 참가자와 AI가 동일하게 새 게임을 시작해요."
+    setText("holdem-buyin-note", joinRequest
+      ? "수락되면 AI가 모두 나가고 선택한 금액으로 사람끼리 정식 게임을 시작해요."
+      : newGame
+      ? "선택한 금액으로 사람 참가자만 정식 게임을 시작해요."
       : lacksAssets
       ? "보유 자산이 이 방의 최소 참가금보다 부족해요."
       : "선택한 금액만 테이블에 가져가고 나머지는 보유 자산에 남아요.");
@@ -4267,7 +4296,7 @@ window.TexasHoldem = (function () {
     }
     disable("holdem-buyin-confirm", buyInWalletPending || lacksAssets || (buyInMode === "join" && buyInSeat < 0));
     disable("holdem-buyin-spectate", buyInWalletPending && buyInMode === "rebuy");
-    show("holdem-buyin-spectate", !newGame);
+    show("holdem-buyin-spectate", !newGame && !joinRequest);
   }
 
   function maybeAutoOpenRebuyDialog() {
@@ -4754,11 +4783,14 @@ window.TexasHoldem = (function () {
         ? botPersonalityAvatar(seat.botPersonality)
         : seat ? readProfileAvatar(seat.nick) : "";
       var displayStack = seat ? animatedStackAmount(absolute, seat.stack) : 0;
+      var practiceSpectator = state.practiceMode && state.heroSeat < 0;
       var label = seat
         ? name + ", 보유액 " + formatChips(displayStack) +
           (seat.isBot ? ", AI, " + personalityLabel : "") +
           (status ? ", " + status : "") + (isActive ? ", 행동 차례" : "")
-        : (seatedAloneWithBotsEnabled() ? "빈 좌석, AI 추가" : "빈 좌석, 앉기");
+        : (practiceSpectator
+          ? "AI 연습 전용 좌석"
+          : seatedAloneWithBotsEnabled() ? "빈 좌석, AI 추가" : "빈 좌석, 앉기");
       var badges = "";
       if (absolute === state.dealerSeat) badges += "<span>D</span>";
       var leaveBadge = seat && seat.leaving
@@ -4821,7 +4853,9 @@ window.TexasHoldem = (function () {
       html.push(
         '<article class="' + classes.join(" ") + '" data-seat="' + absolute +
         '" data-relative-seat="' + relative + '" aria-label="' + esc(label) + '"' +
-        (seat || (!seat && !isHandActive(state.phase)) ? ' role="button" tabindex="0"' : "") + '>' +
+        (seat || (!seat && !isHandActive(state.phase) && !practiceSpectator)
+          ? ' role="button" tabindex="0"'
+          : "") + '>' +
           '<div class="' + holesClass + '">' + holes + currentHandHtml + '</div>' +
           resultBadge +
           '<div class="holdem-seat-avatar" aria-hidden="true">' +
@@ -5079,6 +5113,9 @@ window.TexasHoldem = (function () {
       return "테이블을 불러오는 중이에요";
     }
     if (state.phase === "waiting") {
+      if (state.heroSeat < 0 && state.practiceMode) {
+        return "AI 연습 중에는 빈자리에 직접 앉을 수 없어요. 같이 플레이 요청을 보내주세요.";
+      }
       if (state.heroSeat < 0) return "빈 좌석을 눌러 착석하세요";
       if (seatedAloneWithBotsEnabled()) return "다른 빈 좌석을 누르면 랜덤 성향 AI가 앉아요.";
       var readyCount = state.seats.filter(function (seat) { return seat && seat.ready; }).length;
@@ -5239,7 +5276,10 @@ window.TexasHoldem = (function () {
       alert.setAttribute("aria-hidden", incoming ? "false" : "true");
     }
     if (incoming) {
-      setText("holdem-join-request-text", incoming.nick + "님이 같이 플레이하고 싶어해요");
+      setText(
+        "holdem-join-request-text",
+        incoming.nick + "님이 " + formatChips(incoming.buyIn || state.buyInDefault) + "으로 같이 플레이하고 싶어해요"
+      );
     } else {
       setText("holdem-join-request-text", "");
     }
@@ -5287,7 +5327,7 @@ window.TexasHoldem = (function () {
     disable("holdem-bot-remove-btn", busy || !canManageBots || state.botCount <= 0);
     show("holdem-solo-bot-fill-panel", soloBotFillVisible);
     disable("holdem-solo-bot-fill-btn", busy || !soloBotFillVisible || requests.bot_manage);
-    var isNewGameStart = state.phase === "complete" && state.newGameBuyInRequired &&
+    var isNewGameStart = !isHandActive(state.phase) && state.newGameBuyInRequired &&
       isOwner && resultReady;
     var tableStartVisible = (waiting && state.canStart) || isNewGameStart;
     show("holdem-ready-btn", false);
@@ -5857,7 +5897,7 @@ window.TexasHoldem = (function () {
     } else if (id === "holdem-chat-send") {
       sendChat();
     } else if (id === "holdem-join-request-btn") {
-      requestPracticeJoin();
+      openPracticeJoinBuyIn();
     } else if (id === "holdem-join-accept-btn") {
       resolvePracticeJoin(true);
     } else if (id === "holdem-join-decline-btn") {

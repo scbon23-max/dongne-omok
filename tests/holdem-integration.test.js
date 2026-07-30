@@ -540,6 +540,11 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /state\.phase !== "complete" \|\| !state\.canStart \|\| state\.newGameBuyInRequired/);
   assert.match(controller, /buyIn:\s*amount[\s\S]*label:\s*"new_game"/);
   assert.match(engine, /function resetPracticeSessionStacks\(state, cmd\)/);
+  assert.match(engine, /function transitionPracticeJoinToHumanMatch\([\s\S]*state\.seats = \[null, null, null, null, null, null\][\s\S]*convertRingTableToAssetBacked\(state\)/);
+  assert.match(engine, /function repairMixedPracticeTable\([\s\S]*state\.newGameBuyInRequired = true/);
+  assert.match(controller, /function openPracticeJoinBuyIn\(\)[\s\S]*openBuyInDialog\("join_request"/);
+  assert.match(controller, /if \(state\.practiceMode\) \{[\s\S]*autoSeatKey = "ai-practice"/);
+  assert.match(controller, /!isHandActive\(state\.phase\) && !practiceSpectator/);
   assert.match(engine, /reason:\s*"buy_in_required"/);
   assert.match(controller, /AI와 하는 연습용 임시 원화 자산/);
   assert.match(controller, /연습용 금액을 자동으로 충전/);
@@ -630,7 +635,7 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /function maybeAutoSeatJoin\(\)[\s\S]*firstEmptySeat\(\)[\s\S]*requestHumanSeatJoin\(targetSeat\)/);
   assert.match(index, /id="holdem-buyin-spectate"[^>]*>관전하기</);
   assert.match(index, /<dt>내 총자산<\/dt>[\s\S]*id="holdem-buyin-balance"/);
-  assert.match(controller, /function displayedBuyInBalance\(bounds, newGame\)[\s\S]*walletBalance - selected/);
+  assert.match(controller, /function displayedBuyInBalance\(bounds\)[\s\S]*walletBalance - selected/);
   assert.match(index, /id="holdem-profile-role-action"[^>]*>관전하기</);
   assert.match(engine, /ready:\s*stack > 0/);
   assert.match(engine, /leavingIntent:\s*""/);

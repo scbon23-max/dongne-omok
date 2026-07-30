@@ -1398,7 +1398,7 @@ test("AI practice ring tables use temporary chips and stay solo-only", () => {
   assert.equal(botWithGuest.reason, "bots_solo_only");
 });
 
-test("AI practice guests can request and be accepted into a random empty seat", () => {
+test("accepting an AI practice request removes every bot and starts a human-only asset table", () => {
   let state = Engine.createTable({
     roomId: "ai-practice-join-request",
     ownerNick: "owner",
@@ -1413,31 +1413,40 @@ test("AI practice guests can request and be accepted into a random empty seat", 
   });
   state = apply(state, { type: "join", nick: "owner", requestId: "request:owner" }, 1);
   state.walletAdjustments = [];
-  state = apply(state, { type: "add_bot", nick: "owner", requestId: "request:bot" }, 2);
+  for (let bot = 1; bot <= 5; bot += 1) {
+    state = apply(state, {
+      type: "add_bot",
+      nick: "owner",
+      requestId: `request:bot:${bot}`,
+    }, 1 + bot);
+  }
   state.walletAdjustments = [];
+  assert.equal(state.seats.filter((player) => player && player.isBot).length, 5);
 
   const directJoin = Engine.command(state, {
     type: "join",
     nick: "guest",
     requestId: "request:direct",
-  }, context(3));
+  }, context(7));
   assert.equal(directJoin.ok, false);
   assert.equal(directJoin.reason, "practice_ai_only");
 
-  state = apply(state, { type: "start", nick: "owner", requestId: "request:start" }, 4);
+  state = apply(state, { type: "start", nick: "owner", requestId: "request:start" }, 8);
   assert.equal(state.phase, "preflop");
 
   let requested = Engine.command(state, {
     type: "join_request",
     nick: "guest",
+    buyIn: 12000,
     requestId: "request:ask",
-  }, context(5));
+  }, context(9));
   assert.equal(requested.ok, true, requested.reason);
   assert.deepEqual(Engine.view(requested.state, "owner").pendingJoinRequests, [{
     nick: "guest",
     targetNick: "owner",
-    requestedAt: 5,
-    expiresAt: 60005,
+    buyIn: 12000,
+    requestedAt: 9,
+    expiresAt: 60009,
   }]);
 
   const accepted = Engine.command(requested.state, {
@@ -1447,62 +1456,107 @@ test("AI practice guests can request and be accepted into a random empty seat", 
     accepted: true,
     requestId: "request:accept",
   }, {
-    now: 6,
+    now: 10,
     randomInt: (max) => max - 1,
   });
   assert.equal(accepted.ok, true, accepted.reason);
+  const owner = accepted.state.seats.find((player) => player && player.nick === "owner");
   const guest = accepted.state.seats.find((player) => player && player.nick === "guest");
+  assert.ok(owner);
   assert.ok(guest);
   assert.equal(guest.seat, 5);
   assert.equal(guest.ready, true);
-  assert.equal(guest.waiting, false);
+  assert.equal(guest.waiting, true);
   assert.equal(guest.inHand, false);
   assert.deepEqual(guest.cards, []);
-  assert.equal(accepted.state.phase, "preflop");
+  assert.equal(owner.stack, 15000);
+  assert.equal(guest.stack, 12000);
+  assert.equal(accepted.state.phase, "waiting");
+  assert.equal(accepted.state.handNo, 0);
+  assert.deepEqual(accepted.state.board, []);
+  assert.deepEqual(accepted.state.deck, []);
+  assert.equal(accepted.state.actorSeat, null);
+  assert.equal(accepted.state.botDueAt, null);
+  assert.equal(accepted.state.seats.some((player) => player && player.isBot), false);
   assert.deepEqual(accepted.state.pendingJoinRequests, []);
-  assert.equal(accepted.state.settings.assetBacked, false);
-  assert.equal(accepted.state.newGameBuyInRequired, true);
-  assert.equal(Engine.view(accepted.state, "owner").newGameBuyInRequired, true);
+  assert.equal(accepted.state.settings.assetBacked, true);
+  assert.equal(accepted.state.settings.practice, false);
+  assert.equal(accepted.state.newGameBuyInRequired, false);
+  assert.deepEqual(
+    accepted.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    [
+      { nickname: "owner", delta: -15000 },
+      { nickname: "guest", delta: -12000 },
+    ],
+  );
+  const ownerView = Engine.view(accepted.state, "owner");
+  assert.equal(ownerView.canStart, true);
+  assert.equal(ownerView.newGameBuyInRequired, false);
 
-  accepted.state.phase = "hand_end";
-  accepted.state.seats.forEach((player, seat) => {
-    if (!player) return;
-    player.stack = 3000 + (seat * 1000);
-    player.streetBet = 0;
-    player.totalBet = 0;
-    player.inHand = false;
-  });
+  const botAfterAccept = Engine.command(accepted.state, {
+    type: "add_bot",
+    nick: "owner",
+    requestId: "request:bot-after-accept",
+  }, context(11));
+  assert.equal(botAfterAccept.ok, false);
+  assert.equal(botAfterAccept.reason, "bots_solo_only");
 
-  const missingBuyIn = Engine.command(accepted.state, {
+  const officialGame = Engine.command(accepted.state, {
     type: "start",
     nick: "owner",
-    requestId: "request:new-game-without-buyin",
-  }, context(7));
-  assert.equal(missingBuyIn.ok, false);
-  assert.equal(missingBuyIn.reason, "buy_in_required");
+    requestId: "request:official-start",
+  }, context(12));
+  assert.equal(officialGame.ok, true, officialGame.reason);
+  assert.equal(officialGame.state.phase, "preflop");
+  assert.equal(
+    officialGame.state.seats.find((player) => player && player.nick === "owner").stack +
+      officialGame.state.seats.find((player) => player && player.nick === "owner").totalBet,
+    15000,
+  );
+  assert.equal(
+    officialGame.state.seats.find((player) => player && player.nick === "guest").stack +
+      officialGame.state.seats.find((player) => player && player.nick === "guest").totalBet,
+    12000,
+  );
+});
 
-  const guestStart = Engine.command(accepted.state, {
-    type: "start",
+test("legacy mixed human and AI tables are repaired before another command runs", () => {
+  let state = Engine.createTable({
+    roomId: "legacy-mixed-practice",
+    ownerNick: "owner",
+    mode: "ring",
+    assetBacked: false,
+    chipUnit: 100,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+  });
+  state = apply(state, { type: "join", nick: "owner", requestId: "repair:owner" }, 1);
+  state = apply(state, { type: "add_bot", nick: "owner", requestId: "repair:bot" }, 2);
+  const guest = {
+    ...state.seats[0],
+    seat: 5,
     nick: "guest",
-    buyIn: 15000,
-    requestId: "request:new-game-by-guest",
-  }, context(8));
-  assert.equal(guestStart.ok, false);
-  assert.equal(guestStart.reason, "owner");
+    displayName: "guest",
+    isBot: false,
+    botId: null,
+    botPersonality: null,
+  };
+  state.seats[5] = guest;
+  state.newGameBuyInRequired = true;
 
-  const newGame = Engine.command(accepted.state, {
-    type: "start",
+  const repaired = Engine.command(state, {
+    type: "tick",
     nick: "owner",
-    buyIn: 15000,
-    requestId: "request:new-game",
-  }, context(9));
-  assert.equal(newGame.ok, true, newGame.reason);
-  assert.equal(newGame.state.phase, "preflop");
-  assert.equal(newGame.state.newGameBuyInRequired, false);
-  newGame.state.seats.filter(Boolean).forEach((player) => {
-    assert.equal(player.stack + player.totalBet, 15000);
-  });
-  assert.deepEqual(newGame.state.walletAdjustments, []);
+    requestId: "repair:trigger",
+  }, context(3));
+  assert.equal(repaired.ok, true, repaired.reason);
+  assert.equal(repaired.reason, "practice_repaired");
+  assert.equal(repaired.state.phase, "waiting");
+  assert.equal(repaired.state.seats.some((player) => player && player.isBot), false);
+  assert.equal(repaired.state.seats.filter(Boolean).length, 2);
+  assert.equal(repaired.state.settings.assetBacked, false);
+  assert.equal(repaired.state.newGameBuyInRequired, true);
 });
 
 test("stale AI ring tables are forced back to practice before wallet changes", () => {

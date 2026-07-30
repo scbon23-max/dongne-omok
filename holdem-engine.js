@@ -410,6 +410,7 @@
         rakeCapBigBlinds: mode === "ring" ? RING_RAKE_CAP_BIG_BLINDS : 0
       },
       ringStacks: {},
+      practiceBuyIns: {},
       walletAdjustments: [],
       economyEvents: [],
       handResults: [],
@@ -549,6 +550,17 @@
       });
     }
     state.ringStacks = savedRingStacks;
+    var savedPracticeBuyIns = Object.create(null);
+    if (state.practiceBuyIns && typeof state.practiceBuyIns === "object" &&
+        !Array.isArray(state.practiceBuyIns)) {
+      Object.keys(state.practiceBuyIns).slice(0, MAX_SEATS).forEach(function (nick) {
+        if (!nick || nick.length > 40) return;
+        savedPracticeBuyIns[nick] = requestedRingBuyIn(state, {
+          buyIn: state.practiceBuyIns[nick]
+        });
+      });
+    }
+    state.practiceBuyIns = savedPracticeBuyIns;
     var nextBotSeq = Math.max(1, integer(state.nextBotSeq, 1));
     state.seats.forEach(function (player, seatIndex) {
       if (!player) return;
@@ -590,7 +602,7 @@
     state.actionHistory = Array.isArray(state.actionHistory)
       ? state.actionHistory.slice(-ACTION_HISTORY_LIMIT)
       : [];
-    state.pendingJoinRequests = normalizeJoinRequests(state.pendingJoinRequests, now);
+    state.pendingJoinRequests = normalizeJoinRequests(state.pendingJoinRequests, now, state);
     state.botDueAt = Number.isFinite(Number(state.botDueAt))
       ? Math.max(0, integer(state.botDueAt, 0))
       : null;
@@ -653,17 +665,18 @@
 
   function resetPracticeSessionStacks(state, cmd) {
     var amount = requestedRingBuyIn(state, cmd);
+    state.seats.forEach(function (player, seat) {
+      if (player && player.isBot) state.seats[seat] = null;
+    });
+    resetTableForHumanMatch(state);
     state.settings.assetBacked = false;
-    state.settings.practice = true;
-    occupiedPlayers(state).forEach(function (player) {
-      player.stack = amount;
-      player.streetBet = 0;
-      player.totalBet = 0;
-      player.winAmount = 0;
-      player.lastAction = "";
-      player.lastActionBet = null;
+    state.settings.practice = false;
+    state.practiceBuyIns = Object.create(null);
+    humanPlayers(state).forEach(function (player) {
+      state.practiceBuyIns[player.nick] = amount;
       state.ringStacks[player.nick] = amount;
     });
+    convertRingTableToAssetBacked(state);
     state.newGameBuyInRequired = false;
     return amount;
   }
@@ -716,7 +729,7 @@
     return occupiedPlayers(state).filter(function (player) { return !!player.isBot; });
   }
 
-  function normalizeJoinRequests(value, now) {
+  function normalizeJoinRequests(value, now, state) {
     if (!Array.isArray(value)) return [];
     now = Math.max(0, integer(now, Date.now()));
     var seen = {};
@@ -732,6 +745,7 @@
       return {
         nick: nick,
         targetNick: targetNick,
+        buyIn: requestedRingBuyIn(state, { buyIn: entry.buyIn }),
         requestedAt: requestedAt,
         expiresAt: expiresAt
       };
@@ -741,7 +755,7 @@
   function practiceJoinTarget(state) {
     if (!state || !state.settings || state.settings.mode !== "ring" || botPlayers(state).length <= 0) return null;
     var humans = humanPlayers(state).filter(function (player) {
-      return !player.leaving && player.stack > 0;
+      return !player.leaving;
     });
     return humans.length === 1 ? humans[0] : null;
   }
@@ -783,6 +797,16 @@
 
   function convertRingTableToPractice(state) {
     if (!state || !state.settings || state.settings.mode !== "ring") return;
+    if (!state.practiceBuyIns || typeof state.practiceBuyIns !== "object" ||
+        Array.isArray(state.practiceBuyIns)) {
+      state.practiceBuyIns = Object.create(null);
+    }
+    humanPlayers(state).forEach(function (player) {
+      if (!player || !player.nick || own(state.practiceBuyIns, player.nick)) return;
+      state.practiceBuyIns[player.nick] = own(state.ringStacks, player.nick)
+        ? requestedRingBuyIn(state, { buyIn: state.ringStacks[player.nick] })
+        : requestedRingBuyIn(state, { buyIn: player.stack });
+    });
     if (state.settings.assetBacked === true) {
       humanPlayers(state).forEach(function (player) {
         if (!player || !player.nick) return;
@@ -799,15 +823,117 @@
   function convertRingTableToAssetBacked(state) {
     if (!state || !state.settings || state.settings.mode !== "ring" ||
         state.settings.assetBacked === true || botPlayers(state).length > 0) return;
+    var selectedBuyIns = state.practiceBuyIns && typeof state.practiceBuyIns === "object"
+      ? state.practiceBuyIns
+      : Object.create(null);
     state.settings.assetBacked = true;
     state.settings.practice = false;
     humanPlayers(state).forEach(function (player) {
       if (!player || !player.nick) return;
-      var amount = own(state.ringStacks, player.nick)
+      var amount = own(selectedBuyIns, player.nick)
+        ? requestedRingBuyIn(state, { buyIn: selectedBuyIns[player.nick] })
+        : own(state.ringStacks, player.nick)
         ? clamp(state.ringStacks[player.nick], 0, 100000000, player.stack)
         : player.stack;
+      player.stack = amount;
+      state.ringStacks[player.nick] = amount;
       addWalletAdjustment(state, player.nick, -amount, "buy_in");
     });
+    state.practiceBuyIns = Object.create(null);
+  }
+
+  function resetTableForHumanMatch(state) {
+    state.phase = "waiting";
+    state.handNo = 0;
+    state.tournamentStartedAt = null;
+    state.blindLevel = 0;
+    state.nextBlindAt = null;
+    state.buttonSeat = null;
+    state.previousBigBlindSeat = null;
+    state.smallBlindSeat = null;
+    state.bigBlindSeat = null;
+    state.actorSeat = null;
+    state.actionDeadline = null;
+    state.board = [];
+    state.deck = [];
+    state.burn = [];
+    state.currentBet = 0;
+    state.lastFullRaiseSize = state.settings.bigBlind;
+    state.pendingSeats = [];
+    state.pots = [];
+    state.showdown = [];
+    state.lastRake = 0;
+    state.handResults = [];
+    state.economyEvents = [];
+    state.botDueAt = null;
+    state.actionSeq = 0;
+    state.actionHistory = [];
+    state.pendingJoinRequests = [];
+  }
+
+  function transitionPracticeJoinToHumanMatch(state, target, request, now, randomInt) {
+    var targetSeat = target.seat;
+    var targetBuyIn = own(state.practiceBuyIns, target.nick)
+      ? requestedRingBuyIn(state, { buyIn: state.practiceBuyIns[target.nick] })
+      : ringBuyInBounds(state).defaultAmount;
+    var requesterBuyIn = requestedRingBuyIn(state, { buyIn: request.buyIn });
+    state.seats = [null, null, null, null, null, null];
+    state.ringStacks = Object.create(null);
+    state.seats[targetSeat] = createPlayer(target.nick, targetSeat, targetBuyIn, now, {
+      displayName: target.displayName || target.nick
+    });
+    var acceptedSeat = randomEmptySeat(state, randomInt);
+    if (acceptedSeat < 0) return -1;
+    state.seats[acceptedSeat] = createPlayer(
+      request.nick,
+      acceptedSeat,
+      requesterBuyIn,
+      now
+    );
+    state.practiceBuyIns = Object.create(null);
+    state.practiceBuyIns[target.nick] = targetBuyIn;
+    state.practiceBuyIns[request.nick] = requesterBuyIn;
+    state.ringStacks[target.nick] = targetBuyIn;
+    state.ringStacks[request.nick] = requesterBuyIn;
+    resetTableForHumanMatch(state);
+    state.newGameBuyInRequired = false;
+    convertRingTableToAssetBacked(state);
+    return acceptedSeat;
+  }
+
+  function repairMixedPracticeTable(state, now) {
+    if (!state || !state.settings || state.settings.mode !== "ring" ||
+        botPlayers(state).length <= 0 || humanPlayers(state).length < 2) return false;
+    var humans = humanPlayers(state).map(function (player) {
+      var amount = own(state.practiceBuyIns, player.nick)
+        ? requestedRingBuyIn(state, { buyIn: state.practiceBuyIns[player.nick] })
+        : ringBuyInBounds(state).defaultAmount;
+      return {
+        nick: player.nick,
+        displayName: player.displayName || player.nick,
+        seat: player.seat,
+        amount: amount
+      };
+    });
+    state.seats = [null, null, null, null, null, null];
+    state.ringStacks = Object.create(null);
+    humans.forEach(function (player) {
+      state.seats[player.seat] = createPlayer(
+        player.nick,
+        player.seat,
+        player.amount,
+        now,
+        { displayName: player.displayName }
+      );
+      state.ringStacks[player.nick] = player.amount;
+    });
+    resetTableForHumanMatch(state);
+    state.settings.assetBacked = false;
+    state.settings.practice = false;
+    state.practiceBuyIns = Object.create(null);
+    state.newGameBuyInRequired = true;
+    state.lastEvent = { type: "practice_repaired", at: now };
+    return true;
   }
 
   function handPlayers(state) {
@@ -1583,6 +1709,16 @@
       now,
       context && typeof context.randomInt === "function" ? context.randomInt : null
     );
+    if (repairMixedPracticeTable(next, now)) {
+      rememberRequest(next, requestId);
+      return {
+        ok: true,
+        state: next,
+        changed: true,
+        reason: "practice_repaired",
+        event: clone(next.lastEvent)
+      };
+    }
     var player;
     var changed = false;
     var result = { ok: false, reason: "command" };
@@ -1647,18 +1783,18 @@
         }
       } else if (type === "join_request") {
         var target = practiceJoinTarget(next);
+        var requestedBuyIn = requestedRingBuyIn(next, cmd);
         if (!nick) result = { ok: false, reason: "nick" };
         else if (!target) result = { ok: false, reason: "request_unavailable" };
         else if (playerByNick(next, nick)) result = { ok: false, reason: "already_joined" };
         else if (anyPlayerByNick(next, nick)) result = { ok: false, reason: "nick_reserved" };
-        else if (occupiedPlayers(next).length >= next.settings.maxPlayers || emptySeatIndexes(next).length <= 0) {
-          result = { ok: false, reason: "table_full" };
-        } else if (pendingJoinRequest(next, nick, target.nick)) {
+        else if (pendingJoinRequest(next, nick, target.nick)) {
           result = { ok: true, reason: "already_requested" };
         } else {
           next.pendingJoinRequests.push({
             nick: nick,
             targetNick: target.nick,
+            buyIn: requestedBuyIn,
             requestedAt: now,
             expiresAt: now + JOIN_REQUEST_TTL_MS
           });
@@ -1686,35 +1822,31 @@
             changed = true;
           } else if (anyPlayerByNick(next, requester)) {
             result = { ok: false, reason: "nick_reserved" };
-          } else if (occupiedPlayers(next).length >= next.settings.maxPlayers) {
-            result = { ok: false, reason: "table_full" };
           } else {
-            var acceptedSeat = randomEmptySeat(next, context.randomInt);
-            if (acceptedSeat < 0) result = { ok: false, reason: "table_full" };
-            else {
-              var acceptedPlayer = createPlayer(requester, acceptedSeat, next.settings.startingStack, now);
-              acceptedPlayer.ready = true;
-              if (PLAYING_PHASES[next.phase]) {
-                acceptedPlayer.waiting = false;
-                acceptedPlayer.inHand = false;
-                acceptedPlayer.folded = false;
-                acceptedPlayer.cards = [];
+            var currentTarget = practiceJoinTarget(next);
+            if (!currentTarget || currentTarget.nick !== nick) {
+              result = { ok: false, reason: "request_unavailable" };
+            } else {
+              var acceptedSeat = transitionPracticeJoinToHumanMatch(
+                next,
+                currentTarget,
+                pending,
+                now,
+                context.randomInt
+              );
+              if (acceptedSeat < 0) result = { ok: false, reason: "table_full" };
+              else {
+                next.lastEvent = {
+                  type: "join_accepted",
+                  nick: requester,
+                  targetNick: nick,
+                  seat: acceptedSeat,
+                  reason: "practice_converted",
+                  at: now
+                };
+                result = { ok: true };
+                changed = true;
               }
-              next.seats[acceptedSeat] = acceptedPlayer;
-              if (next.settings.mode === "ring") next.ringStacks[requester] = acceptedPlayer.stack;
-              if (next.settings.mode === "ring" && botPlayers(next).length > 0 &&
-                  humanPlayers(next).length >= 2) {
-                next.newGameBuyInRequired = true;
-              }
-              next.lastEvent = {
-                type: "join_accepted",
-                nick: requester,
-                targetNick: nick,
-                seat: acceptedSeat,
-                at: now
-              };
-              result = { ok: true };
-              changed = true;
             }
           }
         }
@@ -2084,7 +2216,7 @@
     var allowed = [
       "type", "nick", "seat", "ready", "handNo", "action", "amount",
       "grossAmount", "rake", "fullRaise", "timeout", "winners", "reason", "at", "botId",
-      "botPersonality", "displayName", "targetNick"
+      "botPersonality", "displayName", "targetNick", "buyIn"
     ];
     var out = {};
     allowed.forEach(function (key) {
@@ -2224,6 +2356,7 @@
         return {
           nick: request.nick,
           targetNick: request.targetNick,
+          buyIn: request.buyIn,
           requestedAt: request.requestedAt,
           expiresAt: request.expiresAt
         };
