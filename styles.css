@@ -7225,6 +7225,9 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-chat-overlay .ov-line {
   max-width: 100%;
 }
+.holdem-screen.is-chat-focused .holdem-chat-overlay {
+  visibility: hidden;
+}
 .holdem-screen.is-actioning .holdem-chat-overlay,
 .holdem-screen.is-pre-actioning .holdem-chat-overlay {
   bottom: calc(max(8px, env(safe-area-inset-bottom)) + 120px);

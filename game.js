@@ -4841,6 +4841,7 @@
     var family = gameFamily(game);
     var ov = $(gameUi(family).chatOverlayId); if (!ov) return;
     if (family === "holdem" && holdemChatInputFocused()) {
+      pushOverlayToast(family, nick, text, overlaySide, ov);
       renderHoldemChatHistory();
       return;
     }
@@ -4895,8 +4896,6 @@
     var screen = $("holdemgame");
     if (screen) screen.classList.toggle("is-chat-focused", !!focused && activeFamily() === "holdem");
     if (focused) {
-      var toastSurface = $("holdem-chat-overlay");
-      if (toastSurface) toastSurface.innerHTML = "";
       renderHoldemChatHistory();
     }
     else if ($("holdem-chat-history")) {

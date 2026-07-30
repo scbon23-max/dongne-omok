@@ -107,6 +107,9 @@ function loadGameChatHarness(options = {}) {
       pushToast: function (nick, message) {
         pushOverlayToast("holdem", nick, message, "", document.getElementById("holdem-chat-overlay"));
       },
+      addLive: function (nick, message) {
+        addChatTo("holdem", nick, message, true);
+      },
       sendText: function (message, options) {
         return sendChatText("holdem", message, options);
       },
@@ -328,7 +331,7 @@ function loadKeyboardHarness(options = {}) {
   };
 }
 
-test("opening and closing chat cannot turn history lines into toast lines", () => {
+test("opening and closing chat preserves live toasts without turning history into toasts", () => {
   const { audit, document, elements } = loadGameChatHarness();
   audit.setRoom("room-a");
   audit.setSession(
@@ -343,19 +346,23 @@ test("opening and closing chat cannot turn history lines into toast lines", () =
   document.activeElement = elements["holdem-chat-input"];
   audit.setFocus(true);
 
-  assert.equal(elements["holdem-chat-overlay"].children.length, 0);
+  assert.equal(elements["holdem-chat-overlay"].children.length, 1);
   assert.equal(elements["holdem-chat-history"].children.length, 5);
   assert.equal(elements.holdemgame.classList.contains("is-chat-focused"), true);
+
+  audit.addLive("incoming", "while typing");
+  assert.equal(elements["holdem-chat-overlay"].children.length, 2);
+  assert.equal(elements["holdem-chat-history"].children.length, 5);
 
   document.activeElement = null;
   audit.setFocus(false);
 
   assert.equal(elements["holdem-chat-history"].children.length, 0);
-  assert.equal(elements["holdem-chat-overlay"].children.length, 0);
+  assert.equal(elements["holdem-chat-overlay"].children.length, 2);
   assert.equal(elements.holdemgame.classList.contains("is-chat-focused"), false);
 
   audit.pushToast("me", "sent");
-  assert.equal(elements["holdem-chat-overlay"].children.length, 1);
+  assert.equal(elements["holdem-chat-overlay"].children.length, 3);
   assert.equal(elements["holdem-chat-history"].children.length, 0);
 });
 

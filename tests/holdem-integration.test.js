@@ -817,7 +817,9 @@ test("Hold'em chat keeps transient toasts separate from the recent typing histor
   assert.match(game, /holdem-chat-input"\)\.addEventListener\("focus"/);
   assert.match(game, /holdem-chat-input"\)\.addEventListener\("blur"[\s\S]*setHoldemChatFocusState\(false\)/);
   assert.doesNotMatch(game, /holdem-chat-input"\)\.addEventListener\("blur"[\s\S]{0,140}setTimeout/);
-  assert.match(game, /toastSurface\.innerHTML = ""/);
+  assert.doesNotMatch(game, /toastSurface\.innerHTML = ""/);
+  assert.match(game, /family === "holdem" && holdemChatInputFocused\(\)[\s\S]{0,180}pushOverlayToast\(family, nick, text, overlaySide, ov\)[\s\S]{0,100}renderHoldemChatHistory\(\)/);
+  assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-overlay\s*\{[\s\S]*visibility:\s*hidden/);
   assert.match(game, /holdem-chat-history"\)\.innerHTML = ""/);
   assert.doesNotMatch(game + controller, /holdemOverlayMode|holdemToastUntil/);
   assert.match(controller, /api\.sendChat\(value, \{ suppressOverlay: true \}\)/);
