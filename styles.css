@@ -6380,6 +6380,71 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-profile-wallet {
   margin: 0;
 }
+.holdem-profile-topup {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 13px;
+  border: 1px solid rgba(125,225,196,.24);
+  border-radius: 10px;
+  background: rgba(19,72,67,.34);
+}
+.holdem-profile-topup-head,
+.holdem-profile-topup-bounds {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.holdem-profile-topup-head > span {
+  color: #a9c8c3;
+  font-size: 11px;
+  font-weight: 900;
+}
+.holdem-profile-topup-head > strong {
+  color: #fff;
+  font-size: 18px;
+  line-height: 1.2;
+}
+.holdem-profile-topup-bounds {
+  color: #91aaa7;
+  font-size: 10px;
+}
+.holdem-profile-topup-bounds strong {
+  margin-left: 3px;
+  color: #d8efeb;
+  font-size: 11px;
+}
+.holdem-profile-topup input[type="range"] {
+  width: 100%;
+  accent-color: #62d7b9;
+}
+.holdem-profile-topup > small {
+  min-height: 30px;
+  color: #9bb9b4;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.holdem-profile-topup > small.is-error {
+  color: #ffad9c;
+}
+.holdem-profile-topup > small.is-queued {
+  color: #8de5ce;
+}
+.holdem-profile-topup > button {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(125,225,196,.34);
+  border-radius: 9px;
+  background: #147b68;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 1000;
+}
+.holdem-profile-topup > button:disabled {
+  opacity: .42;
+}
 .holdem-profile-role-action {
   width: 100%;
   min-height: 44px;

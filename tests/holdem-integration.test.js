@@ -555,8 +555,13 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(engine, /function transitionPracticeJoinToHumanMatch\([\s\S]*state\.seats = \[null, null, null, null, null, null\][\s\S]*convertRingTableToAssetBacked\(state\)/);
   assert.match(engine, /function repairMixedPracticeTable\([\s\S]*state\.newGameBuyInRequired = true/);
   assert.match(controller, /function openPracticeJoinBuyIn\(\)[\s\S]*openBuyInDialog\("join_request"/);
-  assert.match(controller, /function openProfileRebuyIfNeeded\(seat\)[\s\S]*openBuyInDialog\("rebuy", targetSeat\)/);
-  assert.match(controller, /openProfileRebuyIfNeeded\(profileSeat\.getAttribute\("data-seat"\)\)[\s\S]*openProfileDialog\(profileSeat\.getAttribute\("data-seat"\)\)/);
+  assert.match(index, /id="holdem-profile-topup"[\s\S]*id="holdem-profile-topup-slider"[\s\S]*id="holdem-profile-topup-confirm"/);
+  assert.match(controller, /function canShowProfileTopUpForSeat\(seat\)[\s\S]*bounds\.currentStack < bounds\.max/);
+  assert.match(controller, /function submitProfileTopUp\(\)[\s\S]*storeQueuedProfileTopUp\(amount\)[\s\S]*isHandActive\(state\.phase\)[\s\S]*applyQueuedProfileTopUp\(\)/);
+  assert.match(controller, /function applyQueuedProfileTopUp\(\)[\s\S]*resultTransitionReady\(\)[\s\S]*rebuyRingChips\(target\)/);
+  assert.match(controller, /PROFILE_TOP_UP_STORAGE_PREFIX = "dongne_holdem_profile_top_up:"/);
+  assert.match(controller, /var profileSeat = event\.target\.closest\("\.holdem-seat:not\(\.is-empty\)"\)[\s\S]*openProfileDialog\(profileSeat\.getAttribute\("data-seat"\)\)/);
+  assert.match(styles, /\.holdem-profile-topup\s*\{[\s\S]*display:\s*grid/);
   assert.match(controller, /if \(state\.practiceMode\) \{[\s\S]*autoSeatKey = "ai-practice"/);
   assert.match(controller, /!isHandActive\(state\.phase\) && !practiceSpectator/);
   assert.match(engine, /reason:\s*"buy_in_required"/);

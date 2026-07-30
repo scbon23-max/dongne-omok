@@ -35,6 +35,10 @@ function loadController(nick = "alice", options = {}) {
     context.document = options.document;
     window.document = options.document;
   }
+  if (options.localStorage) {
+    context.localStorage = options.localStorage;
+    window.localStorage = options.localStorage;
+  }
   if (options.db) window.Db = options.db;
   vm.createContext(context);
   vm.runInContext(source, context, { filename: "holdem.js" });
@@ -195,6 +199,48 @@ function controlTestDocument() {
     );
   });
   elements.holdemgame.querySelectorAll = () => [];
+  return {
+    document: {
+      getElementById(id) {
+        return elements[id] || null;
+      },
+      createElement() {
+        return fakeElement();
+      },
+    },
+    elements,
+  };
+}
+
+function profileTopUpTestDocument() {
+  const ids = [
+    "holdemgame",
+    "holdem-profile-backdrop",
+    "holdem-profile-nick",
+    "holdem-profile-title",
+    "holdem-profile-avatar-preview",
+    "holdem-profile-avatar-remove",
+    "holdem-profile-wallet-label",
+    "holdem-profile-wallet-balance",
+    "holdem-profile-wallet-status",
+    "holdem-profile-asset-record-btn",
+    "holdem-profile-role-action",
+    "holdem-profile-topup",
+    "holdem-profile-topup-current",
+    "holdem-profile-topup-max",
+    "holdem-profile-topup-amount",
+    "holdem-profile-topup-slider",
+    "holdem-profile-topup-status",
+    "holdem-profile-topup-confirm",
+  ];
+  const elements = {};
+  ids.forEach((id) => {
+    elements[id] = fakeElement(
+      id === "holdem-profile-backdrop" || id === "holdem-profile-topup"
+        ? ["hidden"]
+        : []
+    );
+  });
   return {
     document: {
       getElementById(id) {
@@ -2397,8 +2443,37 @@ test("another player's profile loads total assets without ranking eligibility", 
   controller.leave();
 });
 
-test("clicking your ring profile below the room max opens the rebuy picker", async () => {
+test("your ring profile queues an in-hand top up and applies it before the next hand", async () => {
   const calls = [];
+  const ui = profileTopUpTestDocument();
+  let version = 3;
+  let phase = "flop";
+  let stack = 25000;
+  const storageValues = new Map();
+  const localStorage = {
+    getItem(key) {
+      return storageValues.has(key) ? storageValues.get(key) : null;
+    },
+    setItem(key, value) {
+      storageValues.set(key, String(value));
+    },
+    removeItem(key) {
+      storageValues.delete(key);
+    },
+  };
+  const snapshot = () => ({
+    phase,
+    mode: "ring",
+    version,
+    viewer: { seat: 0 },
+    seats: [
+      { seat: 0, nick: "alice", stack, inHand: phase === "flop" },
+      { seat: 1, nick: "bob", stack: 30000, inHand: phase === "flop" },
+    ],
+    buyInMin: 10000,
+    buyInMax: 50000,
+    buyInDefault: 30000,
+  });
   const db = {
     getHoldemWallet(auth) {
       calls.push({ auth, action: "wallet", payload: {} });
@@ -2407,15 +2482,31 @@ test("clicking your ring profile below the room max opens the rebuy picker", asy
         wallet: { balance: 60000, tableBalance: 0, totalAssets: 60000 },
       });
     },
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      if (action === "rebuy") {
+        stack = payload.amount;
+        version += 1;
+      }
+      return Promise.resolve({
+        ok: true,
+        version,
+        snapshot: snapshot(),
+      });
+    },
   };
-  const controller = loadController("alice", { db });
+  const controller = loadController("alice", {
+    db,
+    localStorage,
+    document: ui.document,
+  });
   const state = controller._test.emptyState();
   state.mode = "ring";
-  state.phase = "complete";
-  state.version = 3;
+  state.phase = phase;
+  state.version = version;
   state.heroSeat = 0;
-  state.seats[0] = { seat: 0, nick: "alice", stack: 25000 };
-  state.seats[1] = { seat: 1, nick: "bob", stack: 30000 };
+  state.seats[0] = { seat: 0, nick: "alice", stack, inHand: true };
+  state.seats[1] = { seat: 1, nick: "bob", stack: 30000, inHand: true };
   state.buyInMin = 10000;
   state.buyInMax = 50000;
   state.buyInDefault = 30000;
@@ -2423,18 +2514,46 @@ test("clicking your ring profile below the room max opens the rebuy picker", asy
   controller._test.setActive(true);
   controller._test.setHasSnapshot(true);
 
-  assert.equal(controller._test.canOpenProfileRebuyForSeat(1), false);
-  assert.equal(controller._test.canOpenProfileRebuyForSeat(0), true);
-  assert.equal(controller._test.openProfileRebuyIfNeeded(0), true);
+  controller._test.openProfileDialog(0);
   await Promise.resolve();
   await Promise.resolve();
+  assert.equal(controller._test.canShowProfileTopUpForSeat(1), false);
+  assert.equal(controller._test.canShowProfileTopUpForSeat(0), true);
+  assert.equal(ui.elements["holdem-profile-topup"].classList.contains("hidden"), false);
+  assert.equal(ui.elements["holdem-profile-topup-current"].textContent, "25,000원");
+  assert.equal(ui.elements["holdem-profile-topup-max"].textContent, "50,000원");
+  assert.equal(ui.elements["holdem-profile-topup-confirm"].textContent, "충전 예약");
+  assert.match(ui.elements["holdem-profile-topup-status"].textContent, /현재 핸드/);
 
-  const dialog = controller._test.getBuyInDialogState();
-  assert.equal(dialog.open, true);
-  assert.equal(dialog.mode, "rebuy");
-  assert.equal(dialog.seat, 0);
-  assert.equal(dialog.pending, false);
+  controller._test.setProfileTopUpValue(40000);
+  const queued = await controller._test.submitProfileTopUp();
+  assert.equal(queued.ok, true);
+  assert.equal(queued.queued, true);
+  assert.equal(controller._test.getProfileTopUpState().queuedAmount, 40000);
+  assert.equal(ui.elements["holdem-profile-topup-confirm"].textContent, "예약 변경");
+  assert.match(ui.elements["holdem-profile-topup-status"].textContent, /충전 예약 완료/);
   assert.deepEqual(calls.map((call) => call.action), ["wallet"]);
+
+  phase = "hand_end";
+  const completed = controller._test.emptyState();
+  completed.mode = "ring";
+  completed.phase = "complete";
+  completed.version = version;
+  completed.heroSeat = 0;
+  completed.seats[0] = { seat: 0, nick: "alice", stack };
+  completed.seats[1] = { seat: 1, nick: "bob", stack: 30000 };
+  completed.buyInMin = 10000;
+  completed.buyInMax = 50000;
+  completed.buyInDefault = 30000;
+  controller._test.setState(completed);
+
+  const applied = await controller._test.applyQueuedProfileTopUp();
+  assert.equal(applied.ok, true);
+  assert.equal(calls.filter((call) => call.action === "rebuy").length, 1);
+  assert.equal(calls.find((call) => call.action === "rebuy").payload.amount, 40000);
+  assert.equal(controller.state.seats[0].stack, 40000);
+  assert.equal(controller._test.getProfileTopUpState().queuedAmount, 0);
+  assert.equal(storageValues.size, 0);
   controller.leave();
 });
 

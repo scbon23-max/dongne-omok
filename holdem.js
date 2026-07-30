@@ -101,6 +101,7 @@ window.TexasHoldem = (function () {
   var RESULT_SETTLE_MS = 1600;
   var RESULT_REVIEW_MS = 4000;
   var HOLDEM_SETTINGS_STORAGE_PREFIX = "dongne_holdem_settings:";
+  var PROFILE_TOP_UP_STORAGE_PREFIX = "dongne_holdem_profile_top_up:";
   var DEFAULT_CARD_FRONT_SKIN = "classic";
   var CARD_FRONT_SKINS = {
     "classic": "\uAE30\uBCF8 \uC2A4\uD0A8",
@@ -176,6 +177,11 @@ window.TexasHoldem = (function () {
   var profileAssetNick = "";
   var profileAssetRequestSeq = 0;
   var profileTargetSeat = -1;
+  var profileTopUpValue = 0;
+  var profileTopUpMessage = "";
+  var profileTopUpMessageKind = "";
+  var queuedProfileTopUpAmount = 0;
+  var profileTopUpAttemptKey = "";
   var profileAvatarCache = Object.create(null);
   var profileAvatarRequestKey = "";
   var profileAvatarRequestSeq = 0;
@@ -474,6 +480,63 @@ window.TexasHoldem = (function () {
   function roomGame() {
     var value = api && typeof api.roomGame === "function" ? api.roomGame() : "holdem";
     return text(value, 40);
+  }
+
+  function profileTopUpStorageKey() {
+    var currentRoom = roomId();
+    var nick = text(auth().nick || me().nick, 40);
+    if (!currentRoom || !nick) return "";
+    return PROFILE_TOP_UP_STORAGE_PREFIX +
+      encodeURIComponent(currentRoom) + ":" + encodeURIComponent(nick);
+  }
+
+  function restoreQueuedProfileTopUp() {
+    queuedProfileTopUpAmount = 0;
+    var key = profileTopUpStorageKey();
+    if (!key || typeof localStorage === "undefined") return 0;
+    try {
+      var amount = Math.max(0, Math.floor(Number(localStorage.getItem(key)) || 0));
+      queuedProfileTopUpAmount = amount;
+      return amount;
+    } catch (_error) {
+      return 0;
+    }
+  }
+
+  function storeQueuedProfileTopUp(amount) {
+    var key = profileTopUpStorageKey();
+    queuedProfileTopUpAmount = Math.max(0, Math.floor(Number(amount) || 0));
+    if (!key || typeof localStorage === "undefined") return;
+    try {
+      if (queuedProfileTopUpAmount > 0) {
+        localStorage.setItem(key, String(queuedProfileTopUpAmount));
+      } else {
+        localStorage.removeItem(key);
+      }
+    } catch (_error) {}
+  }
+
+  function normalizeQueuedProfileTopUpForState() {
+    if (!queuedProfileTopUpAmount) return;
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    if (state.mode !== "ring" || !hero || hero.isBot ||
+        text(hero.nick, 40) !== text(me().nick, 40)) {
+      storeQueuedProfileTopUp(0);
+      profileTopUpValue = 0;
+      profileTopUpAttemptKey = "";
+      return;
+    }
+    var unit = Math.max(100, integer(state.chipUnit, 100));
+    var tableMin = Math.max(unit, Math.round(nonnegative(state.buyInMin, unit) / unit) * unit);
+    var tableMax = Math.max(
+      tableMin,
+      Math.round(nonnegative(state.buyInMax, state.startingStack || tableMin) / unit) * unit
+    );
+    var normalized = Math.max(
+      tableMin,
+      Math.min(tableMax, Math.round(queuedProfileTopUpAmount / unit) * unit)
+    );
+    if (normalized !== queuedProfileTopUpAmount) storeQueuedProfileTopUp(normalized);
   }
 
   function emptyState() {
@@ -1828,6 +1891,7 @@ window.TexasHoldem = (function () {
     }
     suppressActionTagAnimations = !hadSnapshot;
     state = next;
+    normalizeQueuedProfileTopUpForState();
     syncPendingFoldRevealReservation(next);
     rawSnapshot = snapshot;
     hasSnapshot = true;
@@ -3391,7 +3455,8 @@ window.TexasHoldem = (function () {
   function autoStartHand(key) {
     autoNextTimer = null;
     if (!active || state.phase !== "complete" || !state.canStart ||
-        state.newGameBuyInRequired || hasBustedHumanSeat() || autoNextKey !== key) return;
+        state.newGameBuyInRequired || hasBustedHumanSeat() || hasQueuedProfileTopUp() ||
+        requests.rebuy || autoNextKey !== key) return;
     if (!resultTransitionReady()) {
       scheduleAutoNextHand();
       return;
@@ -3409,7 +3474,8 @@ window.TexasHoldem = (function () {
 
   function scheduleAutoNextHand() {
     if (state.phase !== "complete" || !state.canStart || state.newGameBuyInRequired ||
-        hasBustedHumanSeat() || text(me().nick, 40) !== autoStartNick()) {
+        hasBustedHumanSeat() || hasQueuedProfileTopUp() || requests.rebuy ||
+        text(me().nick, 40) !== autoStartNick()) {
       clearAutoNextHand();
       return;
     }
@@ -3460,15 +3526,16 @@ window.TexasHoldem = (function () {
     }, { key: "start", label: "start", broadcast: true });
   }
 
-  function heroRingStackRestored() {
+  function heroRingStackRestored(minimumStack) {
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
-    return !!(hero && hero.stack > 0);
+    var minimum = Math.max(1, Math.floor(Number(minimumStack) || 1));
+    return !!(hero && hero.stack >= minimum);
   }
 
-  function reconcileRingStackMutation(result, reason) {
+  function reconcileRingStackMutation(result, reason, minimumStack) {
     if (result && result.stale) return Promise.resolve(result);
     return refreshSnapshot(reason, true).then(function () {
-      if (heroRingStackRestored()) {
+      if (heroRingStackRestored(minimumStack)) {
         return Object.assign({}, result || {}, { ok: true, restored: true });
       }
       return result || { ok: false, reason: "restore_unconfirmed" };
@@ -3500,7 +3567,11 @@ window.TexasHoldem = (function () {
       label: "rebuy",
       broadcast: true
     }).then(function (result) {
-      return reconcileRingStackMutation(result, "rebuy_confirm");
+      return reconcileRingStackMutation(
+        result,
+        "rebuy_confirm",
+        Math.max(0, Math.round(Number(amount) || 0))
+      );
     });
   }
 
@@ -4110,6 +4181,7 @@ window.TexasHoldem = (function () {
         !window.HoldemAssetRecords || typeof HoldemAssetRecords.open !== "function";
       recordButton.classList.toggle("hidden", !isMine);
     }
+    renderProfileTopUp();
   }
 
   function loadProfileAsset(force) {
@@ -4201,6 +4273,218 @@ window.TexasHoldem = (function () {
       renderProfileWallet();
       return null;
     });
+  }
+
+  function profileTopUpSeat() {
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    return hero && !hero.isBot && text(hero.nick, 40) === text(me().nick, 40)
+      ? hero
+      : null;
+  }
+
+  function profileTopUpBounds() {
+    var hero = profileTopUpSeat();
+    var unit = Math.max(100, integer(state.chipUnit, 100));
+    var tableMax = Math.max(
+      unit,
+      Math.round(nonnegative(state.buyInMax, state.startingStack || unit) / unit) * unit
+    );
+    var currentStack = hero
+      ? Math.max(0, Math.floor(nonnegative(hero.stack, 0) / unit) * unit)
+      : 0;
+    var walletBalance = profileWallet && Number.isFinite(Number(profileWallet.balance))
+      ? Math.max(0, Math.floor(Number(profileWallet.balance) / unit) * unit)
+      : 0;
+    var min = Math.min(tableMax, currentStack + unit);
+    var selectableMax = Math.min(tableMax, currentStack + walletBalance);
+    var fallback = queuedProfileTopUpAmount > currentStack
+      ? queuedProfileTopUpAmount
+      : selectableMax;
+    var value = Math.round(nonnegative(profileTopUpValue, fallback) / unit) * unit;
+    if (selectableMax >= min) value = Math.max(min, Math.min(selectableMax, value || selectableMax));
+    else value = min;
+    return {
+      unit: unit,
+      min: min,
+      max: tableMax,
+      selectableMax: selectableMax,
+      currentStack: currentStack,
+      walletBalance: walletBalance,
+      value: value
+    };
+  }
+
+  function setProfileTopUpValue(value) {
+    var bounds = profileTopUpBounds();
+    var amount = Math.round(nonnegative(value, bounds.value) / bounds.unit) * bounds.unit;
+    profileTopUpValue = bounds.selectableMax >= bounds.min
+      ? Math.max(bounds.min, Math.min(bounds.selectableMax, amount))
+      : bounds.min;
+    profileTopUpMessage = "";
+    profileTopUpMessageKind = "";
+    renderProfileTopUp();
+  }
+
+  function canShowProfileTopUpForSeat(seat) {
+    var targetSeat = safeSeat(seat);
+    var hero = profileTopUpSeat();
+    if (!hero || state.mode !== "ring" || targetSeat !== state.heroSeat) return false;
+    var bounds = profileTopUpBounds();
+    return bounds.currentStack < bounds.max || queuedProfileTopUpAmount > bounds.currentStack;
+  }
+
+  function renderProfileTopUp() {
+    var panel = $("holdem-profile-topup");
+    if (!panel) return;
+    var target = profileTarget();
+    var isMine = profileTargetIsMe(target);
+    var bounds = profileTopUpBounds();
+    var visible = profileDialogOpen && isMine &&
+      canShowProfileTopUpForSeat(profileTargetSeat);
+    panel.classList.toggle("hidden", !visible);
+    if (!visible) return;
+
+    if (!profileTopUpValue && bounds.selectableMax >= bounds.min) {
+      profileTopUpValue = queuedProfileTopUpAmount > bounds.currentStack
+        ? Math.min(bounds.selectableMax, queuedProfileTopUpAmount)
+        : bounds.selectableMax;
+      bounds = profileTopUpBounds();
+    }
+    setText("holdem-profile-topup-current", formatChips(bounds.currentStack));
+    setText("holdem-profile-topup-max", formatChips(bounds.max));
+    setText("holdem-profile-topup-amount", formatChips(bounds.value));
+
+    var slider = $("holdem-profile-topup-slider");
+    var unavailable = profileWalletPending || !profileWallet || bounds.selectableMax < bounds.min;
+    if (slider) {
+      slider.min = String(bounds.min);
+      slider.max = String(Math.max(bounds.min, bounds.selectableMax));
+      slider.step = String(bounds.unit);
+      slider.value = String(bounds.value);
+      slider.disabled = unavailable || !!requests.rebuy;
+    }
+
+    var status = $("holdem-profile-topup-status");
+    var queued = queuedProfileTopUpAmount > bounds.currentStack;
+    var message = profileTopUpMessage;
+    var kind = profileTopUpMessageKind;
+    if (requests.rebuy) {
+      message = "충전 금액을 적용하고 있어요.";
+      kind = "queued";
+    } else if (!message && profileWalletPending) {
+      message = "충전 가능한 보유 자산을 확인하고 있어요.";
+    } else if (!message && !profileWallet) {
+      message = "보유 자산을 확인한 뒤 충전할 수 있어요.";
+      kind = "error";
+    } else if (!message && bounds.selectableMax < bounds.min) {
+      message = "충전할 수 있는 보유 자산이 부족해요.";
+      kind = "error";
+    } else if (!message && queued && isHandActive(state.phase)) {
+      message = "예약됨 · 현재 핸드가 끝나면 " +
+        formatChips(queuedProfileTopUpAmount) + "으로 적용돼요.";
+      kind = "queued";
+    } else if (!message && isHandActive(state.phase)) {
+      message = "현재 핸드에는 영향을 주지 않고, 종료 직후 다음 핸드부터 적용돼요.";
+    } else if (!message) {
+      message = "확정하면 선택한 금액까지 바로 충전돼요.";
+    }
+    if (status) {
+      status.textContent = message;
+      status.classList.toggle("is-error", kind === "error");
+      status.classList.toggle("is-queued", kind === "queued");
+    }
+
+    var confirm = $("holdem-profile-topup-confirm");
+    if (confirm) {
+      confirm.textContent = requests.rebuy
+        ? "충전 중"
+        : isHandActive(state.phase)
+          ? queued ? "예약 변경" : "충전 예약"
+          : "바로 충전";
+      confirm.disabled = unavailable || !!requests.rebuy;
+    }
+  }
+
+  function clearQueuedProfileTopUp(message, kind) {
+    storeQueuedProfileTopUp(0);
+    profileTopUpAttemptKey = "";
+    profileTopUpValue = 0;
+    profileTopUpMessage = message || "";
+    profileTopUpMessageKind = kind || "";
+    renderProfileTopUp();
+  }
+
+  function hasQueuedProfileTopUp() {
+    var hero = profileTopUpSeat();
+    return !!(
+      hero &&
+      queuedProfileTopUpAmount > Math.max(0, Math.floor(Number(hero.stack) || 0))
+    );
+  }
+
+  function applyQueuedProfileTopUp() {
+    var hero = profileTopUpSeat();
+    var target = Math.max(0, Math.floor(Number(queuedProfileTopUpAmount) || 0));
+    if (!target || !hero || state.mode !== "ring") return Promise.resolve({ ok: false, reason: "unavailable" });
+    if (hero.stack >= target) {
+      clearQueuedProfileTopUp("현재 칩이 예약 금액 이상이라 추가 차감 없이 완료됐어요.", "queued");
+      return Promise.resolve({ ok: true, reason: "already_reached" });
+    }
+    if (isHandActive(state.phase) ||
+        (state.phase === "complete" && !resultTransitionReady()) ||
+        requests.rebuy || requests.refill ||
+        (hero.stack <= 0 && state.canRefill)) {
+      return Promise.resolve({ ok: true, queued: true });
+    }
+    var attemptKey = String(state.version) + ":" + String(target);
+    if (profileTopUpAttemptKey === attemptKey) {
+      return Promise.resolve({ ok: true, queued: true, reason: "waiting" });
+    }
+    profileTopUpAttemptKey = attemptKey;
+    profileTopUpMessage = "";
+    profileTopUpMessageKind = "";
+    renderProfileTopUp();
+    return rebuyRingChips(target).then(function (result) {
+      var reason = text(
+        result && (result.reason || result.response && result.response.reason),
+        80
+      );
+      if (result && result.ok && heroRingStackRestored(target)) {
+        clearQueuedProfileTopUp("충전이 완료됐어요.", "queued");
+        loadProfileWallet(true);
+      } else if (reason === "rebuy_not_needed") {
+        clearQueuedProfileTopUp("현재 칩이 예약 금액 이상이라 추가 차감 없이 완료됐어요.", "queued");
+      } else if (reason === "wallet_insufficient") {
+        clearQueuedProfileTopUp("보유 자산이 부족해요. 금액을 낮춰 다시 선택해 주세요.", "error");
+        loadProfileWallet(true);
+      } else if (reason !== "hand_active" && reason !== "stale" && reason !== "conflict") {
+        profileTopUpMessage = "충전을 완료하지 못했어요. 다시 시도해 주세요.";
+        profileTopUpMessageKind = "error";
+        renderProfileTopUp();
+      }
+      return result;
+    });
+  }
+
+  function submitProfileTopUp() {
+    var bounds = profileTopUpBounds();
+    if (!canShowProfileTopUpForSeat(state.heroSeat) || profileWalletPending ||
+        !profileWallet || bounds.selectableMax < bounds.min || requests.rebuy) {
+      return Promise.resolve({ ok: false, reason: "unavailable" });
+    }
+    var amount = Math.max(bounds.min, Math.min(bounds.selectableMax, bounds.value));
+    storeQueuedProfileTopUp(amount);
+    profileTopUpValue = amount;
+    profileTopUpAttemptKey = "";
+    if (isHandActive(state.phase) ||
+        (state.phase === "complete" && !resultTransitionReady())) {
+      profileTopUpMessage = "충전 예약 완료 · 현재 핸드 종료 후 " +
+        formatChips(amount) + "으로 적용돼요.";
+      profileTopUpMessageKind = "queued";
+      renderProfileTopUp();
+      return Promise.resolve({ ok: true, queued: true, amount: amount });
+    }
+    return applyQueuedProfileTopUp();
   }
 
   function tableBuyInBounds(wallet) {
@@ -4444,10 +4728,12 @@ window.TexasHoldem = (function () {
   function maybeAutoOpenRebuyDialog() {
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
     var needsRebuy = state.mode === "ring" && !!hero && hero.stack <= 0 && !isHandActive(state.phase);
+    var queuedTopUpCanRestore = needsRebuy && hasQueuedProfileTopUp() && !state.canRefill;
     if (!needsRebuy || buyInDialogOpen || requests.rebuy || requests.refill) {
       if (!needsRebuy) autoBuyInKey = "";
       return;
     }
+    if (queuedTopUpCanRestore) return;
     if (!resultTransitionReady()) return;
     var resolution = state.canRefill ? "free" : "rebuy";
     var key = String(state.version) + ":" + String(state.heroSeat) + ":" +
@@ -4457,6 +4743,7 @@ window.TexasHoldem = (function () {
     if (state.canRefill) {
       refillRingChips().then(function (result) {
         if (!result || !result.ok) autoBuyInKey = "";
+        else if (hasQueuedProfileTopUp()) applyQueuedProfileTopUp();
       });
       return;
     }
@@ -4470,6 +4757,7 @@ window.TexasHoldem = (function () {
     renderControls();
     maybeAutoSeatJoin();
     maybeAutoOpenRebuyDialog();
+    applyQueuedProfileTopUp();
     scheduleAutoReadyForNextHand();
     scheduleAutoNextHand();
   }
@@ -4520,36 +4808,13 @@ window.TexasHoldem = (function () {
   function openProfileDialog(seat) {
     profileTargetSeat = safeSeat(seat);
     profileDialogOpen = true;
+    profileTopUpValue = queuedProfileTopUpAmount;
+    profileTopUpMessage = "";
+    profileTopUpMessageKind = "";
     renderProfileDialog();
     var target = profileTarget();
     if (profileTargetIsMe(target)) loadProfileWallet(true);
     else loadProfileAsset(true);
-  }
-
-  function canOpenProfileRebuyForSeat(seat) {
-    var targetSeat = safeSeat(seat);
-    var hero = targetSeat >= 0 ? state.seats[targetSeat] : null;
-    return !!(
-      state.mode === "ring" &&
-      targetSeat === state.heroSeat &&
-      hero &&
-      !hero.isBot &&
-      hero.stack < tableBuyInBounds(null).max &&
-      !isHandActive(state.phase) &&
-      !buyInDialogOpen &&
-      !requests.rebuy &&
-      !requests.refill
-    );
-  }
-
-  function openProfileRebuyIfNeeded(seat) {
-    var targetSeat = safeSeat(seat);
-    if (!canOpenProfileRebuyForSeat(targetSeat)) return false;
-    if (!openBuyInDialog("rebuy", targetSeat)) return false;
-    profileDialogOpen = false;
-    profileTargetSeat = -1;
-    renderProfileDialog();
-    return true;
   }
 
   function joinFromProfileDialog() {
@@ -5755,6 +6020,7 @@ window.TexasHoldem = (function () {
     renderBoard();
     renderTableHint();
     renderSeats();
+    if (profileDialogOpen) renderProfileDialog();
     renderLobbyRoster();
     renderHandResult();
     renderAnnouncer();
@@ -5763,6 +6029,7 @@ window.TexasHoldem = (function () {
     renderBuyInDialog();
     renderTimer();
     maybeAutoOpenRebuyDialog();
+    applyQueuedProfileTopUp();
     scheduleBotStep();
     scheduleAutoReadyForNextHand();
     scheduleAutoNextHand();
@@ -6039,9 +6306,7 @@ window.TexasHoldem = (function () {
 
     var profileSeat = event.target.closest(".holdem-seat:not(.is-empty)");
     if (profileSeat && screen.contains(profileSeat)) {
-      if (!openProfileRebuyIfNeeded(profileSeat.getAttribute("data-seat"))) {
-        openProfileDialog(profileSeat.getAttribute("data-seat"));
-      }
+      openProfileDialog(profileSeat.getAttribute("data-seat"));
       return;
     }
 
@@ -6091,6 +6356,8 @@ window.TexasHoldem = (function () {
       }
     } else if (id === "holdem-profile-role-action") {
       toggleProfileRole();
+    } else if (id === "holdem-profile-topup-confirm") {
+      submitProfileTopUp();
     } else if (id === "holdem-profile-avatar-remove") {
       var profileNick = text(me().nick, 40);
       removeProfileAvatar(profileNick);
@@ -6178,6 +6445,8 @@ window.TexasHoldem = (function () {
       setRaiseValue(event.target.value);
     } else if (event.target && event.target.id === "holdem-buyin-slider") {
       setBuyInValue(event.target.value);
+    } else if (event.target && event.target.id === "holdem-profile-topup-slider") {
+      setProfileTopUpValue(event.target.value);
     }
   }
 
@@ -6247,9 +6516,7 @@ window.TexasHoldem = (function () {
       var profileSeat = event.target.closest(".holdem-seat:not(.is-empty)");
       if (profileSeat && root() && root().contains(profileSeat)) {
         event.preventDefault();
-        if (!openProfileRebuyIfNeeded(profileSeat.getAttribute("data-seat"))) {
-          openProfileDialog(profileSeat.getAttribute("data-seat"));
-        }
+        openProfileDialog(profileSeat.getAttribute("data-seat"));
         return;
       }
     }
@@ -6376,6 +6643,11 @@ window.TexasHoldem = (function () {
     profileAsset = null;
     profileAssetNick = "";
     profileTargetSeat = -1;
+    profileTopUpValue = 0;
+    profileTopUpMessage = "";
+    profileTopUpMessageKind = "";
+    profileTopUpAttemptKey = "";
+    restoreQueuedProfileTopUp();
     autoSeatKey = "";
     autoSeatSuppressed = false;
     tickSentKey = "";
@@ -6415,6 +6687,9 @@ window.TexasHoldem = (function () {
     var previousRoom = roomId();
     var previousVersion = state.version;
     var wasJoined = active && joined;
+    if (wasJoined && previousRoom && queuedProfileTopUpAmount > 0) {
+      storeQueuedProfileTopUp(0);
+    }
     lifecycleGeneration += 1;
     stopTimers();
     unbindHoldemChatKeyboard();
@@ -6461,6 +6736,11 @@ window.TexasHoldem = (function () {
     profileAsset = null;
     profileAssetNick = "";
     profileTargetSeat = -1;
+    profileTopUpValue = 0;
+    profileTopUpMessage = "";
+    profileTopUpMessageKind = "";
+    queuedProfileTopUpAmount = 0;
+    profileTopUpAttemptKey = "";
     autoSeatKey = "";
     autoSeatSuppressed = false;
     state = emptyState();
@@ -6634,8 +6914,11 @@ window.TexasHoldem = (function () {
       openProfileDialog: openProfileDialog,
       loadProfileAsset: loadProfileAsset,
       openBuyInDialog: openBuyInDialog,
-      canOpenProfileRebuyForSeat: canOpenProfileRebuyForSeat,
-      openProfileRebuyIfNeeded: openProfileRebuyIfNeeded,
+      openProfileDialog: openProfileDialog,
+      canShowProfileTopUpForSeat: canShowProfileTopUpForSeat,
+      setProfileTopUpValue: setProfileTopUpValue,
+      submitProfileTopUp: submitProfileTopUp,
+      applyQueuedProfileTopUp: applyQueuedProfileTopUp,
       setBuyInValue: setBuyInValue,
       confirmBuyInDialog: confirmBuyInDialog,
       refillRingChips: refillRingChips,
@@ -6675,6 +6958,14 @@ window.TexasHoldem = (function () {
           pending: profileAssetPending,
           nick: profileAssetNick,
           totalAssets: profileAsset ? profileAsset.totalAssets : null
+        };
+      },
+      getProfileTopUpState: function () {
+        return {
+          value: profileTopUpBounds().value,
+          queuedAmount: queuedProfileTopUpAmount,
+          message: profileTopUpMessage,
+          messageKind: profileTopUpMessageKind
         };
       },
       getLifecycleGeneration: function () { return lifecycleGeneration; },

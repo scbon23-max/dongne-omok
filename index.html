@@ -1080,6 +1080,19 @@
           <strong id="holdem-profile-wallet-balance">불러오는 중</strong>
           <small id="holdem-profile-wallet-status">자산을 확인하고 있어요</small>
         </div>
+        <div id="holdem-profile-topup" class="holdem-profile-topup hidden" aria-live="polite">
+          <div class="holdem-profile-topup-head">
+            <span>테이블 칩 충전</span>
+            <strong id="holdem-profile-topup-amount">0원</strong>
+          </div>
+          <div class="holdem-profile-topup-bounds">
+            <span>현재 <strong id="holdem-profile-topup-current">0원</strong></span>
+            <span>방 최대 <strong id="holdem-profile-topup-max">0원</strong></span>
+          </div>
+          <input id="holdem-profile-topup-slider" type="range" min="100" max="100" step="100" value="100" aria-label="충전 후 테이블 금액">
+          <small id="holdem-profile-topup-status">충전할 금액을 선택하세요.</small>
+          <button id="holdem-profile-topup-confirm" type="button">바로 충전</button>
+        </div>
         <button id="holdem-profile-role-action" class="holdem-profile-role-action hidden" type="button">관전하기</button>
       </section>
     </div>
