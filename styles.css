@@ -7256,7 +7256,7 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-board { top: 64%; }
   .holdem-lobby-panel { width: 390px; }
   .holdem-action-panel { right: 50%; left: auto; width: 720px; transform: translateX(50%); }
-  .holdem-chat-row { right: 50%; left: auto; width: 720px; transform: translateX(50%); }
+  .holdem-chat-row { right: 0; left: 0; width: 720px; }
   .holdem-emoji-toggle,
   .holdem-chat-toggle,
   .holdem-emoji-panel { left: calc(50% - 348px); right: auto; }

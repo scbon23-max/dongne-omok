@@ -5676,6 +5676,15 @@ window.TexasHoldem = (function () {
   function holdemKeyboardOffset() {
     if (typeof window === "undefined" || !window.visualViewport) return 0;
     var viewport = window.visualViewport;
+    var viewportScale = Number(viewport.scale);
+    if (Number.isFinite(viewportScale) && Math.abs(viewportScale - 1) > 0.01) return 0;
+    if (typeof window.matchMedia === "function") {
+      try {
+        if (window.matchMedia("(min-width: 900px) and (hover: hover) and (pointer: fine)").matches) {
+          return 0;
+        }
+      } catch (error) {}
+    }
     var layoutHeight = window.innerHeight ||
       (document.documentElement && document.documentElement.clientHeight) ||
       viewport.height || 0;

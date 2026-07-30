@@ -221,7 +221,7 @@ function loadGameChatHarness(options = {}) {
   };
 }
 
-function loadKeyboardHarness() {
+function loadKeyboardHarness(options = {}) {
   const sourcePath = path.join(__dirname, "..", "holdem.js");
   const source = fs.readFileSync(sourcePath, "utf8");
   const instrumented = source.replace(
@@ -277,16 +277,21 @@ function loadKeyboardHarness() {
   };
 
   const visualViewport = {
-    height: 500,
+    height: Number.isFinite(options.visualViewportHeight) ? options.visualViewportHeight : 500,
     offsetTop: 0,
+    scale: Number.isFinite(options.scale) ? options.scale : 1,
     addEventListener() {},
     removeEventListener() {},
   };
   const window = {
     __HOLDEM_TEST__: true,
     document,
+    innerWidth: Number.isFinite(options.innerWidth) ? options.innerWidth : 390,
     innerHeight: 800,
     visualViewport,
+    matchMedia() {
+      return { matches: !!options.desktopPointer };
+    },
   };
   const context = {
     window,
@@ -416,4 +421,26 @@ test("a settled keyboard close still hides the chat", () => {
   flushTimers();
   assert.equal(elements.holdemgame.classList.contains("is-chat-open"), false);
   assert.equal(elements.holdemgame.style.values["--holdem-keyboard-offset"], "0px");
+});
+
+test("desktop viewport changes and page zoom never impersonate a mobile keyboard", () => {
+  const desktop = loadKeyboardHarness({
+    innerWidth: 1280,
+    desktopPointer: true,
+  });
+  desktop.api.setChatOpen(true, false);
+  desktop.api.syncChatKeyboard(false);
+  assert.equal(desktop.elements.holdemgame.style.values["--holdem-keyboard-offset"], "0px");
+  assert.equal(desktop.elements.holdemgame.classList.contains("is-keyboard-open"), false);
+  assert.equal(desktop.api.getChatKeyboardWasOpen(), false);
+
+  const zoomed = loadKeyboardHarness({
+    innerWidth: 390,
+    scale: 1.25,
+  });
+  zoomed.api.setChatOpen(true, false);
+  zoomed.api.syncChatKeyboard(false);
+  assert.equal(zoomed.elements.holdemgame.style.values["--holdem-keyboard-offset"], "0px");
+  assert.equal(zoomed.elements.holdemgame.classList.contains("is-keyboard-open"), false);
+  assert.equal(zoomed.api.getChatKeyboardWasOpen(), false);
 });

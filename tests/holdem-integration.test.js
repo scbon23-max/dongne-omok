@@ -623,6 +623,17 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.doesNotMatch(styles, /\.holdem-screen\.is-pre-actioning \.holdem-chat-toggle\s*\{[^}]*left:/);
   assert.doesNotMatch(styles, /\.holdem-screen\.is-fold-revealing \.holdem-chat-toggle\s*\{[^}]*left:/);
   assert.doesNotMatch(styles, /\.holdem-screen\.is-actioning \.holdem-chat-toggle \{ left: calc\(50% - 261px\)/);
+  const desktopHoldemStart = styles.indexOf("@media (min-width: 900px)");
+  const desktopHoldemEnd = styles.indexOf("@media (prefers-reduced-motion: reduce)", desktopHoldemStart);
+  const desktopHoldemStyles = styles.slice(desktopHoldemStart, desktopHoldemEnd);
+  const desktopChatRule = desktopHoldemStyles.match(/\.holdem-chat-row\s*\{([^}]*)\}/)?.[1] || "";
+  assert.ok(desktopHoldemStart >= 0 && desktopHoldemEnd > desktopHoldemStart);
+  assert.match(desktopChatRule, /right:\s*0/);
+  assert.match(desktopChatRule, /left:\s*0/);
+  assert.match(desktopChatRule, /width:\s*720px/);
+  assert.doesNotMatch(desktopChatRule, /transform:/);
+  assert.doesNotMatch(desktopHoldemStyles, /\.holdem-action-panel\s*,\s*\.holdem-chat-row/);
+  assert.match(controller, /viewportScale[\s\S]*Math\.abs\(viewportScale - 1\) > 0\.01[\s\S]*min-width: 900px[\s\S]*pointer: fine/);
   assert.match(styles, /\.holdem-pre-action\.is-queued\s*\{[\s\S]*border-color:\s*rgba\(117, 238, 255, \.76\)/);
   assert.match(styles, /\.holdem-pre-action\.is-queued::after\s*\{[\s\S]*content:\s*"예약"/);
   assert.doesNotMatch(styles, /is-unreservable/);
