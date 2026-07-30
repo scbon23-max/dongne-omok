@@ -4984,7 +4984,7 @@ body.is-admin .feedback-user-compose { display: none; }
   height: var(--holdem-seat-avatar-size);
   display: grid;
   place-items: center;
-  overflow: hidden;
+  overflow: visible;
   border: 0;
   border-radius: 50%;
   background:
@@ -5001,6 +5001,7 @@ body.is-admin .feedback-user-compose { display: none; }
   display: block;
   max-width: none;
   margin: -1px;
+  border-radius: inherit;
   object-fit: cover;
 }
 .holdem-seat.is-emoji-reacting {

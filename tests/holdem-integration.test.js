@@ -713,6 +713,8 @@ test("Hold'em chat keeps transient toasts separate from the recent typing histor
   assert.match(index, /id="holdem-emoji-panel"/);
   assert.match(index, /data-holdem-emoji="😅"/);
   assert.match(index, /data-holdem-emoji="‼️"/);
+  assert.match(styles, /\.holdem-seat-avatar\s*\{[\s\S]*overflow:\s*visible/);
+  assert.match(styles, /\.holdem-seat-avatar img\s*\{[\s\S]*border-radius:\s*inherit/);
   assert.match(game, /function renderHoldemChatHistory\(\)/);
   assert.match(game, /Db\.getChatHistory\(requestedRoom, 200\)/);
   assert.match(game, /requestedGeneration !== chatLoadGeneration/);
