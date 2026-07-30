@@ -84,18 +84,38 @@ test("the lobby overall ranking places Hold'em first and uses asset totals", () 
   assert.match(styles, /\.rank-lobby-holdem \.holdem-asset-ranking-list\s*\{[\s\S]*max-height:/);
 });
 
-test("the browser requests rankings and ranking details without exposing a room identifier", () => {
-  assert.match(db, /body\.action !== "wallet" &&[\s\S]*body\.action !== "ranking" &&[\s\S]*body\.action !== "ranking_detail"/);
+test("the browser requests profile assets and rankings without exposing a room identifier", () => {
+  assert.match(db, /body\.action !== "wallet" &&[\s\S]*body\.action !== "profile_asset" &&[\s\S]*body\.action !== "ranking" &&[\s\S]*body\.action !== "ranking_detail"/);
+  assert.match(db, /async function getHoldemProfileAsset\(auth, targetNick\)[\s\S]*holdemInvoke\(auth, "profile_asset"/);
   assert.match(db, /async function getHoldemAssetRanking\(auth\)[\s\S]*holdemInvoke\(auth, "ranking", \{\}\)/);
   assert.match(db, /async function getHoldemAssetRankingDetail\(auth, targetNick\)[\s\S]*holdemInvoke\(auth, "ranking_detail"/);
+  assert.match(db, /getHoldemProfileAsset:\s*getHoldemProfileAsset/);
   assert.match(db, /getHoldemAssetRanking:\s*getHoldemAssetRanking/);
   assert.match(db, /getHoldemAssetRankingDetail:\s*getHoldemAssetRankingDetail/);
+});
+
+test("authenticated profile asset lookup is independent from ranking eligibility", () => {
+  const profileAssetStart = edge.indexOf("async function profileAsset");
+  const profileAssetEnd = edge.indexOf("async function assetRankingRows");
+  const profileAssetSource = edge.slice(profileAssetStart, profileAssetEnd);
+
+  assert.ok(profileAssetStart >= 0);
+  assert.ok(profileAssetEnd > profileAssetStart);
+  assert.match(edge, /"profile_asset"/);
+  assert.match(edge, /const profileAssetAction = action === "profile_asset"/);
+  assert.match(edge, /const roomlessAction = walletAction \|\| profileAssetAction/);
+  assert.match(profileAssetSource, /\.from\("accounts"\)[\s\S]*\.select\("nickname"\)[\s\S]*\.eq\("nickname", targetNick\)/);
+  assert.match(profileAssetSource, /\.from\("holdem_wallets"\)[\s\S]*\.select\("balance"\)[\s\S]*\.eq\("nickname", targetNick\)/);
+  assert.match(profileAssetSource, /walletRow == null[\s\S]*INITIAL_WALLET_BALANCE/);
+  assert.match(profileAssetSource, /tableHoldingsByNickname/);
+  assert.doesNotMatch(profileAssetSource, /RANKING_MIN_HANDS|holdem_hand_results/);
+  assert.match(edge, /if \(profileAssetAction\)[\s\S]*asset:\s*await profileAsset/);
 });
 
 test("the authenticated server ranking includes live table chips but exposes only public totals", () => {
   assert.match(edge, /const ACTIONS = new Set\(\[[\s\S]*"wallet",[\s\S]*"ranking"/);
   assert.match(edge, /const rankingAction = action === "ranking"/);
-  assert.match(edge, /const roomlessAction = walletAction \|\| rankingAction \|\| rankingDetailAction/);
+  assert.match(edge, /const roomlessAction = walletAction \|\| profileAssetAction \|\|[\s\S]*rankingAction \|\| rankingDetailAction/);
   assert.match(edge, /const accountPromise = verifyAccount\([\s\S]*const \[account, initialTable\] = await Promise\.all\([\s\S]*if \(!account\) return jsonResponse/);
   assert.match(edge, /if \(rankingAction\) \{[\s\S]*await cleanupExpiredTables\(client\)[\s\S]*assetRanking\(client, account\.nick\)/);
   assert.match(edge, /function tableHoldingsByNickname\(rows: unknown\[\]\)/);
@@ -149,11 +169,17 @@ test("the engine records only public hand-result summaries for asset-backed ring
 });
 
 test("other human profiles show total assets instead of table chips", () => {
+  const loaderStart = controller.indexOf("function loadProfileAsset");
+  const loaderEnd = controller.indexOf("function loadProfileWallet");
+  const loaderSource = controller.slice(loaderStart, loaderEnd);
+
   assert.match(
     controller,
     /isMine \? "내 총자산" : target && target\.isBot \? "연습칩" : "총자산"/
   );
-  assert.match(controller, /function loadProfileAsset\(force\)/);
-  assert.match(controller, /Db\.getHoldemAssetRankingDetail\(currentAuth, nick\)/);
+  assert.ok(loaderStart >= 0);
+  assert.ok(loaderEnd > loaderStart);
+  assert.match(loaderSource, /Db\.getHoldemProfileAsset\(currentAuth, nick\)/);
+  assert.doesNotMatch(loaderSource, /getHoldemAssetRankingDetail/);
   assert.match(controller, /if \(!seat\.isBot\) return null/);
 });

@@ -91,6 +91,7 @@ const CORS = {
 
 const ACTIONS = new Set([
   "wallet",
+  "profile_asset",
   "ranking",
   "ranking_detail",
   "join",
@@ -487,6 +488,66 @@ function tableHoldingsByNickname(rows: unknown[]) {
     }
   }
   return holdings;
+}
+
+async function profileAsset(
+  client: ReturnType<typeof createClient>,
+  targetNick: string,
+) {
+  targetNick = safeText(targetNick, 40);
+  if (!targetNick) return null;
+
+  const [{
+    data: accountRow,
+    error: accountError,
+  }, {
+    data: walletRow,
+    error: walletError,
+  }, {
+    data: tableRows,
+    error: tableError,
+  }] = await Promise.all([
+    client
+      .from("accounts")
+      .select("nickname")
+      .eq("nickname", targetNick)
+      .maybeSingle(),
+    client
+      .from("holdem_wallets")
+      .select("balance")
+      .eq("nickname", targetNick)
+      .maybeSingle(),
+    client
+      .from("holdem_tables")
+      .select("state")
+      .limit(500),
+  ]);
+  if (accountError || walletError || tableError) {
+    throw new Error("profile_asset_lookup");
+  }
+  if (!accountRow) return null;
+
+  const balance = walletRow == null
+    ? INITIAL_WALLET_BALANCE
+    : Number(walletRow.balance);
+  if (
+    !Number.isSafeInteger(balance) ||
+    balance < 0 ||
+    balance % CHIP_UNIT !== 0
+  ) {
+    throw new Error("profile_asset_lookup");
+  }
+  const holdings = tableHoldingsByNickname(
+    Array.isArray(tableRows) ? tableRows : [],
+  );
+  const totalAssets = balance + (holdings.get(targetNick) ?? 0);
+  if (!Number.isSafeInteger(totalAssets) || totalAssets < 0) {
+    throw new Error("profile_asset_lookup");
+  }
+  return {
+    nickname: targetNick,
+    totalAssets,
+  };
 }
 
 async function assetRankingRows(client: ReturnType<typeof createClient>) {
@@ -1219,9 +1280,11 @@ Deno.serve(async (request) => {
     return jsonResponse({ ok: false, reason: "action" }, 400);
   }
   const walletAction = action === "wallet";
+  const profileAssetAction = action === "profile_asset";
   const rankingAction = action === "ranking";
   const rankingDetailAction = action === "ranking_detail";
-  const roomlessAction = walletAction || rankingAction || rankingDetailAction;
+  const roomlessAction = walletAction || profileAssetAction ||
+    rankingAction || rankingDetailAction;
   const roomId = roomlessAction ? "" : safeText(body.roomId, 81);
   const requestId = roomlessAction ? "" : safeText(body.requestId, 101);
   if (!roomlessAction) {
@@ -1270,6 +1333,16 @@ Deno.serve(async (request) => {
       return jsonResponse({
         ok: true,
         wallet: await walletProfile(client, account.nick),
+      });
+    }
+    if (profileAssetAction) {
+      await cleanupExpiredTables(client);
+      return jsonResponse({
+        ok: true,
+        asset: await profileAsset(
+          client,
+          safeText(body.targetNick, 40),
+        ),
       });
     }
     if (rankingAction) {

@@ -4112,7 +4112,7 @@ window.TexasHoldem = (function () {
       renderProfileWallet();
       return Promise.resolve(profileAsset);
     }
-    if (!window.Db || typeof Db.getHoldemAssetRankingDetail !== "function" ||
+    if (!window.Db || typeof Db.getHoldemProfileAsset !== "function" ||
         !currentAuth.hash || !text(currentAuth.nick || me().nick, 40) || !nick) {
       profileAssetPending = false;
       profileAsset = null;
@@ -4125,14 +4125,14 @@ window.TexasHoldem = (function () {
     profileAsset = null;
     profileAssetNick = nick;
     renderProfileWallet();
-    return Promise.resolve(Db.getHoldemAssetRankingDetail(currentAuth, nick)).then(function (result) {
+    return Promise.resolve(Db.getHoldemProfileAsset(currentAuth, nick)).then(function (result) {
       if (seq !== profileAssetRequestSeq) return null;
-      var detail = result && result.ok && result.detail && typeof result.detail === "object"
-        ? result.detail
+      var asset = result && result.ok && result.asset && typeof result.asset === "object"
+        ? result.asset
         : null;
       profileAssetPending = false;
-      profileAsset = detail && Number.isFinite(Number(detail.totalAssets))
-        ? { totalAssets: Math.max(0, Math.floor(Number(detail.totalAssets))) }
+      profileAsset = asset && Number.isFinite(Number(asset.totalAssets))
+        ? { totalAssets: Math.max(0, Math.floor(Number(asset.totalAssets))) }
         : null;
       profileAssetNick = profileAsset ? nick : "";
       renderProfileWallet();
@@ -6598,6 +6598,8 @@ window.TexasHoldem = (function () {
       relativeSeat: relativeSeat,
       requestId: requestId,
       joinTable: joinTable,
+      openProfileDialog: openProfileDialog,
+      loadProfileAsset: loadProfileAsset,
       openBuyInDialog: openBuyInDialog,
       canOpenProfileRebuyForSeat: canOpenProfileRebuyForSeat,
       openProfileRebuyIfNeeded: openProfileRebuyIfNeeded,
@@ -6633,6 +6635,13 @@ window.TexasHoldem = (function () {
           mode: buyInMode,
           seat: buyInSeat,
           pending: buyInWalletPending
+        };
+      },
+      getProfileAssetState: function () {
+        return {
+          pending: profileAssetPending,
+          nick: profileAssetNick,
+          totalAssets: profileAsset ? profileAsset.totalAssets : null
         };
       },
       getLifecycleGeneration: function () { return lifecycleGeneration; },

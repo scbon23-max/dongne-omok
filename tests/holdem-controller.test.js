@@ -2302,6 +2302,41 @@ test("ring rebuys use a separate wallet-backed server command", async () => {
   controller.leave();
 });
 
+test("another player's profile loads total assets without ranking eligibility", async () => {
+  const calls = [];
+  const db = {
+    getHoldemProfileAsset(auth, targetNick) {
+      calls.push({ auth, targetNick });
+      return Promise.resolve({
+        ok: true,
+        asset: { nickname: targetNick, totalAssets: 137500 },
+      });
+    },
+    getHoldemAssetRankingDetail() {
+      throw new Error("profile assets must not depend on ranking details");
+    },
+  };
+  const controller = loadController("alice", { db });
+  const state = controller._test.emptyState();
+  state.heroSeat = 0;
+  state.seats[0] = { seat: 0, nick: "alice", stack: 30000 };
+  state.seats[1] = { seat: 1, nick: "bob", stack: 25000 };
+  controller._test.setState(state);
+  controller._test.setActive(true);
+
+  controller._test.openProfileDialog(1);
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].targetNick, "bob");
+  assert.equal(calls[0].auth.nick, "alice");
+  assert.equal(controller._test.getProfileAssetState().pending, false);
+  assert.equal(controller._test.getProfileAssetState().nick, "bob");
+  assert.equal(controller._test.getProfileAssetState().totalAssets, 137500);
+  controller.leave();
+});
+
 test("clicking your ring profile below the room max opens the rebuy picker", async () => {
   const calls = [];
   const db = {
