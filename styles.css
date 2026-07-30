@@ -4826,7 +4826,11 @@ body.is-admin .feedback-user-compose { display: none; }
   --holdem-card-width: clamp(38px, 10vw, 52px);
   --holdem-card-radius: 3px;
   --holdem-card-shadow: 0 1px 4px rgba(0,0,0,.24);
+  border-color: transparent;
   transform-origin: 50% 50%;
+}
+.holdem-board .holdem-card.back {
+  box-shadow: none;
 }
 .holdem-board .holdem-card.is-hero-made-hand-card,
 .holdem-seat.is-me .holdem-hole-cards .holdem-card.is-hero-made-hand-card {
@@ -4885,7 +4889,7 @@ body.is-admin .feedback-user-compose { display: none; }
   inset: 0;
   border-radius: inherit;
   background: var(--holdem-card-back-image, url("assets/holdem/card-back-lucky-clover.png")) center / 100% 100% no-repeat;
-  box-shadow: 0 3px 8px rgba(0,0,0,.35);
+  box-shadow: none;
   animation: holdemCommunityCardBackFlip 620ms cubic-bezier(.2, .72, .18, 1) both;
   animation-delay: var(--holdem-community-flip-delay, 0ms);
   pointer-events: none;
