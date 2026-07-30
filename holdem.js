@@ -3048,9 +3048,8 @@ window.TexasHoldem = (function () {
     }
     if (isHandActive(state.phase)) return !!hero.folded;
     return state.phase === "complete" &&
-      !hero.folded &&
-      state.winners.indexOf(hero.nick) >= 0 &&
-      !showdownRowForSeat(hero.seat);
+      !showdownRowForSeat(hero.seat) &&
+      (hero.folded || state.winners.indexOf(hero.nick) >= 0);
   }
 
   function effectiveFoldRevealCards() {
@@ -3121,8 +3120,8 @@ window.TexasHoldem = (function () {
       hero &&
       hero.inHand &&
       (hero.folded || (state.phase === "complete" &&
-        state.winners.indexOf(hero.nick) >= 0 &&
-        !showdownRowForSeat(hero.seat))) &&
+        state.winners.indexOf(hero.nick) >= 0)) &&
+      (isHandActive(state.phase) || !showdownRowForSeat(hero.seat)) &&
       !hero.isBot &&
       Array.isArray(state.heroCards) &&
       state.heroCards.length >= 2);

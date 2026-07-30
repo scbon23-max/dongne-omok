@@ -909,6 +909,50 @@ test("a human fold winner can choose to reveal after the hand", () => {
   }
 });
 
+test("a folded player can choose to reveal after the hand ends", () => {
+  const dom = resultTestDocument();
+  const calls = [];
+  const controller = loadController("alice", {
+    document: dom.document,
+    db: {
+      holdemInvoke(_auth, action, payload) {
+        calls.push({ action, payload });
+        return Promise.resolve({ ok: true, version: 8, snapshot });
+      },
+    },
+  });
+  const snapshot = {
+    version: 7,
+    phase: "hand_end",
+    handId: "fold-finish",
+    mode: "ring",
+    seats: [
+      { seat: 0, nick: "alice", stack: 9400, inHand: true, folded: true, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 10600, inHand: true, folded: false, cardCount: 2 },
+    ],
+    pots: [{ amount: 1200, winners: [1] }],
+    winners: ["bob"],
+    showdown: [],
+    viewer: { seat: 0, cards: ["As", "7d"], revealCards: [] },
+    legalActions: {},
+  };
+
+  try {
+    controller._test.setActive(true);
+    controller._test.setHasSnapshot(true);
+    controller._test.setState(controller._test.normalizeSnapshot(snapshot, 7));
+    controller._test.renderControls();
+
+    assert.equal(dom.elements["holdem-fold-reveal-panel"].classList.contains("hidden"), false);
+    controller._test.reserveFoldReveal([0]);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].action, "reveal_cards");
+    assert.deepEqual(Array.from(calls[0].payload.cards), [0]);
+  } finally {
+    controller.leave();
+  }
+});
+
 test("completed snapshots recover winners from pot seats and authoritative payouts", () => {
   const controller = loadController();
   const base = {
