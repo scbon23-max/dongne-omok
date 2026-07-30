@@ -222,6 +222,7 @@ window.TexasHoldem = (function () {
   var lastBoardHtml = "";
   var lastSeatsHtml = "";
   var lastSeatResultStage = "none";
+  var lastSeatComboBoardCount = -1;
   var heroRevealThrowKey = "";
   var heroRevealThrowPlayedKey = "";
   var heroRevealThrowIndexes = [];
@@ -3722,32 +3723,47 @@ window.TexasHoldem = (function () {
     return relevant;
   }
 
-  function heroCurrentHand() {
-    if (!isHandActive(state.phase)) return null;
-    if (!Array.isArray(state.heroCards) || state.heroCards.length < 2) return null;
-    if (!Array.isArray(state.board) || state.board.length < 3) return null;
+  function evaluateDisplayHand(holeCards, boardCards) {
+    if (!Array.isArray(holeCards) || holeCards.length < 2) return null;
+    if (!Array.isArray(boardCards) || boardCards.length < 3) return null;
     var engine = window.HoldemEngine;
     if (!engine || typeof engine.evaluateSeven !== "function") return null;
-    var cards = state.heroCards.concat(state.board).map(engineCardCode).filter(Boolean);
+    var cards = boardCards.concat(holeCards).map(engineCardCode).filter(Boolean);
     if (cards.length < 5) return null;
     try {
-      var evaluation = engine.evaluateSeven(cards);
-      if (!evaluation || !evaluation.name) return null;
-      var bestCards = relevantBestCardCodes(evaluation);
-      var holeCards = Object.create(null);
-      var communityCards = Object.create(null);
-      state.heroCards.forEach(function (card, index) {
-        var code = engineCardCode(card);
-        if (code && bestCards[code]) holeCards[index] = true;
-      });
-      state.board.forEach(function (card, index) {
-        var code = engineCardCode(card);
-        if (code && bestCards[code]) communityCards[index] = true;
-      });
-      return { name: evaluation.name, holeCards: holeCards, communityCards: communityCards };
+      return engine.evaluateSeven(cards);
     } catch (error) {
       return null;
     }
+  }
+
+  function visibleHeroComboBoard() {
+    if (isHandActive(state.phase)) return state.board;
+    if (state.phase === "complete" && resultStage() === "cards") {
+      return state.board.slice(0, resultBoardVisibleCount());
+    }
+    return null;
+  }
+
+  function heroCurrentHand() {
+    if (!Array.isArray(state.heroCards) || state.heroCards.length < 2) return null;
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    if (hero && hero.folded) return null;
+    var boardCards = visibleHeroComboBoard();
+    var evaluation = evaluateDisplayHand(state.heroCards, boardCards);
+    if (!evaluation || !evaluation.name) return null;
+    var bestCards = relevantBestCardCodes(evaluation);
+    var holeCards = Object.create(null);
+    var communityCards = Object.create(null);
+    state.heroCards.forEach(function (card, index) {
+      var code = engineCardCode(card);
+      if (code && bestCards[code]) holeCards[index] = true;
+    });
+    boardCards.forEach(function (card, index) {
+      var code = engineCardCode(card);
+      if (code && bestCards[code]) communityCards[index] = true;
+    });
+    return { name: evaluation.name, holeCards: holeCards, communityCards: communityCards };
   }
 
   function resultWinnerEvaluationForSeat(seatIndex) {
@@ -3762,36 +3778,25 @@ window.TexasHoldem = (function () {
       ? state.heroCards
       : state.revealedCards[seatIndex];
     if (!Array.isArray(holeCards) || holeCards.length < 2) return null;
-    var engine = window.HoldemEngine;
-    if (!engine || typeof engine.evaluateSeven !== "function") return null;
-    var cards = holeCards.concat(state.board).map(engineCardCode).filter(Boolean);
-    if (cards.length < 5) return null;
-    try {
-      var evaluation = engine.evaluateSeven(cards);
-      if (!evaluation || !evaluation.name) return null;
-      return {
-        evaluation: evaluation,
-        holeCards: holeCards,
-        bestCards: relevantBestCardCodes(evaluation)
-      };
-    } catch (error) {
-      return null;
-    }
+    var evaluation = evaluateDisplayHand(holeCards, state.board);
+    if (!evaluation || !evaluation.name) return null;
+    return {
+      evaluation: evaluation,
+      holeCards: holeCards,
+      bestCards: relevantBestCardCodes(evaluation)
+    };
   }
 
   function resultWinningComboForSeat(seatIndex) {
     var winner = resultWinnerEvaluationForSeat(seatIndex);
     if (!winner) return null;
     var holeCards = Object.create(null);
-    var matched = 0;
     winner.holeCards.forEach(function (card, index) {
       var code = engineCardCode(card);
       if (code && winner.bestCards[code]) {
         holeCards[index] = true;
-        matched += 1;
       }
     });
-    if (!matched) return null;
     return {
       name: winner.evaluation.name,
       holeCards: holeCards
@@ -3801,19 +3806,19 @@ window.TexasHoldem = (function () {
   function resultWinningBoardCombo() {
     if (state.phase !== "complete" || resultStage() !== "announced") return null;
     var communityCards = Object.create(null);
-    var matched = 0;
+    var evaluatedWinnerCount = 0;
     for (var seatIndex = 0; seatIndex < MAX_SEATS; seatIndex++) {
       var winner = resultWinnerEvaluationForSeat(seatIndex);
       if (!winner) continue;
+      evaluatedWinnerCount += 1;
       state.board.forEach(function (card, index) {
         var code = engineCardCode(card);
         if (code && winner.bestCards[code]) {
           communityCards[index] = true;
-          matched += 1;
         }
       });
     }
-    return matched ? {
+    return evaluatedWinnerCount ? {
       name: "승리 조합",
       communityCards: communityCards,
       dimCommunityCards: true,
@@ -4880,6 +4885,7 @@ window.TexasHoldem = (function () {
       lastSeatsHtml = nextHtml;
     }
     lastSeatResultStage = stage;
+    lastSeatComboBoardCount = stage === "cards" ? resultBoardVisibleCount() : -1;
     suppressActionTagAnimations = false;
   }
 
@@ -5487,10 +5493,13 @@ window.TexasHoldem = (function () {
   function renderSettlementAnimation() {
     if (state.phase !== "complete") return;
     var stage = resultStage();
+    var comboBoardCount = stage === "cards" ? resultBoardVisibleCount() : -1;
     syncResultClasses(stage);
     var revealThrowStarted = maybeStartHeroRevealThrow(stage);
     if (revealThrowStarted) lastSeatsHtml = "";
-    if (stage !== lastSeatResultStage || revealThrowStarted) renderSeats();
+    if (stage !== lastSeatResultStage ||
+        comboBoardCount !== lastSeatComboBoardCount ||
+        revealThrowStarted) renderSeats();
     renderBoard();
     setText("holdem-pot-amount", formatChips(animatedPotAmount()));
     setText("holdem-result-pot", formatChips(animatedPotAmount()));
@@ -6128,6 +6137,7 @@ window.TexasHoldem = (function () {
     lastBoardHtml = "";
     lastSeatsHtml = "";
     lastSeatResultStage = "none";
+    lastSeatComboBoardCount = -1;
   }
 
   function enter(nextApi) {
@@ -6169,6 +6179,7 @@ window.TexasHoldem = (function () {
     suppressActionTagAnimations = false;
     lastBoardHtml = "";
     lastSeatsHtml = "";
+    lastSeatComboBoardCount = -1;
     communityRevealControlBlocked = false;
     leaveAfterHandRequested = false;
     spectateAfterHandRequested = false;

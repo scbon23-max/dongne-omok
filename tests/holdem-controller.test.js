@@ -125,6 +125,26 @@ function resultTestDocument() {
   };
 }
 
+function renderedFaceCards(html) {
+  const cards = [];
+  const pattern = /<span class="holdem-card ([^"]*)" data-suit="([cdhs])" data-rank="([^"]+)"/g;
+  let match;
+  while ((match = pattern.exec(String(html || "")))) {
+    cards.push({
+      code: (match[3] === "10" ? "T" : match[3]) + match[2],
+      classes: new Set(match[1].trim().split(/\s+/).filter(Boolean)),
+    });
+  }
+  return cards;
+}
+
+function renderedCodesWithClass(html, className) {
+  return renderedFaceCards(html)
+    .filter((card) => card.classes.has(className))
+    .map((card) => card.code)
+    .sort();
+}
+
 function controlTestDocument() {
   const ids = [
     "holdemgame",
@@ -1508,6 +1528,277 @@ test("made hands highlight every hole and community card used by the combination
   assert.equal(currentHand.name, "원페어");
   assert.deepEqual(Object.keys(currentHand.holeCards), ["0"]);
   assert.deepEqual(Object.keys(currentHand.communityCards), ["0"]);
+});
+
+test("every hand category renders the exact highlighted hole and board cards", () => {
+  const cases = [
+    {
+      name: "high card",
+      hole: ["As", "2d"],
+      board: ["Kh", "9c", "7s", "4d", "3c"],
+      holeHighlight: ["As"],
+      boardHighlight: [],
+    },
+    {
+      name: "pair",
+      hole: ["As", "Kd"],
+      board: ["Ah", "7s", "4c", "3d", "2c"],
+      holeHighlight: ["As"],
+      boardHighlight: ["Ah"],
+    },
+    {
+      name: "two pair",
+      hole: ["As", "Kd"],
+      board: ["Ah", "Ks", "4c", "3d", "2c"],
+      holeHighlight: ["As", "Kd"],
+      boardHighlight: ["Ah", "Ks"],
+    },
+    {
+      name: "trips",
+      hole: ["As", "Kd"],
+      board: ["Ah", "Ac", "7s", "4c", "2d"],
+      holeHighlight: ["As"],
+      boardHighlight: ["Ah", "Ac"],
+    },
+    {
+      name: "straight",
+      hole: ["9s", "2d"],
+      board: ["8h", "7c", "6s", "5d", "Kc"],
+      holeHighlight: ["9s"],
+      boardHighlight: ["8h", "7c", "6s", "5d"],
+    },
+    {
+      name: "flush",
+      hole: ["As", "9s"],
+      board: ["Ks", "7s", "4s", "Qd", "2c"],
+      holeHighlight: ["As", "9s"],
+      boardHighlight: ["Ks", "7s", "4s"],
+    },
+    {
+      name: "full house",
+      hole: ["As", "Kd"],
+      board: ["Ah", "Ac", "Ks", "4c", "2d"],
+      holeHighlight: ["As", "Kd"],
+      boardHighlight: ["Ah", "Ac", "Ks"],
+    },
+    {
+      name: "quads",
+      hole: ["As", "Kd"],
+      board: ["Ah", "Ac", "Ad", "7s", "4c"],
+      holeHighlight: ["As"],
+      boardHighlight: ["Ah", "Ac", "Ad"],
+    },
+    {
+      name: "straight flush",
+      hole: ["9s", "2d"],
+      board: ["8s", "7s", "6s", "5s", "Kc"],
+      holeHighlight: ["9s"],
+      boardHighlight: ["8s", "7s", "6s", "5s"],
+    },
+    {
+      name: "wheel",
+      hole: ["As", "Kd"],
+      board: ["2h", "3c", "4s", "5d", "9c"],
+      holeHighlight: ["As"],
+      boardHighlight: ["2h", "3c", "4s", "5d"],
+    },
+    {
+      name: "six-card flush",
+      hole: ["As", "3s"],
+      board: ["Ks", "Qs", "Js", "9s", "2d"],
+      holeHighlight: ["As"],
+      boardHighlight: ["Ks", "Qs", "Js", "9s"],
+    },
+    {
+      name: "equal straight prefers the complete board",
+      hole: ["9s", "2d"],
+      board: ["9h", "8c", "7s", "6d", "5c"],
+      holeHighlight: [],
+      boardHighlight: ["9h", "8c", "7s", "6d", "5c"],
+    },
+  ];
+
+  cases.forEach((entry, index) => {
+    const dom = resultTestDocument();
+    const controller = loadController("alice", { document: dom.document });
+    const state = controller._test.normalizeSnapshot({
+      phase: "river",
+      version: index + 1,
+      handId: `combo-${index}`,
+      ownerNick: "alice",
+      seats: [
+        { seat: 0, nick: "alice", stack: 10000, inHand: true, cardCount: 2 },
+      ],
+      viewer: { seat: 0, cards: entry.hole },
+      board: entry.board,
+    }, index + 1);
+    controller._test.setState(state);
+    controller._test.renderSeats();
+    controller._test.renderBoard();
+
+    assert.deepEqual(
+      renderedCodesWithClass(dom.elements["holdem-seats"].innerHTML, "is-hero-made-hand-card"),
+      entry.holeHighlight.slice().sort(),
+      `${entry.name} hole highlight`
+    );
+    assert.deepEqual(
+      renderedCodesWithClass(dom.elements["holdem-board"].innerHTML, "is-hero-made-hand-card"),
+      entry.boardHighlight.slice().sort(),
+      `${entry.name} board highlight`
+    );
+  });
+});
+
+test("result highlighting dims the unused side when the best cards are only in hole or board", () => {
+  const cases = [
+    {
+      name: "hole-only high card",
+      hole: ["As", "Kd"],
+      board: ["9h", "7c", "4s", "3d", "2c"],
+      winningHole: ["As"],
+      mutedHole: ["Kd"],
+      winningBoard: [],
+      mutedBoard: ["9h", "7c", "4s", "3d", "2c"],
+    },
+    {
+      name: "board-only straight",
+      hole: ["As", "Kd"],
+      board: ["9h", "8c", "7s", "6d", "5c"],
+      winningHole: [],
+      mutedHole: ["As", "Kd"],
+      winningBoard: ["9h", "8c", "7s", "6d", "5c"],
+      mutedBoard: [],
+    },
+  ];
+
+  cases.forEach((entry, index) => {
+    const dom = resultTestDocument();
+    const controller = loadController("alice", { document: dom.document });
+    const state = controller._test.normalizeSnapshot({
+      phase: "hand_end",
+      version: 40 + index,
+      handId: `result-combo-${index}`,
+      handNo: index + 1,
+      ownerNick: "alice",
+      seats: [
+        {
+          seat: 0,
+          nick: "alice",
+          stack: 11000,
+          inHand: true,
+          cardCount: 2,
+          winner: true,
+          winAmount: 1000,
+        },
+      ],
+      viewer: { seat: 0, cards: entry.hole },
+      board: entry.board,
+      pot: 1000,
+      pots: [{ amount: 1000, winners: [0] }],
+      winners: ["alice"],
+      showdown: [{ seat: 0, nick: "alice", cards: entry.hole, winner: true }],
+    }, 40 + index);
+    controller._test.setState(state);
+    controller._test.renderSeats();
+    controller._test.renderBoard();
+
+    assert.match(dom.elements["holdem-seats"].innerHTML, /is-winning-combo-review/, entry.name);
+    assert.deepEqual(
+      renderedCodesWithClass(dom.elements["holdem-seats"].innerHTML, "is-winning-combo-card"),
+      entry.winningHole.slice().sort(),
+      `${entry.name} winning hole cards`
+    );
+    assert.deepEqual(
+      renderedCodesWithClass(dom.elements["holdem-seats"].innerHTML, "is-winning-combo-muted"),
+      entry.mutedHole.slice().sort(),
+      `${entry.name} muted hole cards`
+    );
+    assert.deepEqual(
+      renderedCodesWithClass(dom.elements["holdem-board"].innerHTML, "is-winning-combo-card"),
+      entry.winningBoard.slice().sort(),
+      `${entry.name} winning board cards`
+    );
+    assert.deepEqual(
+      renderedCodesWithClass(dom.elements["holdem-board"].innerHTML, "is-winning-combo-muted"),
+      entry.mutedBoard.slice().sort(),
+      `${entry.name} muted board cards`
+    );
+  });
+});
+
+test("all-in runout highlights only the community cards visible at each street", () => {
+  const originalNow = Date.now;
+  let now = 2_000_000_000_000;
+  Date.now = () => now;
+  const dom = resultTestDocument();
+  const controller = loadController("alice", { document: dom.document });
+  const active = controller._test.normalizeSnapshot({
+    phase: "preflop",
+    version: 60,
+    handId: "runout-combo",
+    handNo: 1,
+    ownerNick: "alice",
+    seats: [
+      { seat: 0, nick: "alice", stack: 0, inHand: true, allIn: true, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 0, inHand: true, allIn: true, cardCount: 2 },
+    ],
+    viewer: { seat: 0, cards: ["As", "Kd"] },
+    board: [],
+  }, 60);
+  const completed = {
+    phase: "hand_end",
+    version: 61,
+    handId: "runout-combo",
+    handNo: 1,
+    ownerNick: "alice",
+    seats: [
+      { seat: 0, nick: "alice", stack: 20000, inHand: true, winner: true, winAmount: 20000, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 0, inHand: true, cardCount: 2 },
+    ],
+    viewer: { seat: 0, cards: ["As", "Kd"] },
+    board: ["Ah", "7s", "4c", "Ad", "Kc"],
+    pot: 20000,
+    pots: [{ amount: 20000, winners: [0] }],
+    winners: ["alice"],
+    showdown: [
+      { seat: 0, nick: "alice", cards: ["As", "Kd"], winner: true },
+      { seat: 1, nick: "bob", cards: ["Qs", "Qd"] },
+    ],
+  };
+
+  function assertRunout(expectedHole, expectedBoard, visibleCount, label) {
+    assert.equal(controller._test.resultStage(), "cards", `${label} result stage`);
+    assert.equal(controller._test.resultBoardVisibleCount(), visibleCount, `${label} visible count`);
+    assert.deepEqual(
+      renderedCodesWithClass(dom.elements["holdem-seats"].innerHTML, "is-hero-made-hand-card"),
+      expectedHole.slice().sort(),
+      `${label} hole highlight`
+    );
+    assert.deepEqual(
+      renderedCodesWithClass(dom.elements["holdem-board"].innerHTML, "is-hero-made-hand-card"),
+      expectedBoard.slice().sort(),
+      `${label} board highlight`
+    );
+    assert.equal(renderedFaceCards(dom.elements["holdem-board"].innerHTML).length, visibleCount);
+  }
+
+  try {
+    controller._test.setState(active);
+    controller._test.setHasSnapshot(true);
+    assert.equal(controller._test.applySnapshot(completed, 61), true);
+    assertRunout(["As"], ["Ah"], 3, "flop");
+
+    now += controller._test.constants.resultBoardRevealStepMs;
+    controller._test.renderSettlementAnimation();
+    assertRunout(["As"], ["Ah", "Ad"], 4, "turn");
+
+    now += controller._test.constants.resultBoardRevealStepMs;
+    controller._test.renderSettlementAnimation();
+    assertRunout(["As", "Kd"], ["Ah", "Ad", "Kc"], 5, "river");
+  } finally {
+    controller.leave();
+    Date.now = originalNow;
+  }
 });
 
 test("ring refill status survives controller normalization", () => {
