@@ -1350,6 +1350,7 @@ test("an all-in result finishes every reveal before opening the rebuy dialog", a
       controller._test.constants.resultBoardRevealStepMs * 2 +
       (controller._test.constants.communityRiverFlipMs -
         controller._test.constants.resultBoardRevealStepMs) +
+      controller._test.constants.resultCardHighlightHoldMs +
       controller._test.constants.resultSettleMs +
       controller._test.constants.resultReviewMs;
 
@@ -1576,6 +1577,9 @@ test("made hands highlight every hole and community card used by the combination
 });
 
 test("every hand category renders the exact highlighted hole and board cards", () => {
+  const originalNow = Date.now;
+  let now = 2_100_000_000_000;
+  Date.now = () => now;
   const cases = [
     {
       name: "high card",
@@ -1663,35 +1667,54 @@ test("every hand category renders the exact highlighted hole and board cards", (
     },
   ];
 
-  cases.forEach((entry, index) => {
-    const dom = resultTestDocument();
-    const controller = loadController("alice", { document: dom.document });
-    const state = controller._test.normalizeSnapshot({
-      phase: "river",
-      version: index + 1,
-      handId: `combo-${index}`,
-      ownerNick: "alice",
-      seats: [
-        { seat: 0, nick: "alice", stack: 10000, inHand: true, cardCount: 2 },
-      ],
-      viewer: { seat: 0, cards: entry.hole },
-      board: entry.board,
-    }, index + 1);
-    controller._test.setState(state);
-    controller._test.renderSeats();
-    controller._test.renderBoard();
+  try {
+    cases.forEach((entry, index) => {
+      const dom = resultTestDocument();
+      const controller = loadController("alice", { document: dom.document });
+      const state = controller._test.normalizeSnapshot({
+        phase: "river",
+        version: index + 1,
+        handId: `combo-${index}`,
+        ownerNick: "alice",
+        seats: [
+          { seat: 0, nick: "alice", stack: 10000, inHand: true, cardCount: 2 },
+        ],
+        viewer: { seat: 0, cards: entry.hole },
+        board: entry.board,
+      }, index + 1);
+      controller._test.setState(state);
+      controller._test.renderSeats();
+      controller._test.renderBoard();
 
-    assert.deepEqual(
-      renderedCodesWithClass(dom.elements["holdem-seats"].innerHTML, "is-hero-made-hand-card"),
-      entry.holeHighlight.slice().sort(),
-      `${entry.name} hole highlight`
-    );
-    assert.deepEqual(
-      renderedCodesWithClass(dom.elements["holdem-board"].innerHTML, "is-hero-made-hand-card"),
-      entry.boardHighlight.slice().sort(),
-      `${entry.name} board highlight`
-    );
-  });
+      assert.deepEqual(
+        renderedCodesWithClass(dom.elements["holdem-seats"].innerHTML, "is-hero-made-hand-card"),
+        [],
+        `${entry.name} hole highlight waits for card opening`
+      );
+      assert.deepEqual(
+        renderedCodesWithClass(dom.elements["holdem-board"].innerHTML, "is-hero-made-hand-card"),
+        [],
+        `${entry.name} board highlight waits for card opening`
+      );
+
+      now += controller._test.constants.communityRiverFlipMs + 600;
+      controller._test.renderSeats();
+      controller._test.renderBoard();
+
+      assert.deepEqual(
+        renderedCodesWithClass(dom.elements["holdem-seats"].innerHTML, "is-hero-made-hand-card"),
+        entry.holeHighlight.slice().sort(),
+        `${entry.name} hole highlight`
+      );
+      assert.deepEqual(
+        renderedCodesWithClass(dom.elements["holdem-board"].innerHTML, "is-hero-made-hand-card"),
+        entry.boardHighlight.slice().sort(),
+        `${entry.name} board highlight`
+      );
+    });
+  } finally {
+    Date.now = originalNow;
+  }
 });
 
 test("result highlighting dims the unused side when the best cards are only in hole or board", () => {
@@ -1771,7 +1794,7 @@ test("result highlighting dims the unused side when the best cards are only in h
   });
 });
 
-test("all-in runout highlights only the community cards visible at each street", () => {
+test("all-in runout waits for each community card to open before highlighting", () => {
   const originalNow = Date.now;
   let now = 2_000_000_000_000;
   Date.now = () => now;
@@ -1811,6 +1834,22 @@ test("all-in runout highlights only the community cards visible at each street",
     ],
   };
 
+  function assertNoRunoutHighlight(visibleCount, label) {
+    assert.equal(controller._test.resultStage(), "cards", `${label} result stage`);
+    assert.equal(controller._test.resultBoardVisibleCount(), visibleCount, `${label} visible count`);
+    assert.deepEqual(
+      renderedCodesWithClass(dom.elements["holdem-seats"].innerHTML, "is-hero-made-hand-card"),
+      [],
+      `${label} hole highlight waits`
+    );
+    assert.deepEqual(
+      renderedCodesWithClass(dom.elements["holdem-board"].innerHTML, "is-hero-made-hand-card"),
+      [],
+      `${label} board highlight waits`
+    );
+    assert.equal(renderedFaceCards(dom.elements["holdem-board"].innerHTML).length, visibleCount);
+  }
+
   function assertRunout(expectedHole, expectedBoard, visibleCount, label) {
     assert.equal(controller._test.resultStage(), "cards", `${label} result stage`);
     assert.equal(controller._test.resultBoardVisibleCount(), visibleCount, `${label} visible count`);
@@ -1831,13 +1870,29 @@ test("all-in runout highlights only the community cards visible at each street",
     controller._test.setState(active);
     controller._test.setHasSnapshot(true);
     assert.equal(controller._test.applySnapshot(completed, 61), true);
+    controller._test.renderSettlementAnimation();
+    assertNoRunoutHighlight(3, "flop opening");
+
+    now += controller._test.constants.communityCardFlipMs +
+      (controller._test.constants.communityCardFlipStaggerMs * 2) + 1;
+    controller._test.renderSettlementAnimation();
     assertRunout(["As"], ["Ah"], 3, "flop");
 
-    now += controller._test.constants.resultBoardRevealStepMs;
+    now += controller._test.constants.resultBoardRevealStepMs -
+      controller._test.constants.communityCardFlipMs -
+      (controller._test.constants.communityCardFlipStaggerMs * 2) - 1;
+    controller._test.renderSettlementAnimation();
+    assertNoRunoutHighlight(4, "turn opening");
+
+    now += controller._test.constants.communityCardFlipMs + 1;
     controller._test.renderSettlementAnimation();
     assertRunout(["As"], ["Ah", "Ad"], 4, "turn");
 
-    now += controller._test.constants.resultBoardRevealStepMs;
+    now += controller._test.constants.resultBoardRevealStepMs - controller._test.constants.communityCardFlipMs - 1;
+    controller._test.renderSettlementAnimation();
+    assertNoRunoutHighlight(5, "river opening");
+
+    now += controller._test.constants.communityRiverFlipMs + 1;
     controller._test.renderSettlementAnimation();
     assertRunout(["As", "Kd"], ["Ah", "Ad", "Kc"], 5, "river");
   } finally {

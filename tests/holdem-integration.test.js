@@ -689,7 +689,10 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(styles, /\.holdem-result-panel\s*\{[\s\S]*display: none !important/);
   assert.match(controller, /function resultWinningComboForSeat\(seatIndex\)[\s\S]*resultWinnerEvaluationForSeat\(seatIndex\)[\s\S]*winnerCombo\.holeCards\[cardIndex\] \? "is-winning-combo-card" : "is-winning-combo-muted"/);
   assert.match(controller, /function resultWinningBoardCombo\(\)[\s\S]*dimCommunityCards:\s*true[\s\S]*resultCombo:\s*true/);
-  assert.match(controller, /var currentHand = resultWinningBoardCombo\(\) \|\| heroCurrentHand\(\)/);
+  assert.match(controller, /function communityHighlightsReady\(now\)[\s\S]*boardRevealState\.cards\[index\] !== key[\s\S]*communityCardRevealDuration\(index\)/);
+  assert.match(controller, /var currentHand = communityHighlightsReady\(now\) \? \(resultWinningBoardCombo\(\) \|\| heroCurrentHand\(\)\) : null/);
+  assert.match(controller, /var currentHand = isMe && canShowCommunityHighlights \? heroCurrentHand\(\) : null/);
+  assert.match(controller, /RESULT_CARD_HIGHLIGHT_HOLD_MS/);
   assert.match(controller, /function visibleHeroComboBoard\(\)[\s\S]*resultStage\(\) === "cards"[\s\S]*state\.board\.slice\(0, resultBoardVisibleCount\(\)\)/);
   assert.match(controller, /var evaluatedWinnerCount = 0[\s\S]*evaluatedWinnerCount \+= 1[\s\S]*return evaluatedWinnerCount \?/);
   assert.match(controller, /category === 4 \|\| category === 5 \|\| category === 8/);

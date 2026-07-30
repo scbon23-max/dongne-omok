@@ -57,6 +57,7 @@ window.TexasHoldem = (function () {
   var RESULT_FINAL_ACTION_MS = 2000;
   var RESULT_CARDS_FIRST_MS = 900;
   var RESULT_BOARD_REVEAL_STEP_MS = 900;
+  var RESULT_CARD_HIGHLIGHT_HOLD_MS = 220;
   var COMMUNITY_CARD_FLIP_MS = 620;
   var COMMUNITY_RIVER_FLIP_MS = 1800;
   var COMMUNITY_RIVER_OPEN_CUE_MS = 1400;
@@ -227,6 +228,7 @@ window.TexasHoldem = (function () {
   var lastSeatsHtml = "";
   var lastSeatResultStage = "none";
   var lastSeatComboBoardCount = -1;
+  var lastSeatCommunityHighlightsReady = true;
   var heroRevealThrowKey = "";
   var heroRevealThrowPlayedKey = "";
   var heroRevealThrowIndexes = [];
@@ -2057,8 +2059,9 @@ window.TexasHoldem = (function () {
     var riverRevealHoldMs = nextBoardCount === 5 && initialBoardCount < 5
       ? Math.max(0, COMMUNITY_RIVER_FLIP_MS - RESULT_BOARD_REVEAL_STEP_MS)
       : 0;
+    var highlightHoldMs = hiddenCommunityCards > 0 ? RESULT_CARD_HIGHLIGHT_HOLD_MS : 0;
     var cardsFirstMs = RESULT_CARDS_FIRST_MS +
-      (RESULT_BOARD_REVEAL_STEP_MS * hiddenCommunityCards) + riverRevealHoldMs;
+      (RESULT_BOARD_REVEAL_STEP_MS * hiddenCommunityCards) + riverRevealHoldMs + highlightHoldMs;
     var finalActionMs = previous && isHandActive(previous.phase) && hasSeatAction(next)
       ? RESULT_FINAL_ACTION_MS
       : 0;
@@ -2119,6 +2122,35 @@ window.TexasHoldem = (function () {
     var elapsed = Math.max(0, Date.now() - resultFlow.revealStart);
     var revealedAfterStart = Math.floor(elapsed / RESULT_BOARD_REVEAL_STEP_MS);
     return clamp(visible + revealedAfterStart, 0, count);
+  }
+
+  function communityCardRevealDuration(index) {
+    return index === 4 ? COMMUNITY_RIVER_FLIP_MS : COMMUNITY_CARD_FLIP_MS;
+  }
+
+  function visibleCommunityCountForHighlights() {
+    if (state.phase === "complete") return resultBoardVisibleCount();
+    return Array.isArray(state.board) ? clamp(state.board.length, 0, 5) : 0;
+  }
+
+  function communityRevealHidesHighlights() {
+    return isHandActive(state.phase) || (state.phase === "complete" && resultStage() === "cards");
+  }
+
+  function communityHighlightsReady(now) {
+    if (!Array.isArray(state.board) || !state.board.length) return true;
+    if (!communityRevealHidesHighlights()) return true;
+    var visibleCount = visibleCommunityCountForHighlights();
+    now = now || Date.now();
+    for (var index = 0; index < visibleCount; index++) {
+      var card = state.board[index];
+      var key = communityCardKey(card);
+      if (!key) continue;
+      if (boardRevealState.cards[index] !== key) return false;
+      var revealAt = boardRevealState.revealAt[index];
+      if (revealAt && now <= revealAt + communityCardRevealDuration(index)) return false;
+    }
+    return true;
   }
 
   function settleRatio() {
@@ -4860,6 +4892,7 @@ window.TexasHoldem = (function () {
     var winners = Object.create(null);
     state.winners.forEach(function (winner) { winners[winner] = true; });
     var stage = resultStage();
+    var canShowCommunityHighlights = communityHighlightsReady();
     var revealWinner = state.phase !== "complete" || stage === "announced";
     var html = [];
 
@@ -4921,7 +4954,7 @@ window.TexasHoldem = (function () {
 
       var holes = "";
       var holesClass = "holdem-hole-cards";
-      var currentHand = isMe ? heroCurrentHand() : null;
+      var currentHand = isMe && canShowCommunityHighlights ? heroCurrentHand() : null;
       var currentHandHtml = currentHand
         ? '<span class="holdem-hero-hand-badge">' + esc(currentHand.name) + '</span>'
         : "";
@@ -5002,6 +5035,7 @@ window.TexasHoldem = (function () {
     }
     lastSeatResultStage = stage;
     lastSeatComboBoardCount = stage === "cards" ? resultBoardVisibleCount() : -1;
+    lastSeatCommunityHighlightsReady = canShowCommunityHighlights;
     suppressActionTagAnimations = false;
   }
 
@@ -5027,10 +5061,13 @@ window.TexasHoldem = (function () {
       (isRiver ? " is-community-river-flipping" : "");
     var revealEnd = boardRevealState.revealAt[index] + revealDuration;
     if (now <= revealEnd) {
+      var visibleClasses = communityRevealHidesHighlights()
+        ? flipClass
+        : (flipClass + " " + highlightClass).trim();
       return cardHtml(
         card,
         null,
-        (flipClass + " " + highlightClass).trim(),
+        visibleClasses,
         ' style="--holdem-community-flip-delay: ' + boardRevealState.delayMs[index] + 'ms;"'
       );
     }
@@ -5054,7 +5091,7 @@ window.TexasHoldem = (function () {
     var visibleCount = resultBoardVisibleCount();
     var now = Date.now();
     var newRevealIndex = 0;
-    var currentHand = resultWinningBoardCombo() || heroCurrentHand();
+    var currentHand = communityHighlightsReady(now) ? (resultWinningBoardCombo() || heroCurrentHand()) : null;
     for (var i = 0; i < 5; i++) {
       var card = i < visibleCount ? state.board[i] : null;
       if (card && boardRevealState.cards[i] !== communityCardKey(card)) {
@@ -5547,6 +5584,11 @@ window.TexasHoldem = (function () {
     renderSeatTimers();
     renderSettlementAnimation();
     releaseResultTransitions();
+    var highlightsReady = communityHighlightsReady();
+    if (highlightsReady !== lastSeatCommunityHighlightsReady) {
+      renderSeats();
+      renderBoard();
+    }
     var revealBlockingActions = communityRevealBlocksActions();
     if (revealBlockingActions || communityRevealControlBlocked) {
       communityRevealControlBlocked = revealBlockingActions;
@@ -5610,11 +5652,13 @@ window.TexasHoldem = (function () {
     if (state.phase !== "complete") return;
     var stage = resultStage();
     var comboBoardCount = stage === "cards" ? resultBoardVisibleCount() : -1;
+    var comboHighlightsReady = communityHighlightsReady();
     syncResultClasses(stage);
     var revealThrowStarted = maybeStartHeroRevealThrow(stage);
     if (revealThrowStarted) lastSeatsHtml = "";
     if (stage !== lastSeatResultStage ||
         comboBoardCount !== lastSeatComboBoardCount ||
+        comboHighlightsReady !== lastSeatCommunityHighlightsReady ||
         revealThrowStarted) renderSeats();
     renderBoard();
     setText("holdem-pot-amount", formatChips(animatedPotAmount()));
@@ -6611,7 +6655,10 @@ window.TexasHoldem = (function () {
         resultFinalActionMs: RESULT_FINAL_ACTION_MS,
         resultCardsFirstMs: RESULT_CARDS_FIRST_MS,
         resultBoardRevealStepMs: RESULT_BOARD_REVEAL_STEP_MS,
+        resultCardHighlightHoldMs: RESULT_CARD_HIGHLIGHT_HOLD_MS,
         communityRiverFlipMs: COMMUNITY_RIVER_FLIP_MS,
+        communityCardFlipMs: COMMUNITY_CARD_FLIP_MS,
+        communityCardFlipStaggerMs: COMMUNITY_CARD_FLIP_STAGGER_MS,
         resultSettleMs: RESULT_SETTLE_MS,
         resultReviewMs: RESULT_REVIEW_MS
       }
