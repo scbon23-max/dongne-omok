@@ -4464,6 +4464,32 @@ window.TexasHoldem = (function () {
     else loadProfileAsset(true);
   }
 
+  function canOpenProfileRebuyForSeat(seat) {
+    var targetSeat = safeSeat(seat);
+    var hero = targetSeat >= 0 ? state.seats[targetSeat] : null;
+    return !!(
+      state.mode === "ring" &&
+      targetSeat === state.heroSeat &&
+      hero &&
+      !hero.isBot &&
+      hero.stack <= 0 &&
+      !isHandActive(state.phase) &&
+      !buyInDialogOpen &&
+      !requests.rebuy &&
+      !requests.refill
+    );
+  }
+
+  function openProfileRebuyIfNeeded(seat) {
+    var targetSeat = safeSeat(seat);
+    if (!canOpenProfileRebuyForSeat(targetSeat)) return false;
+    if (!openBuyInDialog("rebuy", targetSeat)) return false;
+    profileDialogOpen = false;
+    profileTargetSeat = -1;
+    renderProfileDialog();
+    return true;
+  }
+
   function joinFromProfileDialog() {
     if (state.heroSeat >= 0) return;
     var targetSeat = firstEmptySeat();
@@ -5922,7 +5948,9 @@ window.TexasHoldem = (function () {
 
     var profileSeat = event.target.closest(".holdem-seat:not(.is-empty)");
     if (profileSeat && screen.contains(profileSeat)) {
-      openProfileDialog(profileSeat.getAttribute("data-seat"));
+      if (!openProfileRebuyIfNeeded(profileSeat.getAttribute("data-seat"))) {
+        openProfileDialog(profileSeat.getAttribute("data-seat"));
+      }
       return;
     }
 
@@ -6128,7 +6156,9 @@ window.TexasHoldem = (function () {
       var profileSeat = event.target.closest(".holdem-seat:not(.is-empty)");
       if (profileSeat && root() && root().contains(profileSeat)) {
         event.preventDefault();
-        openProfileDialog(profileSeat.getAttribute("data-seat"));
+        if (!openProfileRebuyIfNeeded(profileSeat.getAttribute("data-seat"))) {
+          openProfileDialog(profileSeat.getAttribute("data-seat"));
+        }
         return;
       }
     }
@@ -6510,6 +6540,8 @@ window.TexasHoldem = (function () {
       requestId: requestId,
       joinTable: joinTable,
       openBuyInDialog: openBuyInDialog,
+      canOpenProfileRebuyForSeat: canOpenProfileRebuyForSeat,
+      openProfileRebuyIfNeeded: openProfileRebuyIfNeeded,
       setBuyInValue: setBuyInValue,
       confirmBuyInDialog: confirmBuyInDialog,
       refillRingChips: refillRingChips,

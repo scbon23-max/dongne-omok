@@ -552,6 +552,8 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(engine, /function transitionPracticeJoinToHumanMatch\([\s\S]*state\.seats = \[null, null, null, null, null, null\][\s\S]*convertRingTableToAssetBacked\(state\)/);
   assert.match(engine, /function repairMixedPracticeTable\([\s\S]*state\.newGameBuyInRequired = true/);
   assert.match(controller, /function openPracticeJoinBuyIn\(\)[\s\S]*openBuyInDialog\("join_request"/);
+  assert.match(controller, /function openProfileRebuyIfNeeded\(seat\)[\s\S]*openBuyInDialog\("rebuy", targetSeat\)/);
+  assert.match(controller, /openProfileRebuyIfNeeded\(profileSeat\.getAttribute\("data-seat"\)\)[\s\S]*openProfileDialog\(profileSeat\.getAttribute\("data-seat"\)\)/);
   assert.match(controller, /if \(state\.practiceMode\) \{[\s\S]*autoSeatKey = "ai-practice"/);
   assert.match(controller, /!isHandActive\(state\.phase\) && !practiceSpectator/);
   assert.match(engine, /reason:\s*"buy_in_required"/);

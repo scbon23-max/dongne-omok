@@ -2247,6 +2247,46 @@ test("ring rebuys use a separate wallet-backed server command", async () => {
   controller.leave();
 });
 
+test("clicking your empty ring profile opens the rebuy picker", async () => {
+  const calls = [];
+  const db = {
+    getHoldemWallet(auth) {
+      calls.push({ auth, action: "wallet", payload: {} });
+      return Promise.resolve({
+        ok: true,
+        wallet: { balance: 60000, tableBalance: 0, totalAssets: 60000 },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const state = controller._test.emptyState();
+  state.mode = "ring";
+  state.phase = "complete";
+  state.version = 3;
+  state.heroSeat = 0;
+  state.seats[0] = { seat: 0, nick: "alice", stack: 0 };
+  state.seats[1] = { seat: 1, nick: "bob", stack: 30000 };
+  state.buyInMin = 10000;
+  state.buyInMax = 50000;
+  state.buyInDefault = 30000;
+  controller._test.setState(state);
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+
+  assert.equal(controller._test.canOpenProfileRebuyForSeat(1), false);
+  assert.equal(controller._test.openProfileRebuyIfNeeded(0), true);
+  await Promise.resolve();
+  await Promise.resolve();
+
+  const dialog = controller._test.getBuyInDialogState();
+  assert.equal(dialog.open, true);
+  assert.equal(dialog.mode, "rebuy");
+  assert.equal(dialog.seat, 0);
+  assert.equal(dialog.pending, false);
+  assert.deepEqual(calls.map((call) => call.action), ["wallet"]);
+  controller.leave();
+});
+
 test("a failed ring rebuy stays open and succeeds without leaving the room", async () => {
   const calls = [];
   let rebuyAttempts = 0;
