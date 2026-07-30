@@ -21,6 +21,9 @@ const cardBackAssets = [
   "assets/holdem/card-back-lucky-clover.png",
   "assets/holdem/card-back-royal-candy.png",
   "assets/holdem/card-back-moon-chip.png",
+  "assets/holdem/card-back-ivory-minimal.png",
+  "assets/holdem/card-back-teal-wave.png",
+  "assets/holdem/card-back-midnight-gold.png",
 ];
 
 test("Hold'em is an available six-player controller game", () => {
@@ -399,7 +402,7 @@ test("the six-seat table exposes every required game control", () => {
     assert.ok(fs.existsSync(path.join(root, asset)), `${asset} should exist`);
     assert.match(styles, new RegExp(asset.replace(/[/.]/g, "\\$&")));
   });
-  assert.match(index, /data-card-back-skin="lucky-clover"[\s\S]*data-card-back-skin="royal-candy"[\s\S]*data-card-back-skin="moon-chip"/);
+  assert.match(index, /data-card-back-skin="lucky-clover"[\s\S]*data-card-back-skin="royal-candy"[\s\S]*data-card-back-skin="moon-chip"[\s\S]*data-card-back-skin="ivory-minimal"[\s\S]*data-card-back-skin="teal-wave"[\s\S]*data-card-back-skin="midnight-gold"/);
   assert.match(index, /data-card-front-skin="classic"[\s\S]*data-card-front-skin="four-color"/);
   assert.match(index, /data-card-front-skin="classic"[\s\S]*classic spade">♠<\/span>[\s\S]*classic heart">♥<\/span>[\s\S]*classic diamond">♦<\/span>[\s\S]*classic club">♣<\/span>/);
   assert.match(index, /data-card-front-skin="four-color"[\s\S]*mini-card spade">♠<\/span>[\s\S]*mini-card heart">♥<\/span>[\s\S]*mini-card diamond">♦<\/span>[\s\S]*mini-card club">♣<\/span>/);
@@ -423,6 +426,9 @@ test("the six-seat table exposes every required game control", () => {
   const cardBackRule = styles.match(/\.holdem-card\.back\s*\{([\s\S]*?)\}/)?.[1] || "";
   assert.doesNotMatch(cardBackRule, /--holdem-card-back-image:/);
   assert.match(styles, /\.holdem-screen\[data-card-back-skin="royal-candy"\]\s*\{[\s\S]*card-back-royal-candy\.png/);
+  assert.match(styles, /\.holdem-screen\[data-card-back-skin="ivory-minimal"\]\s*\{[\s\S]*card-back-ivory-minimal\.png/);
+  assert.match(styles, /\.holdem-screen\[data-card-back-skin="teal-wave"\]\s*\{[\s\S]*card-back-teal-wave\.png/);
+  assert.match(styles, /\.holdem-screen\[data-card-back-skin="midnight-gold"\]\s*\{[\s\S]*card-back-midnight-gold\.png/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\s*\{[\s\S]*top: -3px[\s\S]*translate\(-50%, -45%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards\.is-revealed-cards\s*\{[\s\S]*z-index:\s*24[\s\S]*translate\(-50%, -72%\)/);
   assert.match(styles, /\.holdem-seat:not\(\.is-me\) \.holdem-hole-cards \.holdem-card\.back\s*\{[\s\S]*--holdem-card-width:\s*clamp\(16px,\s*4\.6vw,\s*24px\)/);

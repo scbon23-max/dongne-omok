@@ -4784,6 +4784,15 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-screen[data-card-back-skin="moon-chip"] {
   --holdem-card-back-image: url("assets/holdem/card-back-moon-chip.png");
 }
+.holdem-screen[data-card-back-skin="ivory-minimal"] {
+  --holdem-card-back-image: url("assets/holdem/card-back-ivory-minimal.png");
+}
+.holdem-screen[data-card-back-skin="teal-wave"] {
+  --holdem-card-back-image: url("assets/holdem/card-back-teal-wave.png");
+}
+.holdem-screen[data-card-back-skin="midnight-gold"] {
+  --holdem-card-back-image: url("assets/holdem/card-back-midnight-gold.png");
+}
 .holdem-card-back-option[data-card-back-skin="lucky-clover"] {
   --holdem-card-back-image: url("assets/holdem/card-back-lucky-clover.png");
 }
@@ -4792,6 +4801,15 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-card-back-option[data-card-back-skin="moon-chip"] {
   --holdem-card-back-image: url("assets/holdem/card-back-moon-chip.png");
+}
+.holdem-card-back-option[data-card-back-skin="ivory-minimal"] {
+  --holdem-card-back-image: url("assets/holdem/card-back-ivory-minimal.png");
+}
+.holdem-card-back-option[data-card-back-skin="teal-wave"] {
+  --holdem-card-back-image: url("assets/holdem/card-back-teal-wave.png");
+}
+.holdem-card-back-option[data-card-back-skin="midnight-gold"] {
+  --holdem-card-back-image: url("assets/holdem/card-back-midnight-gold.png");
 }
 .holdem-card.empty {
   border: 1px dashed rgba(213,239,235,.09);
