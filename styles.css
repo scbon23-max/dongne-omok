@@ -2943,12 +2943,25 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 .holdem-asset-ranking-signed.is-plus { color: #6ce4c4; }
 .holdem-asset-ranking-signed.is-minus { color: #ffaaa0; }
-.holdem-asset-ranking-refill {
+.holdem-asset-ranking-ledger-note {
+  display: grid;
+  gap: 3px;
   margin: 9px 0 10px;
   color: #8fb3b4;
   font-size: 10px;
   font-weight: 800;
   line-height: 1.35;
+}
+.holdem-asset-ranking-ledger-note span {
+  min-width: 0;
+}
+.holdem-asset-ranking-ledger-note .holdem-asset-ranking-signed {
+  font-size: 10px;
+}
+.holdem-asset-ranking-ledger-note small {
+  color: #6f9294;
+  font-size: 9px;
+  font-weight: 750;
 }
 .holdem-asset-ranking-session-title {
   margin: 4px 0 6px;
@@ -3022,7 +3035,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   .holdem-asset-ranking-player strong,
   .holdem-asset-ranking-assets { font-size: 12px; }
   .holdem-asset-ranking-detail { margin-right: 10px; margin-left: 10px; }
-  .holdem-asset-ranking-metrics { grid-template-columns: 1fr; }
+  .holdem-asset-ranking-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .holdem-asset-ranking-session summary {
     grid-template-columns: minmax(0, 1fr) 40px minmax(68px, auto);
   }

@@ -21,6 +21,13 @@ const handCountsMigration = read(
     "202607300001_holdem_completed_hand_counts.sql"
   )
 );
+const assetStatsMigration = read(
+  path.join(
+    "supabase",
+    "migrations",
+    "202607310001_holdem_asset_stats_and_ledger.sql"
+  )
+);
 
 test("Hold'em places a dedicated asset ranking beside the hand guide", () => {
   const utility = index.slice(
@@ -166,17 +173,132 @@ test("Hold'em ranking details expose session summaries without private hand data
   assert.match(edge, /"ranking_detail"/);
   assert.match(edge, /const rankingDetailAction = action === "ranking_detail"/);
   assert.match(edge, /assetRankingDetail\([\s\S]*safeText\(body\.targetNick, 40\)/);
-  assert.match(edge, /\.from\("holdem_hand_results"\)[\s\S]*"session_date,small_blind,big_blind,net_amount,won_amount,revealed,hand_name,hand_category,is_winner,created_at,hand_no"/);
+  assert.match(edge, /\.rpc\([\s\S]*"holdem_player_asset_stats"[\s\S]*p_nickname:\s*targetNick/);
+  assert.doesNotMatch(edge, /\.from\("holdem_hand_results"\)[\s\S]*\.limit\(500\)/);
+  assert.match(edge, /totalWon:\s*rankingChipAmount\(stats\.totalWon\)/);
+  assert.match(edge, /totalLost:\s*rankingChipAmount\(stats\.totalLost\)/);
+  assert.match(edge, /totalNet:\s*rankingChipAmount\(stats\.totalNet, true\)/);
+  assert.match(edge, /initialGrantTotal:\s*rankingChipAmount\(stats\.initialGrantTotal\)/);
   assert.match(edge, /refillToday:[\s\S]*refillSevenDays:/);
-  assert.match(edge, /handCount:\s*profile\.handCount/);
+  assert.match(edge, /handCount,\s*[\s\S]*minHands:\s*RANKING_MIN_HANDS/);
   assert.match(edge, /minHands:\s*RANKING_MIN_HANDS/);
-  assert.match(edge, /biggestWin:[\s\S]*publicHandHighlight/);
-  assert.doesNotMatch(edge, /\.from\("holdem_hand_results"\)[\s\S]{0,180}\.select\([\s\S]{0,120}"[^"]*(?:cards|opponent|room_id)[^"]*"/);
+  assert.match(edge, /biggestWin:\s*publicHandHighlight/);
+  assert.doesNotMatch(assetStatsMigration, /\b(?:cards|hole_cards|opponent)\b/i);
   assert.match(migration, /create table if not exists public\.holdem_hand_results/);
   assert.match(migration, /nickname text[\s\S]*references public\.accounts/);
   assert.match(migration, /revoke all on table public\.holdem_hand_results[\s\S]*from public, anon, authenticated/);
   assert.match(migration, /create or replace function public\.holdem_ring_table_v4_compare_and_swap/);
   assert.match(migration, /insert into public\.holdem_hand_results/);
+});
+
+test("Hold'em detail totals are aggregated over every stored hand in SQL", () => {
+  const handStatsSql = assetStatsMigration.match(
+    /with hand_stats as \(([\s\S]*?)\),\s*refill_stats as/
+  );
+
+  assert.ok(handStatsSql);
+  assert.doesNotMatch(handStatsSql[1], /\blimit\b|\boffset\b/i);
+  assert.match(
+    assetStatsMigration,
+    /create or replace function public\.holdem_player_asset_stats\([\s\S]*returns jsonb[\s\S]*language sql[\s\S]*stable/
+  );
+  assert.match(
+    assetStatsMigration,
+    /sum\(greatest\(result\.net_amount, 0\)\)[\s\S]*as total_won/
+  );
+  assert.match(
+    assetStatsMigration,
+    /sum\(greatest\(-result\.net_amount, 0\)\)[\s\S]*as total_lost/
+  );
+  assert.match(
+    assetStatsMigration,
+    /sum\(result\.net_amount\)[\s\S]*as total_net/
+  );
+  assert.match(
+    assetStatsMigration,
+    /result\.created_at >= now\(\) - interval '7 days'/
+  );
+  assert.match(
+    assetStatsMigration,
+    /group by[\s\S]*result\.session_date,[\s\S]*result\.small_blind,[\s\S]*result\.big_blind[\s\S]*limit 10/
+  );
+  assert.doesNotMatch(assetStatsMigration, /limit 500|limit 1000/);
+  assert.match(
+    assetStatsMigration,
+    /revoke all on function public\.holdem_player_asset_stats\(text\)[\s\S]*to service_role/
+  );
+  assert.match(
+    assetStatsMigration,
+    /'initialGrantTotal', adjustment_stats\.initial_grant_total/
+  );
+  assert.match(game, /누적 딴 금액/);
+  assert.match(game, /누적 잃은 금액/);
+  assert.match(game, /누적 순손익/);
+  assert.match(game, /게임 손익 집계 시작/);
+  assert.match(game, /시작 지급/);
+  assert.match(game, /보충칩과 자산 조정은 게임 손익에서 제외됩니다/);
+  assert.match(game, /최근 10개 경기 구간/);
+});
+
+test("Hold'em keeps an auditable asset ledger without duplicating private hands", () => {
+  const adjustmentTableSql = assetStatsMigration.match(
+    /create table if not exists public\.holdem_asset_adjustments \(([\s\S]*?)\n\);/
+  );
+  const tableLock = assetStatsMigration.indexOf(
+    "lock table public.holdem_tables"
+  );
+  const walletLock = assetStatsMigration.indexOf(
+    "lock table public.holdem_wallets"
+  );
+  const economyLock = assetStatsMigration.indexOf(
+    "lock table public.holdem_economy_events"
+  );
+  const handLock = assetStatsMigration.indexOf(
+    "lock table public.holdem_hand_results"
+  );
+
+  assert.ok(adjustmentTableSql);
+  assert.match(adjustmentTableSql[1], /nickname text not null/);
+  assert.doesNotMatch(adjustmentTableSql[1], /references public\.accounts/);
+  assert.ok(
+    tableLock >= 0 &&
+      tableLock < walletLock &&
+      walletLock < economyLock &&
+      economyLock < handLock
+  );
+  assert.match(
+    assetStatsMigration,
+    /create table if not exists public\.holdem_asset_adjustments/
+  );
+  assert.match(
+    assetStatsMigration,
+    /'initial_grant',[\s\S]*'opening_adjustment',[\s\S]*'manual_adjustment'/
+  );
+  assert.match(
+    assetStatsMigration,
+    /create trigger holdem_wallet_initial_grant_ledger[\s\S]*after insert on public\.holdem_wallets/
+  );
+  assert.match(
+    assetStatsMigration,
+    /create index if not exists holdem_economy_events_nickname_type_created_idx/
+  );
+  assert.match(
+    assetStatsMigration,
+    /wallet\.balance[\s\S]*coalesce\(table_assets\.amount, 0\)[\s\S]*- 100000[\s\S]*coalesce\(hand_net\.amount, 0\)[\s\S]*coalesce\(refill_total\.amount, 0\)/
+  );
+  assert.match(
+    assetStatsMigration,
+    /create or replace function public\.holdem_adjust_wallet_balance\([\s\S]*'manual_adjustment'/
+  );
+  assert.match(
+    assetStatsMigration,
+    /create or replace view public\.holdem_asset_ledger[\s\S]*'hand_result'::text[\s\S]*event\.event_type/
+  );
+  assert.match(
+    assetStatsMigration,
+    /revoke all on table public\.holdem_asset_ledger[\s\S]*grant select on table public\.holdem_asset_ledger to service_role/
+  );
+  assert.doesNotMatch(assetStatsMigration, /\b(?:cards|hole_cards|opponent)\b/i);
 });
 
 test("the engine records only public hand-result summaries for asset-backed ring hands", () => {

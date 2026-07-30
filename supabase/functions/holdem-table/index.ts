@@ -667,32 +667,41 @@ async function assetRanking(
   };
 }
 
-function seoulDateString(value: string | number | Date) {
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return "";
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
-
 function tableTierLabel(smallBlind: number, bigBlind: number) {
   if (bigBlind <= 200) return "라이트";
   if (bigBlind <= 500) return "스탠다드";
   return "하이롤러";
 }
 
-function publicHandHighlight(row: Record<string, unknown> | null) {
+function publicHandHighlight(
+  row: Record<string, unknown> | null,
+  direction: "win" | "loss",
+) {
   if (!row) return null;
-  const amount = Number(row.net_amount);
-  const handName = safeText(row.hand_name, 40);
-  const revealed = row.revealed === true && !!handName;
+  const amount = rankingChipAmount(row.amount, true);
+  const handName = safeText(row.handName, 40);
+  if (
+    (direction === "win" && amount <= 0) ||
+    (direction === "loss" && amount >= 0)
+  ) {
+    throw new Error("ranking_detail_lookup");
+  }
   return {
-    amount: Number.isSafeInteger(amount) ? amount : 0,
-    handName: revealed ? handName : "",
+    amount,
+    handName,
   };
+}
+
+function rankingChipAmount(value: unknown, allowNegative = false) {
+  const amount = Number(value);
+  if (
+    !Number.isSafeInteger(amount) ||
+    (!allowNegative && amount < 0) ||
+    Math.abs(amount) % CHIP_UNIT !== 0
+  ) {
+    throw new Error("ranking_detail_lookup");
+  }
+  return amount;
 }
 
 async function assetRankingDetail(
@@ -707,131 +716,66 @@ async function assetRankingDetail(
   const profile = ranked.find((row) => row.nickname === targetNick);
   if (!profile) return null;
 
-  const now = Date.now();
-  const todayKey = seoulDateString(now);
-  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const [{ data: handRows, error: handError }, {
-    data: refillRows,
-    error: refillError,
-  }] = await Promise.all([
-    client
-      .from("holdem_hand_results")
-      .select(
-        "session_date,small_blind,big_blind,net_amount,won_amount,revealed,hand_name,hand_category,is_winner,created_at,hand_no",
-      )
-      .eq("nickname", targetNick)
-      .order("created_at", { ascending: false })
-      .limit(500),
-    client
-      .from("holdem_economy_events")
-      .select("amount,created_at")
-      .eq("nickname", targetNick)
-      .eq("event_type", "refill")
-      .gte("created_at", sevenDaysAgo)
-      .order("created_at", { ascending: false })
-      .limit(200),
-  ]);
-  if (handError || refillError) throw new Error("ranking_detail_lookup");
-
-  const hands = (Array.isArray(handRows) ? handRows : []).filter((row) => {
-    const amount = Number(row?.net_amount);
-    const smallBlind = Number(row?.small_blind);
-    const bigBlind = Number(row?.big_blind);
-    return Number.isSafeInteger(amount) &&
-      Number.isSafeInteger(smallBlind) &&
-      Number.isSafeInteger(bigBlind);
-  });
-  const todayNet = hands.reduce((sum, row) => {
-    return seoulDateString(safeText(row?.created_at, 40)) === todayKey
-      ? sum + Number(row?.net_amount)
-      : sum;
-  }, 0);
-  const sevenDayNet = hands.reduce((sum, row) => {
-    const createdAt = new Date(safeText(row?.created_at, 40)).getTime();
-    return Number.isFinite(createdAt) && createdAt >= Date.parse(sevenDaysAgo)
-      ? sum + Number(row?.net_amount)
-      : sum;
-  }, 0);
-  const refillSummary = (Array.isArray(refillRows) ? refillRows : []).reduce(
-    (summary, row) => {
-      const amount = Math.max(0, Number(row?.amount) || 0);
-      const createdAt = safeText(row?.created_at, 40);
-      if (seoulDateString(createdAt) === todayKey) summary.today += amount;
-      summary.sevenDays += amount;
-      return summary;
-    },
-    { today: 0, sevenDays: 0 },
+  const { data: stats, error: statsError } = await client.rpc(
+    "holdem_player_asset_stats",
+    { p_nickname: targetNick },
   );
+  if (statsError || !isRecord(stats)) throw new Error("ranking_detail_lookup");
 
-  const sessionsByKey = new Map<string, {
-    date: string;
-    smallBlind: number;
-    bigBlind: number;
-    handCount: number;
-    netAmount: number;
-    startedAt: string;
-    endedAt: string;
-    biggestWin: Record<string, unknown> | null;
-    biggestLoss: Record<string, unknown> | null;
-  }>();
-  hands.forEach((row) => {
-    const date = safeText(row?.session_date, 16) ||
-      seoulDateString(safeText(row?.created_at, 40));
-    const smallBlind = Number(row?.small_blind);
-    const bigBlind = Number(row?.big_blind);
-    const key = `${date}:${smallBlind}/${bigBlind}`;
-    const createdAt = safeText(row?.created_at, 40);
-    const current = sessionsByKey.get(key) ?? {
-      date,
-      smallBlind,
-      bigBlind,
-      handCount: 0,
-      netAmount: 0,
-      startedAt: createdAt,
-      endedAt: createdAt,
-      biggestWin: null,
-      biggestLoss: null,
-    };
-    const netAmount = Number(row?.net_amount);
-    current.handCount += 1;
-    current.netAmount += netAmount;
-    if (!current.startedAt || createdAt < current.startedAt) current.startedAt = createdAt;
-    if (!current.endedAt || createdAt > current.endedAt) current.endedAt = createdAt;
-    if (netAmount > 0 && (!current.biggestWin ||
-        netAmount > Number(current.biggestWin.net_amount || 0))) {
-      current.biggestWin = row as Record<string, unknown>;
-    }
-    if (netAmount < 0 && (!current.biggestLoss ||
-        netAmount < Number(current.biggestLoss.net_amount || 0))) {
-      current.biggestLoss = row as Record<string, unknown>;
-    }
-    sessionsByKey.set(key, current);
-  });
-
-  const sessions = Array.from(sessionsByKey.values())
-    .sort((left, right) => right.endedAt.localeCompare(left.endedAt))
+  const handCount = Number(stats.handCount);
+  if (!Number.isSafeInteger(handCount) || handCount < 0) {
+    throw new Error("ranking_detail_lookup");
+  }
+  const sessions = (Array.isArray(stats.sessions) ? stats.sessions : [])
     .slice(0, 10)
-    .map((session) => ({
-      date: session.date,
-      label: tableTierLabel(session.smallBlind, session.bigBlind),
-      smallBlind: session.smallBlind,
-      bigBlind: session.bigBlind,
-      handCount: session.handCount,
-      netAmount: session.netAmount,
-      biggestWin: publicHandHighlight(session.biggestWin),
-      biggestLoss: publicHandHighlight(session.biggestLoss),
-    }));
+    .map((rawSession) => {
+      if (!isRecord(rawSession)) throw new Error("ranking_detail_lookup");
+      const smallBlind = rankingChipAmount(rawSession.smallBlind);
+      const bigBlind = rankingChipAmount(rawSession.bigBlind);
+      const sessionHandCount = Number(rawSession.handCount);
+      if (
+        smallBlind < CHIP_UNIT ||
+        bigBlind < smallBlind * 2 ||
+        !Number.isSafeInteger(sessionHandCount) ||
+        sessionHandCount < 1
+      ) {
+        throw new Error("ranking_detail_lookup");
+      }
+      return {
+        date: safeText(rawSession.date, 16),
+        label: tableTierLabel(smallBlind, bigBlind),
+        smallBlind,
+        bigBlind,
+        handCount: sessionHandCount,
+        netAmount: rankingChipAmount(rawSession.netAmount, true),
+        biggestWin: publicHandHighlight(
+          isRecord(rawSession.biggestWin) ? rawSession.biggestWin : null,
+          "win",
+        ),
+        biggestLoss: publicHandHighlight(
+          isRecord(rawSession.biggestLoss) ? rawSession.biggestLoss : null,
+          "loss",
+        ),
+      };
+    });
 
   return {
     rank: profile.rank,
     nickname: profile.nickname,
     totalAssets: profile.totalAssets,
-    handCount: profile.handCount,
+    handCount,
     minHands: RANKING_MIN_HANDS,
-    todayNet,
-    sevenDayNet,
-    refillToday: refillSummary.today,
-    refillSevenDays: refillSummary.sevenDays,
+    totalWon: rankingChipAmount(stats.totalWon),
+    totalLost: rankingChipAmount(stats.totalLost),
+    totalNet: rankingChipAmount(stats.totalNet, true),
+    todayNet: rankingChipAmount(stats.todayNet, true),
+    sevenDayNet: rankingChipAmount(stats.sevenDayNet, true),
+    refillTotal: rankingChipAmount(stats.refillTotal),
+    refillToday: rankingChipAmount(stats.refillToday),
+    refillSevenDays: rankingChipAmount(stats.refillSevenDays),
+    initialGrantTotal: rankingChipAmount(stats.initialGrantTotal),
+    adjustmentTotal: rankingChipAmount(stats.adjustmentTotal, true),
+    recordedSince: safeText(stats.recordedSince, 40),
     sessions,
     generatedAt: new Date().toISOString(),
   };

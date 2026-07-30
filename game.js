@@ -5723,10 +5723,18 @@
       nickname: nickname,
       rank: rank,
       totalAssets: totalAssets,
+      handCount: Math.max(0, Math.floor(Number(value.handCount) || 0)),
+      totalWon: Math.max(0, Math.floor(Number(value.totalWon) || 0)),
+      totalLost: Math.max(0, Math.floor(Number(value.totalLost) || 0)),
+      totalNet: Math.floor(Number(value.totalNet) || 0),
       todayNet: Math.floor(Number(value.todayNet) || 0),
       sevenDayNet: Math.floor(Number(value.sevenDayNet) || 0),
+      refillTotal: Math.max(0, Math.floor(Number(value.refillTotal) || 0)),
       refillToday: Math.max(0, Math.floor(Number(value.refillToday) || 0)),
       refillSevenDays: Math.max(0, Math.floor(Number(value.refillSevenDays) || 0)),
+      initialGrantTotal: Math.max(0, Math.floor(Number(value.initialGrantTotal) || 0)),
+      adjustmentTotal: Math.floor(Number(value.adjustmentTotal) || 0),
+      recordedSince: String(value.recordedSince || "").trim().slice(0, 40),
       sessions: sessions.slice(0, 10).map(function (session) {
         session = session && typeof session === "object" ? session : {};
         return {
@@ -5741,6 +5749,19 @@
         };
       }).filter(function (session) { return session.handCount > 0; })
     };
+  }
+  function holdemRankingDateLabel(value) {
+    var match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return "";
+    return Number(match[2]) + "월 " + Number(match[3]) + "일";
+  }
+  function holdemRankingRecordedSince(value) {
+    if (!value) return "";
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return "";
+    return date.getFullYear() + "년 " + (date.getMonth() + 1) + "월 " +
+      date.getDate() + "일 " + activityPad(date.getHours()) + ":" +
+      activityPad(date.getMinutes());
   }
   function holdemSessionHighlightHtml(title, item) {
     if (!item || typeof item !== "object") {
@@ -5785,25 +5806,36 @@
         '<p class="holdem-asset-ranking-status">최근 기록을 불러오지 못했습니다.</p>';
       return;
     }
-    var refillNote = detail.refillToday || detail.refillSevenDays
-      ? '<p class="holdem-asset-ranking-refill">보충칩 별도 · 오늘 ' +
-        esc(formatHoldemAsset(detail.refillToday)) + ' · 7일 ' +
-        esc(formatHoldemAsset(detail.refillSevenDays)) + '</p>'
-      : '<p class="holdem-asset-ranking-refill">보충칩은 게임 손익에 포함하지 않습니다.</p>';
+    var recordedSince = holdemRankingRecordedSince(detail.recordedSince);
+    var ledgerNote = '<div class="holdem-asset-ranking-ledger-note">' +
+      '<span>시작 지급 ' + esc(formatHoldemAsset(detail.initialGrantTotal)) +
+      ' · 보충칩 누적 ' + esc(formatHoldemAsset(detail.refillTotal)) +
+      ' · 오늘 ' + esc(formatHoldemAsset(detail.refillToday)) +
+      ' · 7일 ' + esc(formatHoldemAsset(detail.refillSevenDays)) + '</span>' +
+      (detail.adjustmentTotal
+        ? '<span>기록 전·관리자 자산 조정 ' +
+          signedHoldemAssetHtml(detail.adjustmentTotal) + '</span>'
+        : "") +
+      '<span>' + (recordedSince
+        ? '게임 손익 집계 시작 ' + esc(recordedSince)
+        : '아직 완료된 게임 기록이 없습니다.') + '</span>' +
+      '<small>보충칩과 자산 조정은 게임 손익에서 제외됩니다.</small></div>';
     var sessionsHtml = detail.sessions.length
       ? detail.sessions.map(function (session) {
+        var dateLabel = holdemRankingDateLabel(session.date);
         return '<details class="holdem-asset-ranking-session">' +
-          '<summary><span>' + esc(session.label) + ' ' +
+          '<summary><span>' + (dateLabel ? esc(dateLabel) + ' · ' : "") +
+          esc(session.label) + ' ' +
           esc(formatHoldemAsset(session.smallBlind)) + '/' +
           esc(formatHoldemAsset(session.bigBlind)) + '</span><small>' +
           esc(session.handCount + "핸드") + '</small>' +
           signedHoldemAssetHtml(session.netAmount) + '</summary>' +
           '<div class="holdem-asset-ranking-session-hands">' +
-          holdemSessionHighlightHtml("가장 크게 이긴 핸드", session.biggestWin) +
-          holdemSessionHighlightHtml("가장 크게 잃은 핸드", session.biggestLoss) +
+          holdemSessionHighlightHtml("한 판 최고 승리", session.biggestWin) +
+          holdemSessionHighlightHtml("한 판 최대 손실", session.biggestLoss) +
           '</div></details>';
       }).join("")
-      : '<p class="holdem-asset-ranking-status">아직 완료된 세션 기록이 없습니다.</p>';
+      : '<p class="holdem-asset-ranking-status">아직 완료된 게임 기록이 없습니다.</p>';
     box.classList.remove("hidden");
     box.innerHTML = holdemAssetRankingBackHtml() +
       '<div class="holdem-asset-ranking-detail-hero">' +
@@ -5813,10 +5845,14 @@
       '<div class="holdem-asset-ranking-metrics">' +
       '<span><small>현재 순위</small><strong>' + esc(detail.rank + "위") + '</strong></span>' +
       '<span><small>총자산</small><strong>' + esc(formatHoldemAsset(detail.totalAssets)) + '</strong></span>' +
+      '<span><small>누적 딴 금액</small>' + signedHoldemAssetHtml(detail.totalWon) + '</span>' +
+      '<span><small>누적 잃은 금액</small>' + signedHoldemAssetHtml(-detail.totalLost) + '</span>' +
+      '<span><small>누적 순손익</small>' + signedHoldemAssetHtml(detail.totalNet) + '</span>' +
+      '<span><small>전체 참여</small><strong>' + esc(detail.handCount + "핸드") + '</strong></span>' +
       '<span><small>오늘 게임손익</small>' + signedHoldemAssetHtml(detail.todayNet) + '</span>' +
       '<span><small>최근 7일 손익</small>' + signedHoldemAssetHtml(detail.sevenDayNet) + '</span>' +
-      '</div>' + refillNote +
-      '<div class="holdem-asset-ranking-session-title">최근 10개 완료 세션</div>' +
+      '</div>' + ledgerNote +
+      '<div class="holdem-asset-ranking-session-title">최근 10개 경기 구간</div>' +
       sessionsHtml;
   }
   function showHoldemAssetRankingDetailStatus(message) {
