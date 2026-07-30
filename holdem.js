@@ -3409,12 +3409,17 @@ window.TexasHoldem = (function () {
     autoReadyKey = "";
   }
 
+  function buyInFlowBlocksAutoAdvance() {
+    return buyInDialogOpen || buyInWalletPending || requests.rebuy || hasQueuedProfileTopUp();
+  }
+
   function autoReadyForNextHand(key) {
     autoReadyTimer = null;
     if (!active || state.phase !== "complete" || state.heroSeat < 0) return;
     var hero = state.seats[state.heroSeat];
     if (hero && hero.sittingOut) return;
-    if (state.heroReady || !state.canReady || autoReadyKey !== key || requests.ready) return;
+    if (state.heroReady || !state.canReady || autoReadyKey !== key ||
+        requests.ready || buyInFlowBlocksAutoAdvance()) return;
     if (!resultTransitionReady()) {
       scheduleAutoReadyForNextHand();
       return;
@@ -3434,7 +3439,8 @@ window.TexasHoldem = (function () {
 
   function scheduleAutoReadyForNextHand() {
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
-    if (state.phase !== "complete" || state.heroSeat < 0 || state.heroReady || !state.canReady || requests.ready) {
+    if (state.phase !== "complete" || state.heroSeat < 0 || state.heroReady ||
+        !state.canReady || requests.ready || buyInFlowBlocksAutoAdvance()) {
       clearAutoReadyForNextHand();
       return;
     }
@@ -3455,8 +3461,8 @@ window.TexasHoldem = (function () {
   function autoStartHand(key) {
     autoNextTimer = null;
     if (!active || state.phase !== "complete" || !state.canStart ||
-        state.newGameBuyInRequired || hasBustedHumanSeat() || hasQueuedProfileTopUp() ||
-        requests.rebuy || autoNextKey !== key) return;
+        state.newGameBuyInRequired || hasBustedHumanSeat() ||
+        buyInFlowBlocksAutoAdvance() || autoNextKey !== key) return;
     if (!resultTransitionReady()) {
       scheduleAutoNextHand();
       return;
@@ -3474,7 +3480,7 @@ window.TexasHoldem = (function () {
 
   function scheduleAutoNextHand() {
     if (state.phase !== "complete" || !state.canStart || state.newGameBuyInRequired ||
-        hasBustedHumanSeat() || hasQueuedProfileTopUp() || requests.rebuy ||
+        hasBustedHumanSeat() || buyInFlowBlocksAutoAdvance() ||
         text(me().nick, 40) !== autoStartNick()) {
       clearAutoNextHand();
       return;
@@ -4580,6 +4586,8 @@ window.TexasHoldem = (function () {
 
   function openBuyInDialog(mode, seat) {
     if (state.phase === "complete" && !resultTransitionReady()) return false;
+    clearAutoReadyForNextHand();
+    clearAutoNextHand();
     buyInMode = mode === "rebuy" || mode === "new_game" || mode === "join_request"
       ? mode
       : "join";
@@ -4603,6 +4611,8 @@ window.TexasHoldem = (function () {
     buyInSeat = -1;
     buyInWalletPending = false;
     renderBuyInDialog();
+    scheduleAutoReadyForNextHand();
+    scheduleAutoNextHand();
   }
 
   function setBuyInValue(value) {
@@ -6927,6 +6937,8 @@ window.TexasHoldem = (function () {
       chooseEmptySeat: chooseEmptySeat,
       maybeAutoSeatJoin: maybeAutoSeatJoin,
       maybeAutoOpenRebuyDialog: maybeAutoOpenRebuyDialog,
+      scheduleAutoNextHand: scheduleAutoNextHand,
+      scheduleAutoReadyForNextHand: scheduleAutoReadyForNextHand,
       leaveTableForSpectate: leaveTableForSpectate,
       requestLeaveAfterHand: requestLeaveAfterHand,
       maybeLeaveRoomAfterHand: maybeLeaveRoomAfterHand,

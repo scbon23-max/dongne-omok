@@ -26,8 +26,8 @@ function loadController(nick = "alice", options = {}) {
     RegExp,
     JSON,
     Promise,
-    setTimeout,
-    clearTimeout,
+    setTimeout: options.setTimeout || setTimeout,
+    clearTimeout: options.clearTimeout || clearTimeout,
     setInterval,
     clearInterval,
   };
@@ -2554,6 +2554,104 @@ test("your ring profile queues an in-hand top up and applies it before the next 
   assert.equal(controller.state.seats[0].stack, 40000);
   assert.equal(controller._test.getProfileTopUpState().queuedAmount, 0);
   assert.equal(storageValues.size, 0);
+  controller.leave();
+});
+
+test("opening a ring rebuy picker pauses automatic next hand start", async () => {
+  const calls = [];
+  const timers = [];
+  let stack = 2200;
+  const db = {
+    getHoldemWallet(auth) {
+      calls.push({ auth, action: "wallet", payload: {} });
+      return Promise.resolve({
+        ok: true,
+        wallet: { balance: 90000, tableBalance: 2200, totalAssets: 92200 },
+      });
+    },
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      if (action === "rebuy") {
+        stack = 20000;
+        return Promise.resolve({
+          ok: true,
+          version: 6,
+          snapshot: {
+            phase: "hand_end",
+            mode: "ring",
+            viewer: { seat: 0 },
+            seats: [
+              { seat: 0, nick: "alice", stack },
+              { seat: 1, nick: "bob", stack: 20000 },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        version: 6,
+        snapshot: {
+          phase: "hand_end",
+          mode: "ring",
+          viewer: { seat: 0 },
+          seats: [
+            { seat: 0, nick: "alice", stack },
+            { seat: 1, nick: "bob", stack: 20000 },
+          ],
+        },
+      });
+    },
+  };
+  const controller = loadController("alice", {
+    db,
+    setTimeout(fn, delay) {
+      const timer = { fn, delay, cleared: false };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimeout(timer) {
+      if (timer) timer.cleared = true;
+    },
+  });
+  const state = controller._test.emptyState();
+  state.mode = "ring";
+  state.phase = "complete";
+  state.version = 5;
+  state.handId = "5";
+  state.heroSeat = 0;
+  state.ownerNick = "alice";
+  state.canStart = true;
+  state.canReady = true;
+  state.seats[0] = { seat: 0, nick: "alice", stack: 2200 };
+  state.seats[1] = { seat: 1, nick: "bob", stack: 20000 };
+  state.buyInMin = 10000;
+  state.buyInMax = 20000;
+  state.buyInDefault = 15000;
+  controller._test.setState(state);
+  controller._test.setActive(true);
+
+  controller._test.scheduleAutoNextHand();
+  assert.equal(timers.length, 1);
+  assert.equal(timers[0].cleared, false);
+
+  controller._test.openBuyInDialog("rebuy", 0);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(timers[0].cleared, true);
+
+  await timers[0].fn();
+  assert.equal(
+    calls.some((call) => call.action === "start"),
+    false,
+    "a stale auto-start callback must not start a hand while rebuy is open",
+  );
+
+  controller._test.setBuyInValue(20000);
+  const result = await controller._test.confirmBuyInDialog();
+  assert.equal(result.ok, true);
+  assert.equal(controller.state.seats[0].stack, 20000);
+  assert.equal(controller._test.getBuyInDialogState().open, false);
+  assert.equal(calls.some((call) => call.action === "rebuy"), true);
   controller.leave();
 });
 
