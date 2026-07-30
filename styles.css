@@ -5428,6 +5428,10 @@ body.is-admin .feedback-user-compose { display: none; }
   background: rgba(9,15,19,.88);
   color: #d4e2e3;
 }
+.holdem-seat.is-sitting-out:not(.is-away) .holdem-seat-status {
+  background: #8f420f;
+  color: #fff4df;
+}
 .holdem-seat-turn-timer {
   --holdem-seat-timer-ratio: 1;
   position: absolute;

@@ -1296,7 +1296,13 @@ window.TexasHoldem = (function () {
       away: !!firstDefined(entry.away, entry.disconnected, status === "away" || status === "disconnected"),
       leaving: !!firstDefined(entry.leaving, entry.leaveAfterHand, entry.pendingLeave, status === "leaving"),
       leavingIntent: text(firstDefined(entry.leavingIntent, entry.leaveIntent, entry.pendingIntent), 24),
-      sittingOut: !!firstDefined(entry.sittingOut, entry.spectator, status === "sitting_out"),
+      sittingOut: !!firstDefined(
+        entry.sittingOut,
+        entry.autoSitOut,
+        entry.timeoutSitOut,
+        entry.spectator,
+        status === "sitting_out" || status === "auto_sit_out"
+      ),
       inHand: bool(firstDefined(entry.inHand, entry.playing), status !== "out"),
       cardCount: clamp(integer(firstDefined(entry.cardCount, entry.holeCardCount, entry.hasCards ? 2 : 0), 0), 0, 2),
       status: status,
@@ -3309,7 +3315,8 @@ window.TexasHoldem = (function () {
   function autoStartNick() {
     for (var i = 0; i < state.seats.length; i++) {
       var seat = state.seats[i];
-      if (seat && !seat.isBot && seat.stack > 0 && !seat.away) return seat.nick;
+      if (seat && !seat.isBot && seat.stack > 0 &&
+          !seat.away && !seat.sittingOut) return seat.nick;
     }
     return "";
   }
@@ -3341,6 +3348,8 @@ window.TexasHoldem = (function () {
   function autoReadyForNextHand(key) {
     autoReadyTimer = null;
     if (!active || state.phase !== "complete" || state.heroSeat < 0) return;
+    var hero = state.seats[state.heroSeat];
+    if (hero && hero.sittingOut) return;
     if (state.heroReady || !state.canReady || autoReadyKey !== key || requests.ready) return;
     if (!resultTransitionReady()) {
       scheduleAutoReadyForNextHand();
@@ -3360,7 +3369,12 @@ window.TexasHoldem = (function () {
   }
 
   function scheduleAutoReadyForNextHand() {
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
     if (state.phase !== "complete" || state.heroSeat < 0 || state.heroReady || !state.canReady || requests.ready) {
+      clearAutoReadyForNextHand();
+      return;
+    }
+    if (hero && hero.sittingOut) {
       clearAutoReadyForNextHand();
       return;
     }
@@ -3424,8 +3438,9 @@ window.TexasHoldem = (function () {
   }
 
   function setReady() {
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
     invoke("ready", {
-      ready: !state.heroReady,
+      ready: hero && hero.sittingOut ? true : !state.heroReady,
       expectedVersion: state.version
     }, { key: "ready", label: "ready", broadcast: true });
   }
@@ -4651,7 +4666,7 @@ window.TexasHoldem = (function () {
     if (seat.folded) return "폴드";
     if (seat.allIn) return "올인";
     if (seat.away) return "연결 끊김";
-    if (seat.sittingOut) return "대기";
+    if (seat.sittingOut) return "자동 자리비움";
     if (seat.bet > 0) return "베팅 " + formatChips(seat.bet);
     if (seat.ready && state.phase === "waiting") return "준비";
     return "";
@@ -4909,6 +4924,7 @@ window.TexasHoldem = (function () {
       if (seat && seat.allIn) classes.push("is-allin");
       if (seat && seat.leaving) classes.push("is-leaving");
       if (seat && seat.away) classes.push("is-away");
+      if (seat && seat.sittingOut) classes.push("is-sitting-out");
       if (seat && seat.isBot) classes.push("is-bot");
       if (seat && seatEmojiReactions[seatEmojiKey(seat.nick)]) classes.push("is-emoji-reacting");
       var isWinner = !!(seat && (seat.winner || winners[seat.nick]));
@@ -4950,6 +4966,10 @@ window.TexasHoldem = (function () {
       var leaveBadge = seat && seat.leaving
         ? '<span class="holdem-seat-leave-badge" aria-hidden="true">' +
           esc(seat.leavingIntent === "spectate" ? "관전 예약" : "나가기 예약") + '</span>'
+        : "";
+      var awayBadge = seat && (seat.away || seat.sittingOut)
+        ? '<span class="holdem-seat-status" aria-hidden="true">' +
+          esc(seat.away ? "연결 끊김" : "자동 자리비움") + '</span>'
         : "";
 
       var holes = "";
@@ -5021,6 +5041,7 @@ window.TexasHoldem = (function () {
           leaveBadge +
           (seat ? '<strong class="holdem-seat-name">' + esc(name) + '</strong>' : "") +
           (seat ? '<span class="holdem-seat-stack">' + formatChips(displayStack) + '</span>' : "") +
+          awayBadge +
           (isActive && state.deadlineAt
             ? '<span class="holdem-seat-turn-timer" data-holdem-seat-timer="' + absolute + '"></span>'
             : "") +
@@ -5271,6 +5292,10 @@ window.TexasHoldem = (function () {
     if (state.phase === "loading" || !hasSnapshot || pendingAction === "join") {
       return "테이블을 불러오는 중이에요";
     }
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    if (hero && hero.sittingOut && !isHandActive(state.phase)) {
+      return "연속 2회 시간 초과로 다음 판부터 자리비움 상태예요. 다시 참가를 눌러주세요.";
+    }
     if (state.phase === "waiting") {
       if (state.heroSeat < 0 && state.practiceMode) {
         return "AI 연습 중에는 빈자리에 직접 앉을 수 없어요. 같이 플레이 요청을 보내주세요.";
@@ -5466,6 +5491,8 @@ window.TexasHoldem = (function () {
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
     var resultReady = resultTransitionReady();
     var resultSettled = resultSettlementReady();
+    var canResume = !!(hero && hero.sittingOut && state.canReady &&
+      !isHandActive(state.phase) && resultReady);
     var needsRefill = state.mode === "ring" && !!hero && hero.stack <= 0 &&
       !isHandActive(state.phase) && resultReady;
     var menuKey = state.handId + ":" + state.version + ":" + state.actionSeq + ":" +
@@ -5477,7 +5504,7 @@ window.TexasHoldem = (function () {
     if ((!hasMove && !hasPreAction) || !canSize) raiseMenuOpen = false;
 
     show("holdem-lobby", false);
-    show("holdem-seat-controls", waiting && state.heroSeat >= 0);
+    show("holdem-seat-controls", canResume);
     show("holdem-bot-controls", false);
     show("holdem-bot-note", false);
     setText("holdem-bot-count", "AI " + state.botCount + "명");
@@ -5489,7 +5516,7 @@ window.TexasHoldem = (function () {
     var isNewGameStart = !isHandActive(state.phase) && state.newGameBuyInRequired &&
       isOwner && resultReady;
     var tableStartVisible = (waiting && state.canStart) || isNewGameStart;
-    show("holdem-ready-btn", false);
+    show("holdem-ready-btn", canResume);
     show("holdem-start-btn", false);
     show("holdem-table-start-btn", tableStartVisible);
     var tableStartButton = $("holdem-table-start-btn");
@@ -5501,9 +5528,11 @@ window.TexasHoldem = (function () {
     var readyButton = $("holdem-ready-btn");
     if (readyButton) {
       readyButton.setAttribute("aria-pressed", state.heroReady ? "true" : "false");
-      readyButton.textContent = state.heroReady ? "준비 취소" : "준비";
+      readyButton.textContent = canResume
+        ? "다시 참가"
+        : state.heroReady ? "준비 취소" : "준비";
     }
-    disable("holdem-ready-btn", busy);
+    disable("holdem-ready-btn", busy || !canResume);
     disable("holdem-start-btn", busy);
     disable("holdem-table-start-btn", busy);
     show("holdem-refill-panel", needsRefill);
@@ -5703,7 +5732,10 @@ window.TexasHoldem = (function () {
         : "관전";
       var stack = row ? formatChips(row.seat.stack) : "";
       var mine = nick === text(me().nick, 40) ? ' <span class="mini-me">나</span>' : "";
-      var away = row && row.seat.away ? ' <span class="mini-away">자리비움</span>' : "";
+      var away = row && (row.seat.away || row.seat.sittingOut)
+        ? ' <span class="mini-away">' +
+          (row.seat.away ? "자리비움" : "자동 자리비움") + '</span>'
+        : "";
       return '<div class="prow"><span class="pname"><span class="rtag role-holdem">' +
         esc(role) + '</span>' + esc(row ? (row.seat.displayName || nick) : nick) + mine + away + '</span>' +
         (stack ? '<span class="holdem-player-stack">' + stack + '</span>' : "") +
@@ -6598,6 +6630,7 @@ window.TexasHoldem = (function () {
       relativeSeat: relativeSeat,
       requestId: requestId,
       joinTable: joinTable,
+      setReady: setReady,
       openProfileDialog: openProfileDialog,
       loadProfileAsset: loadProfileAsset,
       openBuyInDialog: openBuyInDialog,

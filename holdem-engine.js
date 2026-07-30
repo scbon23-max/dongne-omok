@@ -12,6 +12,7 @@
   var BOT_THINK_DELAY_MIN_MS = 2000;
   var BOT_THINK_DELAY_MAX_MS = 5000;
   var JOIN_REQUEST_TTL_MS = 60 * 1000;
+  var AUTO_SIT_OUT_TIMEOUTS = 2;
   var BOT_DISPLAY_NAME = "AI";
   var RING_RAKE_BASIS_POINTS = 200;
   var RING_RAKE_CAP_BIG_BLINDS = 1;
@@ -340,6 +341,8 @@
       joinedAt: now,
       waiting: true,
       away: false,
+      sittingOut: false,
+      timeoutStreak: 0,
       leaving: false,
       leavingIntent: "",
       inHand: false,
@@ -603,6 +606,10 @@
         }
       }
       player.away = player.isBot ? false : player.away === true;
+      player.sittingOut = player.isBot ? false : player.sittingOut === true;
+      player.timeoutStreak = player.isBot
+        ? 0
+        : clamp(player.timeoutStreak, 0, AUTO_SIT_OUT_TIMEOUTS, 0);
       player.leaving = player.leaving === true;
       player.leavingIntent = player.leaving ? normalizeLeavingIntent(player.leavingIntent) || "leave" : "";
       player.revealCards = normalizeRevealCards(player.revealCards);
@@ -685,6 +692,9 @@
     state.settings.practice = false;
     state.practiceBuyIns = Object.create(null);
     humanPlayers(state).forEach(function (player) {
+      player.sittingOut = false;
+      player.timeoutStreak = 0;
+      player.ready = player.stack > 0;
       state.practiceBuyIns[player.nick] = amount;
       state.ringStacks[player.nick] = amount;
     });
@@ -734,7 +744,35 @@
   }
 
   function canPlayNextHand(player) {
-    return !!player && !player.leaving && !player.away && player.stack > 0;
+    return !!player && !player.leaving && !player.away &&
+      !player.sittingOut && player.stack > 0;
+  }
+
+  function resetPlayerTimeoutState(state, player) {
+    if (!player || player.isBot) return false;
+    var changed = player.sittingOut === true || integer(player.timeoutStreak, 0) !== 0;
+    player.sittingOut = false;
+    player.timeoutStreak = 0;
+    if (changed && !PLAYING_PHASES[state.phase] && !player.leaving &&
+        !player.away && player.stack > 0) {
+      player.ready = true;
+    }
+    return changed;
+  }
+
+  function recordPlayerTimeout(player) {
+    if (!player || player.isBot) return false;
+    player.timeoutStreak = clamp(
+      integer(player.timeoutStreak, 0) + 1,
+      0,
+      AUTO_SIT_OUT_TIMEOUTS,
+      AUTO_SIT_OUT_TIMEOUTS
+    );
+    if (player.timeoutStreak >= AUTO_SIT_OUT_TIMEOUTS) {
+      player.sittingOut = true;
+      player.ready = false;
+    }
+    return player.sittingOut === true;
   }
 
   function humanPlayers(state) {
@@ -1274,7 +1312,7 @@
         player.stack = state.settings.refillAmount;
         player.ready = true;
       } else if (player.stack <= 0) player.ready = false;
-      else if (!player.leaving && !player.away) player.ready = true;
+      else if (!player.leaving && !player.away && !player.sittingOut) player.ready = true;
       else player.ready = false;
       if (!player.leaving && state.settings.mode === "ring" && !player.isBot && player.nick) {
         state.ringStacks[player.nick] = clamp(
@@ -1726,7 +1764,8 @@
         changed = true;
       }
       if (nextAway) player.ready = false;
-      else if (!PLAYING_PHASES[state.phase] && !player.leaving && player.stack > 0) player.ready = true;
+      else if (!PLAYING_PHASES[state.phase] && !player.leaving &&
+          !player.sittingOut && player.stack > 0) player.ready = true;
     });
     if (!PLAYING_PHASES[state.phase]) {
       changed = removeAwayBustedRingPlayers(state, now) || changed;
@@ -1793,6 +1832,7 @@
               player.seat = requestedMoveSeat;
               player.leaving = false;
               player.leavingIntent = "";
+              resetPlayerTimeoutState(next, player);
               next.seats[requestedMoveSeat] = player;
               next.lastEvent = { type: "seat_moved", nick: nick, seat: requestedMoveSeat, at: now };
               result = { ok: true };
@@ -1801,7 +1841,8 @@
           } else {
             player.leaving = false;
             player.leavingIntent = "";
-            result = { ok: true, reason: "already_joined" };
+            var resumedFromTimeout = resetPlayerTimeoutState(next, player);
+            result = { ok: true, reason: resumedFromTimeout ? "resumed" : "already_joined" };
             changed = true;
           }
         } else if (anyPlayerByNick(next, nick)) {
@@ -1964,7 +2005,9 @@
           reason: next.settings.mode === "ring" ? "refill_required" : "eliminated"
         };
         else {
-          player.ready = cmd.ready == null ? !player.ready : !!cmd.ready;
+          var nextReady = cmd.ready == null ? !player.ready : !!cmd.ready;
+          if (nextReady) resetPlayerTimeoutState(next, player);
+          player.ready = nextReady;
           next.lastEvent = { type: "ready", nick: nick, ready: player.ready, at: now };
           result = { ok: true };
           changed = true;
@@ -1991,6 +2034,8 @@
           player.lastAction = "";
           player.lastActionBet = null;
           player.winAmount = 0;
+          player.sittingOut = false;
+          player.timeoutStreak = 0;
           next.ringStacks[nick] = next.settings.refillAmount;
           next.lastEvent = {
             type: "ring_refilled",
@@ -2026,6 +2071,8 @@
             player.lastAction = "";
             player.lastActionBet = null;
             player.winAmount = 0;
+            player.sittingOut = false;
+            player.timeoutStreak = 0;
             next.ringStacks[nick] = rebuyAmount;
             addWalletAdjustment(next, nick, -rebuyDelta, "rebuy");
             next.lastEvent = {
@@ -2160,6 +2207,7 @@
         else if (player.seat !== next.actorSeat) result = { ok: false, reason: "turn" };
         else {
           result = applyPlayerAction(next, player, text(cmd.action, 16).toLowerCase(), cmd.amount, now, context.randomInt);
+          if (result.ok) resetPlayerTimeoutState(next, player);
           changed = result.ok;
         }
       } else if (type === "reveal_cards") {
@@ -2213,7 +2261,10 @@
           var timeoutAction = legal.actions.indexOf("check") >= 0 ? "check" : "fold";
           result = applyPlayerAction(next, player, timeoutAction, null, now, context.randomInt);
           if (result.ok) {
+            recordPlayerTimeout(player);
             next.lastEvent.timeout = true;
+            next.lastEvent.timeoutStreak = player.isBot ? 0 : player.timeoutStreak;
+            next.lastEvent.sittingOut = player.isBot ? false : player.sittingOut === true;
             changed = true;
           }
         }
@@ -2254,6 +2305,7 @@
       ready: !!player.ready,
       waiting: !!player.waiting,
       away: !!player.away,
+      sittingOut: !!player.sittingOut,
       leaving: !!player.leaving,
       leavingIntent: player.leaving ? normalizeLeavingIntent(player.leavingIntent) || "leave" : "",
       inHand: !!player.inHand,
@@ -2281,7 +2333,8 @@
     if (!event || typeof event !== "object") return null;
     var allowed = [
       "type", "nick", "seat", "ready", "handNo", "action", "amount",
-      "grossAmount", "rake", "fullRaise", "timeout", "winners", "reason", "away", "at", "botId",
+      "grossAmount", "rake", "fullRaise", "timeout", "timeoutStreak", "sittingOut",
+      "winners", "reason", "away", "at", "botId",
       "botPersonality", "displayName", "targetNick", "buyIn"
     ];
     var out = {};
@@ -2331,7 +2384,8 @@
     }
     var canStart = !PLAYING_PHASES[state.phase] && state.phase !== "tournament_end" &&
       !!viewerPlayer && !viewerPlayer.isBot && !viewerPlayer.leaving &&
-      !viewerPlayer.away && viewerPlayer.stack > 0 && readyEligible.length >= 2;
+      !viewerPlayer.away && !viewerPlayer.sittingOut &&
+      viewerPlayer.stack > 0 && readyEligible.length >= 2;
     if (state.newGameBuyInRequired && viewerNick === state.ownerNick &&
         humanPlayers(state).length >= 2 && occupied.length >= 2) {
       canStart = true;
@@ -2413,7 +2467,10 @@
         actionDurationMs: state.settings.actionMs,
         handName: viewerHand ? viewerHand.name : ""
       },
-      canReady: false,
+      canReady: !PLAYING_PHASES[state.phase] && state.phase !== "tournament_end" &&
+        !!viewerPlayer &&
+        !viewerPlayer.isBot && !viewerPlayer.leaving && !viewerPlayer.away &&
+        viewerPlayer.sittingOut === true && viewerPlayer.stack > 0,
       canStart: canStart,
       canNext: state.phase === "hand_end" && canStart,
       newGameBuyInRequired: state.newGameBuyInRequired === true,

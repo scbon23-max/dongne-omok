@@ -1065,6 +1065,66 @@ test("a seated solo owner sees an action-area button to fill AI seats", () => {
   assert.equal(dom.elements.holdemgame.classList.contains("is-solo-bot-fill"), false);
 });
 
+test("a timeout-sat-out player gets a manual rejoin control", async () => {
+  const dom = controlTestDocument();
+  const calls = [];
+  const resumedSnapshot = {
+    phase: "hand_end",
+    version: 12,
+    handId: "timeout-resume",
+    ownerNick: "alice",
+    canReady: false,
+    canStart: true,
+    seats: [
+      { seat: 0, nick: "alice", stack: 10000, ready: true, sittingOut: false },
+      { seat: 1, nick: "bob", stack: 10000, ready: true },
+    ],
+    viewer: { seat: 0, cards: [] },
+    legalActions: {},
+  };
+  const controller = loadController("alice", {
+    document: dom.document,
+    db: {
+      holdemInvoke(_auth, action, payload) {
+        calls.push({ action, payload });
+        return Promise.resolve({ ok: true, version: 12, snapshot: resumedSnapshot });
+      },
+    },
+  });
+  const sittingOut = controller._test.normalizeSnapshot({
+    ...resumedSnapshot,
+    version: 11,
+    canReady: true,
+    canStart: false,
+    seats: [
+      { seat: 0, nick: "alice", stack: 10000, ready: false, sittingOut: true },
+      { seat: 1, nick: "bob", stack: 10000, ready: true },
+    ],
+  }, 11);
+
+  try {
+    controller._test.setActive(true);
+    controller._test.setHasSnapshot(true);
+    controller._test.setState(sittingOut);
+    controller._test.renderControls();
+
+    assert.equal(dom.elements["holdem-seat-controls"].classList.contains("hidden"), false);
+    assert.equal(dom.elements["holdem-ready-btn"].classList.contains("hidden"), false);
+    assert.equal(dom.elements["holdem-ready-btn"].textContent, "다시 참가");
+    assert.equal(dom.elements["holdem-ready-btn"].disabled, false);
+
+    controller._test.setReady();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].action, "ready");
+    assert.equal(calls[0].payload.ready, true);
+  } finally {
+    controller.leave();
+  }
+});
+
 test("pre-action buttons can be queued before the hero turn", () => {
   const dom = controlTestDocument();
   const controller = loadController("alice", { document: dom.document });

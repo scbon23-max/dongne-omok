@@ -315,6 +315,146 @@ test("expired turns auto-check when free and otherwise auto-fold", () => {
   assert.equal(state.seats.reduce((sum, player) => sum + (player ? player.stack : 0), 0), 20000);
 });
 
+test("two consecutive human turn timeouts sit the player out of the next hand", () => {
+  const names = ["sleepy", "active-a", "active-b"];
+  const playing = new Set(["preflop", "flop", "turn", "river"]);
+  let state = tableWithPlayers(names, { actionMs: 5000 });
+  state = readyAndStart(state, names, 1000);
+
+  assert.equal(state.seats[state.actorSeat].nick, "sleepy");
+  state = apply(state, {
+    type: "tick",
+    nick: "active-a",
+    requestId: "timeout:first",
+  }, state.actionDeadline);
+  assert.equal(state.seats[0].timeoutStreak, 1);
+  assert.equal(state.seats[0].sittingOut, false);
+
+  let guard = 0;
+  while (playing.has(state.phase)) {
+    assert.ok(guard++ < 30, "first hand completed");
+    const actor = state.seats[state.actorSeat];
+    const legal = Engine.legalActions(state, actor.nick);
+    const action = legal.actions.includes("check") ? "check" : "call";
+    state = apply(state, {
+      type: "act",
+      nick: actor.nick,
+      action,
+      requestId: `first-hand:${guard}`,
+    }, state.actionDeadline - 1);
+  }
+
+  state = apply(state, {
+    type: "start",
+    nick: "active-a",
+    requestId: "start:second-timeout-hand",
+  }, 20000);
+  guard = 0;
+  while (state.seats[state.actorSeat].nick !== "sleepy") {
+    assert.ok(guard++ < 10, "sleepy received another turn");
+    const actor = state.seats[state.actorSeat];
+    const legal = Engine.legalActions(state, actor.nick);
+    const action = legal.actions.includes("check") ? "check" : "call";
+    state = apply(state, {
+      type: "act",
+      nick: actor.nick,
+      action,
+      requestId: `second-hand:${guard}`,
+    }, state.actionDeadline - 1);
+  }
+
+  state = apply(state, {
+    type: "tick",
+    nick: "active-b",
+    requestId: "timeout:second",
+  }, state.actionDeadline);
+  assert.equal(state.seats[0].timeoutStreak, 2);
+  assert.equal(state.seats[0].sittingOut, true);
+  assert.equal(Engine.view(state, "active-a").seats[0].sittingOut, true);
+
+  guard = 0;
+  while (playing.has(state.phase)) {
+    assert.ok(guard++ < 30, "second hand completed");
+    const actor = state.seats[state.actorSeat];
+    if (actor.nick === "sleepy") {
+      state = apply(state, {
+        type: "tick",
+        nick: "active-a",
+        requestId: `finish-second-timeout:${guard}`,
+      }, state.actionDeadline);
+      continue;
+    }
+    const legal = Engine.legalActions(state, actor.nick);
+    const action = legal.actions.includes("check") ? "check" : "call";
+    state = apply(state, {
+      type: "act",
+      nick: actor.nick,
+      action,
+      requestId: `finish-second:${guard}`,
+    }, state.actionDeadline - 1);
+  }
+
+  const sittingOutView = Engine.view(state, "sleepy");
+  assert.equal(sittingOutView.canReady, true);
+  assert.equal(sittingOutView.canStart, false);
+  state = apply(state, {
+    type: "start",
+    nick: "active-a",
+    requestId: "start:without-sleepy",
+  }, 40000);
+  assert.equal(state.seats[0].inHand, false);
+  assert.equal(state.seats[0].waiting, true);
+  assert.equal(state.seats[1].inHand, true);
+  assert.equal(state.seats[2].inHand, true);
+});
+
+test("a valid action or ready command clears timeout sit-out state", () => {
+  const names = ["alice", "bob", "carol"];
+  let state = tableWithPlayers(names);
+  state = readyAndStart(state, names, 1000);
+  const actor = state.seats[state.actorSeat];
+  actor.timeoutStreak = 2;
+  actor.sittingOut = true;
+  actor.ready = false;
+
+  state = apply(state, {
+    type: "act",
+    nick: actor.nick,
+    action: "call",
+    requestId: "timeout:cleared-by-action",
+  }, state.actionDeadline - 1);
+  assert.equal(state.seats[actor.seat].timeoutStreak, 0);
+  assert.equal(state.seats[actor.seat].sittingOut, false);
+
+  state.phase = "hand_end";
+  state.actorSeat = null;
+  state.actionDeadline = null;
+  state.pendingSeats = [];
+  state.seats[actor.seat].sittingOut = true;
+  state.seats[actor.seat].timeoutStreak = 2;
+  state.seats[actor.seat].ready = false;
+
+  state = apply(state, {
+    type: "presence",
+    nick: "bob",
+    presentNicks: names,
+    awayNicks: [],
+    requestId: "timeout:presence-does-not-resume",
+  }, 1999);
+  assert.equal(state.seats[actor.seat].sittingOut, true);
+  assert.equal(state.seats[actor.seat].ready, false);
+
+  state = apply(state, {
+    type: "ready",
+    nick: actor.nick,
+    ready: true,
+    requestId: "timeout:resume",
+  }, 2000);
+  assert.equal(state.seats[actor.seat].timeoutStreak, 0);
+  assert.equal(state.seats[actor.seat].sittingOut, false);
+  assert.equal(state.seats[actor.seat].ready, true);
+});
+
 test("request ids make retried mutations idempotent", () => {
   let state = Engine.createTable({ roomId: "dedupe", ownerNick: "a" });
   const first = Engine.command(state, {
