@@ -764,9 +764,11 @@ test("Hold'em chat keeps transient toasts separate from the recent typing histor
   assert.match(index, /id="holdem-chat-input"/);
   assert.match(index, /id="holdem-emoji-toggle"/);
   assert.match(index, /id="holdem-emoji-panel"/);
+  assert.match(index, /data-holdem-emoji="😀"[\s\S]*data-holdem-emoji="☺️"[\s\S]*data-holdem-emoji="😅"/);
   assert.match(index, /data-holdem-emoji="😅"/);
-  assert.match(index, /data-holdem-emoji="😨"[\s\S]*data-holdem-emoji="😤"[\s\S]*data-holdem-emoji="👋"/);
-  assert.match(index, /data-holdem-emoji="🙏"[\s\S]*data-holdem-emoji="👏"[\s\S]*data-holdem-emoji="👊"[\s\S]*data-holdem-emoji="🎉"/);
+  assert.match(index, /data-holdem-emoji="🤫"[\s\S]*data-holdem-emoji="😨"[\s\S]*data-holdem-emoji="😤"[\s\S]*data-holdem-emoji="👋"/);
+  assert.match(index, /data-holdem-emoji="🫢"[\s\S]*data-holdem-emoji="🫣"[\s\S]*data-holdem-emoji="🫩"[\s\S]*data-holdem-emoji="😵‍💫"/);
+  assert.match(index, /data-holdem-emoji="🙏"[\s\S]*data-holdem-emoji="👏"[\s\S]*data-holdem-emoji="👌"[\s\S]*data-holdem-emoji="👊"[\s\S]*data-holdem-emoji="🎉"/);
   assert.match(index, /data-holdem-emoji="‼️"/);
   assert.match(styles, /\.holdem-card\.back\s*\{[\s\S]*border-radius:\s*var\(--holdem-card-back-radius/);
   assert.match(styles, /\.holdem-board \.holdem-card\s*\{[\s\S]*--holdem-card-back-radius:\s*clamp\(7px/);
