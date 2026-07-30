@@ -657,7 +657,7 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /function maybeAutoSeatJoin\(\)[\s\S]*firstEmptySeat\(\)[\s\S]*requestHumanSeatJoin\(targetSeat\)/);
   assert.match(index, /id="holdem-buyin-spectate"[^>]*>관전하기</);
   assert.match(index, /<dt>내 총자산<\/dt>[\s\S]*id="holdem-buyin-balance"/);
-  assert.match(controller, /function displayedBuyInBalance\(bounds\)[\s\S]*walletBalance - selected/);
+  assert.match(controller, /function displayedBuyInBalance\(bounds\)[\s\S]*var spent = buyInMode === "rebuy"[\s\S]*walletBalance - spent/);
   assert.match(index, /id="holdem-profile-role-action"[^>]*>관전하기</);
   assert.match(engine, /ready:\s*stack > 0/);
   assert.match(engine, /leavingIntent:\s*""/);

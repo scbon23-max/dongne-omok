@@ -4160,18 +4160,28 @@ window.TexasHoldem = (function () {
     var unit = Math.max(100, integer(state.chipUnit, 100));
     var tableMin = Math.max(unit, Math.round(nonnegative(state.buyInMin, unit) / unit) * unit);
     var tableMax = Math.max(tableMin, Math.round(nonnegative(state.buyInMax, state.startingStack || tableMin) / unit) * unit);
+    var currentStack = 0;
+    if (buyInMode === "rebuy" && buyInSeat >= 0 && state.seats[buyInSeat]) {
+      currentStack = Math.max(0, Math.floor(nonnegative(state.seats[buyInSeat].stack, 0) / unit) * unit);
+    }
+    var min = currentStack > 0
+      ? Math.min(tableMax, Math.max(tableMin, currentStack + unit))
+      : tableMin;
     var walletBalance = wallet && Number.isFinite(Number(wallet.balance))
       ? Math.max(0, Math.floor(Number(wallet.balance)))
       : tableMax;
-    var max = Math.max(0, Math.min(tableMax, Math.floor(walletBalance / unit) * unit));
+    var spendable = walletBalance + currentStack;
+    var max = Math.max(0, Math.min(tableMax, Math.floor(spendable / unit) * unit));
     var defaultAmount = Math.max(tableMin, Math.min(
       tableMax,
       Math.round(nonnegative(state.buyInDefault, tableMax) / unit) * unit
     ));
-    if (max >= tableMin) defaultAmount = Math.min(defaultAmount, max);
+    if (currentStack > 0) defaultAmount = max;
+    else if (max >= min) defaultAmount = Math.min(defaultAmount, max);
+    if (defaultAmount < min) defaultAmount = min;
     return {
       unit: unit,
-      min: tableMin,
+      min: min,
       max: tableMax,
       selectableMax: max,
       defaultAmount: defaultAmount,
@@ -4189,8 +4199,13 @@ window.TexasHoldem = (function () {
   function displayedBuyInBalance(bounds) {
     if (!buyInWallet) return null;
     var selected = normalizeBuyInAmount(buyInValue || bounds.defaultAmount);
+    var currentStack = 0;
+    if (buyInMode === "rebuy" && buyInSeat >= 0 && state.seats[buyInSeat]) {
+      currentStack = Math.max(0, Math.floor(Number(state.seats[buyInSeat].stack) || 0));
+    }
+    var spent = buyInMode === "rebuy" ? Math.max(0, selected - currentStack) : selected;
     var walletBalance = Math.max(0, Math.floor(Number(buyInWallet.balance) || 0));
-    return Math.max(0, walletBalance - selected);
+    return Math.max(0, walletBalance - spent);
   }
 
   function loadBuyInWallet() {
@@ -4472,7 +4487,7 @@ window.TexasHoldem = (function () {
       targetSeat === state.heroSeat &&
       hero &&
       !hero.isBot &&
-      hero.stack <= 0 &&
+      hero.stack < tableBuyInBounds(null).max &&
       !isHandActive(state.phase) &&
       !buyInDialogOpen &&
       !requests.rebuy &&

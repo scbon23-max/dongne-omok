@@ -1353,6 +1353,25 @@ test("ring joins and bust rebuys can choose an in-room buy-in amount", () => {
     rebuy.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
     [{ nickname: "owner", delta: -40000 }],
   );
+
+  state = rebuy.state;
+  state.walletAdjustments = [];
+  state.seats[2].stack = 25000;
+  state.ringStacks.owner = 25000;
+  const topUp = Engine.command(state, {
+    type: "rebuy",
+    nick: "owner",
+    amount: 40000,
+    requestId: "wallet:rebuy-top-up",
+  }, context(3));
+  assert.equal(topUp.ok, true, topUp.reason);
+  assert.equal(topUp.state.seats[2].stack, 40000);
+  assert.equal(topUp.state.lastEvent.delta, 15000);
+  assert.deepEqual(
+    topUp.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    [{ nickname: "owner", delta: -15000 }],
+  );
+
   const view = Engine.view(rebuy.state, "owner");
   assert.equal(view.buyInMin, 20000);
   assert.equal(view.buyInMax, 40000);

@@ -2247,7 +2247,7 @@ test("ring rebuys use a separate wallet-backed server command", async () => {
   controller.leave();
 });
 
-test("clicking your empty ring profile opens the rebuy picker", async () => {
+test("clicking your ring profile below the room max opens the rebuy picker", async () => {
   const calls = [];
   const db = {
     getHoldemWallet(auth) {
@@ -2264,7 +2264,7 @@ test("clicking your empty ring profile opens the rebuy picker", async () => {
   state.phase = "complete";
   state.version = 3;
   state.heroSeat = 0;
-  state.seats[0] = { seat: 0, nick: "alice", stack: 0 };
+  state.seats[0] = { seat: 0, nick: "alice", stack: 25000 };
   state.seats[1] = { seat: 1, nick: "bob", stack: 30000 };
   state.buyInMin = 10000;
   state.buyInMax = 50000;
@@ -2274,6 +2274,7 @@ test("clicking your empty ring profile opens the rebuy picker", async () => {
   controller._test.setHasSnapshot(true);
 
   assert.equal(controller._test.canOpenProfileRebuyForSeat(1), false);
+  assert.equal(controller._test.canOpenProfileRebuyForSeat(0), true);
   assert.equal(controller._test.openProfileRebuyIfNeeded(0), true);
   await Promise.resolve();
   await Promise.resolve();

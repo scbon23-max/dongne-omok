@@ -2006,33 +2006,38 @@
         if (next.settings.mode !== "ring") result = { ok: false, reason: "ring_only" };
         else if (!player || player.isBot) result = { ok: false, reason: "not_joined" };
         else if (PLAYING_PHASES[next.phase]) result = { ok: false, reason: "hand_active" };
-        else if (player.stack > 0) result = { ok: false, reason: "refill_not_needed" };
         else {
           var rebuyAmount = requestedRingBuyIn(next, cmd);
-          player.stack = rebuyAmount;
-          player.ready = true;
-          player.waiting = true;
-          player.inHand = false;
-          player.folded = false;
-          player.allIn = false;
-          player.streetBet = 0;
-          player.totalBet = 0;
-          player.cards = [];
-          player.revealCards = [];
-          player.revealed = false;
-          player.lastAction = "";
-          player.lastActionBet = null;
-          player.winAmount = 0;
-          next.ringStacks[nick] = rebuyAmount;
-          addWalletAdjustment(next, nick, -rebuyAmount, "rebuy");
-          next.lastEvent = {
-            type: "ring_rebuy",
-            nick: nick,
-            amount: rebuyAmount,
-            at: now
-          };
-          result = { ok: true };
-          changed = true;
+          var rebuyDelta = Math.max(0, rebuyAmount - Math.max(0, integer(player.stack, 0)));
+          if (rebuyDelta <= 0) {
+            result = { ok: false, reason: "rebuy_not_needed" };
+          } else {
+            player.stack = rebuyAmount;
+            player.ready = true;
+            player.waiting = true;
+            player.inHand = false;
+            player.folded = false;
+            player.allIn = false;
+            player.streetBet = 0;
+            player.totalBet = 0;
+            player.cards = [];
+            player.revealCards = [];
+            player.revealed = false;
+            player.lastAction = "";
+            player.lastActionBet = null;
+            player.winAmount = 0;
+            next.ringStacks[nick] = rebuyAmount;
+            addWalletAdjustment(next, nick, -rebuyDelta, "rebuy");
+            next.lastEvent = {
+              type: "ring_rebuy",
+              nick: nick,
+              amount: rebuyAmount,
+              delta: rebuyDelta,
+              at: now
+            };
+            result = { ok: true };
+            changed = true;
+          }
         }
       } else if (type === "settings") {
         if (nick !== next.ownerNick) result = { ok: false, reason: "owner" };
