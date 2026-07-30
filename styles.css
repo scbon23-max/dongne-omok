@@ -4882,6 +4882,8 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-board .holdem-card.is-community-flipping {
   transform-style: preserve-3d;
+  border-color: transparent;
+  border-radius: var(--holdem-card-back-radius, var(--holdem-card-radius, 3px));
   animation: holdemCommunityCardFlip 620ms cubic-bezier(.2, .72, .18, 1) both;
   animation-delay: var(--holdem-community-flip-delay, 0ms);
 }
@@ -4892,6 +4894,7 @@ body.is-admin .feedback-user-compose { display: none; }
   inset: 0;
   border-radius: var(--holdem-card-back-radius, inherit);
   background: var(--holdem-card-back-image, url("assets/holdem/card-back-lucky-clover.png")) center / 100% 100% no-repeat;
+  background-color: #102f35;
   box-shadow: none;
   animation: holdemCommunityCardBackFlip 620ms cubic-bezier(.2, .72, .18, 1) both;
   animation-delay: var(--holdem-community-flip-delay, 0ms);

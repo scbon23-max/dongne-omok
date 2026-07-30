@@ -296,7 +296,9 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-board\s*\{[\s\S]*gap:\s*clamp\(3px,\s*\.8vw,\s*5px\)/);
   assert.match(styles, /\.holdem-board\s*\{[\s\S]*perspective:\s*720px/);
   assert.match(styles, /\.holdem-board \.holdem-card\.is-community-flipping\s*\{[\s\S]*holdemCommunityCardFlip 620ms/);
+  assert.match(styles, /\.holdem-board \.holdem-card\.is-community-flipping\s*\{[\s\S]*border-color:\s*transparent[\s\S]*border-radius:\s*var\(--holdem-card-back-radius/);
   assert.match(styles, /\.holdem-board \.holdem-card\.is-community-flipping::after\s*\{[\s\S]*background: var\(--holdem-card-back-image, url\("assets\/holdem\/card-back-lucky-clover\.png"\)\) center \/ 100% 100% no-repeat/);
+  assert.match(styles, /\.holdem-board \.holdem-card\.is-community-flipping::after\s*\{[\s\S]*background-color:\s*#102f35/);
   assert.doesNotMatch(styles, /repeating-linear-gradient\(28deg, transparent 0 5px, #c52835/);
   assert.match(styles, /@keyframes holdemCommunityCardBackFlip/);
   assert.match(styles, /\.is-community-flipping\.is-community-river-flipping\s*\{[\s\S]*animation-name:\s*holdemCommunityRiverFlip[\s\S]*animation-duration:\s*1800ms/);
