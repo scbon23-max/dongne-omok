@@ -4866,8 +4866,8 @@ window.TexasHoldem = (function () {
           '<div class="holdem-seat-avatar" aria-hidden="true">' +
             (avatarSrc ? '<img src="' + esc(avatarSrc) + '" alt="">' : seat ? avatarNameHtml(name) :
               '<span class="holdem-seat-open-icon"><span></span><i></i></span>') +
-            emojiHtml +
           '</div>' +
+          emojiHtml +
           '<div class="holdem-seat-badges" aria-hidden="true">' + badges + '</div>' +
           leaveBadge +
           (seat ? '<strong class="holdem-seat-name">' + esc(name) + '</strong>' : "") +

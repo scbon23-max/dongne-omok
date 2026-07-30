@@ -1442,6 +1442,7 @@ test("holdem emoji reactions send and render on the matching player avatar", () 
   assert.equal(sent[0].emoji, "😎");
   assert.match(elements["holdem-seats"].innerHTML, /holdem-seat-emoji-pop/);
   assert.match(elements["holdem-seats"].innerHTML, /😎/);
+  assert.match(elements["holdem-seats"].innerHTML, /<\/div><span class="holdem-seat-emoji-pop"/);
 
   const handled = controller.onMessage({
     t: "holdem_emoji",

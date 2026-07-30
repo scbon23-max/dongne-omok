@@ -798,7 +798,10 @@ test("Hold'em chat keeps transient toasts separate from the recent typing histor
   assert.match(styles, /\.holdem-emoji-toggle,\s*[\s\S]*\.holdem-chat-toggle\s*\{/);
   assert.match(styles, /\.holdem-emoji-panel\s*\{[\s\S]*grid-template-columns:\s*repeat\(5/);
   assert.match(styles, /\.holdem-seat-emoji-pop\s*\{[\s\S]*font-size:\s*clamp\(43px,\s*calc\(var\(--holdem-seat-avatar-size\) \* \.922\),\s*70px\)/);
+  assert.match(styles, /\.holdem-seat-emoji-pop\s*\{[\s\S]*top:\s*var\(--holdem-seat-timer-y\)/);
+  assert.match(styles, /\.holdem-seat-emoji-pop\s*\{[\s\S]*left:\s*var\(--holdem-seat-timer-x\)/);
   assert.match(styles, /\.holdem-seat-emoji-pop\s*\{[\s\S]*animation:\s*holdemSeatEmojiPop/);
+  assert.match(styles, /transform:\s*translate\(-50%,\s*-50%\)\s*scale/);
   assert.match(styles, /\.holdem-chat-history\s*\{[\s\S]*-webkit-overflow-scrolling:\s*touch/);
   assert.match(styles, /\.holdem-screen\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*display:\s*flex/);
   assert.match(styles, /\.holdem-screen\.is-pre-actioning\.is-chat-focused \.holdem-chat-history\s*\{[\s\S]*\+ 166px/);

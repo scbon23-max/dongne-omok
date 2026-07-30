@@ -5031,8 +5031,11 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-seat-emoji-pop {
   position: absolute;
-  inset: -4px;
+  top: var(--holdem-seat-timer-y);
+  left: var(--holdem-seat-timer-x);
   z-index: 95;
+  width: calc(var(--holdem-seat-avatar-size) + 8px);
+  height: calc(var(--holdem-seat-avatar-size) + 8px);
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -5043,6 +5046,8 @@ body.is-admin .feedback-user-compose { display: none; }
   text-shadow: 0 3px 8px rgba(0,0,0,.5);
   transform-origin: center;
   animation: holdemSeatEmojiPop 1.9s cubic-bezier(.2,.82,.25,1) both;
+  filter: none;
+  opacity: 1;
 }
 .holdem-seat-avatar-name {
   width: 88%;
@@ -5258,22 +5263,22 @@ body.is-admin .feedback-user-compose { display: none; }
   0% {
     opacity: 0;
     filter: saturate(1.28) brightness(1.18);
-    transform: scale(.54) translateY(8px);
+    transform: translate(-50%, -50%) scale(.54) translateY(8px);
   }
   14% {
     opacity: 1;
     filter: saturate(1.2) brightness(1.16);
-    transform: scale(1.08) translateY(0);
+    transform: translate(-50%, -50%) scale(1.08) translateY(0);
   }
   72% {
     opacity: 1;
     filter: saturate(1.05) brightness(1);
-    transform: scale(1) translateY(0);
+    transform: translate(-50%, -50%) scale(1) translateY(0);
   }
   100% {
     opacity: 0;
     filter: saturate(.92) brightness(.95);
-    transform: scale(.88) translateY(-12px);
+    transform: translate(-50%, -50%) scale(.88) translateY(-12px);
   }
 }
 .holdem-seat-action.is-action-enter {
