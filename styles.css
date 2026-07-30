@@ -4813,6 +4813,22 @@ body.is-admin .feedback-user-compose { display: none; }
     0 0 12px rgba(255,209,82,.58),
     0 2px 8px rgba(0,0,0,.34);
 }
+.holdem-screen[data-card-front-skin="four-color"] .holdem-board .holdem-card.is-hero-made-hand-card {
+  border-color: #fff3b0;
+  box-shadow:
+    inset 0 0 0 2px rgba(255,220,105,.98),
+    0 0 0 1px rgba(255,247,204,.9),
+    0 0 11px rgba(255,207,72,.66),
+    0 2px 7px rgba(0,0,0,.32);
+}
+.holdem-screen[data-card-front-skin="four-color"] .holdem-card.is-winning-combo-card:not(.back) {
+  border-color: #fff8cf;
+  box-shadow:
+    inset 0 0 0 2px rgba(255,225,109,1),
+    0 0 0 1px rgba(255,250,218,.96),
+    0 0 15px rgba(255,207,72,.76),
+    0 2px 8px rgba(0,0,0,.36);
+}
 .holdem-hole-cards.is-winning-combo-review .holdem-card.is-winning-combo-card,
 .holdem-board .holdem-card.is-winning-combo-card {
   transform: translateY(-2px) scale(1.035);

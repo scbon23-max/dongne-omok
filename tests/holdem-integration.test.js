@@ -406,6 +406,8 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card:not\(\.back\):not\(\.empty\)\s*\{[\s\S]*border-color:\s*transparent/);
   assert.match(styles, /\.holdem-card\[data-suit="s"\]\s*\{[\s\S]*--holdem-card-mark-width:\s*84%[\s\S]*--holdem-card-mark-height:\s*60%/);
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card\[data-suit="d"\]\s*\{\s*background:\s*#2878d9/);
+  assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-board \.holdem-card\.is-hero-made-hand-card\s*\{[\s\S]*border-color:\s*#fff3b0[\s\S]*inset 0 0 0 2px rgba\(255,220,105,\.98\)/);
+  assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card\.is-winning-combo-card:not\(\.back\)\s*\{[\s\S]*border-color:\s*#fff8cf[\s\S]*0 0 15px rgba\(255,207,72,\.76\)/);
   assert.match(styles, /\.holdem-card\.back\s*\{[\s\S]*background: var\(--holdem-card-back-image, url\("assets\/holdem\/card-back-lucky-clover\.png"\)\) center \/ 100% 100% no-repeat/);
   assert.match(controller, /function communityCardHtml\(card, index, newRevealIndex, now, currentHand\) \{\s*if \(!card\) return cardHtml\(null, "back"\)/);
   assert.match(controller, /html \+= card \? communityCardHtml\(card, i, 0, now, currentHand\) : cardHtml\(null, "back"\)/);
