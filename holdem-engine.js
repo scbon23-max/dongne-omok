@@ -9,7 +9,8 @@
   var SCHEMA_VERSION = 1;
   var MAX_SEATS = 6;
   var ACTION_HISTORY_LIMIT = 128;
-  var BOT_THINK_DELAY_MS = 900;
+  var BOT_THINK_DELAY_MIN_MS = 2000;
+  var BOT_THINK_DELAY_MAX_MS = 5000;
   var JOIN_REQUEST_TTL_MS = 60 * 1000;
   var BOT_DISPLAY_NAME = "AI";
   var RING_RAKE_BASIS_POINTS = 200;
@@ -132,6 +133,12 @@
 
   function defaultRandomInt(max) {
     return Math.floor(Math.random() * max);
+  }
+
+  function botThinkDelayMs(randomInt) {
+    randomInt = typeof randomInt === "function" ? randomInt : defaultRandomInt;
+    var span = BOT_THINK_DELAY_MAX_MS - BOT_THINK_DELAY_MIN_MS + 1;
+    return BOT_THINK_DELAY_MIN_MS + clamp(integer(randomInt(span), 0), 0, span - 1);
   }
 
   function shuffleDeck(randomInt) {
@@ -442,7 +449,7 @@
       Array.isArray(state.seats) && state.seats.length === MAX_SEATS && PHASES[state.phase];
   }
 
-  function ensureAdditiveState(state, now) {
+  function ensureAdditiveState(state, now, randomInt) {
     state.economyVersion = 3;
     state.settings = state.settings && typeof state.settings === "object" ? state.settings : {};
     state.settings.mode = normalizeTableMode(state.settings.mode);
@@ -591,7 +598,7 @@
     if (!actor || !actor.isBot || !PLAYING_PHASES[state.phase]) {
       state.botDueAt = null;
     } else if (state.botDueAt == null && Number.isFinite(Number(now))) {
-      state.botDueAt = Math.max(0, integer(now, 0)) + BOT_THINK_DELAY_MS;
+      state.botDueAt = Math.max(0, integer(now, 0)) + botThinkDelayMs(randomInt);
     }
     return state;
   }
@@ -982,7 +989,7 @@
     for (var i = 0; i < count; i++) state.board.push(dealCard(state));
   }
 
-  function assignActor(state, now) {
+  function assignActor(state, now, randomInt) {
     state.botDueAt = null;
     while (state.pendingSeats.length) {
       var seat = state.pendingSeats[0];
@@ -990,7 +997,7 @@
       if (player && player.inHand && !player.folded && !player.allIn && player.stack > 0) {
         state.actorSeat = seat;
         state.actionDeadline = now + state.settings.actionMs;
-        if (player.isBot) state.botDueAt = now + BOT_THINK_DELAY_MS;
+        if (player.isBot) state.botDueAt = now + botThinkDelayMs(randomInt);
         return;
       }
       state.pendingSeats.shift();
@@ -1218,7 +1225,7 @@
     payoutShowdown(state, now);
   }
 
-  function beginStreet(state, phase, now) {
+  function beginStreet(state, phase, now, randomInt) {
     state.phase = phase;
     state.currentBet = 0;
     state.lastFullRaiseSize = state.settings.bigBlind;
@@ -1238,24 +1245,24 @@
     state.pendingSeats = first == null ? [] : orderedSeats(state, first, function (player) {
       return player.inHand && !player.folded && !player.allIn && player.stack > 0;
     });
-    assignActor(state, now);
+    assignActor(state, now, randomInt);
   }
 
-  function completeStreet(state, now) {
-    if (state.phase === "preflop") beginStreet(state, "flop", now);
-    else if (state.phase === "flop") beginStreet(state, "turn", now);
-    else if (state.phase === "turn") beginStreet(state, "river", now);
+  function completeStreet(state, now, randomInt) {
+    if (state.phase === "preflop") beginStreet(state, "flop", now, randomInt);
+    else if (state.phase === "flop") beginStreet(state, "turn", now, randomInt);
+    else if (state.phase === "turn") beginStreet(state, "river", now, randomInt);
     else payoutShowdown(state, now);
   }
 
-  function settleProgress(state, now) {
+  function settleProgress(state, now, randomInt) {
     var live = livePlayers(state);
     if (live.length === 1) {
       finishByFold(state, live[0], now);
       return;
     }
-    assignActor(state, now);
-    if (!state.pendingSeats.length) completeStreet(state, now);
+    assignActor(state, now, randomInt);
+    if (!state.pendingSeats.length) completeStreet(state, now, randomInt);
   }
 
   function appendActionHistory(state, entry) {
@@ -1279,7 +1286,7 @@
     }
   }
 
-  function applyPlayerAction(state, player, action, amount, now) {
+  function applyPlayerAction(state, player, action, amount, now, randomInt) {
     var phaseBefore = state.phase;
     var potBefore = potTotal(state);
     var legal = legalActionsForPlayer(state, player);
@@ -1369,7 +1376,7 @@
       fullRaise: increased ? fullRaise : false,
       at: now
     };
-    settleProgress(state, now);
+    settleProgress(state, now, randomInt);
     return { ok: true };
   }
 
@@ -1458,7 +1465,7 @@
       blindLevel: state.blindLevel,
       at: now
     };
-    assignActor(state, now);
+    assignActor(state, now, context && context.randomInt);
     if (!state.pendingSeats.length) runoutToShowdown(state, now);
     return { ok: true };
   }
@@ -1571,7 +1578,11 @@
     var now = Math.max(0, integer(context.now, Date.now()));
     var type = text(cmd.type, 20);
     var nick = text(cmd.nick, 40);
-    var next = ensureAdditiveState(clone(state), now);
+    var next = ensureAdditiveState(
+      clone(state),
+      now,
+      context && typeof context.randomInt === "function" ? context.randomInt : null
+    );
     var player;
     var changed = false;
     var result = { ok: false, reason: "command" };
@@ -1951,7 +1962,7 @@
         if (!player) result = { ok: false, reason: "not_joined" };
         else if (player.seat !== next.actorSeat) result = { ok: false, reason: "turn" };
         else {
-          result = applyPlayerAction(next, player, text(cmd.action, 16).toLowerCase(), cmd.amount, now);
+          result = applyPlayerAction(next, player, text(cmd.action, 16).toLowerCase(), cmd.amount, now, context.randomInt);
           changed = result.ok;
         }
       } else if (type === "reveal_cards") {
@@ -1984,7 +1995,7 @@
           else if (next.actionDeadline != null && now >= next.actionDeadline) {
             var expiredLegal = legalActionsForPlayer(next, player);
             var expiredAction = expiredLegal.actions.indexOf("check") >= 0 ? "check" : "fold";
-            result = applyPlayerAction(next, player, expiredAction, null, now);
+            result = applyPlayerAction(next, player, expiredAction, null, now, context.randomInt);
             if (result.ok) {
               next.lastEvent.timeout = true;
               changed = true;
@@ -1992,7 +2003,7 @@
           }
           else if (next.botDueAt != null && now < next.botDueAt) result = { ok: false, reason: "not_due" };
           else {
-            result = applyPlayerAction(next, player, text(cmd.action, 16).toLowerCase(), cmd.amount, now);
+            result = applyPlayerAction(next, player, text(cmd.action, 16).toLowerCase(), cmd.amount, now, context.randomInt);
             changed = result.ok;
           }
         }
@@ -2003,7 +2014,7 @@
           player = next.seats[next.actorSeat];
           var legal = legalActionsForPlayer(next, player);
           var timeoutAction = legal.actions.indexOf("check") >= 0 ? "check" : "fold";
-          result = applyPlayerAction(next, player, timeoutAction, null, now);
+          result = applyPlayerAction(next, player, timeoutAction, null, now, context.randomInt);
           if (result.ok) {
             next.lastEvent.timeout = true;
             changed = true;

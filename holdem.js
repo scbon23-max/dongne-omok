@@ -52,6 +52,8 @@ window.TexasHoldem = (function () {
   var CLOCK_MS = 250;
   var REFRESH_DEBOUNCE_MS = 90;
   var AUTO_NEXT_HAND_MS = 5000;
+  var BOT_ACTION_DELAY_MIN_MS = 2000;
+  var BOT_ACTION_DELAY_MAX_MS = 5000;
   var RESULT_FINAL_ACTION_MS = 2000;
   var RESULT_CARDS_FIRST_MS = 900;
   var RESULT_BOARD_REVEAL_STEP_MS = 900;
@@ -286,6 +288,11 @@ window.TexasHoldem = (function () {
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
+  }
+
+  function randomBotActionDelayMs() {
+    return BOT_ACTION_DELAY_MIN_MS +
+      Math.floor(Math.random() * (BOT_ACTION_DELAY_MAX_MS - BOT_ACTION_DELAY_MIN_MS + 1));
   }
 
   function bool(value, fallback) {
@@ -3556,7 +3563,7 @@ window.TexasHoldem = (function () {
     }
     if (botTimer && botTimerKey === key) return;
     if (botTimer) clearBotTimer();
-    var dueAt = state.botDueAt || (Date.now() + 800);
+    var dueAt = state.botDueAt || (Date.now() + randomBotActionDelayMs());
     if (botSentKey === key && Date.now() < botRetryAt) dueAt = botRetryAt;
     else if (botSentKey !== key) {
       botSentKey = "";

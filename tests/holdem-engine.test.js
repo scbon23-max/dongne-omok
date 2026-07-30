@@ -553,6 +553,46 @@ test("a folded AI keeps its cards hidden when the hand ends by folds", () => {
   botCards.forEach((card) => assert.equal(completedSerialized.includes(`"${card}"`), false));
 });
 
+test("AI betting turns wait between two and five seconds", () => {
+  function makeBotTurn(randomInt) {
+    let state = tableWithPlayers(["owner"]);
+    state = apply(state, {
+      type: "add_bot",
+      nick: "owner",
+    }, 10);
+    state = apply(state, {
+      type: "ready",
+      nick: "owner",
+      ready: true,
+    }, 11);
+    state = apply(state, {
+      type: "start",
+      nick: "owner",
+    }, 12);
+    const owner = state.seats[state.actorSeat];
+    const legal = Engine.legalActions(state, owner.nick);
+    const result = Engine.command(state, {
+      type: "act",
+      nick: owner.nick,
+      action: "raise",
+      amount: legal.minRaiseTo,
+    }, {
+      now: 13,
+      randomInt,
+    });
+    assert.equal(result.ok, true, result.reason);
+    return result.state;
+  }
+
+  const earliest = makeBotTurn(() => 0);
+  assert.equal(earliest.seats[earliest.actorSeat].isBot, true);
+  assert.equal(earliest.botDueAt, 2013);
+
+  const latest = makeBotTurn((max) => max - 1);
+  assert.equal(latest.seats[latest.actorSeat].isBot, true);
+  assert.equal(latest.botDueAt, 5013);
+});
+
 test("folded card reveal reservations stay private until the hand ends", () => {
   const names = ["alice", "bob", "cara"];
   let state = readyAndStart(tableWithPlayers(names), names);
@@ -1172,7 +1212,7 @@ test("AI practice all-ins do not pay rake", () => {
     botId: bot.botId,
     action: "call",
   }, {
-    now: 5000,
+    now: state.botDueAt,
     randomInt: () => 0,
     internalBot: true,
   });
