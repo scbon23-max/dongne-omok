@@ -5682,6 +5682,15 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function submitChatFromEnter() {
+    var input = $("holdem-chat-input");
+    if (!input || text(input.value, 80)) {
+      sendChat();
+      return;
+    }
+    setChatOpen(false);
+  }
+
   function renderEmojiControls() {
     var screen = root();
     var panel = $("holdem-emoji-panel");
@@ -6134,7 +6143,7 @@ window.TexasHoldem = (function () {
     if (event.target && event.target.id === "holdem-chat-input" &&
         event.key === "Enter" && !event.isComposing) {
       event.preventDefault();
-      sendChat();
+      submitChatFromEnter();
     }
   }
 
@@ -6494,6 +6503,7 @@ window.TexasHoldem = (function () {
       holdemReactionEmoji: holdemReactionEmoji,
       sendHoldemEmoji: sendHoldemEmoji,
       showSeatEmoji: showSeatEmoji,
+      submitChatFromEnter: submitChatFromEnter,
       communityRevealBlocksActions: communityRevealBlocksActions,
       relativeSeat: relativeSeat,
       requestId: requestId,

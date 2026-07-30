@@ -228,6 +228,7 @@ function loadKeyboardHarness(options = {}) {
     "setHasSnapshot: function (value) { hasSnapshot = !!value; },",
     `setHasSnapshot: function (value) { hasSnapshot = !!value; },
       setChatOpen: setChatOpen,
+      submitChatFromEnter: submitChatFromEnter,
       syncChatKeyboard: syncHoldemChatKeyboard,
       getChatKeyboardWasOpen: function () { return chatKeyboardWasOpen; },`
   );
@@ -421,6 +422,16 @@ test("a settled keyboard close still hides the chat", () => {
   flushTimers();
   assert.equal(elements.holdemgame.classList.contains("is-chat-open"), false);
   assert.equal(elements.holdemgame.style.values["--holdem-keyboard-offset"], "0px");
+});
+
+test("pressing Enter on an empty Hold'em chat input closes it", () => {
+  const { api, elements } = loadKeyboardHarness();
+  elements["holdem-chat-input"].value = "   ";
+  api.setChatOpen(true, true);
+
+  api.submitChatFromEnter();
+
+  assert.equal(elements.holdemgame.classList.contains("is-chat-open"), false);
 });
 
 test("desktop viewport changes and page zoom never impersonate a mobile keyboard", () => {
