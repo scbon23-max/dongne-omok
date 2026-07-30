@@ -118,7 +118,7 @@ test("late-loaded game code still binds the interface", () => {
 });
 
 test("login form controls keep their intended height in the entry flex layout", () => {
-  assert.match(styles, /\.entry-logo\s*\{[^}]*margin:\s*12px auto 18px;/);
+  assert.match(styles, /\.entry-logo\s*\{[^}]*width:\s*221px;[^}]*max-width:\s*71\.4%;[^}]*margin:\s*27px auto 18px;/);
   assert.match(styles, /\.entry-box \.nick-input,\s*\.entry-box \.btn-primary\s*\{[\s\S]*flex:\s*0 0 52px;[\s\S]*min-height:\s*52px;[\s\S]*max-height:\s*52px;[\s\S]*appearance:\s*none;/);
   assert.match(styles, /\.entry-box \.btn-primary\s*\{[^}]*line-height:\s*52px;/);
   assert.match(styles, /\.entry-box \.entry-logo,\s*\.entry-box \.remember-row,\s*\.entry-box \.login-msg,\s*\.entry-box \.entry-hint\s*\{[^}]*flex:\s*0 0 auto;/);
