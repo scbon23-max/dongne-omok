@@ -4931,6 +4931,18 @@ body.is-admin .feedback-user-compose { display: none; }
   border-top-right-radius: var(--holdem-card-radius, 3px);
   border-bottom-right-radius: var(--holdem-card-radius, 3px);
 }
+.holdem-board .holdem-card.back:first-child,
+.holdem-result-board .holdem-card.back:first-child,
+.holdem-result-cards .holdem-card.back:first-child {
+  border-top-left-radius: var(--holdem-card-back-radius, var(--holdem-card-radius, 3px));
+  border-bottom-left-radius: var(--holdem-card-back-radius, var(--holdem-card-radius, 3px));
+}
+.holdem-board .holdem-card.back:last-child,
+.holdem-result-board .holdem-card.back:last-child,
+.holdem-result-cards .holdem-card.back:last-child {
+  border-top-right-radius: var(--holdem-card-back-radius, var(--holdem-card-radius, 3px));
+  border-bottom-right-radius: var(--holdem-card-back-radius, var(--holdem-card-radius, 3px));
+}
 .holdem-table-start-btn {
   position: absolute;
   z-index: 16;

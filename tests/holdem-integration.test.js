@@ -763,6 +763,8 @@ test("Hold'em chat keeps transient toasts separate from the recent typing histor
   assert.match(styles, /\.holdem-card\.back\s*\{[\s\S]*border-radius:\s*var\(--holdem-card-back-radius/);
   assert.match(styles, /\.holdem-board \.holdem-card\s*\{[\s\S]*--holdem-card-back-radius:\s*clamp\(7px/);
   assert.match(styles, /\.holdem-board \.holdem-card\.is-community-flipping::after\s*\{[\s\S]*border-radius:\s*var\(--holdem-card-back-radius,\s*inherit\)/);
+  assert.match(styles, /\.holdem-board \.holdem-card\.back:first-child,[\s\S]*border-top-left-radius:\s*var\(--holdem-card-back-radius/);
+  assert.match(styles, /\.holdem-board \.holdem-card\.back:last-child,[\s\S]*border-top-right-radius:\s*var\(--holdem-card-back-radius/);
   assert.match(styles, /\.holdem-seat-avatar\s*\{[\s\S]*overflow:\s*visible/);
   assert.match(styles, /\.holdem-seat-avatar img\s*\{[\s\S]*border-radius:\s*inherit/);
   assert.match(game, /function renderHoldemChatHistory\(\)/);
