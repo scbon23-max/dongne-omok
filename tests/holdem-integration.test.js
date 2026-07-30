@@ -302,9 +302,11 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-board \.holdem-card\.is-community-flipping::after\s*\{[\s\S]*background-color:\s*#102f35/);
   assert.doesNotMatch(styles, /repeating-linear-gradient\(28deg, transparent 0 5px, #c52835/);
   assert.match(styles, /@keyframes holdemCommunityCardBackFlip/);
+  assert.match(styles, /@keyframes holdemCommunityCardFlip\s*\{[\s\S]*49%\s*\{\s*border-radius:\s*var\(--holdem-card-back-radius[\s\S]*50%\s*\{\s*border-radius:\s*var\(--holdem-card-radius/);
   assert.match(styles, /\.is-community-flipping\.is-community-river-flipping\s*\{[\s\S]*animation-name:\s*holdemCommunityRiverFlip[\s\S]*animation-duration:\s*1800ms/);
   assert.match(styles, /\.holdem-result-board \.holdem-card,[\s\S]*\.holdem-result-cards \.holdem-card\s*\{[\s\S]*--holdem-card-rank-top:\s*4px/);
   assert.match(styles, /@keyframes holdemCommunityRiverFlip\s*\{[\s\S]*74%\s*\{[^}]*rotateY\(158deg\)[\s\S]*78%\s*\{[^}]*rotateY\(92deg\)[\s\S]*100%\s*\{[^}]*rotateY\(0\)/);
+  assert.match(styles, /@keyframes holdemCommunityRiverFlip\s*\{[\s\S]*76%\s*\{\s*border-radius:\s*var\(--holdem-card-back-radius[\s\S]*78%\s*\{[^}]*border-radius:\s*var\(--holdem-card-radius/);
   assert.match(styles, /@keyframes holdemCommunityRiverBackFlip\s*\{[\s\S]*0%, 76%\s*\{\s*opacity:\s*1[\s\S]*78%, 100%\s*\{\s*opacity:\s*0/);
   assert.match(controller, /COMMUNITY_RIVER_FLIP_MS = 1800/);
   assert.match(controller, /COMMUNITY_RIVER_OPEN_CUE_MS = 1400/);
