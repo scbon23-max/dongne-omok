@@ -380,7 +380,10 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /class="' \+ holesClass \+ '">' \+ holes \+ currentHandHtml/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-hole-cards \.holdem-hero-hand-badge\s*\{[\s\S]*bottom:\s*calc\(100% \+ 3px\)[\s\S]*transform:\s*translateX\(-50%\)/);
   assert.doesNotMatch(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-hole-cards \.holdem-hero-hand-badge\s*\{[^}]*\b(?:background|border|box-shadow|padding):/);
-  assert.match(styles, /\.holdem-board \.holdem-card\.is-hero-made-hand-card,[\s\S]*\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card\.is-hero-made-hand-card\s*\{[\s\S]*inset 0 0 0 1px/);
+  const classicCurrentRule = styles.match(/\.holdem-board \.holdem-card\.is-hero-made-hand-card,[\s\S]*?\.holdem-seat\.is-me \.holdem-hole-cards \.holdem-card\.is-hero-made-hand-card\s*\{([\s\S]*?)\}/)?.[1] || "";
+  assert.match(classicCurrentRule, /border:\s*1px solid rgba\(243,97,42,\.92\)/);
+  assert.match(classicCurrentRule, /0 0 4px rgba\(243,97,42,\.64\)[\s\S]*0 0 10px rgba\(243,97,42,\.34\)/);
+  assert.doesNotMatch(classicCurrentRule, /inset|0 0 0 \d+px/);
   assert.match(styles, /#holdem-call-btn\s*\{[\s\S]*flex-direction:\s*column/);
   assert.match(controller, /function actionAmountFitClass\(value\)[\s\S]*is-xl-amount[\s\S]*is-long-amount/);
   assert.match(controller, /class="holdem-action-amount-fit/);
@@ -688,7 +691,10 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /function visibleHeroComboBoard\(\)[\s\S]*resultStage\(\) === "cards"[\s\S]*state\.board\.slice\(0, resultBoardVisibleCount\(\)\)/);
   assert.match(controller, /var evaluatedWinnerCount = 0[\s\S]*evaluatedWinnerCount \+= 1[\s\S]*return evaluatedWinnerCount \?/);
   assert.match(controller, /category === 4 \|\| category === 5 \|\| category === 8/);
-  assert.match(styles, /\.holdem-card\.is-winning-combo-card\s*\{[\s\S]*border-color:\s*#ffe16d[\s\S]*box-shadow:/);
+  const classicWinnerRule = styles.match(/\.holdem-card\.is-winning-combo-card\s*\{([\s\S]*?)\}/)?.[1] || "";
+  assert.match(classicWinnerRule, /border:\s*1px solid #F3612A/);
+  assert.match(classicWinnerRule, /0 0 5px rgba\(243,97,42,\.88\)[\s\S]*0 0 14px rgba\(243,97,42,\.5\)/);
+  assert.doesNotMatch(classicWinnerRule, /inset|0 0 0 \d+px/);
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card\.is-winning-combo-card:not\(\.back\)\s*\{[\s\S]*border:\s*1px solid[\s\S]*0 0 9px rgba\(255,194,42,\.22\)/);
   assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards\.is-winning-combo-review \.holdem-card\.is-winning-combo-card:first-of-type,[\s\S]*transform:\s*translateY\(-2px\) scale\(1\.035\)/);
   assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards\.is-winning-combo-review \.holdem-card\.is-winning-combo-muted\.is-hero-reveal-forward\s*\{[\s\S]*filter:\s*grayscale\(\.85\) saturate\(\.42\) brightness\(\.72\)/);

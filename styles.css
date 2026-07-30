@@ -4836,20 +4836,20 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-board .holdem-card.is-hero-made-hand-card,
 .holdem-seat.is-me .holdem-hole-cards .holdem-card.is-hero-made-hand-card {
   z-index: 2;
-  border-color: #ffd569;
+  border: 1px solid rgba(243,97,42,.92);
   box-shadow:
-    inset 0 0 0 1px rgba(255,213,105,.92),
-    0 0 8px rgba(255,213,105,.38),
-    0 1px 4px rgba(0,0,0,.24);
+    0 0 4px rgba(243,97,42,.64),
+    0 0 10px rgba(243,97,42,.34),
+    0 2px 6px rgba(0,0,0,.26);
 }
 .holdem-card.is-winning-combo-card {
   z-index: 3;
   opacity: 1;
-  border-color: #ffe16d;
-  filter: saturate(1.14) brightness(1.08);
+  border: 1px solid #F3612A;
+  filter: saturate(1.1) brightness(1.07);
   box-shadow:
-    inset 0 0 0 2px rgba(255,225,109,.96),
-    0 0 12px rgba(255,209,82,.58),
+    0 0 5px rgba(243,97,42,.88),
+    0 0 14px rgba(243,97,42,.5),
     0 2px 8px rgba(0,0,0,.34);
 }
 .holdem-screen[data-card-front-skin="four-color"] .holdem-card.is-hero-made-hand-card:not(.back) {
