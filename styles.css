@@ -4399,9 +4399,9 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-front-mini-card.classic.spade,
 .holdem-front-mini-card.classic.club { color: #090d0e; }
 .holdem-front-mini-card.classic.heart,
-.holdem-front-mini-card.classic.diamond { color: #d92832; }
+.holdem-front-mini-card.classic.diamond { color: #e3434c; }
 .holdem-front-mini-card.spade { background: #323a40; }
-.holdem-front-mini-card.heart { background: #d92832; }
+.holdem-front-mini-card.heart { background: #e3434c; }
 .holdem-front-mini-card.diamond { background: #2878d9; }
 .holdem-front-mini-card.club { background: #148848; }
 .holdem-card-back-options {
@@ -4704,7 +4704,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-card.red,
 .holdem-card[data-suit="h"],
-.holdem-card[data-suit="d"] { color: #d92832; }
+.holdem-card[data-suit="d"] { color: #e3434c; }
 .holdem-card.black,
 .holdem-card[data-suit="s"],
 .holdem-card[data-suit="c"] { color: #090d0e; }
@@ -4766,7 +4766,7 @@ body.is-admin .feedback-user-compose { display: none; }
   box-shadow: var(--holdem-card-shadow, 0 2px 7px rgba(0,0,0,.28));
 }
 .holdem-screen[data-card-front-skin="four-color"] .holdem-card[data-suit="s"] { background: #323a40; }
-.holdem-screen[data-card-front-skin="four-color"] .holdem-card[data-suit="h"] { background: #d92832; }
+.holdem-screen[data-card-front-skin="four-color"] .holdem-card[data-suit="h"] { background: #e3434c; }
 .holdem-screen[data-card-front-skin="four-color"] .holdem-card[data-suit="d"] { background: #2878d9; }
 .holdem-screen[data-card-front-skin="four-color"] .holdem-card[data-suit="c"] { background: #148848; }
 .holdem-card.back {
