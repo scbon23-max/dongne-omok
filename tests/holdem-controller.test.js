@@ -1171,6 +1171,73 @@ test("a timeout-sat-out player gets a manual rejoin control", async () => {
   }
 });
 
+test("a timeout-sat-out player can rejoin while the next hand is active", async () => {
+  const dom = controlTestDocument();
+  const calls = [];
+  const controller = loadController("alice", {
+    document: dom.document,
+    db: {
+      holdemInvoke(_auth, action, payload) {
+        calls.push({ action, payload });
+        return Promise.resolve({
+          ok: true,
+          version: 14,
+          snapshot: {
+            phase: "preflop",
+            version: 14,
+            canReady: false,
+            seats: [
+              { seat: 0, nick: "alice", stack: 10000, ready: true, sittingOut: false, waiting: true },
+              { seat: 1, nick: "bob", stack: 9900, inHand: true },
+              { seat: 2, nick: "carol", stack: 9800, inHand: true },
+            ],
+            viewer: { seat: 0, cards: [] },
+            legalActions: {},
+          },
+        });
+      },
+    },
+  });
+  const sittingOut = controller._test.normalizeSnapshot({
+    phase: "preflop",
+    version: 13,
+    handId: "active-resume",
+    canReady: true,
+    seats: [
+      { seat: 0, nick: "alice", stack: 10000, ready: false, sittingOut: true, waiting: true },
+      { seat: 1, nick: "bob", stack: 9900, inHand: true },
+      { seat: 2, nick: "carol", stack: 9800, inHand: true },
+    ],
+    viewer: { seat: 0, cards: [] },
+    legalActions: {
+      actions: ["fold", "call"],
+      callAmount: 100,
+    },
+  }, 13);
+
+  try {
+    controller._test.setActive(true);
+    controller._test.setHasSnapshot(true);
+    controller._test.setState(sittingOut);
+    controller._test.renderControls();
+
+    assert.equal(dom.elements["holdem-seat-controls"].classList.contains("hidden"), false);
+    assert.equal(dom.elements["holdem-ready-btn"].classList.contains("hidden"), false);
+    assert.equal(dom.elements["holdem-ready-btn"].disabled, false);
+    assert.equal(dom.elements["holdem-action-panel"].classList.contains("hidden"), true);
+
+    controller._test.setReady();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].action, "ready");
+    assert.equal(calls[0].payload.ready, true);
+  } finally {
+    controller.leave();
+  }
+});
+
 test("pre-action buttons can be queued before the hero turn", () => {
   const dom = controlTestDocument();
   const controller = loadController("alice", { document: dom.document });
@@ -2218,6 +2285,135 @@ test("room presence sync marks disconnected seats and notifies the server", asyn
   assert.equal(calls[0].action, "presence");
   assert.deepEqual(Array.from(calls[0].payload.presentNicks), ["alice"]);
   assert.deepEqual(Array.from(calls[0].payload.awayNicks), ["bob"]);
+});
+
+test("presence received before the first table snapshot is synchronized afterward", async () => {
+  const calls = [];
+  const db = {
+    holdemInvoke(_auth, action, payload) {
+      calls.push({ action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 2,
+        snapshot: {
+          phase: "hand_end",
+          version: 2,
+          canReady: true,
+          seats: [
+            { seat: 0, nick: "alice", stack: 20000, away: false, sittingOut: true },
+            { seat: 1, nick: "bob", stack: 20000 },
+          ],
+          viewer: { seat: 0, cards: [] },
+        },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+
+  try {
+    controller._test.setActive(true);
+    controller.onPresence([
+      { nick: "alice" },
+      { nick: "bob" },
+    ]);
+    assert.equal(calls.length, 0);
+
+    controller._test.applySnapshot({
+      phase: "hand_end",
+      version: 1,
+      canReady: false,
+      seats: [
+        { seat: 0, nick: "alice", stack: 20000, away: true, sittingOut: true },
+        { seat: 1, nick: "bob", stack: 20000 },
+      ],
+      viewer: { seat: 0, cards: [] },
+    }, 1);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].action, "presence");
+    assert.deepEqual(Array.from(calls[0].payload.presentNicks), ["alice", "bob"]);
+    assert.deepEqual(Array.from(calls[0].payload.awayNicks), []);
+  } finally {
+    controller.leave();
+  }
+});
+
+test("presence changes during a sync replay the newest roster", async () => {
+  const calls = [];
+  let resolveFirst;
+  const db = {
+    holdemInvoke(_auth, action, payload) {
+      calls.push({ action, payload });
+      if (calls.length === 1) {
+        return new Promise((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        version: 3,
+        snapshot: {
+          phase: "hand_end",
+          version: 3,
+          seats: [
+            { seat: 0, nick: "alice", stack: 20000 },
+            { seat: 1, nick: "bob", stack: 20000 },
+          ],
+          viewer: { seat: 0, cards: [] },
+        },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const state = controller._test.emptyState();
+  state.phase = "hand_end";
+  state.version = 1;
+  state.heroSeat = 0;
+  state.seats[0] = { seat: 0, nick: "alice", stack: 20000 };
+  state.seats[1] = { seat: 1, nick: "bob", stack: 20000 };
+
+  try {
+    controller._test.setState(state);
+    controller._test.setActive(true);
+    controller._test.setHasSnapshot(true);
+
+    controller.onPresence([
+      { nick: "alice" },
+      { nick: "bob", away: true },
+    ]);
+    controller.onPresence([
+      { nick: "alice" },
+      { nick: "bob" },
+    ]);
+    assert.equal(calls.length, 1);
+
+    resolveFirst({
+      ok: true,
+      version: 2,
+      snapshot: {
+        phase: "hand_end",
+        version: 2,
+        seats: [
+          { seat: 0, nick: "alice", stack: 20000 },
+          { seat: 1, nick: "bob", stack: 20000, away: true },
+        ],
+        viewer: { seat: 0, cards: [] },
+      },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].action, "presence");
+    assert.deepEqual(Array.from(calls[1].payload.presentNicks), ["alice", "bob"]);
+    assert.deepEqual(Array.from(calls[1].payload.awayNicks), []);
+  } finally {
+    controller.leave();
+  }
 });
 
 test("spectators automatically claim the first open table seat", async () => {

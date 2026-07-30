@@ -1999,8 +1999,10 @@
       } else if (type === "ready") {
         player = playerByNick(next, nick);
         if (!player) result = { ok: false, reason: "not_joined" };
-        else if (PLAYING_PHASES[next.phase]) result = { ok: false, reason: "hand_active" };
-        else if (player.stack <= 0) result = {
+        else if (PLAYING_PHASES[next.phase] &&
+            !(player.sittingOut && cmd.ready === true)) {
+          result = { ok: false, reason: "hand_active" };
+        } else if (player.stack <= 0) result = {
           ok: false,
           reason: next.settings.mode === "ring" ? "refill_required" : "eliminated"
         };
@@ -2467,8 +2469,7 @@
         actionDurationMs: state.settings.actionMs,
         handName: viewerHand ? viewerHand.name : ""
       },
-      canReady: !PLAYING_PHASES[state.phase] && state.phase !== "tournament_end" &&
-        !!viewerPlayer &&
+      canReady: !!viewerPlayer &&
         !viewerPlayer.isBot && !viewerPlayer.leaving && !viewerPlayer.away &&
         viewerPlayer.sittingOut === true && viewerPlayer.stack > 0,
       canStart: canStart,

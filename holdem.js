@@ -162,6 +162,8 @@ window.TexasHoldem = (function () {
   var lastPresenceKey = "";
   var presenceSyncKey = "";
   var presenceSyncRetryAt = 0;
+  var presenceSyncQueued = false;
+  var latestPresenceLists = null;
   var lastAnnouncementKey = "";
   var raiseValue = 0;
   var raiseRangeKey = "";
@@ -1905,6 +1907,9 @@ window.TexasHoldem = (function () {
     syncQueuedAction();
     refreshProfileAvatars(next, false);
     render();
+    if (!hadSnapshot && latestPresenceLists) {
+      syncPresenceToServer(latestPresenceLists, { force: true });
+    }
     maybePerformQueuedAction();
     maybeLeaveRoomAfterHand();
     return true;
@@ -3798,13 +3803,24 @@ window.TexasHoldem = (function () {
   }
 
   function syncPresenceToServer(lists, options) {
-    if (!active || !hasSnapshot || !roomId() || demoMode()) return;
+    if (!lists || !Array.isArray(lists.present) || !Array.isArray(lists.away)) return;
+    if (!active || !hasSnapshot || !roomId() || demoMode()) {
+      if (active && !hasSnapshot) presenceSyncQueued = true;
+      return;
+    }
     var key = lists.present.join(",") + "|" + lists.away.join(",");
     if (!key && !(options && options.expiredNick)) return;
-    if (presenceSyncKey === key && Date.now() < presenceSyncRetryAt) return;
+    if (requests.presence) {
+      if (key !== presenceSyncKey) presenceSyncQueued = true;
+      return requests.presence;
+    }
+    if (!(options && options.force) &&
+        presenceSyncKey === key && Date.now() < presenceSyncRetryAt) return;
+    var syncGeneration = lifecycleGeneration;
+    presenceSyncQueued = false;
     presenceSyncKey = key;
     presenceSyncRetryAt = Date.now() + 5000;
-    invoke("presence", {
+    return invoke("presence", {
       presentNicks: lists.present,
       awayNicks: lists.away
     }, {
@@ -3814,10 +3830,20 @@ window.TexasHoldem = (function () {
       silent: true,
       broadcast: true
     }).then(function (result) {
+      if (syncGeneration !== lifecycleGeneration) return result;
       if (!result || !result.ok) {
         presenceSyncKey = "";
         presenceSyncRetryAt = Date.now() + 2000;
       }
+      var latestKey = latestPresenceLists
+        ? latestPresenceLists.present.join(",") + "|" + latestPresenceLists.away.join(",")
+        : "";
+      if (latestPresenceLists && (presenceSyncQueued || latestKey !== key)) {
+        presenceSyncQueued = false;
+        presenceSyncKey = "";
+        syncPresenceToServer(latestPresenceLists, { force: true });
+      }
+      return result;
     });
   }
 
@@ -5750,10 +5776,13 @@ window.TexasHoldem = (function () {
     var waiting = state.phase === "waiting";
     var completed = state.phase === "complete";
     var moves = ["fold", "check", "call", "bet", "raise", "allin"];
+    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+    var canResume = !!(hero && hero.sittingOut && state.canReady);
     var revealBlockingActions = communityRevealBlocksActions();
     communityRevealControlBlocked = revealBlockingActions;
-    var hasMove = !revealBlockingActions && moves.some(function (move) { return !!state.legal[move]; });
-    var preActionOptions = hasMove ? [] : queuedActionOptions();
+    var hasMove = !canResume && !revealBlockingActions &&
+      moves.some(function (move) { return !!state.legal[move]; });
+    var preActionOptions = hasMove || canResume ? [] : queuedActionOptions();
     var hasPreAction = preActionOptions.length > 0;
     var busy = pendingUiCount > 0;
     var isOwner = !!(text(me().nick, 40) && text(me().nick, 40) === state.ownerNick);
@@ -5763,11 +5792,8 @@ window.TexasHoldem = (function () {
     var soloBotFillVisible = waiting && state.heroSeat >= 0 && canManageBots &&
       state.botCount < 5 && occupiedSeats < MAX_SEATS;
     var canSize = !!(state.legal.bet || state.legal.raise);
-    var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
     var resultReady = resultTransitionReady();
     var resultSettled = resultSettlementReady();
-    var canResume = !!(hero && hero.sittingOut && state.canReady &&
-      !isHandActive(state.phase) && resultReady);
     var needsRefill = state.mode === "ring" && !!hero && hero.stack <= 0 &&
       !isHandActive(state.phase) && resultReady;
     var menuKey = state.handId + ":" + state.version + ":" + state.actionSeq + ":" +
@@ -6665,7 +6691,9 @@ window.TexasHoldem = (function () {
     botRetryAt = 0;
     presenceSyncKey = "";
     presenceSyncRetryAt = 0;
+    presenceSyncQueued = false;
     lastPresenceKey = "";
+    latestPresenceLists = null;
     demoState = null;
     demoVersion = 0;
     resultFlow = null;
@@ -6761,7 +6789,9 @@ window.TexasHoldem = (function () {
     botRetryAt = 0;
     presenceSyncKey = "";
     presenceSyncRetryAt = 0;
+    presenceSyncQueued = false;
     lastPresenceKey = "";
+    latestPresenceLists = null;
     lastActionSoundKey = "";
     lastAllinBgmKey = "";
     lastWinnerSoundKey = "";
@@ -6774,7 +6804,11 @@ window.TexasHoldem = (function () {
   }
 
   function onReady() {
-    if (active) scheduleRefresh("ready", true);
+    if (!active) return;
+    if (hasSnapshot && latestPresenceLists) {
+      syncPresenceToServer(latestPresenceLists, { force: true });
+    }
+    scheduleRefresh("ready", true);
   }
 
   function onConnection(isOnline) {
@@ -6800,6 +6834,10 @@ window.TexasHoldem = (function () {
   function onPresence(list, options) {
     list = Array.isArray(list) ? list : [];
     var lists = presenceLists(list);
+    latestPresenceLists = {
+      present: lists.present.slice(),
+      away: lists.away.slice()
+    };
     applyPresenceToLocalSeats(lists);
     var key = list.map(function (person) {
       return text(person && person.nick, 40) + ":" + (person && person.away ? "1" : "0");

@@ -455,6 +455,67 @@ test("a valid action or ready command clears timeout sit-out state", () => {
   assert.equal(state.seats[actor.seat].ready, true);
 });
 
+test("a sitting-out player can reserve the next hand while play continues", () => {
+  const names = ["sleepy", "active-a", "active-b"];
+  let state = tableWithPlayers(names);
+  state.seats[0].sittingOut = true;
+  state.seats[0].timeoutStreak = 2;
+  state.seats[0].ready = false;
+
+  state = apply(state, {
+    type: "start",
+    nick: "active-a",
+    requestId: "start:without-sleepy",
+  }, 1000);
+  assert.equal(state.seats[0].inHand, false);
+  assert.equal(Engine.view(state, "sleepy").canReady, true);
+
+  state = apply(state, {
+    type: "ready",
+    nick: "sleepy",
+    ready: true,
+    requestId: "resume:during-hand",
+  }, 1001);
+  assert.equal(state.seats[0].sittingOut, false);
+  assert.equal(state.seats[0].timeoutStreak, 0);
+  assert.equal(state.seats[0].inHand, false);
+  assert.equal(state.seats[0].ready, true);
+
+  const actor = state.seats[state.actorSeat];
+  state = apply(state, {
+    type: "act",
+    nick: actor.nick,
+    action: "fold",
+    requestId: "finish:active-hand",
+  }, state.actionDeadline - 1);
+  state = apply(state, {
+    type: "start",
+    nick: "active-a",
+    requestId: "start:with-sleepy",
+  }, state.actionDeadline == null ? 2000 : state.actionDeadline + 1);
+  assert.equal(state.seats[0].inHand, true);
+});
+
+test("a heads-up table unlocks as soon as the sitting-out player resumes", () => {
+  const names = ["sleepy", "active"];
+  let state = tableWithPlayers(names, { mode: "ring" });
+  state.phase = "hand_end";
+  state.seats[0].sittingOut = true;
+  state.seats[0].timeoutStreak = 2;
+  state.seats[0].ready = false;
+
+  assert.equal(Engine.view(state, "active").canStart, false);
+  assert.equal(Engine.view(state, "sleepy").canReady, true);
+
+  state = apply(state, {
+    type: "ready",
+    nick: "sleepy",
+    ready: true,
+    requestId: "resume:heads-up",
+  }, 2000);
+  assert.equal(Engine.view(state, "active").canStart, true);
+});
+
 test("request ids make retried mutations idempotent", () => {
   let state = Engine.createTable({ roomId: "dedupe", ownerNick: "a" });
   const first = Engine.command(state, {

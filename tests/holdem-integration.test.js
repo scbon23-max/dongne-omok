@@ -691,13 +691,15 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /var canResume = !!\(hero && hero\.sittingOut && state\.canReady/);
   assert.match(controller, /show\("holdem-ready-btn", canResume\)/);
   assert.match(controller, /readyButton\.textContent = canResume[\s\S]*"다시 참가"/);
-  assert.match(engine, /canReady: !PLAYING_PHASES\[state\.phase\][\s\S]*viewerPlayer\.sittingOut === true/);
+  assert.match(engine, /canReady: !!viewerPlayer[\s\S]*viewerPlayer\.sittingOut === true/);
+  assert.match(engine, /PLAYING_PHASES\[next\.phase\][\s\S]*!\(player\.sittingOut && cmd\.ready === true\)/);
   assert.match(engine, /var AUTO_SIT_OUT_TIMEOUTS = 2/);
   assert.match(engine, /function recordPlayerTimeout\(player\)[\s\S]*player\.sittingOut = true/);
   assert.match(engine, /if \(result\.ok\) \{[\s\S]*recordPlayerTimeout\(player\)[\s\S]*next\.lastEvent\.timeout = true/);
   assert.match(engine, /function canPlayNextHand\(player\)[\s\S]*!player\.sittingOut/);
   assert.match(controller, /row\.seat\.away \? "자리비움" : "자동 자리비움"/);
   assert.match(controller, /function scheduleAutoReadyForNextHand\(\)[\s\S]*hero && hero\.sittingOut[\s\S]*clearAutoReadyForNextHand\(\)/);
+  assert.match(controller, /!hadSnapshot && latestPresenceLists[\s\S]*syncPresenceToServer\(latestPresenceLists, \{ force: true \}\)/);
   assert.match(controller, /scheduleAutoReadyForNextHand\(\)[\s\S]*scheduleAutoNextHand\(\)/);
   assert.match(controller, /function scheduleAutoNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*hasBustedHumanSeat\(\)[\s\S]*Math\.max\(AUTO_NEXT_HAND_MS, resultTransitionDelayMs\(\)\)[\s\S]*setTimeout\(function \(\) \{ autoStartHand\(key\); \}, delay\)/);
   assert.match(controller, /reviewUntil: settleEnd \+ RESULT_REVIEW_MS/);
