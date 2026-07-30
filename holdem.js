@@ -3680,9 +3680,10 @@ window.TexasHoldem = (function () {
     var relevant = Object.create(null);
     if (!evaluation || !Array.isArray(evaluation.cards)) return relevant;
     var category = Number(evaluation.category) || 0;
-    if (category === 0) return relevant;
     var groupedRanks = [];
-    if (category === 1 || category === 3 || category === 7) {
+    if (category === 0) {
+      groupedRanks = [evaluation.tiebreak[0]];
+    } else if (category === 1 || category === 3 || category === 7) {
       groupedRanks = [evaluation.tiebreak[0]];
     } else if (category === 2 || category === 6) {
       groupedRanks = [evaluation.tiebreak[0], evaluation.tiebreak[1]];
@@ -3690,7 +3691,7 @@ window.TexasHoldem = (function () {
     evaluation.cards.forEach(function (rawCode) {
       var code = normalizeEngineCardCode(rawCode);
       if (!code) return;
-      if (category === 0 || category === 4 || category === 5 || category === 8 ||
+      if (category === 4 || category === 5 || category === 8 ||
           groupedRanks.indexOf(engineCardRankValue(code)) >= 0) {
         relevant[code] = true;
       }
@@ -3710,12 +3711,17 @@ window.TexasHoldem = (function () {
       var evaluation = engine.evaluateSeven(cards);
       if (!evaluation || !evaluation.name) return null;
       var bestCards = relevantBestCardCodes(evaluation);
+      var holeCards = Object.create(null);
       var communityCards = Object.create(null);
+      state.heroCards.forEach(function (card, index) {
+        var code = engineCardCode(card);
+        if (code && bestCards[code]) holeCards[index] = true;
+      });
       state.board.forEach(function (card, index) {
         var code = engineCardCode(card);
         if (code && bestCards[code]) communityCards[index] = true;
       });
-      return { name: evaluation.name, communityCards: communityCards };
+      return { name: evaluation.name, holeCards: holeCards, communityCards: communityCards };
     } catch (error) {
       return null;
     }
@@ -4771,7 +4777,7 @@ window.TexasHoldem = (function () {
           holes = state.heroCards.map(function (card, cardIndex) {
             var comboClass = winnerCombo
               ? (winnerCombo.holeCards[cardIndex] ? "is-winning-combo-card" : "is-winning-combo-muted")
-              : "";
+              : (currentHand && currentHand.holeCards[cardIndex] ? "is-hero-made-hand-card" : "");
             var cardClasses = [];
             var revealClass = heroRevealCardClass(cardIndex);
             if (comboClass) cardClasses.push(comboClass);
