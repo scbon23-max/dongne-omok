@@ -101,6 +101,7 @@ const ACTIONS = new Set([
   "act",
   "reveal_cards",
   "tick",
+  "presence",
   "add_bot",
   "remove_bot",
   "join_request",

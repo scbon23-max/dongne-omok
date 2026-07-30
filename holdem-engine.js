@@ -81,6 +81,16 @@
     return String(value == null ? "" : value).trim().slice(0, max);
   }
 
+  function nickSet(value) {
+    var out = Object.create(null);
+    if (!Array.isArray(value)) return out;
+    value.forEach(function (entry) {
+      var nick = text(entry, 40);
+      if (nick) out[nick] = true;
+    });
+    return out;
+  }
+
   function normalizeBotPersonality(value) {
     value = text(value, 32).toLowerCase().replace(/-/g, "_");
     return own(BOT_PERSONALITIES, value) ? value : "";
@@ -329,6 +339,7 @@
       ready: stack > 0,
       joinedAt: now,
       waiting: true,
+      away: false,
       leaving: false,
       leavingIntent: "",
       inHand: false,
@@ -591,6 +602,7 @@
           );
         }
       }
+      player.away = player.isBot ? false : player.away === true;
       player.leaving = player.leaving === true;
       player.leavingIntent = player.leaving ? normalizeLeavingIntent(player.leavingIntent) || "leave" : "";
       player.revealCards = normalizeRevealCards(player.revealCards);
@@ -719,6 +731,10 @@
 
   function occupiedPlayers(state) {
     return state.seats.filter(function (player) { return !!player && !player.leaving; });
+  }
+
+  function canPlayNextHand(player) {
+    return !!player && !player.leaving && !player.away && player.stack > 0;
   }
 
   function humanPlayers(state) {
@@ -993,9 +1009,7 @@
   }
 
   function nextHandSeat(state, fromSeat) {
-    return nextSeatMatching(state, fromSeat, function (player) {
-      return !player.leaving && player.stack > 0;
-    });
+    return nextSeatMatching(state, fromSeat, canPlayNextHand);
   }
 
   function nextLiveSeat(state, fromSeat) {
@@ -1236,7 +1250,7 @@
     state.actionDeadline = null;
     state.pendingSeats = [];
     state.phase = state.settings.mode !== "ring" &&
-      state.seats.filter(function (player) { return !!player && !player.leaving && player.stack > 0; }).length <= 1
+      state.seats.filter(canPlayNextHand).length <= 1
       ? "tournament_end"
       : "hand_end";
     state.lastEvent = {
@@ -1260,7 +1274,8 @@
         player.stack = state.settings.refillAmount;
         player.ready = true;
       } else if (player.stack <= 0) player.ready = false;
-      else if (!player.leaving) player.ready = true;
+      else if (!player.leaving && !player.away) player.ready = true;
+      else player.ready = false;
       if (!player.leaving && state.settings.mode === "ring" && !player.isBot && player.nick) {
         state.ringStacks[player.nick] = clamp(
           player.stack,
@@ -1330,7 +1345,7 @@
     state.actionDeadline = null;
     state.pendingSeats = [];
     state.phase = state.settings.mode !== "ring" &&
-      state.seats.filter(function (player) { return !!player && !player.leaving && player.stack > 0; }).length <= 1
+      state.seats.filter(canPlayNextHand).length <= 1
       ? "tournament_end"
       : "hand_end";
     state.lastEvent = {
@@ -1525,21 +1540,18 @@
   }
 
   function startHand(state, now, context) {
+    removeAwayBustedRingPlayers(state, now);
     removeLeavingPlayers(state);
     updateBlindLevel(state, now);
-    var active = state.seats.filter(function (player) {
-      return !!player && !player.leaving && player.stack > 0;
-    });
-    var eligible = state.seats.filter(function (player) {
-      return !!player && !player.leaving && player.stack > 0;
-    });
+    var active = state.seats.filter(canPlayNextHand);
+    var eligible = state.seats.filter(canPlayNextHand);
     if (eligible.length < 2 || active.length < 2) return { ok: false, reason: "not_enough_players" };
     state.buttonSeat = chooseButton(state, active, context);
     var headsUp = active.length === 2;
     state.smallBlindSeat = headsUp
       ? state.buttonSeat
-      : nextSeatMatching(state, state.buttonSeat, function (player) { return !player.leaving && player.stack > 0; });
-    state.bigBlindSeat = nextSeatMatching(state, state.smallBlindSeat, function (player) { return !player.leaving && player.stack > 0; });
+      : nextSeatMatching(state, state.buttonSeat, canPlayNextHand);
+    state.bigBlindSeat = nextSeatMatching(state, state.smallBlindSeat, canPlayNextHand);
     if (state.smallBlindSeat == null || state.bigBlindSeat == null) return { ok: false, reason: "blinds" };
     state.previousBigBlindSeat = state.bigBlindSeat;
     state.handNo += 1;
@@ -1556,7 +1568,7 @@
     state.botDueAt = null;
     state.seats.forEach(function (player) {
       if (!player) return;
-      player.inHand = !player.leaving && player.stack > 0;
+      player.inHand = canPlayNextHand(player);
       player.waiting = !player.inHand;
       player.folded = false;
       player.allIn = false;
@@ -1679,6 +1691,50 @@
       }
       state.seats[seat] = null;
     });
+  }
+
+  function removeAwayBustedRingPlayers(state, now) {
+    if (!state || !state.settings || state.settings.mode !== "ring") return false;
+    var removed = [];
+    state.seats.forEach(function (player, seat) {
+      if (!player || player.isBot || !player.away || player.stack > 0) return;
+      delete state.ringStacks[player.nick];
+      state.seats[seat] = null;
+      removed.push({ nick: player.nick, seat: seat });
+    });
+    if (!removed.length) return false;
+    state.lastEvent = {
+      type: "away_busted_removed",
+      nick: removed[0].nick,
+      seat: removed[0].seat,
+      at: now
+    };
+    return true;
+  }
+
+  function applyPresenceState(state, cmd, now) {
+    var present = nickSet(cmd.presentNicks || cmd.present || cmd.onlineNicks);
+    var away = nickSet(cmd.awayNicks || cmd.away || cmd.disconnectedNicks);
+    var changed = false;
+    state.seats.forEach(function (player) {
+      if (!player || player.isBot || !player.nick) return;
+      var nextAway = player.away === true;
+      if (away[player.nick]) nextAway = true;
+      else if (present[player.nick]) nextAway = false;
+      if (player.away !== nextAway) {
+        player.away = nextAway;
+        changed = true;
+      }
+      if (nextAway) player.ready = false;
+      else if (!PLAYING_PHASES[state.phase] && !player.leaving && player.stack > 0) player.ready = true;
+    });
+    if (!PLAYING_PHASES[state.phase]) {
+      changed = removeAwayBustedRingPlayers(state, now) || changed;
+    }
+    if (changed && (!state.lastEvent || state.lastEvent.type !== "away_busted_removed")) {
+      state.lastEvent = { type: "presence", nick: text(cmd.nick, 40), at: now };
+    }
+    return changed;
   }
 
   function reserveBotIdentity(state) {
@@ -1851,6 +1907,9 @@
             }
           }
         }
+      } else if (type === "presence") {
+        changed = applyPresenceState(next, cmd, now);
+        result = { ok: true, reason: changed ? "presence" : "unchanged" };
       } else if (type === "leave") {
         player = playerByNick(next, nick);
         if (!player) result = { ok: true, reason: "not_joined" };
@@ -2189,6 +2248,7 @@
       stack: player.stack,
       ready: !!player.ready,
       waiting: !!player.waiting,
+      away: !!player.away,
       leaving: !!player.leaving,
       leavingIntent: player.leaving ? normalizeLeavingIntent(player.leavingIntent) || "leave" : "",
       inHand: !!player.inHand,
@@ -2216,7 +2276,7 @@
     if (!event || typeof event !== "object") return null;
     var allowed = [
       "type", "nick", "seat", "ready", "handNo", "action", "amount",
-      "grossAmount", "rake", "fullRaise", "timeout", "winners", "reason", "at", "botId",
+      "grossAmount", "rake", "fullRaise", "timeout", "winners", "reason", "away", "at", "botId",
       "botPersonality", "displayName", "targetNick", "buyIn"
     ];
     var out = {};
@@ -2257,7 +2317,7 @@
     var layers = PLAYING_PHASES[state.phase] ? buildSidePots(handPlayers(state)).pots : state.pots;
     var occupied = occupiedPlayers(state);
     var readyEligible = occupied.filter(function (player) {
-      return player.stack > 0 && !player.leaving;
+      return canPlayNextHand(player);
     });
     var viewerLegal = legalActionsForPlayer(state, viewerPlayer);
     var viewerHand = null;
@@ -2266,7 +2326,7 @@
     }
     var canStart = !PLAYING_PHASES[state.phase] && state.phase !== "tournament_end" &&
       !!viewerPlayer && !viewerPlayer.isBot && !viewerPlayer.leaving &&
-      viewerPlayer.stack > 0 && readyEligible.length >= 2;
+      !viewerPlayer.away && viewerPlayer.stack > 0 && readyEligible.length >= 2;
     if (state.newGameBuyInRequired && viewerNick === state.ownerNick &&
         humanPlayers(state).length >= 2 && occupied.length >= 2) {
       canStart = true;

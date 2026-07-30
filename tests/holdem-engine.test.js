@@ -1034,6 +1034,71 @@ test("ring games keep one blind level, fixed entry chips, and server-only bust r
   );
 });
 
+test("away ring players do not block remaining players from the next hand", () => {
+  const names = ["owner", "guest", "away"];
+  let state = tableWithPlayers(names, {
+    mode: "ring",
+    assetBacked: true,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+  });
+  state.phase = "hand_end";
+  state.seats[2].stack = 0;
+  state.ringStacks.away = 0;
+
+  const syncedBusted = Engine.command(state, {
+    type: "presence",
+    nick: "owner",
+    presentNicks: ["owner", "guest"],
+    awayNicks: ["away"],
+    requestId: "presence:away-busted",
+  }, context(2000));
+  assert.equal(syncedBusted.ok, true, syncedBusted.reason);
+  assert.equal(syncedBusted.changed, true);
+  assert.equal(syncedBusted.state.seats[2], null);
+  assert.equal(Engine.view(syncedBusted.state, "owner").canStart, true);
+
+  const startedAfterBust = Engine.command(syncedBusted.state, {
+    type: "start",
+    nick: "owner",
+    requestId: "start:after-away-bust",
+  }, context(2001));
+  assert.equal(startedAfterBust.ok, true, startedAfterBust.reason);
+  assert.equal(startedAfterBust.state.phase, "preflop");
+
+  state = tableWithPlayers(names, {
+    mode: "ring",
+    assetBacked: true,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+  });
+  state.phase = "hand_end";
+  const syncedStacked = Engine.command(state, {
+    type: "presence",
+    nick: "owner",
+    presentNicks: ["owner", "guest"],
+    awayNicks: ["away"],
+    requestId: "presence:away-stacked",
+  }, context(2010));
+  assert.equal(syncedStacked.ok, true, syncedStacked.reason);
+  assert.equal(syncedStacked.state.seats[2].away, true);
+  assert.equal(syncedStacked.state.seats[2].ready, false);
+  assert.equal(Engine.view(syncedStacked.state, "owner").canStart, true);
+
+  const startedWithAway = Engine.command(syncedStacked.state, {
+    type: "start",
+    nick: "owner",
+    requestId: "start:with-away",
+  }, context(2011));
+  assert.equal(startedWithAway.ok, true, startedWithAway.reason);
+  assert.equal(startedWithAway.state.seats[2].inHand, false);
+  assert.equal(startedWithAway.state.seats[2].waiting, true);
+});
+
 test("100-chip ring tables debit buy-ins, cash out exits, and reject odd bet sizes", () => {
   const options = {
     mode: "ring",

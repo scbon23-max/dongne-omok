@@ -203,6 +203,7 @@ test("only the bounded Hold'em command surface and identifiers are accepted", ()
     "start",
     "act",
     "tick",
+    "presence",
     "snapshot",
   ]) {
     assert.match(edge, new RegExp(`"${action}"`));

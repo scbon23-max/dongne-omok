@@ -2016,6 +2016,49 @@ test("join requests can carry the selected ring buy-in", async () => {
   assert.equal(calls[0].payload.buyIn, 30000);
 });
 
+test("room presence sync marks disconnected seats and notifies the server", async () => {
+  const calls = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 2,
+        snapshot: {
+          phase: "waiting",
+          version: 2,
+          seats: [
+            { seat: 0, nick: "alice", stack: 20000 },
+            { seat: 1, nick: "bob", stack: 0, away: true },
+          ],
+        },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const state = controller._test.emptyState();
+  state.phase = "hand_end";
+  state.version = 1;
+  state.heroSeat = 0;
+  state.seats[0] = { seat: 0, nick: "alice", stack: 20000 };
+  state.seats[1] = { seat: 1, nick: "bob", stack: 0 };
+  controller._test.setState(state);
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+
+  controller.onPresence([
+    { nick: "alice" },
+    { nick: "bob", away: true },
+  ], { expiredNick: "bob" });
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(controller.state.seats[1].away, true);
+  assert.equal(calls[0].action, "presence");
+  assert.deepEqual(Array.from(calls[0].payload.presentNicks), ["alice"]);
+  assert.deepEqual(Array.from(calls[0].payload.awayNicks), ["bob"]);
+});
+
 test("spectators automatically claim the first open table seat", async () => {
   const calls = [];
   const db = {

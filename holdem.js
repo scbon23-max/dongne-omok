@@ -156,6 +156,8 @@ window.TexasHoldem = (function () {
   var tickSentKey = "";
   var tickRetryAt = 0;
   var lastPresenceKey = "";
+  var presenceSyncKey = "";
+  var presenceSyncRetryAt = 0;
   var lastAnnouncementKey = "";
   var raiseValue = 0;
   var raiseRangeKey = "";
@@ -3626,6 +3628,73 @@ window.TexasHoldem = (function () {
     });
   }
 
+  function presenceLists(list) {
+    var present = [];
+    var away = [];
+    var seenPresent = Object.create(null);
+    var seenAway = Object.create(null);
+    list.forEach(function (person) {
+      var nick = text(person && person.nick, 40);
+      if (!nick) return;
+      if (person && person.away) {
+        if (!seenAway[nick]) away.push(nick);
+        seenAway[nick] = true;
+      } else {
+        if (!seenPresent[nick]) present.push(nick);
+        seenPresent[nick] = true;
+      }
+    });
+    present.sort();
+    away.sort();
+    return { present: present, away: away };
+  }
+
+  function applyPresenceToLocalSeats(lists) {
+    var present = Object.create(null);
+    var away = Object.create(null);
+    lists.present.forEach(function (nick) { present[nick] = true; });
+    lists.away.forEach(function (nick) { away[nick] = true; });
+    var changed = false;
+    state.seats.forEach(function (seat) {
+      if (!seat || seat.isBot || !seat.nick) return;
+      var nextAway = seat.away === true;
+      if (away[seat.nick]) nextAway = true;
+      else if (present[seat.nick]) nextAway = false;
+      if (seat.away !== nextAway) {
+        seat.away = nextAway;
+        changed = true;
+      }
+    });
+    if (!changed) return;
+    lastSeatsHtml = "";
+    renderSeats();
+    renderLobbyRoster();
+  }
+
+  function syncPresenceToServer(lists, options) {
+    if (!active || !hasSnapshot || !roomId() || demoMode()) return;
+    var key = lists.present.join(",") + "|" + lists.away.join(",");
+    if (!key && !(options && options.expiredNick)) return;
+    if (presenceSyncKey === key && Date.now() < presenceSyncRetryAt) return;
+    presenceSyncKey = key;
+    presenceSyncRetryAt = Date.now() + 5000;
+    invoke("presence", {
+      presentNicks: lists.present,
+      awayNicks: lists.away
+    }, {
+      key: "presence",
+      requestId: requestId("presence", key || String(Date.now())),
+      ui: false,
+      silent: true,
+      broadcast: true
+    }).then(function (result) {
+      if (!result || !result.ok) {
+        presenceSyncKey = "";
+        presenceSyncRetryAt = Date.now() + 2000;
+      }
+    });
+  }
+
   function cardSuitSvg(suitKey) {
     var shapes = {
       s: '<path d="M50 5C80 32 91 48 91 65C91 79 81 87 69 87C60 87 54 82 50 74C46 82 40 87 31 87C19 87 9 79 9 65C9 48 20 32 50 5Z"></path><path d="M43 69H57C57 79 62 88 72 95H28C38 88 43 79 43 69Z"></path>',
@@ -6180,6 +6249,9 @@ window.TexasHoldem = (function () {
     tickSentKey = "";
     botSentKey = "";
     botRetryAt = 0;
+    presenceSyncKey = "";
+    presenceSyncRetryAt = 0;
+    lastPresenceKey = "";
     demoState = null;
     demoVersion = 0;
     resultFlow = null;
@@ -6265,6 +6337,9 @@ window.TexasHoldem = (function () {
     demoVersion = 0;
     botSentKey = "";
     botRetryAt = 0;
+    presenceSyncKey = "";
+    presenceSyncRetryAt = 0;
+    lastPresenceKey = "";
     lastActionSoundKey = "";
     lastAllinBgmKey = "";
     lastWinnerSoundKey = "";
@@ -6302,12 +6377,15 @@ window.TexasHoldem = (function () {
 
   function onPresence(list, options) {
     list = Array.isArray(list) ? list : [];
+    var lists = presenceLists(list);
+    applyPresenceToLocalSeats(lists);
     var key = list.map(function (person) {
       return text(person && person.nick, 40) + ":" + (person && person.away ? "1" : "0");
     }).sort().join("|");
     renderHeader();
     if (key !== lastPresenceKey || options && options.expiredNick) {
       lastPresenceKey = key;
+      syncPresenceToServer(lists, options);
       scheduleRefresh("presence", false);
     }
   }
