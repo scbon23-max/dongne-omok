@@ -759,6 +759,8 @@ test("Hold'em chat keeps transient toasts separate from the recent typing histor
   assert.match(index, /id="holdem-emoji-toggle"/);
   assert.match(index, /id="holdem-emoji-panel"/);
   assert.match(index, /data-holdem-emoji="😅"/);
+  assert.match(index, /data-holdem-emoji="😨"[\s\S]*data-holdem-emoji="😤"[\s\S]*data-holdem-emoji="👋"/);
+  assert.match(index, /data-holdem-emoji="🙏"[\s\S]*data-holdem-emoji="👏"[\s\S]*data-holdem-emoji="👊"[\s\S]*data-holdem-emoji="🎉"/);
   assert.match(index, /data-holdem-emoji="‼️"/);
   assert.match(styles, /\.holdem-card\.back\s*\{[\s\S]*border-radius:\s*var\(--holdem-card-back-radius/);
   assert.match(styles, /\.holdem-board \.holdem-card\s*\{[\s\S]*--holdem-card-back-radius:\s*clamp\(7px/);
@@ -801,7 +803,7 @@ test("Hold'em chat keeps transient toasts separate from the recent typing histor
   assert.match(controller, /chatKeyboardHideTimer = setTimeout\(function \(\)[\s\S]*setChatOpen\(false\);[\s\S]*\}, 220\)/);
   assert.match(styles, /\.holdem-chat-history\s*\{[\s\S]*overflow-y:\s*auto/);
   assert.match(styles, /\.holdem-emoji-toggle,\s*[\s\S]*\.holdem-chat-toggle\s*\{/);
-  assert.match(styles, /\.holdem-emoji-panel\s*\{[\s\S]*grid-template-columns:\s*repeat\(5/);
+  assert.match(styles, /\.holdem-emoji-panel\s*\{[\s\S]*grid-template-columns:\s*repeat\(7/);
   assert.match(styles, /\.holdem-seat-emoji-pop\s*\{[\s\S]*font-size:\s*clamp\(43px,\s*calc\(var\(--holdem-seat-avatar-size\) \* \.922\),\s*70px\)/);
   assert.match(styles, /\.holdem-seat-emoji-pop\s*\{[\s\S]*top:\s*var\(--holdem-seat-timer-y\)/);
   assert.match(styles, /\.holdem-seat-emoji-pop\s*\{[\s\S]*left:\s*var\(--holdem-seat-timer-x\)/);

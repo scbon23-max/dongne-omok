@@ -7045,10 +7045,10 @@ body.is-admin .feedback-user-compose { display: none; }
   z-index: 56;
   left: 12px;
   bottom: max(112px, calc(env(safe-area-inset-bottom) + 108px));
-  width: min(228px, calc(100vw - 24px));
+  width: min(320px, calc(100vw - 24px));
   padding: 8px;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
   border: 1px solid rgba(125,225,196,.24);
   border-radius: 8px;
