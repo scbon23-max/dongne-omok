@@ -262,6 +262,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /function avatarNameHtml\(nick\)[\s\S]*holdem-seat-avatar-name/);
   assert.match(controller, /readProfileAvatar\(seat\.nick\)/);
   assert.match(controller, /event\.target\.closest\("\.holdem-seat:not\(\.is-empty\)"\)/);
+  assert.match(styles, /\.holdem-profile-avatar-preview\s*\{[\s\S]*width:\s*125px;[\s\S]*height:\s*125px/);
   assert.match(styles, /\.holdem-seat-avatar-name\s*\{[\s\S]*-webkit-line-clamp:\s*2/);
   assert.match(styles, /\.holdem-seat\.is-folded\s*\{\s*opacity:\s*1;\s*filter:\s*none;\s*\}/);
   assert.match(styles, /\.holdem-seat\.is-folded \.holdem-seat-avatar,[\s\S]*\.holdem-seat\.is-folded \.holdem-hole-cards \.holdem-card\s*\{[\s\S]*filter:\s*grayscale\(1\)/);

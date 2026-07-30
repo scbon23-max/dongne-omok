@@ -6315,8 +6315,8 @@ body.is-admin .feedback-user-compose { display: none; }
   margin-bottom: 13px;
 }
 .holdem-profile-avatar-preview {
-  width: 96px;
-  height: 96px;
+  width: 125px;
+  height: 125px;
   display: grid;
   place-items: center;
   overflow: hidden;
