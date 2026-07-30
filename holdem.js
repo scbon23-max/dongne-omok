@@ -5261,6 +5261,8 @@ window.TexasHoldem = (function () {
     var humanCount = humanSeatCount();
     var canManageBots = isOwner && state.canManageBots && humanCount === 1;
     var occupiedSeats = state.seats.filter(Boolean).length;
+    var soloBotFillVisible = waiting && state.heroSeat >= 0 && canManageBots &&
+      state.botCount < 5 && occupiedSeats < MAX_SEATS;
     var canSize = !!(state.legal.bet || state.legal.raise);
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
     var resultReady = resultTransitionReady();
@@ -5283,6 +5285,8 @@ window.TexasHoldem = (function () {
     disable("holdem-bot-add-btn", busy || !canManageBots || occupiedSeats >= MAX_SEATS);
     disable("holdem-bot-fill-btn", busy || !canManageBots || state.botCount >= 5 || occupiedSeats >= MAX_SEATS);
     disable("holdem-bot-remove-btn", busy || !canManageBots || state.botCount <= 0);
+    show("holdem-solo-bot-fill-panel", soloBotFillVisible);
+    disable("holdem-solo-bot-fill-btn", busy || !soloBotFillVisible || requests.bot_manage);
     var isNewGameStart = state.phase === "complete" && state.newGameBuyInRequired &&
       isOwner && resultReady;
     var tableStartVisible = (waiting && state.canStart) || isNewGameStart;
@@ -5367,6 +5371,7 @@ window.TexasHoldem = (function () {
       screen.classList.toggle("is-requesting", busy);
       screen.classList.toggle("is-actioning", hasMove);
       screen.classList.toggle("is-pre-actioning", hasPreAction);
+      screen.classList.toggle("is-solo-bot-fill", soloBotFillVisible);
       screen.classList.toggle("is-fold-revealing", canReserveFoldReveal());
       screen.classList.toggle("is-raise-menu-open", hasMove && canSize && raiseMenuOpen);
       screen.classList.toggle("is-seat-selection", waiting && state.heroSeat < 0);
@@ -5868,7 +5873,7 @@ window.TexasHoldem = (function () {
       }
     } else if (id === "holdem-bot-add-btn") {
       addBot();
-    } else if (id === "holdem-bot-fill-btn") {
+    } else if (id === "holdem-bot-fill-btn" || id === "holdem-solo-bot-fill-btn") {
       addFiveBots();
     } else if (id === "holdem-bot-remove-btn") {
       removeBot();

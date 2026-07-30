@@ -205,6 +205,8 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-bot-fill-btn",
     "holdem-bot-remove-btn",
     "holdem-action-panel",
+    "holdem-solo-bot-fill-panel",
+    "holdem-solo-bot-fill-btn",
     "holdem-pre-action-panel",
     "holdem-refill-panel",
     "holdem-refill-btn",
@@ -580,6 +582,8 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /@keyframes holdemSeatTimerUrgent/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-action-summary \{ display: none; \}/);
   assert.match(styles, /\.holdem-action-panel:not\(\.hidden\)\s*\{[\s\S]*bottom:\s*max\(8px,\s*env\(safe-area-inset-bottom\)\)[\s\S]*background:\s*transparent/);
+  assert.match(styles, /\.holdem-solo-bot-fill-panel\s*\{[\s\S]*bottom:\s*max\(8px,\s*env\(safe-area-inset-bottom\)\)[\s\S]*max-width:\s*520px/);
+  assert.match(styles, /\.holdem-solo-bot-fill-btn\s*\{[\s\S]*min-height:\s*52px[\s\S]*background:\s*linear-gradient/);
   assert.match(styles, /\.holdem-action-panel:not\(\.hidden\) \.holdem-action-summary \{ display: none; \}/);
   assert.match(styles, /\.holdem-action-panel:not\(\.hidden\) \.holdem-action-buttons,[\s\S]*\.holdem-screen\.is-actioning \.holdem-action-buttons\s*\{[\s\S]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel \{[\s\S]*position: absolute[\s\S]*left: auto[\s\S]*right: 0[\s\S]*bottom: 60px[\s\S]*width: calc\(\(100% - 16px\) \/ 3\)[\s\S]*pointer-events: none/);

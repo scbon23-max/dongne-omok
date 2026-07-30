@@ -130,6 +130,8 @@ function controlTestDocument() {
     "holdemgame",
     "holdem-board",
     "holdem-action-panel",
+    "holdem-solo-bot-fill-panel",
+    "holdem-solo-bot-fill-btn",
     "holdem-pre-action-panel",
     "holdem-fold-btn",
     "holdem-check-btn",
@@ -166,7 +168,11 @@ function controlTestDocument() {
   ];
   const elements = {};
   ids.forEach((id) => {
-    elements[id] = fakeElement(id === "holdem-action-panel" || id === "holdem-pre-action-panel" ? ["hidden"] : []);
+    elements[id] = fakeElement(
+      id === "holdem-action-panel" ||
+      id === "holdem-pre-action-panel" ||
+      id === "holdem-solo-bot-fill-panel" ? ["hidden"] : []
+    );
   });
   elements.holdemgame.querySelectorAll = () => [];
   return {
@@ -942,6 +948,51 @@ test("river action controls wait until the river card finishes opening", () => {
   } finally {
     Date.now = originalNow;
   }
+});
+
+test("a seated solo owner sees an action-area button to fill AI seats", () => {
+  const dom = controlTestDocument();
+  const controller = loadController("alice", { document: dom.document });
+  const snapshot = controller._test.normalizeSnapshot({
+    phase: "waiting",
+    version: 7,
+    heroSeat: 0,
+    ownerNick: "alice",
+    canManageBots: true,
+    botCount: 0,
+    seats: [
+      { seat: 0, nick: "alice", stack: 20000, waiting: true },
+      null,
+      null,
+      null,
+      null,
+      null,
+    ],
+  }, 7);
+  controller._test.setState(snapshot);
+  controller._test.renderControls();
+
+  assert.equal(dom.elements["holdem-action-panel"].classList.contains("hidden"), true);
+  assert.equal(dom.elements["holdem-solo-bot-fill-panel"].classList.contains("hidden"), false);
+  assert.equal(dom.elements["holdem-solo-bot-fill-btn"].disabled, false);
+  assert.equal(dom.elements.holdemgame.classList.contains("is-solo-bot-fill"), true);
+
+  const blocked = controller._test.normalizeSnapshot(Object.assign({}, snapshot, {
+    botCount: 5,
+    seats: [
+      { seat: 0, nick: "alice", stack: 20000, waiting: true },
+      { seat: 1, nick: "AI 1", isBot: true, botId: "bot-1", stack: 20000 },
+      { seat: 2, nick: "AI 2", isBot: true, botId: "bot-2", stack: 20000 },
+      { seat: 3, nick: "AI 3", isBot: true, botId: "bot-3", stack: 20000 },
+      { seat: 4, nick: "AI 4", isBot: true, botId: "bot-4", stack: 20000 },
+      { seat: 5, nick: "AI 5", isBot: true, botId: "bot-5", stack: 20000 },
+    ],
+  }), 8);
+  controller._test.setState(blocked);
+  controller._test.renderControls();
+
+  assert.equal(dom.elements["holdem-solo-bot-fill-panel"].classList.contains("hidden"), true);
+  assert.equal(dom.elements.holdemgame.classList.contains("is-solo-bot-fill"), false);
 });
 
 test("pre-action buttons can be queued before the hero turn", () => {
