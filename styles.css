@@ -33,6 +33,20 @@ body {
   width: 100%; height: 52px; border: none; border-radius: 14px; padding: 0 16px;
   font-size: 18px; color: var(--navy); background: #fff; margin-bottom: 12px; outline: none;
 }
+.entry-box .entry-logo,
+.entry-box .remember-row,
+.entry-box .login-msg,
+.entry-box .entry-hint { flex: 0 0 auto; }
+.entry-box .nick-input,
+.entry-box .btn-primary {
+  flex: 0 0 52px;
+  min-height: 52px;
+  max-height: 52px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.entry-box .nick-input { display: block; line-height: normal; }
+.entry-box .btn-primary { display: block; line-height: 52px; }
 .nick-input:focus { box-shadow: 0 0 0 3px rgba(255,255,255,.5); }
 .remember-row { display: flex; align-items: center; gap: 8px; margin: 2px 2px 12px; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; }
 .remember-row input { width: 18px; height: 18px; accent-color: var(--navy); cursor: pointer; }
@@ -40,6 +54,7 @@ body {
   width: 100%; height: 52px; border: none; border-radius: 14px; background: var(--navy);
   color: #fff; font-size: 17px; font-weight: 700; cursor: pointer;
 }
+.entry-box .btn-primary:disabled { opacity: .72; transform: none; cursor: default; }
 .btn-primary:active { transform: scale(.98); }
 .entry-hint { margin-top: 14px; font-size: 12.5px; line-height: 1.6; color: var(--cream); }
 .entry-hint b { color: #fff; }

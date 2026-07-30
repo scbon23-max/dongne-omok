@@ -117,6 +117,12 @@ test("late-loaded game code still binds the interface", () => {
   assert.match(game, /if \(document\.readyState === "loading"\) document\.addEventListener\("DOMContentLoaded", bind\);\s*else bind\(\);/);
 });
 
+test("login form controls keep their intended height in the entry flex layout", () => {
+  assert.match(styles, /\.entry-box \.nick-input,\s*\.entry-box \.btn-primary\s*\{[\s\S]*flex:\s*0 0 52px;[\s\S]*min-height:\s*52px;[\s\S]*max-height:\s*52px;[\s\S]*appearance:\s*none;/);
+  assert.match(styles, /\.entry-box \.btn-primary\s*\{[^}]*line-height:\s*52px;/);
+  assert.match(styles, /\.entry-box \.entry-logo,\s*\.entry-box \.remember-row,\s*\.entry-box \.login-msg,\s*\.entry-box \.entry-hint\s*\{[^}]*flex:\s*0 0 auto;/);
+});
+
 test("lobby warns non-Chrome browsers with OS-specific Chrome download links", () => {
   assert.match(index, /id="lobby-chrome-warning"/);
   assert.match(index, /Chrome 브라우저 권장/);
