@@ -14,6 +14,13 @@ const db = read("db.js");
 const controller = read("holdem.js");
 const engine = read("holdem-engine.js");
 const edge = read(path.join("supabase", "functions", "holdem-table", "index.ts"));
+const handCountsMigration = read(
+  path.join(
+    "supabase",
+    "migrations",
+    "202607300001_holdem_completed_hand_counts.sql"
+  )
+);
 
 test("Hold'em places a dedicated asset ranking beside the hand guide", () => {
   const utility = index.slice(
@@ -126,7 +133,21 @@ test("the authenticated server ranking includes live table chips but exposes onl
   assert.match(edge, /\.from\("holdem_tables"\)[\s\S]*\.select\("state"\)/);
   assert.match(edge, /\.from\("accounts"\)[\s\S]*\.select\("nickname,is_admin"\)[\s\S]*\.eq\("is_admin", true\)/);
   assert.match(edge, /const RANKING_MIN_HANDS = 5/);
-  assert.match(edge, /\.from\("holdem_hand_results"\)[\s\S]*\.select\("nickname"\)[\s\S]*\.limit\(10000\)/);
+  assert.match(edge, /\.rpc\("holdem_completed_hand_counts"\)/);
+  assert.doesNotMatch(edge, /\.select\("nickname"\)[\s\S]*\.limit\(10000\)/);
+  assert.match(edge, /Object\.entries\(handCounts\)/);
+  assert.match(
+    handCountsMigration,
+    /select result\.nickname, count\(\*\)::bigint as hand_count[\s\S]*group by result\.nickname/
+  );
+  assert.match(
+    handCountsMigration,
+    /returns jsonb[\s\S]*jsonb_object_agg\(counted\.nickname, counted\.hand_count\)/
+  );
+  assert.match(
+    handCountsMigration,
+    /revoke all on function public\.holdem_completed_hand_counts\(\)[\s\S]*from public, anon, authenticated/
+  );
   assert.match(edge, /const adminNicknames = new Set\([\s\S]*safeText\(row\?\.nickname, 40\)/);
   assert.doesNotMatch(edge, /if \(adminNicknames\.has\(nickname\)\) return null/);
   assert.match(edge, /const completedHands = new Map<string, number>\(\)/);

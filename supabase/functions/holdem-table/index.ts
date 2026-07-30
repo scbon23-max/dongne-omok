@@ -558,7 +558,7 @@ async function assetRankingRows(client: ReturnType<typeof createClient>) {
     data: accountRows,
     error: accountError,
   }, {
-    data: handRows,
+    data: handCounts,
     error: handError,
   }] = await Promise.all([
     client
@@ -574,10 +574,7 @@ async function assetRankingRows(client: ReturnType<typeof createClient>) {
       .select("nickname,is_admin")
       .eq("is_admin", true)
       .limit(500),
-    client
-      .from("holdem_hand_results")
-      .select("nickname")
-      .limit(10000),
+    client.rpc("holdem_completed_hand_counts"),
   ]);
   if (walletError || tableError || accountError || handError) {
     throw new Error("ranking_lookup");
@@ -590,10 +587,18 @@ async function assetRankingRows(client: ReturnType<typeof createClient>) {
   );
   const holdings = tableHoldingsByNickname(Array.isArray(tableRows) ? tableRows : []);
   const completedHands = new Map<string, number>();
-  (Array.isArray(handRows) ? handRows : []).forEach((row) => {
-    const nickname = safeText(row?.nickname, 40);
-    if (!nickname) return;
-    completedHands.set(nickname, (completedHands.get(nickname) ?? 0) + 1);
+  if (!isRecord(handCounts)) throw new Error("ranking_lookup");
+  Object.entries(handCounts).forEach(([rawNickname, rawHandCount]) => {
+    const nickname = safeText(rawNickname, 40);
+    const handCount = Number(rawHandCount);
+    if (
+      !nickname ||
+      !Number.isSafeInteger(handCount) ||
+      handCount < 0
+    ) {
+      throw new Error("ranking_lookup");
+    }
+    completedHands.set(nickname, handCount);
   });
   const ranked = (Array.isArray(walletRows) ? walletRows : []).map((row) => {
     const nickname = safeText(row?.nickname, 40);
