@@ -4370,10 +4370,10 @@ body.is-admin .feedback-user-compose { display: none; }
   justify-content: center;
 }
 .holdem-card-front-preview .holdem-front-mini-card + .holdem-front-mini-card {
-  margin-left: -4px;
+  margin-left: -5px;
 }
 .holdem-card-front-preview.four-color .holdem-front-mini-card + .holdem-front-mini-card {
-  margin-left: -6px;
+  margin-left: -5px;
 }
 .holdem-card-front-preview.four-color .holdem-front-mini-card {
   border-color: transparent;
@@ -4387,7 +4387,7 @@ body.is-admin .feedback-user-compose { display: none; }
   border-radius: 4px;
   color: #fff;
   font-family: "Arial Black", Arial, Helvetica, sans-serif;
-  font-size: 9px;
+  font-size: 15px;
   font-weight: 950;
   line-height: 1;
   box-shadow: 0 2px 6px rgba(0,0,0,.24);
