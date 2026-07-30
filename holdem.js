@@ -107,7 +107,10 @@ window.TexasHoldem = (function () {
   var CARD_BACK_SKINS = {
     "lucky-clover": "럭키 클로버",
     "royal-candy": "로열 캔디",
-    "moon-chip": "문칩"
+    "moon-chip": "문칩",
+    "ivory-minimal": "\uC544\uC774\uBCF4\uB9AC",
+    "teal-wave": "\uD2F8 \uC6E8\uC774\uBE0C",
+    "midnight-gold": "\uBBF8\uB4DC\uB098\uC787"
   };
   var PROFILE_AVATAR_STORAGE_PREFIX = "dongne_holdem_profile_avatar:";
   var PROFILE_AVATAR_SIZE = 256;
