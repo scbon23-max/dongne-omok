@@ -2931,13 +2931,15 @@ window.TexasHoldem = (function () {
 
   function canReserveFoldReveal() {
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
-    return !!(isHandActive(state.phase) &&
-      hero &&
-      hero.inHand &&
-      hero.folded &&
-      !hero.isBot &&
-      Array.isArray(state.heroCards) &&
-      state.heroCards.length >= 2);
+    if (!hero || !hero.inHand || hero.isBot ||
+        !Array.isArray(state.heroCards) || state.heroCards.length < 2) {
+      return false;
+    }
+    if (isHandActive(state.phase)) return !!hero.folded;
+    return state.phase === "complete" &&
+      !hero.folded &&
+      state.winners.indexOf(hero.nick) >= 0 &&
+      !showdownRowForSeat(hero.seat);
   }
 
   function effectiveFoldRevealCards() {
@@ -3007,7 +3009,9 @@ window.TexasHoldem = (function () {
       (isHandActive(state.phase) || state.phase === "complete") &&
       hero &&
       hero.inHand &&
-      hero.folded &&
+      (hero.folded || (state.phase === "complete" &&
+        state.winners.indexOf(hero.nick) >= 0 &&
+        !showdownRowForSeat(hero.seat))) &&
       !hero.isBot &&
       Array.isArray(state.heroCards) &&
       state.heroCards.length >= 2);

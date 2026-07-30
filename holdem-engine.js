@@ -1231,7 +1231,7 @@
     winner.stack += amount;
     winner.winAmount += amount;
     state.pots = layers.pots;
-    state.showdown = winnerRevealShowdown(state).concat(foldedRevealShowdown(state));
+    state.showdown = revealCardsShowdown(state);
     state.actorSeat = null;
     state.actionDeadline = null;
     state.pendingSeats = [];
@@ -1294,7 +1294,7 @@
         name: player.evaluation.name,
         tiebreak: player.evaluation.tiebreak.slice()
       };
-    }).concat(foldedRevealShowdown(state));
+    }).concat(revealCardsShowdown(state));
     layers.pots.forEach(function (pot) {
       var candidates = pot.eligible.map(function (seat) { return state.seats[seat]; }).filter(Boolean);
       var winners = [];
@@ -1613,53 +1613,43 @@
     return out.sort(function (a, b) { return a - b; });
   }
 
-  function foldedRevealShowdown(state) {
+  function isPotWinner(state, seat) {
+    seat = integer(seat, -1);
+    if (seat < 0) return false;
+    var pots = Array.isArray(state && state.pots) ? state.pots : [];
+    for (var i = 0; i < pots.length; i++) {
+      if (Array.isArray(pots[i].winners) && pots[i].winners.indexOf(seat) >= 0) return true;
+    }
+    return false;
+  }
+
+  function canRevealCardsForPlayer(state, player) {
+    if (!state || !player || player.isBot || !player.inHand || !player.cards || player.cards.length < 2) {
+      return false;
+    }
+    if (player.folded) return true;
+    return !PLAYING_PHASES[state.phase] &&
+      state.lastEvent &&
+      state.lastEvent.reason === "folds" &&
+      isPotWinner(state, player.seat);
+  }
+
+  function revealCardsShowdown(state) {
     return handPlayers(state).map(function (player) {
-      if (!player || !player.folded || !player.cards || player.cards.length < 2) return null;
+      if (!canRevealCardsForPlayer(state, player)) return null;
       var indexes = normalizeRevealCards(player.revealCards);
       var cards = indexes.map(function (index) { return player.cards[index]; }).filter(Boolean);
       if (!cards.length) return null;
-      return {
-        seat: player.seat,
-        nick: player.nick,
-        displayName: player.displayName || player.nick,
-        cards: cards,
-        folded: true,
-        revealCards: indexes
-      };
-    }).filter(Boolean);
-  }
-
-  function syncFoldedRevealShowdown(state, player) {
-    var seat = player ? player.seat : -1;
-    var rows = Array.isArray(state.showdown) ? state.showdown : [];
-    state.showdown = rows.filter(function (entry) {
-      return !entry || !entry.folded || integer(entry.seat, -1) !== seat;
-    });
-    foldedRevealShowdown(state).forEach(function (entry) {
-      if (entry.seat === seat) state.showdown.push(entry);
-    });
-  }
-
-  function winnerRevealShowdown(state) {
-    var seats = [];
-    (Array.isArray(state.pots) ? state.pots : []).forEach(function (pot) {
-      (Array.isArray(pot && pot.winners) ? pot.winners : []).forEach(function (seat) {
-        seat = integer(seat, -1);
-        if (seat >= 0 && seats.indexOf(seat) < 0) seats.push(seat);
-      });
-    });
-    return seats.map(function (seat) {
-      var player = state.seats[seat];
-      if (!player || player.folded || !player.cards || player.cards.length < 2) return null;
       var row = {
         seat: player.seat,
         nick: player.nick,
         displayName: player.displayName || player.nick,
-        cards: player.cards.slice(0, 2),
-        winner: true
+        cards: cards,
+        folded: !!player.folded,
+        winner: isPotWinner(state, player.seat),
+        revealCards: indexes
       };
-      if (state.board.length >= 3) {
+      if (!player.folded && cards.length === 2 && state.board.length >= 3) {
         var evaluation = evaluateSeven(player.cards.concat(state.board));
         row.category = evaluation.category;
         row.name = evaluation.name;
@@ -1667,6 +1657,17 @@
       }
       return row;
     }).filter(Boolean);
+  }
+
+  function syncRevealCardsShowdown(state, player) {
+    var seat = player ? player.seat : -1;
+    var rows = Array.isArray(state.showdown) ? state.showdown : [];
+    state.showdown = rows.filter(function (entry) {
+      return !entry || integer(entry.seat, -1) !== seat;
+    });
+    revealCardsShowdown(state).forEach(function (entry) {
+      if (entry.seat === seat) state.showdown.push(entry);
+    });
   }
 
   function removeLeavingPlayers(state) {
@@ -2103,11 +2104,11 @@
         else if (!PLAYING_PHASES[next.phase] &&
             next.phase !== "hand_end" &&
             next.phase !== "tournament_end") result = { ok: false, reason: "hand_inactive" };
-        else if (!player.inHand || !player.folded || player.cards.length < 2) result = { ok: false, reason: "fold_required" };
+        else if (!canRevealCardsForPlayer(next, player)) result = { ok: false, reason: "reveal_unavailable" };
         else if (player.isBot) result = { ok: false, reason: "human_only" };
         else {
           player.revealCards = normalizeRevealCards(cmd.cards || cmd.revealCards || cmd.cardIndexes);
-          if (!PLAYING_PHASES[next.phase]) syncFoldedRevealShowdown(next, player);
+          if (!PLAYING_PHASES[next.phase]) syncRevealCardsShowdown(next, player);
           next.lastEvent = {
             type: "reveal_cards_reserved",
             nick: nick,

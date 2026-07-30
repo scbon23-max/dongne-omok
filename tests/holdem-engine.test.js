@@ -523,6 +523,7 @@ test("a folded AI keeps its cards hidden when the hand ends by folds", () => {
   botCards.forEach((card) => assert.equal(activeSerialized.includes(`"${card}"`), false));
 
   const owner = state.seats[state.actorSeat];
+  const ownerCards = owner.cards.slice();
   assert.equal(owner.nick, "owner");
   const ownerLegal = Engine.legalActions(state, owner.nick);
   assert.equal(ownerLegal.actions.includes("raise"), true);
@@ -551,6 +552,20 @@ test("a folded AI keeps its cards hidden when the hand ends by folds", () => {
   const completedSerialized = JSON.stringify(completedView);
   assert.equal(completedView.showdown.some((entry) => entry.seat === bot.seat), false);
   botCards.forEach((card) => assert.equal(completedSerialized.includes(`"${card}"`), false));
+
+  assert.equal(state.showdown.some((entry) => entry.seat === owner.seat), false);
+  const revealed = Engine.command(state, {
+    type: "reveal_cards",
+    nick: owner.nick,
+    cards: [0, 1],
+  }, context(14));
+  assert.equal(revealed.ok, true, revealed.reason);
+  const revealedRow = Engine.view(revealed.state, "owner").showdown
+    .find((entry) => entry.seat === owner.seat);
+  assert.ok(revealedRow);
+  assert.equal(revealedRow.winner, true);
+  assert.equal(revealedRow.folded, false);
+  assert.deepEqual(revealedRow.cards, ownerCards);
 });
 
 test("AI betting turns wait between two and five seconds", () => {
@@ -670,7 +685,7 @@ test("a reveal request that races the final action can update the completed show
   assert.deepEqual(replacementRows[0].revealCards, [0]);
 });
 
-test("an AI that wins by folds reveals its winner hand after the hand", () => {
+test("a fold winner keeps its hand hidden until direct reveal", () => {
   let state = tableWithPlayers(["owner"]);
   state = apply(state, {
     type: "add_bot",
@@ -696,16 +711,13 @@ test("an AI that wins by folds reveals its winner hand after the hand", () => {
     action: "fold",
   }, 13);
   assert.equal(state.phase, "hand_end");
-  assert.equal(state.showdown.length, 1);
-  assert.deepEqual(state.showdown[0].cards, botCards);
-  assert.equal(state.showdown[0].winner, true);
+  assert.equal(state.showdown.length, 0);
 
   const completedView = Engine.view(state, "owner");
   const completedSerialized = JSON.stringify(completedView);
   const winnerRow = completedView.showdown.find((entry) => entry.seat === bot.seat);
-  assert.ok(winnerRow);
-  assert.deepEqual(winnerRow.cards, botCards);
-  botCards.forEach((card) => assert.equal(completedSerialized.includes(`"${card}"`), true));
+  assert.equal(winnerRow, undefined);
+  botCards.forEach((card) => assert.equal(completedSerialized.includes(`"${card}"`), false));
 });
 
 test("botView reveals only that bot's cards and internal bot actions remain authoritative", () => {

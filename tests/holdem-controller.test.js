@@ -819,6 +819,50 @@ test("fold reveal controls keep the requested selection while the server confirm
   }
 });
 
+test("a human fold winner can choose to reveal after the hand", () => {
+  const dom = resultTestDocument();
+  const calls = [];
+  const controller = loadController("alice", {
+    document: dom.document,
+    db: {
+      holdemInvoke(_auth, action, payload) {
+        calls.push({ action, payload });
+        return Promise.resolve({ ok: true, version: 4, snapshot });
+      },
+    },
+  });
+  const snapshot = {
+    version: 3,
+    phase: "hand_end",
+    handId: "3",
+    mode: "ring",
+    seats: [
+      { seat: 0, nick: "alice", stack: 11000, inHand: true, folded: false, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 9000, inHand: true, folded: true, cardCount: 2 },
+    ],
+    pots: [{ amount: 2000, winners: [0] }],
+    winners: ["alice"],
+    showdown: [],
+    viewer: { seat: 0, cards: ["As", "7d"], revealCards: [] },
+    legalActions: {},
+  };
+
+  try {
+    controller._test.setActive(true);
+    controller._test.setHasSnapshot(true);
+    controller._test.setState(controller._test.normalizeSnapshot(snapshot, 3));
+    controller._test.renderControls();
+
+    assert.equal(dom.elements["holdem-fold-reveal-panel"].classList.contains("hidden"), false);
+    controller._test.reserveFoldReveal([0, 1]);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].action, "reveal_cards");
+    assert.deepEqual(Array.from(calls[0].payload.cards), [0, 1]);
+  } finally {
+    controller.leave();
+  }
+});
+
 test("completed snapshots recover winners from pot seats and authoritative payouts", () => {
   const controller = loadController();
   const base = {
@@ -1330,7 +1374,7 @@ test("an all-in result finishes every reveal before opening the rebuy dialog", a
   }
 });
 
-test("the completed UI reveals a fold winner's hand from server showdown", () => {
+test("the completed UI keeps a fold winner's hand hidden until reveal", () => {
   const controller = loadController();
   const ctx = { now: 1_800_000_000_000, randomInt: () => 0 };
   let state = Engine.createTable({
@@ -1359,12 +1403,12 @@ test("the completed UI reveals a fold winner's hand from server showdown", () =>
 
   const snapshot = Engine.view(state, "alice");
   const winnerRow = snapshot.showdown.find((entry) => entry.seat === bot.seat);
-  assert.ok(winnerRow);
-  assert.deepEqual(winnerRow.cards, botCards);
+  assert.equal(winnerRow, undefined);
   const normalized = controller._test.normalizeSnapshot(snapshot, 14);
   assert.equal(normalized.phase, "complete");
-  assert.deepEqual(Array.from(normalized.revealedCards[bot.seat], (card) => `${card.rank}${card.suit}`), botCards);
-  assert.ok(normalized.showdown.some((entry) => entry.seat === bot.seat));
+  assert.deepEqual(Array.from(normalized.revealedCards[bot.seat] || []), []);
+  assert.equal(normalized.showdown.some((entry) => entry.seat === bot.seat), false);
+  botCards.forEach((card) => assert.equal(JSON.stringify(normalized).includes(`"${card}"`), false));
 });
 
 test("completed AI tables are immediately eligible for automatic next hand", () => {
