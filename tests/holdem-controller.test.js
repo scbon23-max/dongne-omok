@@ -344,6 +344,41 @@ test("reserved leave state is kept for seat display", () => {
   assert.equal(normalized.seats[1].leaving, false);
 });
 
+test("spectate reservations discard personalized cards and actions", () => {
+  const controller = loadController("alice");
+  const normalized = controller._test.normalizeSnapshot({
+    phase: "flop",
+    viewer: {
+      seat: 0,
+      cards: ["As", "Kd"],
+      revealCards: [0],
+      handName: "원페어",
+      legalActions: { actions: ["fold", "call"], callAmount: 200 },
+      toCall: 200,
+    },
+    seats: [
+      {
+        seat: 0,
+        nick: "alice",
+        stack: 9800,
+        inHand: true,
+        leaving: true,
+        leavingIntent: "spectate",
+        cardCount: 2,
+      },
+      { seat: 1, nick: "bob", stack: 9900, inHand: true, cardCount: 2 },
+    ],
+  }, 9);
+
+  assert.equal(normalized.heroSeat, 0);
+  assert.equal(normalized.heroCards.length, 0);
+  assert.equal(normalized.heroRevealCards.length, 0);
+  assert.equal(Object.keys(normalized.legal).length, 0);
+  assert.equal(normalized.toCall, 0);
+  assert.equal(normalized.handName, "");
+  assert.equal(normalized.seats[0].cardCount, 2);
+});
+
 test("seat action tags fall back to the latest server action history", () => {
   const controller = loadController();
   const normalized = controller._test.normalizeSnapshot({

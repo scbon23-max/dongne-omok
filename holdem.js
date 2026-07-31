@@ -1365,6 +1365,11 @@ window.TexasHoldem = (function () {
     return legal;
   }
 
+  function isSpectateReservation(seat) {
+    return !!(seat && seat.leaving &&
+      text(seat.leavingIntent, 24).toLowerCase() === "spectate");
+  }
+
   function normalizeSeat(entry, fallbackIndex) {
     if (!isObject(entry)) return null;
     var nick = text(firstDefined(entry.nick, entry.nickname, entry.name, entry.player), 40);
@@ -1585,18 +1590,20 @@ window.TexasHoldem = (function () {
         if (seats[i] && seats[i].nick === nick) { heroSeat = i; break; }
       }
     }
+    var heroPrivateViewBlocked = heroSeat >= 0 &&
+      isSpectateReservation(seats[heroSeat]);
 
     // Only the personalized viewer object/top-level personalized field may
     // supply hole-card faces. Opponent seat objects are never inspected for
     // card values, even if a buggy server accidentally includes them.
-    var heroCards = normalizeCards(firstDefined(
+    var heroCards = heroPrivateViewBlocked ? [] : normalizeCards(firstDefined(
       viewer.holeCards,
       viewer.cards,
       raw.heroCards,
       raw.holeCards,
       table.heroCards
     ), 2);
-    var heroRevealCards = normalizeCardIndexes(firstDefined(
+    var heroRevealCards = heroPrivateViewBlocked ? [] : normalizeCardIndexes(firstDefined(
       viewer.revealCards,
       viewer.revealCardIndexes,
       raw.heroRevealCards,
@@ -1606,7 +1613,7 @@ window.TexasHoldem = (function () {
       seats[heroSeat].cardCount = heroCards.length;
     }
 
-    var legal = normalizeLegal(firstDefined(
+    var legal = heroPrivateViewBlocked ? normalizeLegal() : normalizeLegal(firstDefined(
       viewer.legalActions,
       viewer.legalMoves,
       viewer.actions,
@@ -1776,24 +1783,24 @@ window.TexasHoldem = (function () {
         table.actionSeconds != null ? Number(table.actionSeconds) * 1000 : null
       ), 0),
       legal: legal,
-      toCall: nonnegative(firstDefined(
+      toCall: heroPrivateViewBlocked ? 0 : nonnegative(firstDefined(
         actionInfo.toCall,
         actionInfo.callAmount,
         viewer.toCall,
         legal.call && legal.call.amount
       ), 0),
-      minBet: nonnegative(firstDefined(
+      minBet: heroPrivateViewBlocked ? 0 : nonnegative(firstDefined(
         actionInfo.minBet,
         viewer.minBet,
         legal.bet && legal.bet.min
       ), 0),
-      minRaise: nonnegative(firstDefined(
+      minRaise: heroPrivateViewBlocked ? 0 : nonnegative(firstDefined(
         actionInfo.minRaiseTo,
         actionInfo.minRaise,
         viewer.minRaise,
         legal.raise && legal.raise.min
       ), 0),
-      maxRaise: nonnegative(firstDefined(
+      maxRaise: heroPrivateViewBlocked ? 0 : nonnegative(firstDefined(
         actionInfo.maxRaiseTo,
         actionInfo.maxRaise,
         viewer.maxRaise,
@@ -1878,7 +1885,9 @@ window.TexasHoldem = (function () {
       ownerNick: text(firstDefined(table.ownerNick, table.owner, raw.ownerNick), 40),
       winners: winnerNicks(table, seats),
       showdown: showdownRows,
-      handName: text(firstDefined(viewer.handName, viewer.bestHandName, raw.handName), 80),
+      handName: heroPrivateViewBlocked
+        ? ""
+        : text(firstDefined(viewer.handName, viewer.bestHandName, raw.handName), 80),
       message: text(firstDefined(raw.message, table.message, table.announcement, table.resultText), 160)
     };
 
@@ -2724,9 +2733,17 @@ window.TexasHoldem = (function () {
   function leaveTableForSpectate() {
     if (state.heroSeat < 0 || requests.seat_role) return Promise.resolve({ ok: false, reason: "not_joined" });
     var hero = state.seats[state.heroSeat];
-    spectateAfterHandRequested = !!(hero && isHandActive(state.phase) && hero.inHand && !hero.folded);
+    spectateAfterHandRequested = !!(hero && isHandActive(state.phase) && hero.inHand);
     autoSeatSuppressed = true;
     autoSeatKey = "";
+    state.heroCards = [];
+    state.heroRevealCards = [];
+    state.legal = Object.create(null);
+    state.handName = "";
+    queuedAction = null;
+    renderSeats();
+    renderBoard();
+    renderControls();
     return invoke("leave", {
       expectedVersion: state.version,
       leaveIntent: "spectate"
@@ -2798,8 +2815,8 @@ window.TexasHoldem = (function () {
       }, 0);
       return;
     }
-    if (spectateAfterHandRequested || (hero && hero.leaving && hero.leavingIntent === "spectate" && !isHandActive(state.phase))) {
-      if (hero && hero.leaving && isHandActive(state.phase) && !hero.folded) return;
+    if (spectateAfterHandRequested || isSpectateReservation(hero)) {
+      if (hero && isHandActive(state.phase)) return;
       if (requests.seat_role) return;
       spectateAfterHandRequested = false;
       leaveTableForSpectate();
@@ -3247,6 +3264,7 @@ window.TexasHoldem = (function () {
     var hero = heroSeatForAction();
     return !!(isHandActive(state.phase) &&
       hero &&
+      !isSpectateReservation(hero) &&
       hero.inHand &&
       !hero.folded &&
       !hero.allIn &&
@@ -5043,7 +5061,7 @@ window.TexasHoldem = (function () {
   }
 
   function seatStatus(seat) {
-    if (seat && seat.leaving) return seat.leavingIntent === "spectate" ? "관전 예약" : "나가기 예약";
+    if (seat && seat.leaving) return isSpectateReservation(seat) ? "관전 예약" : "나가기 예약";
     if (!seat) return "빈 자리";
     if (seat.isBot && seat.seat === state.actingSeat) return "생각 중";
     if (seat.folded) return "폴드";
@@ -5348,7 +5366,7 @@ window.TexasHoldem = (function () {
       if (absolute === state.dealerSeat) badges += "<span>D</span>";
       var leaveBadge = seat && seat.leaving
         ? '<span class="holdem-seat-leave-badge" aria-hidden="true">' +
-          esc(seat.leavingIntent === "spectate" ? "관전 예약" : "나가기 예약") + '</span>'
+          esc(isSpectateReservation(seat) ? "관전 예약" : "나가기 예약") + '</span>'
         : "";
       var awayBadge = seat && (seat.away || seat.sittingOut)
         ? '<span class="holdem-seat-status" aria-hidden="true">' +

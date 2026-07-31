@@ -693,7 +693,11 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(engine, /leavingIntent: player\.leaving \? normalizeLeavingIntent\(player\.leavingIntent\) \|\| "leave" : ""/);
   assert.match(controller, /leaving:\s*!!firstDefined\(entry\.leaving/);
   assert.match(controller, /leavingIntent:\s*text\(firstDefined\(entry\.leavingIntent/);
-  assert.match(controller, /seat\.leavingIntent === "spectate" \? "관전 예약" : "나가기 예약"/);
+  assert.match(controller, /isSpectateReservation\(seat\) \? "관전 예약" : "나가기 예약"/);
+  assert.match(engine, /function foldPlayerForSpectate\(state, player, now, randomInt\)/);
+  assert.match(engine, /function viewerHasPrivateCardAccess\(viewerPlayer\)/);
+  assert.match(engine, /heroCards: privateViewerPlayer \? privateViewerPlayer\.cards\.slice\(\) : \[\]/);
+  assert.match(controller, /var heroPrivateViewBlocked = heroSeat >= 0[\s\S]*isSpectateReservation\(seats\[heroSeat\]\)/);
   assert.match(controller, /leaveIntent:\s*"spectate"/);
   assert.match(controller, /leaveIntent:\s*"leave"/);
   assert.match(controller, /cancelLeave:\s*true/);

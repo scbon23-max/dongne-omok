@@ -175,7 +175,7 @@ test("leaving again during an active hand cancels a reserved exit", () => {
   assert.equal(result.state.lastEvent.type, "leave_cancelled");
 });
 
-test("a folded player can leave immediately during an active hand", () => {
+test("a folded player stays reserved until the active hand is settled", () => {
   const names = ["alice", "bob", "carol"];
   let state = tableWithPlayers(names);
   state = readyAndStart(state, names);
@@ -194,8 +194,9 @@ test("a folded player can leave immediately during an active hand", () => {
   }, context(122));
 
   assert.equal(result.ok, true, result.reason);
-  assert.equal(result.state.seats[actorSeat], null);
-  assert.equal(result.state.lastEvent.type, "left");
+  assert.equal(result.state.seats[actorSeat].leaving, true);
+  assert.equal(result.state.seats[actorSeat].folded, true);
+  assert.equal(result.state.lastEvent.type, "leave_requested");
 });
 
 test("a full raise sets the minimum and cumulative short all-ins reopen action", () => {
@@ -1992,6 +1993,10 @@ test("active hand leaves preserve whether the player reserved spectating or room
   state = readyAndStart(state, names, 700);
   const seat = state.seats.findIndex((player, index) => player && player.inHand && index !== state.actorSeat);
   const nick = state.seats[seat].nick;
+  const cards = state.seats[seat].cards.slice();
+  const committed = state.seats[seat].totalBet;
+  const actorSeat = state.actorSeat;
+  const actionDeadline = state.actionDeadline;
 
   const reservedSpectate = Engine.command(state, {
     type: "leave",
@@ -2003,7 +2008,19 @@ test("active hand leaves preserve whether the player reserved spectating or room
   assert.equal(reservedSpectate.ok, true, reservedSpectate.reason);
   assert.equal(reservedSpectate.state.seats[seat].leaving, true);
   assert.equal(reservedSpectate.state.seats[seat].leavingIntent, "spectate");
+  assert.equal(reservedSpectate.state.seats[seat].folded, true);
+  assert.equal(reservedSpectate.state.seats[seat].totalBet, committed);
+  assert.deepEqual(reservedSpectate.state.seats[seat].cards, cards);
+  assert.equal(reservedSpectate.state.actorSeat, actorSeat);
+  assert.equal(reservedSpectate.state.actionDeadline, actionDeadline);
   assert.equal(Engine.view(reservedSpectate.state, "alice").seats[seat].leavingIntent, "spectate");
+  const spectatingView = Engine.view(reservedSpectate.state, nick);
+  assert.equal(spectatingView.viewer.seat, seat);
+  assert.deepEqual(spectatingView.heroCards, []);
+  assert.deepEqual(spectatingView.viewer.cards, []);
+  assert.deepEqual(spectatingView.legalActions.actions, []);
+  assert.equal(Object.hasOwn(spectatingView.seats[seat], "cards"), false);
+  cards.forEach((card) => assert.equal(JSON.stringify(spectatingView).includes(`"${card}"`), false));
 
   state = readyAndStart(tableWithPlayers(names), names, 900);
   const exitSeat = state.seats.findIndex((player, index) => player && player.inHand && index !== state.actorSeat);
@@ -2017,6 +2034,52 @@ test("active hand leaves preserve whether the player reserved spectating or room
 
   assert.equal(reservedExit.ok, true, reservedExit.reason);
   assert.equal(reservedExit.state.seats[exitSeat].leavingIntent, "leave");
+  assert.equal(reservedExit.state.seats[exitSeat].folded, false);
+});
+
+test("an acting player who switches to spectate folds and advances the turn", () => {
+  const names = ["alice", "bob", "cara"];
+  const state = readyAndStart(tableWithPlayers(names), names, 1020);
+  const actorSeat = state.actorSeat;
+  const actorNick = state.seats[actorSeat].nick;
+
+  const result = Engine.command(state, {
+    type: "leave",
+    nick: actorNick,
+    leaveIntent: "spectate",
+    requestId: "leave:actor-spectate",
+  }, context(1030));
+
+  assert.equal(result.ok, true, result.reason);
+  assert.equal(result.state.seats[actorSeat].folded, true);
+  assert.notEqual(result.state.actorSeat, actorSeat);
+  assert.ok(result.state.actorSeat != null || result.state.phase === "hand_end");
+});
+
+test("all-in players who switch to spectate stay eligible but lose private card access", () => {
+  const names = ["alice", "bob", "cara"];
+  let state = readyAndStart(tableWithPlayers(names), names, 1050);
+  const seat = state.seats.findIndex((player, index) => player && player.inHand && index !== state.actorSeat);
+  const nick = state.seats[seat].nick;
+  state.seats[seat].stack = 0;
+  state.seats[seat].allIn = true;
+
+  const result = Engine.command(state, {
+    type: "leave",
+    nick,
+    leaveIntent: "spectate",
+    requestId: "leave:allin-spectate",
+  }, context(1060));
+
+  assert.equal(result.ok, true, result.reason);
+  assert.equal(result.state.seats[seat].leaving, true);
+  assert.equal(result.state.seats[seat].folded, false);
+  assert.equal(result.state.seats[seat].allIn, true);
+  const view = Engine.view(result.state, nick);
+  assert.deepEqual(view.heroCards, []);
+  assert.deepEqual(view.viewer.cards, []);
+  assert.deepEqual(view.legalActions.actions, []);
+  assert.equal(Object.hasOwn(view.seats[seat], "cards"), false);
 });
 
 test("reserved leaving players stay through results and are cleared before the next hand", () => {

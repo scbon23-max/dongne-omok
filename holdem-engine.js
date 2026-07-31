@@ -1467,6 +1467,59 @@
     }
   }
 
+  function foldPlayerForSpectate(state, player, now, randomInt) {
+    if (!PLAYING_PHASES[state.phase] || !player || !player.inHand ||
+        player.folded || player.allIn) return false;
+    var phaseBefore = state.phase;
+    var potBefore = potTotal(state);
+    var actorSeatBefore = state.actorSeat;
+    var actionDeadlineBefore = state.actionDeadline;
+    var botDueAtBefore = state.botDueAt;
+    player.folded = true;
+    player.lastAction = "fold";
+    player.lastActionBet = state.currentBet;
+    removePending(state, player.seat);
+    state.actionSeq += 1;
+    appendActionHistory(state, {
+      seq: state.actionSeq,
+      handNo: state.handNo,
+      phase: phaseBefore,
+      seat: player.seat,
+      nick: player.nick,
+      displayName: player.displayName,
+      isBot: player.isBot,
+      action: "fold",
+      amount: player.streetBet,
+      potBefore: potBefore,
+      potAfter: potTotal(state),
+      at: now
+    });
+    state.lastEvent = {
+      type: "action",
+      nick: player.nick,
+      action: "fold",
+      amount: player.streetBet,
+      fullRaise: false,
+      reason: "spectate",
+      at: now
+    };
+    var actor = actorSeatBefore == null ? null : state.seats[actorSeatBefore];
+    var actorCanContinue = player.seat !== actorSeatBefore && actor &&
+      actor.inHand && !actor.folded && !actor.allIn && actor.stack > 0 &&
+      state.pendingSeats.indexOf(actorSeatBefore) >= 0;
+    var remaining = livePlayers(state);
+    if (remaining.length === 1) {
+      finishByFold(state, remaining[0], now);
+    } else if (actorCanContinue) {
+      state.actorSeat = actorSeatBefore;
+      state.actionDeadline = actionDeadlineBefore;
+      state.botDueAt = botDueAtBefore;
+    } else {
+      settleProgress(state, now, randomInt);
+    }
+    return true;
+  }
+
   function applyPlayerAction(state, player, action, amount, now, randomInt) {
     var phaseBefore = state.phase;
     var potBefore = potTotal(state);
@@ -1972,19 +2025,22 @@
             changed = true;
           }
         }
-        else if (PLAYING_PHASES[next.phase] && player.inHand && !player.folded) {
+        else if (PLAYING_PHASES[next.phase] && player.inHand) {
           var leaveIntent = normalizeLeavingIntent(cmd.leaveIntent || cmd.intent || cmd.mode) || "leave";
           if (player.leaving) result = { ok: true, reason: "already_leaving" };
           else {
             player.leaving = true;
             player.leavingIntent = leaveIntent;
             player.ready = false;
-            next.lastEvent = {
-              type: leaveIntent === "spectate" ? "spectate_requested" : "leave_requested",
-              nick: nick,
-              seat: player.seat,
-              at: now
-            };
+            if (leaveIntent !== "spectate" ||
+                !foldPlayerForSpectate(next, player, now, context.randomInt)) {
+              next.lastEvent = {
+                type: leaveIntent === "spectate" ? "spectate_requested" : "leave_requested",
+                nick: nick,
+                seat: player.seat,
+                at: now
+              };
+            }
             result = { ok: true };
             changed = true;
           }
@@ -2292,6 +2348,11 @@
     };
   }
 
+  function viewerHasPrivateCardAccess(viewerPlayer) {
+    return !!viewerPlayer &&
+      normalizeLeavingIntent(viewerPlayer.leavingIntent) !== "spectate";
+  }
+
   function publicPlayer(player, viewerPlayer, revealAll) {
     if (!player) return null;
     var out = {
@@ -2320,7 +2381,7 @@
       winAmount: player.winAmount || 0,
       cardCount: player.inHand && player.cards.length ? player.cards.length : 0
     };
-    if ((viewerPlayer && player.seat === viewerPlayer.seat) ||
+    if ((viewerHasPrivateCardAccess(viewerPlayer) && player.seat === viewerPlayer.seat) ||
         (revealAll && player.revealed && !player.folded)) {
       out.cards = player.cards.slice();
     }
@@ -2379,10 +2440,11 @@
     var readyEligible = occupied.filter(function (player) {
       return canPlayNextHand(player);
     });
-    var viewerLegal = legalActionsForPlayer(state, viewerPlayer);
+    var privateViewerPlayer = viewerHasPrivateCardAccess(viewerPlayer) ? viewerPlayer : null;
+    var viewerLegal = legalActionsForPlayer(state, privateViewerPlayer);
     var viewerHand = null;
-    if (viewerPlayer && viewerPlayer.cards.length === 2 && state.board.length >= 3) {
-      viewerHand = evaluateSeven(viewerPlayer.cards.concat(state.board));
+    if (privateViewerPlayer && privateViewerPlayer.cards.length === 2 && state.board.length >= 3) {
+      viewerHand = evaluateSeven(privateViewerPlayer.cards.concat(state.board));
     }
     var canStart = !PLAYING_PHASES[state.phase] && state.phase !== "tournament_end" &&
       !!viewerPlayer && !viewerPlayer.isBot && !viewerPlayer.leaving &&
@@ -2440,8 +2502,8 @@
           legacyBotPersonality(viewerPlayer, viewerPlayer.seat)
         : null,
       board: state.board.slice(),
-      heroCards: viewerPlayer ? viewerPlayer.cards.slice() : [],
-      heroRevealCards: viewerPlayer ? normalizeRevealCards(viewerPlayer.revealCards) : [],
+      heroCards: privateViewerPlayer ? privateViewerPlayer.cards.slice() : [],
+      heroRevealCards: privateViewerPlayer ? normalizeRevealCards(privateViewerPlayer.revealCards) : [],
       currentBet: state.currentBet,
       lastFullRaiseSize: state.lastFullRaiseSize,
       pot: potTotal(state),
@@ -2458,8 +2520,8 @@
       legalActions: viewerLegal,
       viewer: {
         seat: viewerPlayer ? viewerPlayer.seat : null,
-        cards: viewerPlayer ? viewerPlayer.cards.slice() : [],
-        revealCards: viewerPlayer ? normalizeRevealCards(viewerPlayer.revealCards) : [],
+        cards: privateViewerPlayer ? privateViewerPlayer.cards.slice() : [],
+        revealCards: privateViewerPlayer ? normalizeRevealCards(privateViewerPlayer.revealCards) : [],
         legalActions: viewerLegal,
         toCall: viewerLegal.callAmount,
         minBet: viewerLegal.minBet,
