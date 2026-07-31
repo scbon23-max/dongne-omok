@@ -347,12 +347,12 @@ test("opening and closing chat preserves live toasts without turning history int
   audit.setFocus(true);
 
   assert.equal(elements["holdem-chat-overlay"].children.length, 1);
-  assert.equal(elements["holdem-chat-history"].children.length, 5);
+  assert.equal(elements["holdem-chat-history"].children.length, 8);
   assert.equal(elements.holdemgame.classList.contains("is-chat-focused"), true);
 
   audit.addLive("incoming", "while typing");
   assert.equal(elements["holdem-chat-overlay"].children.length, 2);
-  assert.equal(elements["holdem-chat-history"].children.length, 5);
+  assert.equal(elements["holdem-chat-history"].children.length, 9);
 
   document.activeElement = null;
   audit.setFocus(false);
@@ -364,6 +364,29 @@ test("opening and closing chat preserves live toasts without turning history int
   audit.pushToast("me", "sent");
   assert.equal(elements["holdem-chat-overlay"].children.length, 3);
   assert.equal(elements["holdem-chat-history"].children.length, 0);
+});
+
+test("Hold'em chat history keeps the user's scroll position while typing", () => {
+  const { audit, document, elements } = loadGameChatHarness();
+  audit.setRoom("room-a");
+  audit.setSession(
+    Array.from({ length: 60 }, (_, index) => ({
+      game: "holdem",
+      who: "player-" + index,
+      text: "message-" + index,
+    }))
+  );
+  document.activeElement = elements["holdem-chat-input"];
+
+  audit.setFocus(true);
+  assert.equal(elements["holdem-chat-history"].children.length, 60);
+  assert.equal(elements["holdem-chat-history"].scrollTop, elements["holdem-chat-history"].scrollHeight);
+
+  elements["holdem-chat-history"].scrollTop = 120;
+  audit.addLive("incoming", "while reading older chat");
+
+  assert.equal(elements["holdem-chat-history"].children.length, 61);
+  assert.equal(elements["holdem-chat-history"].scrollTop, 120);
 });
 
 test("the send button path creates exactly one local toast", () => {
@@ -378,26 +401,33 @@ test("the send button path creates exactly one local toast", () => {
   assert.equal(elements["holdem-chat-overlay"].children.length, 1);
 });
 
-test("a stale room history response cannot populate the next room", async () => {
-  let resolveHistory;
+test("Hold'em room chat is session-only and clears when the room resets", async () => {
+  let historyCalls = 0;
   const db = {
     getChatHistory() {
-      return new Promise((resolve) => {
-        resolveHistory = resolve;
-      });
+      historyCalls += 1;
+      return Promise.resolve([{ nick: "old-room", text: "stale", created_at: "2026-07-30T00:00:00Z" }]);
     },
   };
-  const { audit } = loadGameChatHarness({ db });
+  const { audit, document, elements } = loadGameChatHarness({ db });
   audit.setRoom("room-a");
+  document.activeElement = elements["holdem-chat-input"];
+  audit.setFocus(true);
+  audit.addLive("room-a", "only in this room");
+
   audit.loadHistory();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(historyCalls, 0);
+  assert.equal(audit.getSession().length, 1);
+  assert.equal(elements["holdem-chat-history"].children.length, 1);
+
   audit.setRoom("room-b");
   audit.resetRoomChat();
 
-  resolveHistory([{ nick: "old-room", text: "stale", created_at: "2026-07-30T00:00:00Z" }]);
-  await Promise.resolve();
-  await Promise.resolve();
-
   assert.equal(audit.getSession().length, 0);
+  assert.equal(elements["holdem-chat-history"].children.length, 0);
 });
 
 test("a transient keyboard height drop does not close chat", () => {

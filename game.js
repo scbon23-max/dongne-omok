@@ -2299,6 +2299,10 @@
     if (!window.Db || !curRoomId) return;
     var g = activeFamily();
     var panel = gameUi(g).chatLogId;
+    if (!panel && g === "holdem") {
+      renderHoldemChatHistory();
+      return;
+    }
     var requestedRoom = chatRoomOf(curGame);
     var requestedGeneration = chatLoadGeneration;
     Db.getChatHistory(requestedRoom, 200).then(function (msgs) {
@@ -2307,26 +2311,6 @@
           g !== activeFamily()) return;
       if (msgs.length) oldestChatTs = msgs[0].created_at;
       if (msgs.length < 200) noMoreChat = true;
-      if (!panel && g === "holdem") {
-        var holdemHistCount = {};
-        var holdemMerged = [];
-        msgs.forEach(function (m) {
-          holdemMerged.push({ game: "holdem", who: m.nick, text: m.text });
-          var hk = m.nick + "\u0001" + m.text;
-          holdemHistCount[hk] = (holdemHistCount[hk] || 0) + 1;
-        });
-        sessionChat.forEach(function (sc) {
-          if (sc.game !== "holdem") return;
-          var hk = sc.who + "\u0001" + sc.text;
-          if (holdemHistCount[hk] > 0) { holdemHistCount[hk]--; return; }
-          holdemMerged.push(sc);
-        });
-        sessionChat = sessionChat.filter(function (sc) { return sc.game !== "holdem"; });
-        holdemMerged.forEach(function (sc) { sessionChat.push(sc); });
-        if (sessionChat.length > 300) sessionChat = sessionChat.slice(sessionChat.length - 300);
-        renderHoldemChatHistory();
-        return;
-      }
       if (!panel) return;
       var log = $(panel); if (!log) return;
       log.innerHTML = "";
@@ -5064,11 +5048,15 @@
     var focused = holdemChatInputFocused();
     if (screen) screen.classList.toggle("is-chat-focused", focused);
     if (!historySurface || !focused) return;
+    var hadHistory = historySurface.children && historySurface.children.length > 0;
+    var distanceFromBottom = historySurface.scrollHeight - historySurface.scrollTop - historySurface.clientHeight;
+    var shouldStickToBottom = !hadHistory || distanceFromBottom <= 12;
+    var previousScrollTop = historySurface.scrollTop;
     var recent = [];
-    for (var i = sessionChat.length - 1; i >= 0 && recent.length < 5; i--) {
+    for (var i = 0; i < sessionChat.length; i++) {
       var row = sessionChat[i];
-      if (!row || row.game !== "holdem" || !row.text || row.who === "__sys") continue;
-      recent.unshift(row);
+      if (!row || row.game !== "holdem" || !row.text) continue;
+      recent.push(row);
     }
     historySurface.innerHTML = "";
     for (var j = 0; j < recent.length; j++) {
@@ -5076,7 +5064,7 @@
       line.classList.add("show");
       historySurface.appendChild(line);
     }
-    historySurface.scrollTop = historySurface.scrollHeight;
+    historySurface.scrollTop = shouldStickToBottom ? historySurface.scrollHeight : previousScrollTop;
   }
   function renderUnread(game) {
     if (unreadCount[game] == null) unreadCount[game] = 0;
@@ -5115,7 +5103,6 @@
     var log = $(gameUi(game).chatLogId);
     if (log) { log.appendChild(makeChatLine(who, text)); log.scrollTop = log.scrollHeight; }
     sessionChat.push({ game: game, who: who, text: text });
-    if (sessionChat.length > 300) sessionChat.shift();
     if (live && who !== "__sys") {
       pushOverlay(game, who, text, overlaySide);
       if (game !== activeFamily()) bumpUnread(game);
@@ -5171,7 +5158,7 @@
     if (netMode) {
       addChatTo(game, me.nick, v, showImmediately);
       Net.send({ t: "chat", game: game, nick: me.nick, text: v });
-      if (window.Db) Db.addChatMsg(chatRoomOf(game), me.nick, v);
+      if (window.Db && game !== "holdem") Db.addChatMsg(chatRoomOf(game), me.nick, v);
     } else addChatTo(game, me.nick, v, showImmediately);
     return true;
   }
