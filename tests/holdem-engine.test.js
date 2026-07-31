@@ -2112,3 +2112,153 @@ test("reserved leaving players stay through results and are cleared before the n
   assert.equal(started.ok, true, started.reason);
   assert.equal(started.state.seats[leavingSeat], null);
 });
+
+test("completed hand history records fold results without leaking hidden cards", () => {
+  const names = ["alice", "bob"];
+  let state = readyAndStart(tableWithPlayers(names), names, 1200);
+  const folderSeat = state.actorSeat;
+  const folder = state.seats[folderSeat];
+  const hiddenCards = folder.cards.slice();
+
+  state = apply(state, {
+    type: "act",
+    nick: folder.nick,
+    action: "fold",
+    requestId: "history:hidden-fold",
+  }, 1210);
+
+  assert.equal(state.phase, "hand_end");
+  assert.equal(state.handHistory.length, 1);
+  const history = Engine.view(state, "alice").handHistory;
+  assert.equal(history.length, 1);
+  assert.deepEqual(history, Engine.view(state, "bob").handHistory);
+  assert.equal(history[0].reason, "folds");
+  assert.equal(history[0].showdown.length, 0);
+  assert.equal(history[0].players.filter((player) => player[7] > 0).length, 1);
+  hiddenCards.forEach((card) => {
+    assert.equal(JSON.stringify(history[0]).includes(`"${card}"`), false);
+  });
+});
+
+test("a post-fold reveal updates only the matching completed hand history", () => {
+  const names = ["alice", "bob"];
+  let state = readyAndStart(tableWithPlayers(names), names, 1300);
+  const folderSeat = state.actorSeat;
+  const folder = state.seats[folderSeat];
+  const cards = folder.cards.slice();
+
+  state = apply(state, {
+    type: "act",
+    nick: folder.nick,
+    action: "fold",
+    requestId: "history:fold-before-reveal",
+  }, 1310);
+  assert.equal(state.handHistory[0].showdown.length, 0);
+
+  state = apply(state, {
+    type: "reveal_cards",
+    nick: folder.nick,
+    cards: [1],
+    requestId: "history:reveal-second",
+  }, 1320);
+
+  assert.equal(state.handHistory.length, 1);
+  assert.equal(state.handHistory[0].showdown.length, 1);
+  assert.equal(state.handHistory[0].showdown[0][0], folderSeat);
+  assert.deepEqual(state.handHistory[0].showdown[0][1], [cards[1]]);
+  assert.deepEqual(state.handHistory[0].showdown[0][6], [1]);
+  assert.equal(JSON.stringify(state.handHistory[0]).includes(`"${cards[0]}"`), false);
+});
+
+test("showdown history keeps the public board, actions, and revealed hands", () => {
+  const names = ["alice", "bob"];
+  let state = readyAndStart(tableWithPlayers(names), names, 1400);
+  let actor = state.seats[state.actorSeat];
+  state = apply(state, {
+    type: "act",
+    nick: actor.nick,
+    action: "allin",
+    requestId: "history:allin",
+  }, 1410);
+  actor = state.seats[state.actorSeat];
+  state = apply(state, {
+    type: "act",
+    nick: actor.nick,
+    action: "call",
+    requestId: "history:call",
+  }, 1420);
+
+  assert.equal(state.phase, "hand_end");
+  assert.equal(state.handHistory.length, 1);
+  const entry = state.handHistory[0];
+  assert.equal(entry.reason, "showdown");
+  assert.equal(entry.board.length, 5);
+  assert.equal(entry.actions.length, 2);
+  assert.equal(entry.showdown.length, 2);
+  entry.showdown.forEach((row) => assert.equal(row[1].length, 2));
+});
+
+test("completed history retains 20 compact hands under the snapshot size limit", () => {
+  let state = tableWithPlayers(["alice", "bob"]);
+  const longName = "가나다라마바사아자차카타파하0123456789ABCDEFGHIJ";
+  state.handHistory = Array.from({ length: 25 }, (_, handIndex) => ({
+    handNo: handIndex + 1,
+    completedAt: 100000 + handIndex,
+    reason: "showdown",
+    smallBlind: 100,
+    bigBlind: 200,
+    buttonSeat: 0,
+    smallBlindSeat: 0,
+    bigBlindSeat: 1,
+    board: ["As", "Kh", "Qd", "Jc", "Th"],
+    pot: 40000,
+    rake: 200,
+    players: Array.from({ length: 6 }, (_, seat) => [
+      seat,
+      `player-${seat}`,
+      `${longName}-${seat}`,
+      seat > 1,
+      20000,
+      20000,
+      20000,
+      seat === 0 ? 40000 : 0,
+    ]),
+    actions: Array.from({ length: 32 }, (_, actionIndex) => [
+      actionIndex + 1,
+      ["preflop", "flop", "turn", "river"][actionIndex % 4],
+      actionIndex % 6,
+      ["call", "bet", "raise", "check"][actionIndex % 4],
+      (actionIndex + 1) * 100,
+      actionIndex * 100,
+      (actionIndex + 1) * 100,
+      100000 + actionIndex,
+    ]),
+    actionsOmitted: 4,
+    showdown: Array.from({ length: 6 }, (_, seat) => [
+      seat,
+      ["2c", "3d"],
+      false,
+      seat === 0,
+      "하이카드",
+      0,
+      [0, 1],
+    ]),
+  }));
+
+  const normalized = Engine.command(state, {
+    type: "ready",
+    nick: "alice",
+    ready: true,
+    requestId: "history:normalize-limit",
+  }, context(1500));
+  assert.equal(normalized.ok, true, normalized.reason);
+  assert.equal(normalized.state.handHistory.length, Engine.HAND_HISTORY_LIMIT);
+  assert.deepEqual(
+    normalized.state.handHistory.map((entry) => entry.handNo),
+    Array.from({ length: 20 }, (_, index) => index + 6),
+  );
+  const snapshotBytes = Buffer.byteLength(JSON.stringify(Engine.view(normalized.state, "alice")));
+  assert.ok(snapshotBytes < 64 * 1024, `snapshot was ${snapshotBytes} bytes`);
+  const stateBytes = Buffer.byteLength(JSON.stringify(normalized.state));
+  assert.ok(stateBytes < 256 * 1024, `state was ${stateBytes} bytes`);
+});

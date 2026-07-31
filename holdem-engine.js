@@ -9,6 +9,8 @@
   var SCHEMA_VERSION = 1;
   var MAX_SEATS = 6;
   var ACTION_HISTORY_LIMIT = 128;
+  var HAND_HISTORY_LIMIT = 20;
+  var HAND_HISTORY_ACTION_LIMIT = 32;
   var BOT_THINK_DELAY_MIN_MS = 2000;
   var BOT_THINK_DELAY_MAX_MS = 5000;
   var JOIN_REQUEST_TTL_MS = 60 * 1000;
@@ -455,7 +457,8 @@
       actionSeq: 0,
       nextBotSeq: 1,
       botDueAt: null,
-      actionHistory: []
+      actionHistory: [],
+      handHistory: []
     };
   }
 
@@ -621,6 +624,7 @@
     state.actionHistory = Array.isArray(state.actionHistory)
       ? state.actionHistory.slice(-ACTION_HISTORY_LIMIT)
       : [];
+    state.handHistory = normalizeCompletedHandHistory(state.handHistory);
     state.pendingJoinRequests = normalizeJoinRequests(state.pendingJoinRequests, now, state);
     state.botDueAt = Number.isFinite(Number(state.botDueAt))
       ? Math.max(0, integer(state.botDueAt, 0))
@@ -924,6 +928,7 @@
     state.botDueAt = null;
     state.actionSeq = 0;
     state.actionHistory = [];
+    state.handHistory = [];
     state.pendingJoinRequests = [];
   }
 
@@ -1302,6 +1307,7 @@
       reason: "folds",
       at: now
     };
+    rememberCompletedHand(state, now, "folds");
     addHandResults(state, now);
     finishHandPlayers(state);
   }
@@ -1394,6 +1400,7 @@
       rake: rake,
       at: now
     };
+    rememberCompletedHand(state, now, "showdown");
     addHandResults(state, now);
     finishHandPlayers(state);
   }
@@ -2278,7 +2285,10 @@
         else if (player.isBot) result = { ok: false, reason: "human_only" };
         else {
           player.revealCards = normalizeRevealCards(cmd.cards || cmd.revealCards || cmd.cardIndexes);
-          if (!PLAYING_PHASES[next.phase]) syncRevealCardsShowdown(next, player);
+          if (!PLAYING_PHASES[next.phase]) {
+            syncRevealCardsShowdown(next, player);
+            syncCompletedHandHistoryShowdown(next);
+          }
           next.lastEvent = {
             type: "reveal_cards_reserved",
             nick: nick,
@@ -2428,6 +2438,276 @@
     });
   }
 
+  function safeCardCode(value) {
+    try {
+      return parseCard(value).code;
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function safeCardCodes(value, limit) {
+    if (!Array.isArray(value)) return [];
+    var cards = [];
+    value.forEach(function (entry) {
+      var code = safeCardCode(entry);
+      if (code && cards.indexOf(code) < 0 && cards.length < limit) cards.push(code);
+    });
+    return cards;
+  }
+
+  function completedHandSeat(value) {
+    var seat = integer(value, -1);
+    return seat >= 0 && seat < MAX_SEATS ? seat : -1;
+  }
+
+  function normalizeCompletedHandAction(entry) {
+    var tuple = Array.isArray(entry)
+      ? entry
+      : entry && typeof entry === "object"
+      ? [
+          entry.seq,
+          entry.phase,
+          entry.seat,
+          entry.action,
+          entry.amount,
+          entry.potBefore,
+          entry.potAfter,
+          entry.at
+        ]
+      : [];
+    var seat = integer(tuple[2], -1);
+    var phase = text(tuple[1], 16);
+    var action = text(tuple[3], 20);
+    if (seat < 0 || seat >= MAX_SEATS || !PLAYING_PHASES[phase] ||
+        ["fold", "check", "call", "bet", "raise", "allin"].indexOf(action) < 0) return null;
+    return [
+      Math.max(0, integer(tuple[0], 0)),
+      phase,
+      seat,
+      action,
+      Math.max(0, integer(tuple[4], 0)),
+      Math.max(0, integer(tuple[5], 0)),
+      Math.max(0, integer(tuple[6], 0)),
+      Math.max(0, integer(tuple[7], 0))
+    ];
+  }
+
+  function normalizeCompletedHandPlayer(entry) {
+    var tuple = Array.isArray(entry)
+      ? entry
+      : entry && typeof entry === "object"
+      ? [
+          entry.seat,
+          entry.nick,
+          entry.displayName,
+          entry.isBot,
+          entry.startStack,
+          entry.endStack,
+          entry.totalBet,
+          entry.winAmount
+        ]
+      : [];
+    var seat = integer(tuple[0], -1);
+    var nick = text(tuple[1], 40);
+    if (seat < 0 || seat >= MAX_SEATS || !nick) return null;
+    return [
+      seat,
+      nick,
+      text(tuple[2] || nick, 40) || nick,
+      tuple[3] === true,
+      clamp(tuple[4], 0, 100000000, 0),
+      clamp(tuple[5], 0, 100000000, 0),
+      clamp(tuple[6], 0, 100000000, 0),
+      clamp(tuple[7], 0, 100000000, 0)
+    ];
+  }
+
+  function normalizeCompletedHandShowdown(entry) {
+    var tuple = Array.isArray(entry)
+      ? entry
+      : entry && typeof entry === "object"
+      ? [
+          entry.seat,
+          entry.cards,
+          entry.folded,
+          entry.winner,
+          entry.name || entry.handName,
+          entry.category == null ? entry.handCategory : entry.category,
+          entry.revealCards
+        ]
+      : [];
+    var seat = integer(tuple[0], -1);
+    var cards = safeCardCodes(tuple[1], 2);
+    if (seat < 0 || seat >= MAX_SEATS || !cards.length) return null;
+    var revealCards = normalizeRevealCards(tuple[6]);
+    if (!revealCards.length) {
+      revealCards = cards.map(function (_card, index) { return index; });
+    }
+    return [
+      seat,
+      cards,
+      tuple[2] === true,
+      tuple[3] === true,
+      text(tuple[4], 40),
+      Math.max(-1, Math.min(8, integer(tuple[5], -1))),
+      revealCards
+    ];
+  }
+
+  function normalizeCompletedHandEntry(entry) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+    var handNo = Math.max(0, integer(entry.handNo, 0));
+    if (handNo < 1) return null;
+    var players = (Array.isArray(entry.players) ? entry.players : [])
+      .map(normalizeCompletedHandPlayer)
+      .filter(Boolean)
+      .slice(0, MAX_SEATS);
+    if (!players.length) return null;
+    var actions = (Array.isArray(entry.actions) ? entry.actions : [])
+      .map(normalizeCompletedHandAction)
+      .filter(Boolean)
+      .slice(0, HAND_HISTORY_ACTION_LIMIT);
+    var showdown = (Array.isArray(entry.showdown) ? entry.showdown : [])
+      .map(normalizeCompletedHandShowdown)
+      .filter(Boolean)
+      .slice(0, MAX_SEATS);
+    return {
+      handNo: handNo,
+      completedAt: Math.max(0, integer(entry.completedAt || entry.at, 0)),
+      reason: text(entry.reason, 16) === "folds" ? "folds" : "showdown",
+      smallBlind: Math.max(0, integer(entry.smallBlind, 0)),
+      bigBlind: Math.max(0, integer(entry.bigBlind, 0)),
+      buttonSeat: completedHandSeat(entry.buttonSeat),
+      smallBlindSeat: completedHandSeat(entry.smallBlindSeat),
+      bigBlindSeat: completedHandSeat(entry.bigBlindSeat),
+      board: safeCardCodes(entry.board, 5),
+      pot: Math.max(0, integer(entry.pot, 0)),
+      rake: Math.max(0, integer(entry.rake, 0)),
+      players: players,
+      actions: actions,
+      actionsOmitted: Math.max(0, integer(entry.actionsOmitted, 0)),
+      showdown: showdown
+    };
+  }
+
+  function normalizeCompletedHandHistory(history) {
+    if (!Array.isArray(history)) return [];
+    var normalized = history.map(normalizeCompletedHandEntry).filter(Boolean);
+    var unique = [];
+    normalized.forEach(function (entry) {
+      for (var i = unique.length - 1; i >= 0; i--) {
+        if (unique[i].handNo === entry.handNo) unique.splice(i, 1);
+      }
+      unique.push(entry);
+    });
+    return unique.slice(-HAND_HISTORY_LIMIT);
+  }
+
+  function completedHandActions(history) {
+    var rows = safeActionHistory(history);
+    var omitted = Math.max(0, rows.length - HAND_HISTORY_ACTION_LIMIT);
+    if (omitted > 0) {
+      var head = Math.ceil(HAND_HISTORY_ACTION_LIMIT / 2);
+      var tail = HAND_HISTORY_ACTION_LIMIT - head;
+      rows = rows.slice(0, head).concat(rows.slice(-tail));
+    }
+    return {
+      omitted: omitted,
+      rows: rows.map(function (entry) {
+        return [
+          entry.seq,
+          entry.phase,
+          entry.seat,
+          entry.action,
+          entry.amount,
+          entry.potBefore,
+          entry.potAfter,
+          entry.at
+        ];
+      })
+    };
+  }
+
+  function completedHandPlayers(state) {
+    return handPlayers(state).map(function (player) {
+      var startStack = Number.isFinite(Number(player.handStartStack))
+        ? Math.max(0, integer(player.handStartStack, 0))
+        : Math.max(0, integer(player.stack, 0) + integer(player.totalBet, 0) - integer(player.winAmount, 0));
+      return [
+        player.seat,
+        text(player.nick, 40),
+        text(player.displayName || player.nick, 40),
+        player.isBot === true,
+        startStack,
+        Math.max(0, integer(player.stack, 0)),
+        Math.max(0, integer(player.totalBet, 0)),
+        Math.max(0, integer(player.winAmount, 0))
+      ];
+    });
+  }
+
+  function completedHandShowdown(state) {
+    return (Array.isArray(state.showdown) ? state.showdown : []).map(function (entry) {
+      if (!entry || typeof entry !== "object") return null;
+      var seat = integer(entry.seat, -1);
+      var cards = safeCardCodes(entry.cards, 2);
+      if (seat < 0 || seat >= MAX_SEATS || !cards.length) return null;
+      return [
+        seat,
+        cards,
+        entry.folded === true,
+        isPotWinner(state, seat),
+        text(entry.name || entry.handName, 40),
+        Math.max(-1, Math.min(8, integer(entry.category == null ? entry.handCategory : entry.category, -1))),
+        normalizeRevealCards(entry.revealCards)
+      ];
+    }).filter(Boolean);
+  }
+
+  function rememberCompletedHand(state, now, reason) {
+    if (!state || Math.max(0, integer(state.handNo, 0)) < 1) return;
+    var actionRows = completedHandActions(state.actionHistory);
+    var entry = normalizeCompletedHandEntry({
+      handNo: state.handNo,
+      completedAt: now,
+      reason: reason,
+      smallBlind: state.settings && state.settings.smallBlind,
+      bigBlind: state.settings && state.settings.bigBlind,
+      buttonSeat: state.buttonSeat,
+      smallBlindSeat: state.smallBlindSeat,
+      bigBlindSeat: state.bigBlindSeat,
+      board: state.board,
+      pot: (Array.isArray(state.pots) ? state.pots : []).reduce(function (sum, pot) {
+        return sum + Math.max(0, integer(pot && pot.amount, 0));
+      }, 0),
+      rake: state.lastRake,
+      players: completedHandPlayers(state),
+      actions: actionRows.rows,
+      actionsOmitted: actionRows.omitted,
+      showdown: completedHandShowdown(state)
+    });
+    if (!entry) return;
+    state.handHistory = normalizeCompletedHandHistory(
+      (Array.isArray(state.handHistory) ? state.handHistory : [])
+        .filter(function (saved) { return integer(saved && saved.handNo, -1) !== entry.handNo; })
+        .concat([entry])
+    );
+  }
+
+  function syncCompletedHandHistoryShowdown(state) {
+    if (!state || !Array.isArray(state.handHistory)) return;
+    for (var i = state.handHistory.length - 1; i >= 0; i--) {
+      if (integer(state.handHistory[i] && state.handHistory[i].handNo, -1) !== integer(state.handNo, -2)) continue;
+      state.handHistory[i].showdown = completedHandShowdown(state);
+      break;
+    }
+  }
+
+  function publicCompletedHandHistory(history) {
+    return clone(normalizeCompletedHandHistory(history));
+  }
+
   function publicShowdown(state, revealAll) {
     if (!revealAll) return [];
     return Array.isArray(state.showdown) ? clone(state.showdown) : [];
@@ -2549,7 +2829,8 @@
       }),
       lastEvent: safeEvent(state.lastEvent),
       actionSeq: state.actionSeq,
-      actionHistory: safeActionHistory(state.actionHistory)
+      actionHistory: safeActionHistory(state.actionHistory),
+      handHistory: publicCompletedHandHistory(state.handHistory)
     };
   }
 
@@ -2575,6 +2856,7 @@
   return {
     SCHEMA_VERSION: SCHEMA_VERSION,
     MAX_SEATS: MAX_SEATS,
+    HAND_HISTORY_LIMIT: HAND_HISTORY_LIMIT,
     BOT_PERSONALITIES: clone(BOT_PERSONALITIES),
     createTable: createTable,
     command: command,

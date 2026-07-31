@@ -48,6 +48,7 @@ window.TexasHoldem = (function () {
   "use strict";
 
   var MAX_SEATS = 6;
+  var HAND_HISTORY_LIMIT = 20;
   var POLL_MS = 5000;
   var CLOCK_MS = 250;
   var REFRESH_DEBOUNCE_MS = 90;
@@ -139,6 +140,8 @@ window.TexasHoldem = (function () {
   var cardFrontSkin = DEFAULT_CARD_FRONT_SKIN;
   var cardBackSkin = DEFAULT_CARD_BACK_SKIN;
   var settingsOpen = false;
+  var historyOpen = false;
+  var selectedHistoryHandNo = 0;
 
   var pollId = null;
   var clockId = null;
@@ -606,6 +609,7 @@ window.TexasHoldem = (function () {
       botDueAt: 0,
       actionSeq: 0,
       actionHistory: [],
+      handHistory: [],
       ownerNick: "",
       winners: [],
       showdown: [],
@@ -871,31 +875,6 @@ window.TexasHoldem = (function () {
     } catch (e) {
       return false;
     }
-  }
-
-  function setHoldemSoundMuted(muted) {
-    muted = !!muted;
-    try {
-      localStorage.setItem("omok_mute", muted ? "1" : "0");
-    } catch (e) {}
-    if (window.DongneSound && typeof DongneSound.setMuted === "function") {
-      DongneSound.setMuted(muted);
-    }
-    renderHoldemSoundButton();
-  }
-
-  function toggleHoldemSoundMuted() {
-    setHoldemSoundMuted(!holdemSoundMuted());
-  }
-
-  function renderHoldemSoundButton() {
-    var button = $("holdem-sound-btn");
-    if (!button) return;
-    var muted = holdemSoundMuted();
-    button.textContent = muted ? "🔇" : "🔊";
-    button.setAttribute("aria-pressed", muted ? "true" : "false");
-    button.setAttribute("aria-label", muted ? "전체 사운드 켜기" : "전체 사운드 음소거");
-    button.title = muted ? "전체 사운드 켜기" : "전체 사운드 음소거";
   }
 
   function createHoldemAudio(src, volume) {
@@ -1279,7 +1258,6 @@ window.TexasHoldem = (function () {
   }
 
   function syncAudio() {
-    renderHoldemSoundButton();
     if (holdemSoundMuted()) {
       stopAllinBgmSfx();
       return;
@@ -1561,6 +1539,144 @@ window.TexasHoldem = (function () {
     }).filter(function (entry) {
       return entry.seat >= 0 && entry.action;
     }).slice(-12);
+  }
+
+  function normalizeHandHistoryAction(entry) {
+    var tuple = Array.isArray(entry)
+      ? entry
+      : isObject(entry)
+      ? [
+          entry.seq,
+          entry.phase,
+          entry.seat,
+          entry.action,
+          entry.amount,
+          entry.potBefore,
+          entry.potAfter,
+          entry.at
+        ]
+      : [];
+    var phase = phaseKey(tuple[1]);
+    var action = canonicalSeatAction(tuple[3]);
+    var seat = safeSeat(tuple[2]);
+    if (["preflop", "flop", "turn", "river"].indexOf(phase) < 0 ||
+        seat < 0 || ["fold", "check", "call", "bet", "raise", "allin"].indexOf(action) < 0) {
+      return null;
+    }
+    return {
+      seq: Math.max(0, integer(tuple[0], 0)),
+      phase: phase,
+      seat: seat,
+      action: action,
+      amount: nonnegative(tuple[4], 0),
+      potBefore: nonnegative(tuple[5], 0),
+      potAfter: nonnegative(tuple[6], 0),
+      at: toTimestamp(tuple[7])
+    };
+  }
+
+  function normalizeHandHistoryPlayer(entry) {
+    var tuple = Array.isArray(entry)
+      ? entry
+      : isObject(entry)
+      ? [
+          entry.seat,
+          entry.nick,
+          entry.displayName,
+          entry.isBot,
+          entry.startStack,
+          entry.endStack,
+          entry.totalBet,
+          entry.winAmount
+        ]
+      : [];
+    var seat = safeSeat(tuple[0]);
+    var nick = text(tuple[1], 40);
+    if (seat < 0 || !nick) return null;
+    return {
+      seat: seat,
+      nick: nick,
+      displayName: text(tuple[2] || nick, 40) || nick,
+      isBot: tuple[3] === true,
+      startStack: nonnegative(tuple[4], 0),
+      endStack: nonnegative(tuple[5], 0),
+      totalBet: nonnegative(tuple[6], 0),
+      winAmount: nonnegative(tuple[7], 0)
+    };
+  }
+
+  function normalizeHandHistoryShowdown(entry) {
+    var tuple = Array.isArray(entry)
+      ? entry
+      : isObject(entry)
+      ? [
+          entry.seat,
+          entry.cards,
+          entry.folded,
+          entry.winner,
+          firstDefined(entry.handName, entry.name),
+          firstDefined(entry.handCategory, entry.category),
+          firstDefined(entry.revealCards, entry.revealCardIndexes)
+        ]
+      : [];
+    var seat = safeSeat(tuple[0]);
+    var cards = normalizeCards(tuple[1], 2);
+    if (seat < 0 || !cards.length) return null;
+    return {
+      seat: seat,
+      cards: cards,
+      folded: tuple[2] === true,
+      winner: tuple[3] === true,
+      handName: text(tuple[4], 80),
+      handCategory: clamp(integer(tuple[5], -1), -1, 8),
+      revealCards: normalizeCardIndexes(tuple[6])
+    };
+  }
+
+  function normalizeHandHistory(value) {
+    if (!Array.isArray(value)) return [];
+    var byHand = Object.create(null);
+    var normalized = [];
+    value.forEach(function (entry) {
+      if (!isObject(entry)) return;
+      var handNo = Math.max(0, integer(entry.handNo, 0));
+      var players = (Array.isArray(entry.players) ? entry.players : [])
+        .map(normalizeHandHistoryPlayer)
+        .filter(Boolean)
+        .slice(0, MAX_SEATS);
+      if (!handNo || !players.length) return;
+      var row = {
+        handNo: handNo,
+        completedAt: toTimestamp(firstDefined(entry.completedAt, entry.at)),
+        reason: text(entry.reason, 16) === "folds" ? "folds" : "showdown",
+        smallBlind: nonnegative(entry.smallBlind, 0),
+        bigBlind: nonnegative(entry.bigBlind, 0),
+        buttonSeat: safeSeat(entry.buttonSeat),
+        smallBlindSeat: safeSeat(entry.smallBlindSeat),
+        bigBlindSeat: safeSeat(entry.bigBlindSeat),
+        board: normalizeCards(entry.board, 5),
+        pot: nonnegative(entry.pot, 0),
+        rake: nonnegative(entry.rake, 0),
+        players: players,
+        actions: (Array.isArray(entry.actions) ? entry.actions : [])
+          .map(normalizeHandHistoryAction)
+          .filter(Boolean)
+          .slice(0, 32),
+        actionsOmitted: Math.max(0, integer(entry.actionsOmitted, 0)),
+        // Cards are accepted only from the server's public showdown rows.
+        showdown: (Array.isArray(entry.showdown) ? entry.showdown : [])
+          .map(normalizeHandHistoryShowdown)
+          .filter(Boolean)
+          .slice(0, MAX_SEATS)
+      };
+      if (Object.prototype.hasOwnProperty.call(byHand, handNo)) {
+        normalized[byHand[handNo]] = row;
+      } else {
+        byHand[handNo] = normalized.length;
+        normalized.push(row);
+      }
+    });
+    return normalized.slice(-HAND_HISTORY_LIMIT);
   }
 
   function normalizeSnapshot(input, versionHint) {
@@ -1882,6 +1998,7 @@ window.TexasHoldem = (function () {
       botDueAt: toTimestamp(firstDefined(table.botDueAt, table.nextWakeAt, raw.botDueAt)),
       actionSeq: Math.max(0, integer(firstDefined(table.actionSeq, raw.actionSeq), 0)),
       actionHistory: normalizeActionHistory(firstDefined(table.actionHistory, raw.actionHistory, viewer.actionHistory)),
+      handHistory: normalizeHandHistory(firstDefined(table.handHistory, raw.handHistory, viewer.handHistory)),
       ownerNick: text(firstDefined(table.ownerNick, table.owner, raw.ownerNick), 40),
       winners: winnerNicks(table, seats),
       showdown: showdownRows,
@@ -4716,6 +4833,7 @@ window.TexasHoldem = (function () {
 
   function openBuyInDialog(mode, seat) {
     if (state.phase === "complete" && !resultTransitionReady()) return false;
+    closeHandHistory();
     clearAutoReadyForNextHand();
     clearAutoNextHand();
     buyInMode = mode === "rebuy" || mode === "new_game" || mode === "join_request"
@@ -4942,6 +5060,7 @@ window.TexasHoldem = (function () {
   }
 
   function openProfileDialog(seat) {
+    closeHandHistory();
     profileTargetSeat = safeSeat(seat);
     profileDialogOpen = true;
     profileTopUpValue = queuedProfileTopUpAmount;
@@ -5294,6 +5413,7 @@ window.TexasHoldem = (function () {
     renderHandResult();
     renderControls();
     renderSettings();
+    renderHandHistory();
   }
 
   function toggleMoneyUnitMode() {
@@ -5991,7 +6111,6 @@ window.TexasHoldem = (function () {
     if (canSize) syncRaiseControls();
     if (canSize) syncQuickBetButtons();
     renderFoldRevealControls(busy);
-    renderHoldemSoundButton();
     var slider = $("holdem-raise-slider");
     if (slider) slider.disabled = busy;
     var quick = root() ? root().querySelectorAll("[data-holdem-bet]") : [];
@@ -6146,6 +6265,268 @@ window.TexasHoldem = (function () {
     }).join("") || '<p class="players-hint">아직 참가자가 없어요.</p>';
   }
 
+  function formatHistoryChips(value, entry) {
+    var amount = Math.max(0, Math.round(nonnegative(value, 0)));
+    var bigBlind = entry ? nonnegative(entry.bigBlind, 0) : 0;
+    if (moneyUnitMode === "bb" && bigBlind > 0) {
+      var bbValue = amount / bigBlind;
+      var digits = bbValue >= 100 || Number.isInteger(bbValue) ? 0 : bbValue >= 10 ? 1 : 2;
+      return Number(bbValue.toFixed(digits)).toLocaleString("ko-KR") + "BB";
+    }
+    try {
+      return new Intl.NumberFormat("ko-KR").format(amount) + "원";
+    } catch (_error) {
+      return String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "원";
+    }
+  }
+
+  function historyTime(value) {
+    if (!value) return "";
+    try {
+      return new Intl.DateTimeFormat("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit"
+      }).format(new Date(value));
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function historyPlayer(entry, seat) {
+    var players = entry && Array.isArray(entry.players) ? entry.players : [];
+    for (var i = 0; i < players.length; i++) {
+      if (players[i].seat === seat) return players[i];
+    }
+    return null;
+  }
+
+  function historyPlayerName(entry, seat) {
+    var player = historyPlayer(entry, seat);
+    return player ? player.displayName || player.nick : String(seat + 1) + "번 좌석";
+  }
+
+  function historyWinners(entry) {
+    var players = entry && Array.isArray(entry.players) ? entry.players : [];
+    var winners = players.filter(function (player) { return player.winAmount > 0; });
+    if (winners.length) return winners;
+    var winnerSeats = Object.create(null);
+    (entry && Array.isArray(entry.showdown) ? entry.showdown : []).forEach(function (row) {
+      if (row.winner) winnerSeats[row.seat] = true;
+    });
+    return players.filter(function (player) { return winnerSeats[player.seat]; });
+  }
+
+  function historyWinnerTitle(entry) {
+    var winners = historyWinners(entry);
+    if (!winners.length) return "핸드 완료";
+    var names = winners.map(function (player) { return player.displayName || player.nick; });
+    return names.length === 1 ? names[0] + " 승리" : names.join(" · ") + " 팟 분배";
+  }
+
+  function historyRoleLabel(entry, seat) {
+    var roles = [];
+    if (entry.buttonSeat === seat) roles.push("BTN");
+    if (entry.smallBlindSeat === seat) roles.push("SB");
+    if (entry.bigBlindSeat === seat) roles.push("BB");
+    return roles.join(" · ");
+  }
+
+  function historyActionLabel(action) {
+    return {
+      fold: "폴드",
+      check: "체크",
+      call: "콜",
+      bet: "베팅",
+      raise: "레이즈",
+      allin: "올인"
+    }[action] || action;
+  }
+
+  function historyActionHtml(entry, action) {
+    var player = historyPlayer(entry, action.seat);
+    var role = historyRoleLabel(entry, action.seat);
+    var amount = action.action === "fold" || action.action === "check"
+      ? ""
+      : formatHistoryChips(action.amount, entry);
+    return '<div class="holdem-history-action is-' + esc(action.action) + '">' +
+      '<span class="holdem-history-action-player">' +
+        (role ? '<small>' + esc(role) + '</small>' : "") +
+        '<strong>' + esc(player ? player.displayName || player.nick : historyPlayerName(entry, action.seat)) + '</strong>' +
+      '</span>' +
+      '<span class="holdem-history-action-move">' +
+        '<b>' + esc(historyActionLabel(action.action)) + '</b>' +
+        (amount ? '<em>' + esc(amount) + '</em>' : "") +
+      '</span>' +
+    '</div>';
+  }
+
+  function historyStreetHtml(entry, phase, label, reached, runningPot) {
+    var actions = entry.actions.filter(function (action) { return action.phase === phase; });
+    if (!reached && !actions.length) return { html: "", pot: runningPot };
+    var streetPot = actions.length ? actions[actions.length - 1].potAfter : runningPot;
+    var body = actions.length
+      ? actions.map(function (action) { return historyActionHtml(entry, action); }).join("")
+      : '<p class="holdem-history-no-action">추가 액션 없이 진행</p>';
+    return {
+      pot: streetPot,
+      html: '<section class="holdem-history-street" data-street="' + phase + '">' +
+        '<header><strong>' + label + '</strong><span>팟 ' + esc(formatHistoryChips(streetPot, entry)) + '</span></header>' +
+        '<div class="holdem-history-street-actions">' + body + '</div>' +
+      '</section>'
+    };
+  }
+
+  function historyTimelineHtml(entry) {
+    var runningPot = Math.max(0, entry.smallBlind + entry.bigBlind);
+    var streets = [
+      ["preflop", "프리플랍", true],
+      ["flop", "플랍", entry.board.length >= 3],
+      ["turn", "턴", entry.board.length >= 4],
+      ["river", "리버", entry.board.length >= 5]
+    ];
+    var html = streets.map(function (street) {
+      var rendered = historyStreetHtml(entry, street[0], street[1], street[2], runningPot);
+      runningPot = rendered.pot;
+      return rendered.html;
+    }).join("");
+    if (entry.actionsOmitted > 0) {
+      html += '<p class="holdem-history-omitted">중간 액션 ' +
+        esc(entry.actionsOmitted) + '개가 생략됐어요.</p>';
+    }
+    return html;
+  }
+
+  function historyBoardHtml(entry) {
+    if (!entry.board.length) {
+      return '<p class="holdem-history-board-empty">커뮤니티 카드 공개 전 종료</p>';
+    }
+    return '<div class="holdem-history-board" aria-label="커뮤니티 카드">' +
+      entry.board.map(function (card) { return cardHtml(card); }).join("") +
+    '</div>';
+  }
+
+  function historyShowdownHtml(entry) {
+    var bySeat = Object.create(null);
+    entry.showdown.forEach(function (row) { bySeat[row.seat] = row; });
+    return entry.players.map(function (player) {
+      var row = bySeat[player.seat];
+      var winner = player.winAmount > 0 || !!(row && row.winner);
+      var cards = row && row.cards.length
+        ? '<span class="holdem-history-showdown-cards">' +
+          row.cards.map(function (card) { return cardHtml(card); }).join("") +
+          '</span>'
+        : '<span class="holdem-history-private">비공개</span>';
+      return '<div class="holdem-history-showdown-row' + (winner ? " is-winner" : "") + '">' +
+        '<span class="holdem-history-showdown-player">' +
+          '<strong>' + esc(player.displayName || player.nick) + '</strong>' +
+          (row && row.handName ? '<small>' + esc(row.handName) + '</small>' : "") +
+        '</span>' +
+        cards +
+        '<span class="holdem-history-stack-change">' +
+          esc(formatHistoryChips(player.startStack, entry)) + ' → ' +
+          '<strong>' + esc(formatHistoryChips(player.endStack, entry)) + '</strong>' +
+        '</span>' +
+      '</div>';
+    }).join("");
+  }
+
+  function historyDetailHtml(entry) {
+    var reason = entry.reason === "folds" ? "상대 폴드" : "쇼다운";
+    var blinds = "SB " + formatHistoryChips(entry.smallBlind, entry) +
+      " · BB " + formatHistoryChips(entry.bigBlind, entry);
+    return '<section class="holdem-history-summary">' +
+      '<div class="holdem-history-summary-copy">' +
+        '<span>HAND ' + esc(entry.handNo) + ' · ' + esc(reason) + '</span>' +
+        '<h3>' + esc(historyWinnerTitle(entry)) + '</h3>' +
+        '<small>' + esc(blinds) + (historyTime(entry.completedAt) ? ' · ' + esc(historyTime(entry.completedAt)) : "") + '</small>' +
+      '</div>' +
+      '<div class="holdem-history-pot"><span>획득 팟</span><strong>' +
+        esc(formatHistoryChips(entry.pot, entry)) + '</strong></div>' +
+    '</section>' +
+    '<section class="holdem-history-board-section"><header><strong>커뮤니티 카드</strong></header>' +
+      historyBoardHtml(entry) + '</section>' +
+    '<section class="holdem-history-timeline"><header class="holdem-history-section-title"><strong>액션 기록</strong></header>' +
+      historyTimelineHtml(entry) + '</section>' +
+    '<section class="holdem-history-showdown"><header class="holdem-history-section-title"><strong>참가자 결과</strong></header>' +
+      '<div class="holdem-history-showdown-list">' + historyShowdownHtml(entry) + '</div>' +
+    '</section>';
+  }
+
+  function historyEntryByHandNo(handNo) {
+    for (var i = 0; i < state.handHistory.length; i++) {
+      if (state.handHistory[i].handNo === handNo) return state.handHistory[i];
+    }
+    return null;
+  }
+
+  function renderHandHistory() {
+    var panel = $("holdem-history-panel");
+    var backdrop = $("holdem-history-backdrop");
+    var button = $("holdem-history-btn");
+    var screen = root();
+    if (button) button.setAttribute("aria-expanded", historyOpen ? "true" : "false");
+    if (screen) screen.classList.toggle("is-history-open", historyOpen);
+    if (panel) panel.classList.toggle("hidden", !historyOpen);
+    if (backdrop) {
+      backdrop.classList.toggle("hidden", !historyOpen);
+      backdrop.setAttribute("aria-hidden", historyOpen ? "false" : "true");
+    }
+    if (!historyOpen) return;
+    var list = $("holdem-history-list");
+    var detail = $("holdem-history-detail");
+    var entries = state.handHistory.slice().reverse();
+    if (!entries.length) {
+      selectedHistoryHandNo = 0;
+      if (list) list.innerHTML = "";
+      if (detail) detail.innerHTML = '<div class="holdem-history-empty"><strong>아직 끝난 핸드가 없어요.</strong><span>첫 핸드가 끝나면 여기에 기록됩니다.</span></div>';
+      return;
+    }
+    var selected = historyEntryByHandNo(selectedHistoryHandNo) || entries[0];
+    selectedHistoryHandNo = selected.handNo;
+    if (list) {
+      list.innerHTML = entries.map(function (entry) {
+        var activeEntry = entry.handNo === selectedHistoryHandNo;
+        return '<button class="holdem-history-list-item' + (activeEntry ? " is-active" : "") +
+          '" type="button" data-holdem-history-hand="' + esc(entry.handNo) +
+          '" aria-pressed="' + (activeEntry ? "true" : "false") + '">' +
+          '<span><strong>#' + esc(entry.handNo) + '</strong><small>' + esc(historyTime(entry.completedAt)) + '</small></span>' +
+          '<b>' + esc(historyWinnerTitle(entry)) + '</b>' +
+          '<em>' + esc(formatHistoryChips(entry.pot, entry)) + '</em>' +
+        '</button>';
+      }).join("");
+    }
+    if (detail) detail.innerHTML = historyDetailHtml(selected);
+  }
+
+  function openHandHistory() {
+    settingsOpen = false;
+    setChatOpen(false);
+    setEmojiPanelOpen(false);
+    historyOpen = true;
+    if (!historyEntryByHandNo(selectedHistoryHandNo) && state.handHistory.length) {
+      selectedHistoryHandNo = state.handHistory[state.handHistory.length - 1].handNo;
+    }
+    renderSettings();
+    renderHandHistory();
+    setTimeout(function () {
+      var closeButton = $("holdem-history-close");
+      if (historyOpen && closeButton && typeof closeButton.focus === "function") closeButton.focus();
+    }, 0);
+  }
+
+  function closeHandHistory() {
+    historyOpen = false;
+    renderHandHistory();
+  }
+
+  function selectHistoryHand(handNo) {
+    var entry = historyEntryByHandNo(Math.max(0, integer(handNo, 0)));
+    if (!entry) return false;
+    selectedHistoryHandNo = entry.handNo;
+    renderHandHistory();
+    return true;
+  }
+
   function render() {
     var screen = root();
     if (!screen) return;
@@ -6155,6 +6536,7 @@ window.TexasHoldem = (function () {
     screen.classList.toggle("is-connected", connected);
     syncResultClasses();
     renderHeader();
+    renderHandHistory();
     renderBoard();
     renderTableHint();
     renderSeats();
@@ -6422,6 +6804,11 @@ window.TexasHoldem = (function () {
     if (!screen || !event.target || !event.target.closest) return;
     unlockHoldemAudio();
 
+    if (event.target.id === "holdem-history-backdrop") {
+      closeHandHistory();
+      return;
+    }
+
     if (event.target.id === "holdem-profile-backdrop") {
       closeProfileDialog();
       return;
@@ -6456,6 +6843,10 @@ window.TexasHoldem = (function () {
 
     var button = event.target.closest("button");
     if (!button || !screen.contains(button)) return;
+    if (button.hasAttribute("data-holdem-history-hand")) {
+      selectHistoryHand(button.getAttribute("data-holdem-history-hand"));
+      return;
+    }
     if (button.hasAttribute("data-holdem-reveal-cards")) {
       reserveFoldReveal(String(button.getAttribute("data-holdem-reveal-cards") || "")
         .split(",")
@@ -6477,7 +6868,13 @@ window.TexasHoldem = (function () {
     var id = button.id;
     if (id === "holdem-settings-btn") {
       settingsOpen = !settingsOpen;
+      if (settingsOpen) closeHandHistory();
       renderSettings();
+    } else if (id === "holdem-history-btn") {
+      if (historyOpen) closeHandHistory();
+      else openHandHistory();
+    } else if (id === "holdem-history-close") {
+      closeHandHistory();
     } else if (id === "holdem-buyin-close" || id === "holdem-buyin-cancel") {
       closeBuyInDialog({ suppressAutoSeat: true });
     } else if (id === "holdem-buyin-spectate") {
@@ -6523,8 +6920,6 @@ window.TexasHoldem = (function () {
       else if (api && typeof api.openMenu === "function") api.openMenu();
     } else if (id === "holdem-rank-btn") {
       if (api && typeof api.openHoldemRank === "function") api.openHoldemRank();
-    } else if (id === "holdem-sound-btn") {
-      toggleHoldemSoundMuted();
     } else if (id === "holdem-leave-btn") {
       if (isBusy()) requestLeaveAfterHand();
       else if (api && typeof api.leaveRoom === "function") api.leaveRoom();
@@ -6618,11 +7013,12 @@ window.TexasHoldem = (function () {
   function shouldOpenChatFromEnter(event) {
     if (!event || event.key !== "Enter" || event.isComposing ||
         event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return false;
+    if (historyOpen) return false;
     var target = event.target;
     if (!target || !target.closest) return true;
     if (target.id === "holdem-chat-input") return false;
     if (target.closest("input, textarea, select, button, a, [contenteditable='true']")) return false;
-    if (target.closest(".holdem-profile-dialog, .holdem-buyin-dialog, .holdem-settings-panel")) return false;
+    if (target.closest(".holdem-profile-dialog, .holdem-buyin-dialog, .holdem-settings-panel, .holdem-history-panel")) return false;
     return true;
   }
 
@@ -6640,7 +7036,7 @@ window.TexasHoldem = (function () {
 
   function isActionHotkeyBlocked(event) {
     if (!event || event.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return true;
-    if (profileDialogOpen || buyInDialogOpen || settingsOpen) return true;
+    if (profileDialogOpen || buyInDialogOpen || settingsOpen || historyOpen) return true;
     if (isActionHotkeyTextTarget(event.target)) return true;
     return false;
   }
@@ -6685,6 +7081,10 @@ window.TexasHoldem = (function () {
   }
 
   function onRootKeydown(event) {
+    if (event.key === "Escape" && historyOpen) {
+      closeHandHistory();
+      return;
+    }
     if (event.key === "Escape" && profileDialogOpen) {
       closeProfileDialog();
       return;
@@ -6824,6 +7224,9 @@ window.TexasHoldem = (function () {
     joined = false;
     hasSnapshot = false;
     lastError = "";
+    settingsOpen = false;
+    historyOpen = false;
+    selectedHistoryHandNo = 0;
     state = emptyState();
     rawSnapshot = null;
     lastAppliedResponse = 0;
@@ -6893,6 +7296,9 @@ window.TexasHoldem = (function () {
       chatEnterKeyBound = false;
     }
     active = false;
+    settingsOpen = false;
+    historyOpen = false;
+    selectedHistoryHandNo = 0;
 
     if (wasJoined && previousRoom) {
       var req = requestId("leave");
@@ -7088,6 +7494,7 @@ window.TexasHoldem = (function () {
       emptyState: emptyState,
       normalizeSnapshot: normalizeSnapshot,
       normalizeActionHistory: normalizeActionHistory,
+      normalizeHandHistory: normalizeHandHistory,
       normalizeCard: normalizeCard,
       normalizeLegal: normalizeLegal,
       cardHtml: cardHtml,
@@ -7110,8 +7517,11 @@ window.TexasHoldem = (function () {
       holdemReactionEmoji: holdemReactionEmoji,
       sendHoldemEmoji: sendHoldemEmoji,
       showSeatEmoji: showSeatEmoji,
-      toggleHoldemSoundMuted: toggleHoldemSoundMuted,
-      renderHoldemSoundButton: renderHoldemSoundButton,
+      renderHandHistory: renderHandHistory,
+      openHandHistory: openHandHistory,
+      closeHandHistory: closeHandHistory,
+      selectHistoryHand: selectHistoryHand,
+      historyDetailHtml: historyDetailHtml,
       submitChatFromEnter: submitChatFromEnter,
       communityRevealBlocksActions: communityRevealBlocksActions,
       relativeSeat: relativeSeat,

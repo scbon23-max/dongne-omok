@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260731-holdem-create-disabled-spectator-privacy-v1">
+<meta name="app-build" content="20260731-holdem-hand-history-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -752,7 +752,7 @@
           <button id="holdem-leave-btn" type="button">나가기</button>
           <span id="holdem-spectator-chip" class="holdem-spectator-chip hidden" aria-live="polite"></span>
         </div>
-        <button id="holdem-sound-btn" class="holdem-sound-btn" type="button" aria-label="전체 사운드 음소거" aria-pressed="false">🔊</button>
+        <button id="holdem-history-btn" class="holdem-history-btn" type="button" aria-label="핸드 히스토리 보기" aria-expanded="false">🕘</button>
         <button id="holdem-hands-btn" type="button" aria-label="홀덤 족보 보기">족보</button>
         <button id="holdem-rank-btn" type="button" aria-label="홀덤 자산 랭킹 보기">랭킹</button>
         <button id="holdem-settings-btn" type="button" aria-label="설정" aria-expanded="false">⚙</button>
@@ -838,6 +838,22 @@
         </div>
       </section>
     </header>
+
+    <div id="holdem-history-backdrop" class="holdem-history-backdrop hidden" aria-hidden="true"></div>
+    <section id="holdem-history-panel" class="holdem-history-panel hidden" role="dialog" aria-modal="true" aria-labelledby="holdem-history-title">
+      <header class="holdem-history-head">
+        <div>
+          <span>HAND HISTORY</span>
+          <h2 id="holdem-history-title">핸드 히스토리</h2>
+          <p>이 방에서 끝난 최근 20핸드</p>
+        </div>
+        <button id="holdem-history-close" type="button" aria-label="핸드 히스토리 닫기">✕</button>
+      </header>
+      <div class="holdem-history-layout">
+        <nav id="holdem-history-list" class="holdem-history-list" aria-label="완료된 핸드 선택"></nav>
+        <article id="holdem-history-detail" class="holdem-history-detail" aria-live="polite"></article>
+      </div>
+    </section>
 
     <div id="holdem-connection" class="holdem-connection hidden" role="status" aria-live="polite"></div>
 

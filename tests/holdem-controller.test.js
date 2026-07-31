@@ -917,31 +917,71 @@ test("fold reveal controls keep the requested selection while the server confirm
   }
 });
 
-test("the Hold'em sound button toggles the shared mute setting", () => {
-  const button = fakeElement();
-  const localStorage = fakeLocalStorage();
+test("the Hold'em history panel renders compact public hand records", () => {
+  const elements = {
+    holdemgame: fakeElement(),
+    "holdem-history-btn": fakeElement(),
+    "holdem-history-backdrop": fakeElement(["hidden"]),
+    "holdem-history-panel": fakeElement(["hidden"]),
+    "holdem-history-list": fakeElement(),
+    "holdem-history-detail": fakeElement(),
+  };
+  elements.holdemgame.style = { setProperty() {} };
   const controller = loadController("alice", {
     document: {
       getElementById(id) {
-        return id === "holdem-sound-btn" ? button : null;
+        return elements[id] || null;
       },
     },
-    localStorage,
   });
+  const normalized = controller._test.normalizeSnapshot({
+    version: 8,
+    phase: "hand_end",
+    handNo: 7,
+    handHistory: [{
+      handNo: 7,
+      completedAt: 1722400000000,
+      reason: "folds",
+      smallBlind: 100,
+      bigBlind: 200,
+      buttonSeat: 0,
+      smallBlindSeat: 0,
+      bigBlindSeat: 1,
+      board: ["2c", "7d", "Kh"],
+      pot: 1200,
+      rake: 0,
+      players: [
+        [0, "alice", "앨리스", false, 10000, 10800, 400, 1200],
+        [1, "bob", "밥", false, 10000, 9200, 800, 0],
+      ],
+      actions: [
+        [1, "preflop", 0, "raise", 600, 300, 800, 1722400000000],
+        [2, "preflop", 1, "fold", 200, 800, 800, 1722400001000],
+      ],
+      actionsOmitted: 0,
+      showdown: [[0, ["As"], false, true, "", -1, [0]]],
+    }],
+  }, 8);
 
-  controller._test.renderHoldemSoundButton();
-  assert.equal(button.textContent, "🔊");
-  assert.equal(button.attributes["aria-pressed"], "false");
+  assert.equal(normalized.handHistory.length, 1);
+  assert.equal(normalized.handHistory[0].actions[0].action, "raise");
+  assert.equal(normalized.handHistory[0].showdown[0].cards.length, 1);
+  assert.equal(normalized.handHistory[0].showdown[0].cards[0].rank, "A");
+  assert.equal(normalized.handHistory[0].showdown[0].cards[0].suit, "s");
+  controller._test.setState(normalized);
+  controller._test.openHandHistory();
 
-  controller._test.toggleHoldemSoundMuted();
-  assert.equal(localStorage.getItem("omok_mute"), "1");
-  assert.equal(button.textContent, "🔇");
-  assert.equal(button.attributes["aria-pressed"], "true");
+  assert.equal(elements["holdem-history-btn"].attributes["aria-expanded"], "true");
+  assert.equal(elements["holdem-history-panel"].classList.contains("hidden"), false);
+  assert.match(elements["holdem-history-list"].innerHTML, /#7/);
+  assert.match(elements["holdem-history-detail"].innerHTML, /앨리스 승리/);
+  assert.match(elements["holdem-history-detail"].innerHTML, /레이즈/);
+  assert.match(elements["holdem-history-detail"].innerHTML, /data-rank="A"/);
+  assert.doesNotMatch(elements["holdem-history-detail"].innerHTML, /data-rank="Q"/);
 
-  controller._test.toggleHoldemSoundMuted();
-  assert.equal(localStorage.getItem("omok_mute"), "0");
-  assert.equal(button.textContent, "🔊");
-  assert.equal(button.attributes["aria-pressed"], "false");
+  controller._test.closeHandHistory();
+  assert.equal(elements["holdem-history-panel"].classList.contains("hidden"), true);
+  assert.equal(elements["holdem-history-btn"].attributes["aria-expanded"], "false");
 });
 
 test("a human fold winner can choose to reveal after the hand", () => {
