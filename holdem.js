@@ -6583,8 +6583,11 @@ window.TexasHoldem = (function () {
   }
 
   function actionHotkeyButton(key) {
-    if (key === "ArrowLeft") return usableActionButton("holdem-fold-btn");
-    if (key === "ArrowDown") return usableActionButton("holdem-check-btn") || usableActionButton("holdem-call-btn");
+    if (key === "ArrowLeft") return usableActionButton("holdem-fold-btn") || usableActionButton("holdem-pre-fold-btn");
+    if (key === "ArrowDown") return usableActionButton("holdem-check-btn") ||
+      usableActionButton("holdem-call-btn") ||
+      usableActionButton("holdem-pre-check-btn") ||
+      usableActionButton("holdem-pre-call-btn");
     if (key === "ArrowRight") return usableActionButton("holdem-bet-btn") || usableActionButton("holdem-raise-btn");
     return null;
   }
@@ -7068,6 +7071,7 @@ window.TexasHoldem = (function () {
       queuedActionOptions: queuedActionOptions,
       queuePreAction: queuePreAction,
       maybePerformQueuedAction: maybePerformQueuedAction,
+      actionHotkeyButton: actionHotkeyButton,
       getQueuedAction: function () {
         return queuedAction ? Object.assign({}, queuedAction) : null;
       },

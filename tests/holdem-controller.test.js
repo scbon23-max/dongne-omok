@@ -1343,6 +1343,9 @@ test("pre-action buttons can be queued before the hero turn", () => {
   assert.equal(dom.elements["holdem-pre-fold-btn"].classList.contains("hidden"), false);
   assert.equal(dom.elements["holdem-pre-call-btn"].classList.contains("hidden"), false);
   assert.equal(dom.elements["holdem-pre-check-btn"].classList.contains("hidden"), true);
+  assert.equal(controller._test.actionHotkeyButton("ArrowLeft"), dom.elements["holdem-pre-fold-btn"]);
+  assert.equal(controller._test.actionHotkeyButton("ArrowDown"), dom.elements["holdem-pre-call-btn"]);
+  assert.equal(controller._test.actionHotkeyButton("ArrowRight"), null);
   assert.equal(dom.elements["holdem-pre-call-amount"].textContent, "200원");
 
   assert.equal(controller._test.queuePreAction("call"), true);
@@ -1354,6 +1357,30 @@ test("pre-action buttons can be queued before the hero turn", () => {
   assert.equal(queued.maxCallAmount, 200);
   assert.equal(queued.handKey, "pre-action");
   assert.equal(queued.heroSeat, 0);
+});
+
+test("pre-action hotkeys target check reservations when no call is due", () => {
+  const dom = controlTestDocument();
+  const controller = loadController("alice", { document: dom.document });
+  const snapshot = controller._test.normalizeSnapshot({
+    phase: "turn",
+    version: 11,
+    handId: "pre-action-check",
+    heroSeat: 0,
+    actingSeat: 1,
+    seats: [
+      { seat: 0, nick: "alice", stack: 5000, bet: 300, inHand: true, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 5000, bet: 300, inHand: true, cardCount: 2 },
+    ],
+  }, 11);
+  controller._test.setState(snapshot);
+  controller._test.renderControls();
+
+  assert.equal(dom.elements["holdem-pre-fold-btn"].classList.contains("hidden"), false);
+  assert.equal(dom.elements["holdem-pre-check-btn"].classList.contains("hidden"), false);
+  assert.equal(dom.elements["holdem-pre-call-btn"].classList.contains("hidden"), true);
+  assert.equal(controller._test.actionHotkeyButton("ArrowLeft"), dom.elements["holdem-pre-fold-btn"]);
+  assert.equal(controller._test.actionHotkeyButton("ArrowDown"), dom.elements["holdem-pre-check-btn"]);
 });
 
 test("queued calls do not auto-call a higher changed amount", () => {

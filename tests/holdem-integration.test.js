@@ -533,6 +533,8 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.doesNotMatch(styles, /\.holdem-pre-action-title\s*\{/);
   assert.match(controller, /function maybePerformQueuedAction\(\)[\s\S]*queuedExecutableMove\(\)[\s\S]*performMove\(move\)/);
   assert.match(controller, /id === "holdem-pre-fold-btn"[\s\S]*queuePreAction\("fold"\)/);
+  assert.match(controller, /key === "ArrowLeft"[\s\S]*usableActionButton\("holdem-fold-btn"\)[\s\S]*usableActionButton\("holdem-pre-fold-btn"\)/);
+  assert.match(controller, /key === "ArrowDown"[\s\S]*usableActionButton\("holdem-check-btn"\)[\s\S]*usableActionButton\("holdem-call-btn"\)[\s\S]*usableActionButton\("holdem-pre-check-btn"\)[\s\S]*usableActionButton\("holdem-pre-call-btn"\)/);
   assert.match(controller, /id === "holdem-fold-btn"[\s\S]*queuePreAction\("fold"\)[\s\S]*performMove\("fold"\)/);
   assert.match(controller, /id === "holdem-raise-btn"[\s\S]*raiseMenuOpen = true[\s\S]*renderControls\(\)/);
   assert.match(controller, /kind === "two-pot"[\s\S]*potAfterCall \* 2/);
