@@ -2724,6 +2724,7 @@ test("another player's profile loads total assets without ranking eligibility", 
 
 test("your ring profile queues an in-hand top up and applies it before the next hand", async () => {
   const calls = [];
+  const timers = [];
   const ui = profileTopUpTestDocument();
   let version = 3;
   let phase = "flop";
@@ -2744,6 +2745,9 @@ test("your ring profile queues an in-hand top up and applies it before the next 
     phase,
     mode: "ring",
     version,
+    ownerNick: "alice",
+    canStart: phase === "hand_end",
+    canNext: phase === "hand_end",
     viewer: { seat: 0 },
     seats: [
       { seat: 0, nick: "alice", stack, inHand: phase === "flop" },
@@ -2766,6 +2770,9 @@ test("your ring profile queues an in-hand top up and applies it before the next 
       if (action === "rebuy") {
         stack = payload.amount;
         version += 1;
+      } else if (action === "start") {
+        phase = "preflop";
+        version += 1;
       }
       return Promise.resolve({
         ok: true,
@@ -2778,6 +2785,14 @@ test("your ring profile queues an in-hand top up and applies it before the next 
     db,
     localStorage,
     document: ui.document,
+    setTimeout(fn, delay) {
+      const timer = { fn, delay, cleared: false };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimeout(timer) {
+      if (timer) timer.cleared = true;
+    },
   });
   const state = controller._test.emptyState();
   state.mode = "ring";
@@ -2833,6 +2848,86 @@ test("your ring profile queues an in-hand top up and applies it before the next 
   assert.equal(controller.state.seats[0].stack, 40000);
   assert.equal(controller._test.getProfileTopUpState().queuedAmount, 0);
   assert.equal(storageValues.size, 0);
+  const nextHandTimer = timers.find((timer) => !timer.cleared && timer.delay >= 5000);
+  assert.ok(nextHandTimer, "clearing the completed top-up must re-arm automatic play");
+  const originalNow = Date.now;
+  const resumeAt = Date.now() + nextHandTimer.delay + 1;
+  Date.now = () => resumeAt;
+  try {
+    nextHandTimer.fn();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(calls.some((call) => call.action === "start"), true);
+  } finally {
+    Date.now = originalNow;
+  }
+  controller.leave();
+});
+
+test("automatic next hand selection skips a player leaving to spectate", async () => {
+  const calls = [];
+  const timers = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 9,
+        snapshot: {
+          phase: action === "start" ? "preflop" : "hand_end",
+          mode: "ring",
+          version: 9,
+          ownerNick: "alice",
+          canStart: action !== "start",
+          viewer: { seat: 1 },
+          seats: [
+            { seat: 0, nick: "departing", stack: 20000, leaving: true, leaveIntent: "spectate" },
+            { seat: 1, nick: "alice", stack: 20000 },
+            { seat: 2, nick: "bob", stack: 20000 },
+          ],
+        },
+      });
+    },
+  };
+  const controller = loadController("alice", {
+    db,
+    setTimeout(fn, delay) {
+      const timer = { fn, delay, cleared: false };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimeout(timer) {
+      if (timer) timer.cleared = true;
+    },
+  });
+  const state = controller._test.emptyState();
+  state.mode = "ring";
+  state.phase = "complete";
+  state.version = 8;
+  state.handId = "8";
+  state.heroSeat = 1;
+  state.ownerNick = "alice";
+  state.canStart = true;
+  state.seats[0] = {
+    seat: 0,
+    nick: "departing",
+    stack: 20000,
+    leaving: true,
+    leaveIntent: "spectate",
+  };
+  state.seats[1] = { seat: 1, nick: "alice", stack: 20000 };
+  state.seats[2] = { seat: 2, nick: "bob", stack: 20000 };
+  controller._test.setState(state);
+  controller._test.setActive(true);
+
+  controller._test.scheduleAutoNextHand();
+  const nextHandTimer = timers.find((timer) => !timer.cleared && timer.delay === 5000);
+  assert.ok(nextHandTimer);
+  nextHandTimer.fn();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(calls.some((call) => call.action === "start"), true);
   controller.leave();
 });
 

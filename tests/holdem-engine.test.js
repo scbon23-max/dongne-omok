@@ -1191,6 +1191,8 @@ test("ring games keep one blind level, fixed entry chips, and server-only bust r
   assert.equal(state.settings.bigBlind, 200);
   assert.equal(state.nextBlindAt, null);
   assert.equal(Engine.view(state, bustedNick).canRefill, true);
+  state.seats[bustedSeat].away = true;
+  state.seats[bustedSeat].ready = false;
 
   const browserAttempt = Engine.command(state, {
     type: "refill",
@@ -1212,6 +1214,19 @@ test("ring games keep one blind level, fixed entry chips, and server-only bust r
   assert.equal(refill.ok, true, refill.reason);
   assert.equal(refill.state.seats[bustedSeat].stack, 10000);
   assert.equal(refill.state.seats[bustedSeat].ready, true);
+  assert.equal(refill.state.seats[bustedSeat].away, false);
+  assert.equal(Engine.view(refill.state, bustedNick).canStart, true);
+  const resumed = Engine.command(refill.state, {
+    type: "start",
+    nick: bustedNick,
+    requestId: "start:after-refill",
+  }, context(1004));
+  assert.equal(resumed.ok, true, resumed.reason);
+  assert.equal(resumed.state.phase, "preflop");
+  assert.equal(
+    resumed.state.seats.filter(Boolean).every((player) => player.inHand),
+    true,
+  );
 
   let rejoinState = refill.state;
   rejoinState.seats[bustedSeat].stack = 0;
@@ -1233,6 +1248,37 @@ test("ring games keep one blind level, fixed entry chips, and server-only bust r
     [{ nickname: bustedNick, delta: -10000 }],
     "rejoining uses a new asset-backed buy-in rather than a free refill",
   );
+});
+
+test("rejoining a ring seat clears stale away and spectating state", () => {
+  const names = ["owner", "guest"];
+  let state = tableWithPlayers(names, {
+    mode: "ring",
+    assetBacked: true,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+  });
+  state.phase = "hand_end";
+  state.seats[0].away = true;
+  state.seats[0].leaving = true;
+  state.seats[0].leavingIntent = "spectate";
+  state.seats[0].ready = false;
+
+  const rejoined = Engine.command(state, {
+    type: "join",
+    nick: names[0],
+    seat: 0,
+    requestId: "join:resume-away-seat",
+  }, context(1500));
+
+  assert.equal(rejoined.ok, true, rejoined.reason);
+  assert.equal(rejoined.state.seats[0].away, false);
+  assert.equal(rejoined.state.seats[0].leaving, false);
+  assert.equal(rejoined.state.seats[0].leavingIntent, "");
+  assert.equal(rejoined.state.seats[0].ready, true);
+  assert.equal(Engine.view(rejoined.state, names[0]).canStart, true);
 });
 
 test("away ring players do not block remaining players from the next hand", () => {

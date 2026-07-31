@@ -3413,7 +3413,7 @@ window.TexasHoldem = (function () {
     for (var i = 0; i < state.seats.length; i++) {
       var seat = state.seats[i];
       if (seat && !seat.isBot && seat.stack > 0 &&
-          !seat.away && !seat.sittingOut) return seat.nick;
+          !seat.leaving && !seat.away && !seat.sittingOut) return seat.nick;
     }
     return "";
   }
@@ -3501,13 +3501,16 @@ window.TexasHoldem = (function () {
       return;
     }
     if (text(me().nick, 40) !== autoStartNick()) return;
-    invoke("start", {
+    return invoke("start", {
       expectedVersion: state.version
     }, {
       key: "start",
       label: "auto_start",
       broadcast: true,
       requestId: requestId("autostart", key)
+    }).then(function (result) {
+      if (!result || !result.ok) scheduleAutoNextHand();
+      return result;
     });
   }
 
@@ -4472,6 +4475,10 @@ window.TexasHoldem = (function () {
     profileTopUpMessage = message || "";
     profileTopUpMessageKind = kind || "";
     renderProfileTopUp();
+    if (active) {
+      scheduleAutoReadyForNextHand();
+      scheduleAutoNextHand();
+    }
   }
 
   function hasQueuedProfileTopUp() {

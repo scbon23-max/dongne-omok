@@ -750,7 +750,9 @@
 
   function resetPlayerTimeoutState(state, player) {
     if (!player || player.isBot) return false;
-    var changed = player.sittingOut === true || integer(player.timeoutStreak, 0) !== 0;
+    var changed = player.away === true || player.sittingOut === true ||
+      integer(player.timeoutStreak, 0) !== 0;
+    player.away = false;
     player.sittingOut = false;
     player.timeoutStreak = 0;
     if (changed && !PLAYING_PHASES[state.phase] && !player.leaving &&
@@ -2036,8 +2038,7 @@
           player.lastAction = "";
           player.lastActionBet = null;
           player.winAmount = 0;
-          player.sittingOut = false;
-          player.timeoutStreak = 0;
+          resetPlayerTimeoutState(next, player);
           next.ringStacks[nick] = next.settings.refillAmount;
           next.lastEvent = {
             type: "ring_refilled",
@@ -2073,8 +2074,7 @@
             player.lastAction = "";
             player.lastActionBet = null;
             player.winAmount = 0;
-            player.sittingOut = false;
-            player.timeoutStreak = 0;
+            resetPlayerTimeoutState(next, player);
             next.ringStacks[nick] = rebuyAmount;
             addWalletAdjustment(next, nick, -rebuyDelta, "rebuy");
             next.lastEvent = {
