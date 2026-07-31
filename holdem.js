@@ -6406,20 +6406,21 @@ window.TexasHoldem = (function () {
   }
 
   function historyShowdownHtml(entry) {
-    var bySeat = Object.create(null);
-    entry.showdown.forEach(function (row) { bySeat[row.seat] = row; });
-    return entry.players.map(function (player) {
-      var row = bySeat[player.seat];
-      var winner = player.winAmount > 0 || !!(row && row.winner);
-      var cards = row && row.cards.length
-        ? '<span class="holdem-history-showdown-cards">' +
-          row.cards.map(function (card) { return cardHtml(card); }).join("") +
-          '</span>'
-        : '<span class="holdem-history-private">비공개</span>';
+    var playersBySeat = Object.create(null);
+    entry.players.forEach(function (player) { playersBySeat[player.seat] = player; });
+    return entry.showdown.filter(function (row) {
+      return row && Array.isArray(row.cards) && row.cards.length;
+    }).map(function (row) {
+      var player = playersBySeat[row.seat];
+      if (!player) return "";
+      var winner = player.winAmount > 0 || !!row.winner;
+      var cards = '<span class="holdem-history-showdown-cards">' +
+        row.cards.map(function (card) { return cardHtml(card); }).join("") +
+        '</span>';
       return '<div class="holdem-history-showdown-row' + (winner ? " is-winner" : "") + '">' +
         '<span class="holdem-history-showdown-player">' +
           '<strong>' + esc(player.displayName || player.nick) + '</strong>' +
-          (row && row.handName ? '<small>' + esc(row.handName) + '</small>' : "") +
+          (row.handName ? '<small>' + esc(row.handName) + '</small>' : "") +
         '</span>' +
         cards +
         '<span class="holdem-history-stack-change">' +
@@ -6434,6 +6435,12 @@ window.TexasHoldem = (function () {
     var reason = entry.reason === "folds" ? "상대 폴드" : "쇼다운";
     var blinds = "SB " + formatHistoryChips(entry.smallBlind, entry) +
       " · BB " + formatHistoryChips(entry.bigBlind, entry);
+    var showdown = historyShowdownHtml(entry);
+    var showdownSection = showdown
+      ? '<section class="holdem-history-showdown"><header class="holdem-history-section-title"><strong>참가자 결과</strong></header>' +
+        '<div class="holdem-history-showdown-list">' + showdown + '</div>' +
+        '</section>'
+      : "";
     return '<section class="holdem-history-summary">' +
       '<div class="holdem-history-summary-copy">' +
         '<span>HAND ' + esc(entry.handNo) + ' · ' + esc(reason) + '</span>' +
@@ -6447,9 +6454,7 @@ window.TexasHoldem = (function () {
       historyBoardHtml(entry) + '</section>' +
     '<section class="holdem-history-timeline"><header class="holdem-history-section-title"><strong>액션 기록</strong></header>' +
       historyTimelineHtml(entry) + '</section>' +
-    '<section class="holdem-history-showdown"><header class="holdem-history-section-title"><strong>참가자 결과</strong></header>' +
-      '<div class="holdem-history-showdown-list">' + historyShowdownHtml(entry) + '</div>' +
-    '</section>';
+    showdownSection;
   }
 
   function historyEntryByHandNo(handNo) {
@@ -7521,6 +7526,7 @@ window.TexasHoldem = (function () {
       openHandHistory: openHandHistory,
       closeHandHistory: closeHandHistory,
       selectHistoryHand: selectHistoryHand,
+      historyShowdownHtml: historyShowdownHtml,
       historyDetailHtml: historyDetailHtml,
       submitChatFromEnter: submitChatFromEnter,
       communityRevealBlocksActions: communityRevealBlocksActions,

@@ -7610,7 +7610,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-history-head {
   flex: 0 0 auto;
-  min-height: 70px;
+  min-height: 76px;
   padding: 11px 13px;
   display: flex;
   align-items: center;
@@ -7626,21 +7626,21 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-history-summary-copy > span {
   display: block;
   color: #68d8cc;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 900;
   letter-spacing: 0;
 }
 .holdem-history-head h2 {
   margin: 2px 0 0;
   color: #fff;
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1.15;
   letter-spacing: 0;
 }
 .holdem-history-head p {
   margin: 3px 0 0;
   color: #8ba8ac;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.3;
 }
 .holdem-history-head button {
@@ -7681,9 +7681,10 @@ body.is-admin .feedback-user-compose { display: none; }
   scrollbar-width: thin;
 }
 .holdem-history-list-item {
-  width: 130px;
-  min-width: 130px;
-  min-height: 72px;
+  width: auto;
+  min-width: 132px;
+  min-height: 80px;
+  flex: 1 0 132px;
   padding: 8px 9px;
   display: grid;
   grid-template-columns: 1fr auto;
@@ -7709,17 +7710,17 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-history-list-item > span strong {
   color: #8af1e4;
-  font-size: 11px;
+  font-size: 13px;
 }
 .holdem-history-list-item > span small {
   color: #78989c;
-  font-size: 8px;
+  font-size: 11px;
 }
 .holdem-history-list-item b {
   grid-column: 1 / -1;
   overflow: hidden;
   color: #fff;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -7727,7 +7728,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-history-list-item em {
   grid-column: 1 / -1;
   color: #e9bc68;
-  font-size: 10px;
+  font-size: 12px;
   font-style: normal;
   font-weight: 900;
 }
@@ -7761,7 +7762,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-history-summary-copy small {
   color: #8eaaae;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.3;
 }
 .holdem-history-pot {
@@ -7773,7 +7774,7 @@ body.is-admin .feedback-user-compose { display: none; }
   display: block;
   margin-bottom: 3px;
   color: #83a5a8;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
 }
 .holdem-history-pot strong {
@@ -7791,7 +7792,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-history-section-title {
   margin-bottom: 9px;
   color: #9db8ba;
-  font-size: 10px;
+  font-size: 12px;
 }
 .holdem-history-board {
   display: flex;
@@ -7809,7 +7810,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-history-omitted {
   margin: 0;
   color: #78979a;
-  font-size: 10px;
+  font-size: 12px;
 }
 .holdem-history-board-empty {
   min-height: 50px;
@@ -7824,7 +7825,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-history-street {
   display: grid;
-  grid-template-columns: 68px minmax(0, 1fr);
+  grid-template-columns: 78px minmax(0, 1fr);
   border-top: 1px solid rgba(134,198,198,.12);
 }
 .holdem-history-street:first-of-type {
@@ -7839,11 +7840,11 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-history-street > header strong {
   color: #7de3d7;
-  font-size: 10px;
+  font-size: 12px;
 }
 .holdem-history-street > header span {
   color: #789699;
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.25;
 }
 .holdem-history-street-actions {
@@ -7851,7 +7852,7 @@ body.is-admin .feedback-user-compose { display: none; }
   padding: 5px 0 5px 9px;
 }
 .holdem-history-action {
-  min-height: 37px;
+  min-height: 42px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -7873,13 +7874,13 @@ body.is-admin .feedback-user-compose { display: none; }
   border-radius: 4px;
   background: rgba(104,216,204,.15);
   color: #7fe0d5;
-  font-size: 7px;
+  font-size: 9px;
   text-align: center;
 }
 .holdem-history-action-player strong {
   overflow: hidden;
   color: #dceaea;
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -7891,11 +7892,11 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-history-action-move b {
   color: #dce8e8;
-  font-size: 10px;
+  font-size: 12px;
 }
 .holdem-history-action-move em {
   color: #f0bf69;
-  font-size: 10px;
+  font-size: 12px;
   font-style: normal;
   font-weight: 900;
 }
@@ -7907,7 +7908,7 @@ body.is-admin .feedback-user-compose { display: none; }
   padding: 9px 0;
 }
 .holdem-history-omitted {
-  padding: 9px 0 0 77px;
+  padding: 9px 0 0 87px;
 }
 .holdem-history-showdown {
   margin-top: 5px;
@@ -7918,7 +7919,7 @@ body.is-admin .feedback-user-compose { display: none; }
   gap: 6px;
 }
 .holdem-history-showdown-row {
-  min-height: 54px;
+  min-height: 60px;
   padding: 7px 8px;
   display: grid;
   grid-template-columns: minmax(72px, 1fr) auto;
@@ -7941,13 +7942,13 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-history-showdown-player strong {
   overflow: hidden;
   color: #edf7f7;
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .holdem-history-showdown-player small {
   color: #82b9b4;
-  font-size: 8px;
+  font-size: 10px;
 }
 .holdem-history-showdown-cards {
   display: flex;
@@ -7957,15 +7958,10 @@ body.is-admin .feedback-user-compose { display: none; }
   --holdem-card-width: 31px;
   --holdem-card-radius: 3px;
 }
-.holdem-history-private {
-  color: #758d90;
-  font-size: 9px;
-  font-weight: 800;
-}
 .holdem-history-stack-change {
   grid-column: 1 / -1;
   color: #789598;
-  font-size: 8px;
+  font-size: 10px;
   text-align: right;
 }
 .holdem-history-stack-change strong {
@@ -7981,8 +7977,8 @@ body.is-admin .feedback-user-compose { display: none; }
   color: #d4e7e7;
   text-align: center;
 }
-.holdem-history-empty strong { font-size: 14px; }
-.holdem-history-empty span { color: #78979a; font-size: 10px; }
+.holdem-history-empty strong { font-size: 15px; }
+.holdem-history-empty span { color: #78979a; font-size: 12px; }
 
 @media (min-width: 900px) {
   .holdem-history-panel {
@@ -7994,7 +7990,7 @@ body.is-admin .feedback-user-compose { display: none; }
     transform: translateX(-50%);
   }
   .holdem-history-head {
-    min-height: 76px;
+    min-height: 80px;
     padding: 12px 18px;
   }
   .holdem-history-layout {
@@ -8012,7 +8008,8 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-history-list-item {
     width: 100%;
     min-width: 0;
-    min-height: 76px;
+    min-height: 82px;
+    flex: 0 0 auto;
   }
   .holdem-history-detail {
     padding: 0 20px 24px;
@@ -8041,7 +8038,7 @@ body.is-admin .feedback-user-compose { display: none; }
   .holdem-history-action-player strong,
   .holdem-history-action-move b,
   .holdem-history-action-move em {
-    font-size: 11px;
+    font-size: 13px;
   }
   .holdem-history-showdown-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -968,6 +968,14 @@ test("the Hold'em history panel renders compact public hand records", () => {
   assert.equal(normalized.handHistory[0].showdown[0].cards.length, 1);
   assert.equal(normalized.handHistory[0].showdown[0].cards[0].rank, "A");
   assert.equal(normalized.handHistory[0].showdown[0].cards[0].suit, "s");
+  const showdownHtml = controller._test.historyShowdownHtml(normalized.handHistory[0]);
+  assert.match(showdownHtml, /앨리스/);
+  assert.doesNotMatch(showdownHtml, /밥|비공개/);
+  const privateDetailHtml = controller._test.historyDetailHtml({
+    ...normalized.handHistory[0],
+    showdown: [],
+  });
+  assert.doesNotMatch(privateDetailHtml, /참가자 결과/);
   controller._test.setState(normalized);
   controller._test.openHandHistory();
 
