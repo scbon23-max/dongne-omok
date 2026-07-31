@@ -48,7 +48,7 @@ test("Hold'em is an available six-player controller game", () => {
   assert.match(game, /var iconClass = "create-game-icon" \+ \(id === "holdem" \? " holdem" : ""\)/);
 });
 
-test("Hold'em room creation shows assets, hides tournaments, and selects a ring buy-in", () => {
+test("Hold'em room creation shows assets, hides tournaments, and requires a ring buy-in selection", () => {
   const context = { window: {} };
   vm.createContext(context);
   vm.runInContext(catalogSource, context, { filename: "game-catalog.js" });
@@ -83,8 +83,9 @@ test("Hold'em room creation shows assets, hides tournaments, and selects a ring 
   assert.match(index, /data-holdem-speed="normal"/);
   assert.match(index, /data-holdem-speed="turbo"/);
   assert.match(index, /id="create-holdem-speed-group"[^>]*hidden/);
-  assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*max="100000"[^>]*step="100"/);
+  assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*max="100000"[^>]*step="100"[^>]*value=""/);
   assert.match(index, /data-holdem-buyin="15000"[\s\S]*data-holdem-buyin="30000"[\s\S]*data-holdem-buyin="75000"/);
+  assert.doesNotMatch(index, /class="active"[^>]*data-holdem-buyin="30000"/);
   assert.match(index, /참가비용 범위/);
   assert.match(index, /<small>최소<\/small><b>10,000원<\/b>[\s\S]*<small>최대<\/small><b>20,000원<\/b>/);
   assert.match(index, /<small>최소<\/small><b>20,000원<\/b>[\s\S]*<small>최대<\/small><b>40,000원<\/b>/);
@@ -101,7 +102,9 @@ test("Hold'em room creation shows assets, hides tournaments, and selects a ring 
   assert.match(holdemCreateStep, /create-holdem-wallet create-holdem-wallet-full/);
   assert.doesNotMatch(holdemCreateStep, /create-holdem-buyin-output|create-holdem-buyin-note|create-holdem-rule-summary/);
   assert.doesNotMatch(holdemCreateStep, /SB 100|SB 200|SB 300|BB 200|BB 400|BB 600|李멸? 媛??/);
-  assert.match(game, /renderCreateHoldemMode\(initialHoldemSelection\.mode \|\| "ring", createHoldemSpeed\)/);
+  assert.match(game, /var createHoldemBuyIn = 0/);
+  assert.match(game, /var createHoldemMode = renderCreateHoldemMode\("ring", createHoldemSpeed\)/);
+  assert.match(game, /toast\("참가비용을 먼저 선택하세요"\)/);
   assert.match(game, /HOLDEM_INITIAL_ASSETS = 100000/);
   assert.match(game, /HOLDEM_DEFAULT_BUY_IN = 30000/);
   assert.match(game, /HOLDEM_BUY_IN_OPTIONS = \[[\s\S]*amount: 15000[\s\S]*minBuyIn: 10000[\s\S]*maxBuyIn: 20000[\s\S]*amount: 30000[\s\S]*minBuyIn: 20000[\s\S]*maxBuyIn: 40000[\s\S]*amount: 75000[\s\S]*minBuyIn: 50000[\s\S]*maxBuyIn: 100000/);
@@ -123,7 +126,7 @@ test("Hold'em room creation shows assets, hides tournaments, and selects a ring 
   assert.match(game, /function holdemCreateGameId\(mode, speed\)/);
   assert.match(game, /return "holdem_ring"/);
   assert.doesNotMatch(game, /speed === "turbo" \? "holdem_turbo" : "holdem_tournament"/);
-  assert.match(game, /createRoom\([\s\S]*holdemCreateGameId\(createHoldemMode, createHoldemSpeed\)[\s\S]*buyIn: createHoldemBuyIn/);
+  assert.match(game, /createRoom\([\s\S]*holdemCreateGameId\(createHoldemMode, createHoldemSpeed\)[\s\S]*buyIn: selectedBuyIn/);
   assert.match(db, /async function getHoldemWallet\(auth\)/);
   assert.match(styles, /\.room-badge\.holdem_ring/);
   assert.match(styles, /\.room-badge\.holdem_tournament/);

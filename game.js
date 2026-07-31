@@ -591,7 +591,7 @@
   var roomLease = null, roomLeaseTimer = null, roomCreatePending = false, roomLeaseRestorePending = false;
   var holdemWalletProfile = null, holdemWalletPending = false;
   var holdemWalletNick = "", holdemWalletRequestSeq = 0;
-  var createHoldemBuyIn = HOLDEM_DEFAULT_BUY_IN;
+  var createHoldemBuyIn = 0;
   var activeCreateHoldemMode = "ring";
 
   function normalizeHoldemBuyIn(value, fallback) {
@@ -599,35 +599,35 @@
     for (var i = 0; i < HOLDEM_BUY_IN_OPTIONS.length; i++) {
       if (amount === HOLDEM_BUY_IN_OPTIONS[i].amount) return amount;
     }
-    return fallback == null ? HOLDEM_DEFAULT_BUY_IN : fallback;
+    return fallback == null ? 0 : fallback;
   }
   function holdemBuyInOption(amount) {
-    amount = normalizeHoldemBuyIn(amount);
+    amount = Math.floor(Number(amount) || 0);
     for (var i = 0; i < HOLDEM_BUY_IN_OPTIONS.length; i++) {
       if (HOLDEM_BUY_IN_OPTIONS[i].amount === amount) return HOLDEM_BUY_IN_OPTIONS[i];
     }
-    return HOLDEM_BUY_IN_OPTIONS[0];
+    return null;
+  }
+  function selectedCreateHoldemBuyIn() {
+    var option = holdemBuyInOption(createHoldemBuyIn);
+    return option ? option.amount : 0;
   }
   function holdemBuyInForBalance(balance, preferred) {
     var available = Math.max(0, Math.floor(Number(balance) || 0));
-    var selected = normalizeHoldemBuyIn(preferred);
-    if (holdemBuyInOption(selected).minBuyIn <= available) return selected;
-    for (var i = HOLDEM_BUY_IN_OPTIONS.length - 1; i >= 0; i--) {
-      if (HOLDEM_BUY_IN_OPTIONS[i].minBuyIn <= available) return HOLDEM_BUY_IN_OPTIONS[i].amount;
-    }
-    return HOLDEM_BUY_IN_OPTIONS[0].amount;
+    var selected = holdemBuyInOption(preferred);
+    return selected && selected.minBuyIn <= available ? selected.amount : 0;
   }
   function holdemBlindLabel(amount) {
-    var option = holdemBuyInOption(amount);
+    var option = holdemBuyInOption(amount) || HOLDEM_BUY_IN_OPTIONS[0];
     return "SB " + option.smallBlind.toLocaleString("ko-KR") +
       "원 / BB " + option.bigBlind.toLocaleString("ko-KR") + "원";
   }
   function holdemBuyInRangeLabel(amount) {
-    var option = holdemBuyInOption(amount);
+    var option = holdemBuyInOption(amount) || HOLDEM_BUY_IN_OPTIONS[0];
     return formatHoldemAsset(option.minBuyIn) + "~" + formatHoldemAsset(option.maxBuyIn);
   }
   function holdemRingSummaryLabel(amount) {
-    var option = holdemBuyInOption(amount);
+    var option = holdemBuyInOption(amount) || HOLDEM_BUY_IN_OPTIONS[0];
     return option.title + " · " + holdemBuyInRangeLabel(amount) +
       " · BB " + option.bigBlind.toLocaleString("ko-KR") + " · 최대 6명";
   }
@@ -661,11 +661,9 @@
     } catch (e) {}
   }
   function restoreHoldemCreateSelection() {
-    var saved = readStoredHoldemCreateSelection();
-    if (!saved) return null;
-    createHoldemBuyIn = normalizeHoldemBuyIn(saved.buyIn, createHoldemBuyIn);
-    activeCreateHoldemMode = saved.mode;
-    return saved;
+    createHoldemBuyIn = 0;
+    activeCreateHoldemMode = "ring";
+    return null;
   }
 
   function readStoredRoomLease() {
@@ -6306,14 +6304,14 @@
       ? HOLDEM_DEFAULT_BUY_IN
       : Math.min(HOLDEM_MAX_BUY_IN, availableBalance);
     var canBuyIn = availableBalance != null && availableMax >= HOLDEM_MIN_BUY_IN;
-    if (canBuyIn) {
-      createHoldemBuyIn = holdemBuyInForBalance(availableMax, createHoldemBuyIn);
-    }
+    var selectedOption = holdemBuyInOption(createHoldemBuyIn);
+    var selectedBuyInAvailable = canBuyIn && !!selectedOption &&
+      selectedOption.minBuyIn <= availableMax;
     if (slider) {
       slider.min = String(HOLDEM_MIN_BUY_IN);
       slider.max = String(HOLDEM_MAX_BUY_IN);
       slider.step = String(HOLDEM_CHIP_UNIT);
-      slider.value = String(canBuyIn ? createHoldemBuyIn : HOLDEM_BUY_IN_OPTIONS[0].amount);
+      slider.value = selectedBuyInAvailable ? String(createHoldemBuyIn) : "";
       slider.disabled = mode !== "ring" || !canBuyIn || holdemWalletPending;
     }
     if ($("create-holdem-buyin-output")) {
@@ -6330,7 +6328,11 @@
     }
     if (mode === "ring" && $("create-holdem-rule-summary")) {
       $("create-holdem-rule-summary").textContent =
-        canBuyIn ? holdemRingSummaryLabel(createHoldemBuyIn) : "참가비용 선택 불가";
+        canBuyIn && selectedBuyInAvailable
+          ? holdemRingSummaryLabel(createHoldemBuyIn)
+          : canBuyIn
+            ? "참가비용을 선택하세요"
+            : "참가비용 선택 불가";
     }
     var presetBox = $("create-holdem-buyin-presets");
     if (presetBox) {
@@ -6339,13 +6341,13 @@
         var amount = Number(presets[i].getAttribute("data-holdem-buyin")) || 0;
         var option = holdemBuyInOption(amount);
         presets[i].disabled = mode !== "ring" || !canBuyIn ||
-          option.minBuyIn > availableMax || holdemWalletPending;
-        presets[i].classList.toggle("active", canBuyIn && amount === createHoldemBuyIn);
+          !option || option.minBuyIn > availableMax || holdemWalletPending;
+        presets[i].classList.toggle("active", selectedBuyInAvailable && amount === createHoldemBuyIn);
       }
     }
     var confirm = $("create-holdem-mode-confirm");
     if (confirm) {
-      confirm.disabled = mode === "ring" && (!canBuyIn || holdemWalletPending);
+      confirm.disabled = mode === "ring" && (!canBuyIn || !selectedBuyInAvailable || holdemWalletPending);
     }
   }
   async function loadHoldemWallet(force) {
@@ -6411,10 +6413,7 @@
       ? Math.max(0, Math.floor(Number(holdemWalletProfile.balance) || 0))
       : 0;
     var max = Math.min(HOLDEM_MAX_BUY_IN, balance);
-    var amount = normalizeHoldemBuyIn(value, createHoldemBuyIn);
-    if (max >= HOLDEM_MIN_BUY_IN) {
-      createHoldemBuyIn = holdemBuyInForBalance(max, amount);
-    }
+    createHoldemBuyIn = holdemBuyInForBalance(max, value);
     renderHoldemWalletControls(activeCreateHoldemMode);
   }
   function renderCreateHoldemMode(mode, speed) {
@@ -6457,7 +6456,9 @@
     }
     if ($("create-holdem-rule-summary")) {
       $("create-holdem-rule-summary").textContent =
-        holdemRingSummaryLabel(createHoldemBuyIn);
+        selectedCreateHoldemBuyIn()
+          ? holdemRingSummaryLabel(createHoldemBuyIn)
+          : "참가비용을 선택하세요";
     }
     if ($("create-holdem-mode-confirm")) {
       $("create-holdem-mode-confirm").textContent = "홀덤 방 만들기";
@@ -7328,20 +7329,18 @@
     $("create-room-btn").addEventListener("click", function () {
       createGame = renderCreateGameOptions(createGame);
       createAlkMode = renderCreateAlkMode(createAlkMode);
-      var savedHoldemSelection = restoreHoldemCreateSelection();
-      if (savedHoldemSelection) {
-        createHoldemSpeed = savedHoldemSelection.speed;
-        createHoldemMode = savedHoldemSelection.mode;
-      }
+      restoreHoldemCreateSelection();
+      createHoldemSpeed = "normal";
+      createHoldemMode = "ring";
       createHoldemMode = renderCreateHoldemMode(createHoldemMode, createHoldemSpeed);
       showCreateRoomStep("game");
       openModal("create-modal");
     });
     var createGame = renderCreateGameOptions("omok");
     var createAlkMode = renderCreateAlkMode("alk");
-    var initialHoldemSelection = restoreHoldemCreateSelection() || {};
-    var createHoldemSpeed = initialHoldemSelection.speed === "turbo" ? "turbo" : "normal";
-    var createHoldemMode = renderCreateHoldemMode(initialHoldemSelection.mode || "ring", createHoldemSpeed);
+    restoreHoldemCreateSelection();
+    var createHoldemSpeed = "normal";
+    var createHoldemMode = renderCreateHoldemMode("ring", createHoldemSpeed);
     $("create-game").addEventListener("click", function (event) {
       var option = event.target.closest(".create-game-option");
       if (!option || !this.contains(option)) return;
@@ -7356,11 +7355,9 @@
         return;
       }
       if (createGame === "holdem") {
-        var savedHoldemSelection = restoreHoldemCreateSelection();
-        if (savedHoldemSelection) {
-          createHoldemSpeed = savedHoldemSelection.speed;
-          createHoldemMode = savedHoldemSelection.mode;
-        }
+        restoreHoldemCreateSelection();
+        createHoldemSpeed = "normal";
+        createHoldemMode = "ring";
         createHoldemMode = renderCreateHoldemMode(createHoldemMode, createHoldemSpeed);
         showCreateRoomStep("holdem-mode");
         loadHoldemWallet(true);
@@ -7431,10 +7428,16 @@
       storeHoldemCreateSelection(createHoldemMode, createHoldemSpeed, createHoldemBuyIn);
     });
     $("create-holdem-mode-confirm").addEventListener("click", function () {
+      var selectedBuyIn = selectedCreateHoldemBuyIn();
+      var selectedOption = holdemBuyInOption(selectedBuyIn);
+      if (!selectedOption) {
+        toast("참가비용을 먼저 선택하세요");
+        renderHoldemWalletControls(createHoldemMode);
+        return;
+      }
       if (createHoldemMode === "ring" &&
           (!holdemWalletProfile ||
-            Number(holdemWalletProfile.balance) <
-              holdemBuyInOption(createHoldemBuyIn).minBuyIn)) {
+            Number(holdemWalletProfile.balance) < selectedOption.minBuyIn)) {
         toast("선택한 바이인에 필요한 홀덤 자산이 부족해요");
         loadHoldemWallet(true);
         return;
@@ -7445,7 +7448,7 @@
       createRoom(
         holdemCreateGameId(createHoldemMode, createHoldemSpeed),
         nm,
-        { buyIn: createHoldemBuyIn }
+        { buyIn: selectedBuyIn }
       );
       showCreateRoomStep("game");
     });

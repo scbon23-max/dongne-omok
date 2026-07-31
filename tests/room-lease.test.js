@@ -188,5 +188,5 @@ test("ring room claims carry a validated 100-chip buy-in", async () => {
   assert.doesNotMatch(edge, /holdem_wallet_get_or_create/);
   assert.match(edge, /holdemBuyIn: buyIn/);
   assert.match(game, /buyIn: game === "holdem_ring"/);
-  assert.match(game, /buyIn: createHoldemBuyIn/);
+  assert.match(game, /buyIn: selectedBuyIn/);
 });

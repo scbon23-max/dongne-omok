@@ -379,7 +379,8 @@ test("room creation keeps Hold'em public and joinable from the list", () => {
   assert.match(catalog, /holdem_turbo:\s*\{[\s\S]*createAdminOnly:\s*false[\s\S]*discoverable:\s*true/);
   assert.match(catalog, /holdem_ring:\s*\{[\s\S]*createAdminOnly:\s*false[\s\S]*discoverable:\s*true/);
   assert.match(index, /id="create-holdem-wallet-balance"/);
-  assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*min="10000"[^>]*max="100000"[^>]*step="100"[^>]*value="30000"/);
+  assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*min="10000"[^>]*max="100000"[^>]*step="100"[^>]*value=""/);
+  assert.doesNotMatch(index, /class="active"[^>]*data-holdem-buyin="30000"/);
   assert.match(index, /data-holdem-buyin="15000"[\s\S]*data-holdem-buyin="30000"[\s\S]*data-holdem-buyin="75000"/);
   assert.match(index, /<small>최소<\/small><b>10,000원<\/b>[\s\S]*<small>최대<\/small><b>20,000원<\/b>/);
   assert.match(index, /<small>최소<\/small><b>20,000원<\/b>[\s\S]*<small>최대<\/small><b>40,000원<\/b>/);
