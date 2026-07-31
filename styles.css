@@ -7420,7 +7420,7 @@ body.is-admin .feedback-user-compose { display: none; }
   bottom: calc(max(6px, env(safe-area-inset-bottom)) + var(--holdem-keyboard-offset, 0px));
 }
 .holdem-chat-overlay {
-  z-index: 25;
+  z-index: 57;
   right: 12px;
   bottom: 102px;
   left: 12px;
