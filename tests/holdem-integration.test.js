@@ -240,8 +240,10 @@ test("the six-seat table exposes every required game control", () => {
   assert.doesNotMatch(index, /id="holdem-status"/);
   assert.doesNotMatch(index, /id="holdem-people-btn"/);
   assert.doesNotMatch(index, /id="holdem-profile-btn"/);
-  assert.match(index, /<nav class="holdem-utility"[\s\S]*class="holdem-exit-stack"[\s\S]*id="holdem-leave-btn"[\s\S]*id="holdem-spectator-chip"[\s\S]*id="holdem-hands-btn"[\s\S]*id="holdem-settings-btn"/);
+  assert.match(index, /<nav class="holdem-utility"[\s\S]*class="holdem-exit-stack"[\s\S]*id="holdem-leave-btn"[\s\S]*id="holdem-spectator-chip"[\s\S]*id="holdem-sound-btn"[\s\S]*id="holdem-hands-btn"[\s\S]*id="holdem-settings-btn"/);
+  assert.match(index, /id="holdem-sound-btn"[\s\S]*aria-pressed="false"[\s\S]*>🔊<\/button>/);
   assert.match(styles, /\.holdem-topbar\s*\{[\s\S]*background:\s*transparent/);
+  assert.match(styles, /\.holdem-utility \.holdem-sound-btn\s*\{[\s\S]*width:\s*34px/);
   assert.match(styles, /\.holdem-exit-stack\s*\{[\s\S]*margin-right:\s*auto/);
   assert.match(styles, /\.holdem-spectator-chip\s*\{[\s\S]*flex-direction:\s*column/);
   assert.match(controller, /function renderSpectatorChip\(\)[\s\S]*관전자 /);
@@ -338,6 +340,8 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /function ensureHoldemAudioPool\([\s\S]*while \(pool\.length < size\)/);
   assert.match(controller, /function playHoldemAudioPool\([\s\S]*nextHoldemPoolAudio/);
   assert.match(controller, /function playTimerWarningSfx\(\)[\s\S]*playHoldemAudioBuffer\("timer-warning", TIMER_WARNING_SFX_VOLUME\)/);
+  assert.match(controller, /function toggleHoldemSoundMuted\(\)[\s\S]*setHoldemSoundMuted\(!holdemSoundMuted\(\)\)/);
+  assert.match(game, /window\.DongneSound = \{[\s\S]*setMuted: setSoundMuted[\s\S]*toggle: toggleMute/);
   assert.match(controller, /function playTurnStartSfx\(\)[\s\S]*playHoldemAudioBuffer\("turn-start", TURN_START_SFX_VOLUME\)/);
   assert.match(controller, /function playHoldemAudioBuffer\(key, volume\)[\s\S]*source\.onended[\s\S]*source\.disconnect\(\)[\s\S]*gain\.disconnect\(\)/);
   assert.match(controller, /function unlockHoldemAudioFallback\(\)[\s\S]*holdemAudioUnlockEl[\s\S]*el\.play\(\)/);

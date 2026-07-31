@@ -873,6 +873,31 @@ window.TexasHoldem = (function () {
     }
   }
 
+  function setHoldemSoundMuted(muted) {
+    muted = !!muted;
+    try {
+      localStorage.setItem("omok_mute", muted ? "1" : "0");
+    } catch (e) {}
+    if (window.DongneSound && typeof DongneSound.setMuted === "function") {
+      DongneSound.setMuted(muted);
+    }
+    renderHoldemSoundButton();
+  }
+
+  function toggleHoldemSoundMuted() {
+    setHoldemSoundMuted(!holdemSoundMuted());
+  }
+
+  function renderHoldemSoundButton() {
+    var button = $("holdem-sound-btn");
+    if (!button) return;
+    var muted = holdemSoundMuted();
+    button.textContent = muted ? "🔇" : "🔊";
+    button.setAttribute("aria-pressed", muted ? "true" : "false");
+    button.setAttribute("aria-label", muted ? "전체 사운드 켜기" : "전체 사운드 음소거");
+    button.title = muted ? "전체 사운드 켜기" : "전체 사운드 음소거";
+  }
+
   function createHoldemAudio(src, volume) {
     if (!src || typeof Audio === "undefined") return null;
     var el = new Audio(holdemAssetUrl(src));
@@ -1254,7 +1279,11 @@ window.TexasHoldem = (function () {
   }
 
   function syncAudio() {
-    if (holdemSoundMuted()) return;
+    renderHoldemSoundButton();
+    if (holdemSoundMuted()) {
+      stopAllinBgmSfx();
+      return;
+    }
     ensureHoldemAudioContext();
     preloadHoldemAudioBuffers();
   }
@@ -5889,6 +5918,7 @@ window.TexasHoldem = (function () {
     if (canSize) syncRaiseControls();
     if (canSize) syncQuickBetButtons();
     renderFoldRevealControls(busy);
+    renderHoldemSoundButton();
     var slider = $("holdem-raise-slider");
     if (slider) slider.disabled = busy;
     var quick = root() ? root().querySelectorAll("[data-holdem-bet]") : [];
@@ -6412,6 +6442,8 @@ window.TexasHoldem = (function () {
       else if (api && typeof api.openMenu === "function") api.openMenu();
     } else if (id === "holdem-rank-btn") {
       if (api && typeof api.openHoldemRank === "function") api.openHoldemRank();
+    } else if (id === "holdem-sound-btn") {
+      toggleHoldemSoundMuted();
     } else if (id === "holdem-leave-btn") {
       if (isBusy()) requestLeaveAfterHand();
       else if (api && typeof api.leaveRoom === "function") api.leaveRoom();
@@ -6952,6 +6984,8 @@ window.TexasHoldem = (function () {
       holdemReactionEmoji: holdemReactionEmoji,
       sendHoldemEmoji: sendHoldemEmoji,
       showSeatEmoji: showSeatEmoji,
+      toggleHoldemSoundMuted: toggleHoldemSoundMuted,
+      renderHoldemSoundButton: renderHoldemSoundButton,
       submitChatFromEnter: submitChatFromEnter,
       communityRevealBlocksActions: communityRevealBlocksActions,
       relativeSeat: relativeSeat,

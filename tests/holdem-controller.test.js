@@ -129,6 +129,18 @@ function resultTestDocument() {
   };
 }
 
+function fakeLocalStorage(initial = {}) {
+  const values = new Map(Object.entries(initial));
+  return {
+    getItem(key) {
+      return values.has(key) ? values.get(key) : null;
+    },
+    setItem(key, value) {
+      values.set(key, String(value));
+    },
+  };
+}
+
 function renderedFaceCards(html) {
   const cards = [];
   const pattern = /<span class="holdem-card ([^"]*)" data-suit="([cdhs])" data-rank="([^"]+)"/g;
@@ -863,6 +875,33 @@ test("fold reveal controls keep the requested selection while the server confirm
   } finally {
     controller.leave();
   }
+});
+
+test("the Hold'em sound button toggles the shared mute setting", () => {
+  const button = fakeElement();
+  const localStorage = fakeLocalStorage();
+  const controller = loadController("alice", {
+    document: {
+      getElementById(id) {
+        return id === "holdem-sound-btn" ? button : null;
+      },
+    },
+    localStorage,
+  });
+
+  controller._test.renderHoldemSoundButton();
+  assert.equal(button.textContent, "🔊");
+  assert.equal(button.attributes["aria-pressed"], "false");
+
+  controller._test.toggleHoldemSoundMuted();
+  assert.equal(localStorage.getItem("omok_mute"), "1");
+  assert.equal(button.textContent, "🔇");
+  assert.equal(button.attributes["aria-pressed"], "true");
+
+  controller._test.toggleHoldemSoundMuted();
+  assert.equal(localStorage.getItem("omok_mute"), "0");
+  assert.equal(button.textContent, "🔊");
+  assert.equal(button.attributes["aria-pressed"], "false");
 });
 
 test("a human fold winner can choose to reveal after the hand", () => {

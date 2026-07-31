@@ -4201,6 +4201,18 @@ body.is-admin .feedback-user-compose { display: none; }
   padding: 0;
   font-size: 16px;
 }
+.holdem-utility .holdem-sound-btn {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+}
+.holdem-utility .holdem-sound-btn[aria-pressed="true"] {
+  border-color: rgba(255,193,112,.48);
+  background: rgba(255,139,47,.2);
+  color: #ffdca9;
+}
 .holdem-settings-panel {
   position: absolute;
   z-index: 55;

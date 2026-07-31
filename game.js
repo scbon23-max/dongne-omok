@@ -7171,14 +7171,23 @@
 
     soundMuted = localStorage.getItem("omok_mute") === "1";
     function syncMuteIcons() { var t = soundMuted ? "🔇 소리 꺼짐" : "🔊 소리 켜짐"; if ($("menu-sound-btn")) $("menu-sound-btn").textContent = t; }
-    function toggleMute() {
-      soundMuted = !soundMuted;
+    function setSoundMuted(nextMuted) {
+      soundMuted = !!nextMuted;
       localStorage.setItem("omok_mute", soundMuted ? "1" : "0");
       syncMuteIcons();
       var ctrl = activeController();
       if (ctrl && ctrl.syncAudio) ctrl.syncAudio();
       if (!soundMuted) { initAudio(); playStone(); }
     }
+    function toggleMute() {
+      setSoundMuted(!soundMuted);
+    }
+    window.DongneSound = {
+      isMuted: function () { return soundMuted; },
+      setMuted: setSoundMuted,
+      toggle: toggleMute,
+      sync: syncMuteIcons
+    };
     syncMuteIcons();
     $("menu-sound-btn").addEventListener("click", toggleMute);
     $("catch-preview-menu-btn").addEventListener("click", function () {
