@@ -473,9 +473,18 @@
     joinedAt = Date.now();
     firstPresenceAt = 0;
     myJoinTs = Date.now();
+    lobbyPresenceStale = true;
+    lobbyPresenceInitialized = false;
+    lobbyPresenceLastSyncAt = 0;
     lobbyMode = Net.initLobby(
       myMetaObj(null),
-      { onReady: onLobbyReady, onMessage: onLobbyMessage, onPresence: onLobbyPresence, onStatus: onLobbyStatus }
+      {
+        onReady: onLobbyReady,
+        onMessage: onLobbyMessage,
+        onPresence: onLobbyPresence,
+        onStatus: onLobbyStatus,
+        onTrackStatus: renderPresenceMonitor
+      }
     );
     if (!lobbyMode) setLobbyConn("local");
   }
@@ -563,6 +572,9 @@
   var scoreMap = emptyScoreMap();
   // ---------- 로비 ----------
   var lobbyMode = false, lobbyRoster = [], rooms = {}, roomFilter = "all";
+  var lobbyConnectionStatus = "IDLE", lobbyPresenceStale = true, lobbyPresenceLastSyncAt = 0;
+  var lobbyPresenceInitialized = false, lobbyPresenceEvents = [], presenceMonitorTicker = null;
+  var realtimeHeartbeat = window.DONGNE_REALTIME_HEALTH || { status: "unknown", latency: null, at: 0 };
   var curRoomId = null, curRoomTitle = "", roomCreatedTs = 0;
   var ROOM_LEASE_STORAGE_KEY = "dongne_owned_room_lease_v1";
   var HOLDEM_CREATE_SELECTION_STORAGE_PREFIX = "dongne_holdem_create_selection:";
@@ -770,18 +782,117 @@
     } else releaseOwnedRoomLease(lease.roomId);
   }
 
-  function setLobbyConn(s) { var d = $("lobby-conn-dot"); if (d) d.className = "conn-dot " + s; }
-  function onLobbyStatus(s) {
-    if (s === "SUBSCRIBED") setLobbyConn("online");
-    else if (s === "LOCAL") setLobbyConn("local");
-    else if (s === "CHANNEL_ERROR" || s === "TIMED_OUT" || s === "CLOSED") setLobbyConn("off");
-    else setLobbyConn("connecting");
+  function lobbyPresenceMap(list) {
+    var map = Object.create(null);
+    (list || []).forEach(function (member) {
+      if (member && member.nick) map[member.nick] = member;
+    });
+    return map;
   }
-  function onLobbyReady() { Net.sendLobby({ t: "lobby_hello", nick: me.nick }); loadLobbyChat(); refreshScores(); restoreOwnedRoomLease(); }
-  function onLobbyPresence(list) {
-    lobbyRoster = list || [];
+  function lobbyViewingLocation(viewing) {
+    if (!viewing) return "로비";
+    if (viewing === "private") return "비공개 게임";
+    var room = rooms[viewing];
+    if (!room) return "게임방";
+    var title = String(room.name || "").trim();
+    return gameName(room.game) + (title ? " · " + title : "");
+  }
+  function lobbyPresenceLocation(member) {
+    if (!member) return "로비";
+    var viewings = Array.isArray(member.presenceViewings) && member.presenceViewings.length
+      ? member.presenceViewings
+      : [member.viewing || ""];
+    var labels = [];
+    viewings.forEach(function (viewing) {
+      var label = lobbyViewingLocation(viewing);
+      if (labels.indexOf(label) < 0) labels.push(label);
+    });
+    return labels.join(" / ") || "로비";
+  }
+  function addLobbyPresenceEvent(type, nick, detail) {
+    lobbyPresenceEvents.unshift({
+      type: type,
+      nick: String(nick || "").slice(0, 40),
+      detail: String(detail || "").slice(0, 100),
+      at: Date.now()
+    });
+    if (lobbyPresenceEvents.length > 30) lobbyPresenceEvents.length = 30;
+  }
+  function captureLobbyPresenceChanges(previous, next) {
+    var before = lobbyPresenceMap(previous), after = lobbyPresenceMap(next);
+    Object.keys(after).forEach(function (nick) {
+      var current = after[nick], old = before[nick];
+      if (!old) {
+        addLobbyPresenceEvent("join", nick, lobbyPresenceLocation(current));
+        return;
+      }
+      var oldLocation = lobbyPresenceLocation(old), currentLocation = lobbyPresenceLocation(current);
+      if (oldLocation !== currentLocation) addLobbyPresenceEvent("move", nick, currentLocation);
+      var oldSessions = Math.max(1, Math.floor(Number(old.presenceCount) || 0));
+      var currentSessions = Math.max(1, Math.floor(Number(current.presenceCount) || 0));
+      if (oldSessions !== currentSessions) {
+        addLobbyPresenceEvent("session", nick, currentSessions + "개 연결");
+      }
+    });
+    Object.keys(before).forEach(function (nick) {
+      if (!after[nick]) addLobbyPresenceEvent("leave", nick, "접속 종료");
+    });
+  }
+  function onRealtimeHeartbeat(event) {
+    var detail = event && event.detail ? event.detail : window.DONGNE_REALTIME_HEALTH;
+    if (!detail) return;
+    realtimeHeartbeat = {
+      status: String(detail.status || "unknown"),
+      latency: Number.isFinite(Number(detail.latency)) ? Math.max(0, Math.round(Number(detail.latency))) : null,
+      at: Math.max(0, Number(detail.at) || Date.now())
+    };
+    if (realtimeHeartbeat.status === "timeout" || realtimeHeartbeat.status === "disconnected" ||
+        realtimeHeartbeat.status === "error") {
+      lobbyPresenceStale = true;
+      updateOnlineCounts();
+      renderLobbyOnline();
+    }
+    renderPresenceMonitor();
+  }
+  function setLobbyConn(s) {
+    var d = $("lobby-conn-dot");
+    if (!d) return;
+    d.className = "conn-dot " + s;
+    d.title = s === "online" ? "실시간 연결됨" : s === "local" ? "로컬 모드" :
+      s === "off" ? "실시간 연결 끊김" : "실시간 연결 중";
+  }
+  function onLobbyStatus(s) {
+    lobbyConnectionStatus = s || "CONNECTING";
+    if (s === "SUBSCRIBED") {
+      setLobbyConn("online");
+    } else if (s === "LOCAL") {
+      lobbyPresenceStale = false;
+      setLobbyConn("local");
+    } else if (s === "CHANNEL_ERROR" || s === "TIMED_OUT" || s === "CLOSED") {
+      lobbyPresenceStale = true;
+      lobbyPresenceInitialized = false;
+      setLobbyConn("off");
+    } else {
+      lobbyPresenceStale = true;
+      lobbyPresenceInitialized = false;
+      setLobbyConn("connecting");
+    }
     updateOnlineCounts();
     renderLobbyOnline();
+    renderPresenceMonitor();
+  }
+  function onLobbyReady() { Net.sendLobby({ t: "lobby_hello", nick: me.nick }); loadLobbyChat(); refreshScores(); restoreOwnedRoomLease(); }
+  function onLobbyPresence(list, options) {
+    if (options && options.event && options.event !== "sync") return;
+    var next = list || [];
+    if (lobbyPresenceInitialized) captureLobbyPresenceChanges(lobbyRoster, next);
+    else lobbyPresenceInitialized = true;
+    lobbyRoster = next;
+    lobbyPresenceLastSyncAt = Date.now();
+    lobbyPresenceStale = false;
+    updateOnlineCounts();
+    renderLobbyOnline();
+    renderPresenceMonitor();
   }
   function clubOnlineCount() { return lobbyMode ? lobbyRoster.length : 1; }
   function lobbyPeople() { return lobbyMode ? lobbyRoster.filter(function (m) { return !m.viewing; }) : [{ nick: me.nick, joinTs: 0 }]; }
@@ -792,17 +903,32 @@
     Object.keys(ids).forEach(function (id) {
       var el = $(id); if (el) el.textContent = total;
     });
-    var lc = $("lobby-online-count"); if (lc) lc.textContent = "온라인 " + total + "명";
+    var lc = $("lobby-online-count");
+    if (lc) {
+      if (lobbyMode && lobbyPresenceStale) {
+        lc.textContent = total ? "온라인 " + total + "명 · 확인 중" : "접속자 확인 중";
+      } else lc.textContent = "온라인 " + total + "명";
+    }
     var ln = $("lobby-online-num"); if (ln) ln.textContent = lobbyPeople().length;
   }
   function renderLobbyOnline() {
     var box = $("lobby-online-list"); if (!box) return;
-    var arr = (lobbyRoster && lobbyRoster.length) ? lobbyRoster.slice() : [{ nick: me.nick, joinTs: 0 }];
+    var arr = lobbyMode ? lobbyRoster.slice() : [{ nick: me.nick, joinTs: 0 }];
+    box.classList.toggle("is-stale", !!(lobbyMode && lobbyPresenceStale));
+    if (!arr.length) {
+      box.innerHTML = '<div class="online-empty">' +
+        (lobbyPresenceStale ? "접속자를 확인하고 있어요." : "현재 접속자가 없어요.") + '</div>';
+      return;
+    }
     arr.sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); });
-    box.innerHTML = arr.map(function (m) {
+    var html = lobbyMode && lobbyPresenceStale
+      ? '<div class="online-sync-state">실시간 연결을 확인하고 있어요.</div>'
+      : "";
+    html += arr.map(function (m) {
       var meMark = (m.nick === me.nick) ? " (나)" : "";
       return '<div class="online-item"><span style="color:' + nickColor(m.nick) + '">' + esc(m.nick) + esc(meMark) + '</span></div>';
     }).join("");
+    box.innerHTML = html;
   }
   function onLobbyMessage(msg) {
     if (!msg || !msg.t) return;
@@ -3619,6 +3745,170 @@
     G.rev++;
     broadcastState();
     renderPlayersList(); updateTurnUI(); render(); updateCenterButton();
+  }
+
+  function presenceAgeLabel(timestamp) {
+    if (!timestamp) return "동기화 대기 중";
+    var seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+    if (seconds < 2) return "방금 동기화";
+    if (seconds < 60) return seconds + "초 전 동기화";
+    var minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + "분 전 동기화";
+    return Math.floor(minutes / 60) + "시간 전 동기화";
+  }
+  function presenceClock(timestamp) {
+    if (!timestamp) return "";
+    var date = new Date(timestamp);
+    return String(date.getHours()).padStart(2, "0") + ":" +
+      String(date.getMinutes()).padStart(2, "0") + ":" +
+      String(date.getSeconds()).padStart(2, "0");
+  }
+  function presenceStatusView() {
+    if (lobbyConnectionStatus === "LOCAL") {
+      return { label: "로컬 모드", className: "is-local" };
+    }
+    if (lobbyConnectionStatus === "SUBSCRIBED" && !lobbyPresenceStale) {
+      return { label: "정상 연결", className: "is-online" };
+    }
+    if (lobbyConnectionStatus === "CHANNEL_ERROR" || lobbyConnectionStatus === "TIMED_OUT" ||
+        lobbyConnectionStatus === "CLOSED") {
+      return { label: "연결 끊김", className: "is-off" };
+    }
+    return { label: lobbyPresenceStale && lobbyRoster.length ? "명단 다시 확인 중" : "연결 중", className: "is-connecting" };
+  }
+  function presenceTrackLabel(diagnostics) {
+    var status = diagnostics && diagnostics.lastTrackStatus;
+    if (status === "ok") return "접속 등록 정상";
+    if (status === "sending") return "접속 등록 중";
+    if (!status || status === "idle") return "접속 등록 대기";
+    return "접속 등록 재시도 중";
+  }
+  function renderPresenceMonitor() {
+    var modal = $("presence-monitor-modal");
+    if (!modal || !me.isAdmin) return;
+    var diagnostics = window.Net && Net.lobbyDiagnostics ? Net.lobbyDiagnostics() : {};
+    var status = presenceStatusView();
+    var dot = $("presence-monitor-dot");
+    if (dot) dot.className = "presence-monitor-dot " + status.className;
+    if ($("presence-monitor-status")) $("presence-monitor-status").textContent = status.label;
+
+    var heartbeatLabel = "하트비트 대기";
+    if (realtimeHeartbeat.status === "ok") {
+      heartbeatLabel = realtimeHeartbeat.latency == null ? "하트비트 정상" : "하트비트 " + realtimeHeartbeat.latency + "ms";
+    } else if (realtimeHeartbeat.status === "sent") heartbeatLabel = "하트비트 응답 대기";
+    else if (realtimeHeartbeat.status === "timeout" || realtimeHeartbeat.status === "disconnected" ||
+        realtimeHeartbeat.status === "error") heartbeatLabel = "하트비트 이상";
+    if ($("presence-monitor-detail")) {
+      $("presence-monitor-detail").textContent =
+        presenceAgeLabel(lobbyPresenceLastSyncAt || diagnostics.lastSyncAt) + " · " +
+        heartbeatLabel + " · " + presenceTrackLabel(diagnostics);
+    }
+
+    var sessions = 0, lobbyCount = 0, roomCount = 0;
+    lobbyRoster.forEach(function (member) {
+      var memberSessions = Math.max(1, Math.floor(Number(member && member.presenceCount) || 0));
+      var viewings = member && Array.isArray(member.presenceViewings) && member.presenceViewings.length
+        ? member.presenceViewings
+        : [member && member.viewing || ""];
+      sessions += memberSessions;
+      for (var i = 0; i < memberSessions; i++) {
+        if (viewings[i]) roomCount++;
+        else lobbyCount++;
+      }
+    });
+    if ($("presence-monitor-users")) $("presence-monitor-users").textContent = lobbyMode ? lobbyRoster.length : 1;
+    if ($("presence-monitor-sessions")) $("presence-monitor-sessions").textContent = lobbyMode ? sessions : 1;
+    if ($("presence-monitor-lobby")) $("presence-monitor-lobby").textContent = lobbyMode ? lobbyCount : 1;
+    if ($("presence-monitor-rooms")) $("presence-monitor-rooms").textContent = lobbyMode ? roomCount : 0;
+
+    var warning = $("presence-monitor-warning");
+    var visibleRows = document.querySelectorAll("#lobby-online-list .online-item").length;
+    var mismatch = lobbyMode && !lobbyPresenceStale && visibleRows !== lobbyRoster.length;
+    var trackFailed = diagnostics.lastTrackStatus && diagnostics.lastTrackStatus !== "ok" &&
+      diagnostics.lastTrackStatus !== "sending" && diagnostics.lastTrackStatus !== "idle";
+    if (warning) {
+      var warningText = lobbyPresenceStale
+        ? "현재 명단은 마지막 정상 동기화 기준입니다."
+        : mismatch
+          ? "로비 화면의 숫자와 실시간 원본 명단이 달라 다시 그리는 중입니다."
+          : trackFailed
+            ? "내 접속 등록을 다시 시도하고 있습니다."
+            : "";
+      warning.textContent = warningText;
+      warning.classList.toggle("hidden", !warningText);
+    }
+
+    var list = $("presence-monitor-list");
+    if (list) {
+      var people = lobbyMode ? lobbyRoster.slice() : [{ nick: me.nick, joinTs: 0, presenceCount: 1 }];
+      people.sort(function (a, b) { return (a.joinTs || 0) - (b.joinTs || 0); });
+      list.innerHTML = people.length ? people.map(function (member) {
+        var location = lobbyPresenceLocation(member);
+        var memberSessions = Math.max(1, Math.floor(Number(member.presenceCount) || 0));
+        var inRoom = !!member.viewing || (Array.isArray(member.presenceViewings) &&
+          member.presenceViewings.some(function (viewing) { return !!viewing; }));
+        return '<div class="presence-monitor-person" role="listitem">' +
+          '<span class="presence-monitor-person-dot' + (inRoom ? " in-room" : "") + '" aria-hidden="true"></span>' +
+          '<div class="presence-monitor-person-copy"><b style="color:' + nickColor(member.nick) + '">' +
+          esc(member.nick) + (member.nick === me.nick ? " (나)" : "") + '</b><small>' +
+          esc(location) + '</small></div><span class="presence-monitor-session">' +
+          memberSessions + '개 연결</span></div>';
+      }).join("") : '<p class="presence-monitor-empty">현재 확인된 접속자가 없어요.</p>';
+    }
+
+    var events = $("presence-monitor-events");
+    if (events) {
+      events.innerHTML = lobbyPresenceEvents.length ? lobbyPresenceEvents.map(function (entry) {
+        var text = entry.type === "join" ? entry.nick + "님 접속 · " + entry.detail
+          : entry.type === "leave" ? entry.nick + "님 접속 종료"
+          : entry.type === "move" ? entry.nick + "님 이동 · " + entry.detail
+          : entry.nick + "님 연결 변경 · " + entry.detail;
+        return '<div class="presence-monitor-event"><span>' + esc(text) + '</span><time>' +
+          presenceClock(entry.at) + '</time></div>';
+      }).join("") : '<p class="presence-monitor-empty">아직 기록된 변화가 없어요.</p>';
+    }
+
+    var reconnect = $("presence-monitor-reconnect");
+    if (reconnect) reconnect.disabled = lobbyConnectionStatus === "CONNECTING";
+  }
+  function startPresenceMonitorTicker() {
+    if (presenceMonitorTicker) clearInterval(presenceMonitorTicker);
+    presenceMonitorTicker = setInterval(function () {
+      var modal = $("presence-monitor-modal");
+      if (!modal || modal.classList.contains("hidden")) {
+        clearInterval(presenceMonitorTicker);
+        presenceMonitorTicker = null;
+        return;
+      }
+      renderPresenceMonitor();
+    }, 1000);
+  }
+  function openPresenceMonitor() {
+    if (!me.isAdmin) return;
+    openModal("presence-monitor-modal");
+    renderPresenceMonitor();
+    startPresenceMonitorTicker();
+  }
+  function reconnectLobbyPresence() {
+    if (!me.isAdmin || !window.Net) return;
+    var button = $("presence-monitor-reconnect");
+    if (button) button.disabled = true;
+    var diagnostics = Net.lobbyDiagnostics ? Net.lobbyDiagnostics() : {};
+    if (diagnostics.ready && Net.retryLobbyPresence) {
+      Promise.resolve(Net.retryLobbyPresence()).then(function () {
+        renderPresenceMonitor();
+      });
+    } else if (Net.resyncLobby) {
+      lobbyPresenceStale = true;
+      lobbyConnectionStatus = "CONNECTING";
+      updateOnlineCounts();
+      renderLobbyOnline();
+      Net.resyncLobby();
+    }
+    setTimeout(function () {
+      if (button) button.disabled = false;
+      renderPresenceMonitor();
+    }, 1200);
   }
 
   // ---------- 관리자 ----------
@@ -6844,6 +7134,7 @@
   }
 
   function bind() {
+    window.addEventListener("dongne-realtime-heartbeat", onRealtimeHeartbeat);
     $("enter-btn").addEventListener("click", enter);
     $("pw").addEventListener("keydown", function (e) { if (e.key === "Enter") enter(); });
     $("nick").addEventListener("keydown", function (e) { if (e.key === "Enter") $("pw").focus(); });
@@ -6971,6 +7262,11 @@
       if (netMode) Net.send({ t: "undo_res", accept: false, from: me.nick });
     });
     $("admin-btn").addEventListener("click", function () { $("menu-modal").classList.add("hidden"); openAdmin(); });
+    $("presence-monitor-btn").addEventListener("click", function () {
+      $("menu-modal").classList.add("hidden");
+      openPresenceMonitor();
+    });
+    $("presence-monitor-reconnect").addEventListener("click", reconnectLobbyPresence);
     $("activity-log-btn").addEventListener("click", function () { $("menu-modal").classList.add("hidden"); openActivityLog(); });
     $("logout-btn").addEventListener("click", logoutAndReload);
     var activityFilterButtons = document.querySelectorAll("#activity-log-filters [data-activity-filter]");

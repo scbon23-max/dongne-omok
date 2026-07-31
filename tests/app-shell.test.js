@@ -93,7 +93,7 @@ test("the app shell loads local scripts sequentially with the same revision", ()
 
   const version = "test-build-" + Date.parse(lastModified);
   assert.equal(styles[0].href, "styles.css?v=" + encodeURIComponent(version));
-  assert.equal(scripts[0].src, "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2");
+  assert.equal(scripts[0].src, "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.111.0");
 
   while (scripts.length < 21) scripts[scripts.length - 1].onload();
   assert.equal(scripts[1].src, "config.js?v=" + encodeURIComponent(version));

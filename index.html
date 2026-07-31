@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20260731-holdem-ranking-sound-toggle-v1">
+<meta name="app-build" content="20260731-lobby-presence-monitor-sound-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -1430,6 +1430,7 @@
       <button id="catch-preview-menu-btn" class="menu-item admin-only">캐치마인드 화면 점검</button>
       <button id="relay-preview-menu-btn" class="menu-item admin-only">이어그리기 화면 점검</button>
       <button id="admin-btn" class="menu-item admin-only">관리자</button>
+      <button id="presence-monitor-btn" class="menu-item admin-only">실시간 접속 현황</button>
       <button id="activity-log-btn" class="menu-item admin-only">기록</button>
       <button id="logout-btn" class="menu-item logout">로그아웃</button>
     </div>
@@ -1549,6 +1550,47 @@
           <button id="allow-add-btn" class="pbtn">추가</button>
         </div>
         <div id="allow-list"></div>
+      </div>
+    </div>
+    <button class="btn-primary modal-ok" data-close>닫기</button>
+  </div>
+</div>
+
+<!-- 관리자 실시간 접속 현황 모달 -->
+<div id="presence-monitor-modal" class="modal-overlay hidden admin-only">
+  <div class="modal presence-monitor-modal">
+    <div class="modal-head">
+      <h2>실시간 접속 현황 <span class="host-badge">관리자 전용</span></h2>
+      <button class="modal-close" data-close>✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="presence-monitor-health">
+        <span id="presence-monitor-dot" class="presence-monitor-dot is-connecting" aria-hidden="true"></span>
+        <div class="presence-monitor-health-copy">
+          <strong id="presence-monitor-status">연결 확인 중</strong>
+          <small id="presence-monitor-detail">실시간 명단을 동기화하고 있어요.</small>
+        </div>
+        <button id="presence-monitor-reconnect" class="presence-monitor-reconnect" type="button"
+          aria-label="실시간 연결 다시 연결" title="다시 연결">↻</button>
+      </div>
+
+      <div class="presence-monitor-metrics">
+        <div><span>접속자</span><strong id="presence-monitor-users">0</strong></div>
+        <div><span>연결</span><strong id="presence-monitor-sessions">0</strong></div>
+        <div><span>로비</span><strong id="presence-monitor-lobby">0</strong></div>
+        <div><span>게임 중</span><strong id="presence-monitor-rooms">0</strong></div>
+      </div>
+
+      <p id="presence-monitor-warning" class="presence-monitor-warning hidden" role="status"></p>
+
+      <div class="presence-monitor-section">
+        <div class="setting-title">현재 접속자</div>
+        <div id="presence-monitor-list" class="presence-monitor-list" role="list" aria-live="polite"></div>
+      </div>
+
+      <div class="presence-monitor-section">
+        <div class="setting-title">최근 변화</div>
+        <div id="presence-monitor-events" class="presence-monitor-events" aria-live="polite"></div>
       </div>
     </div>
     <button class="btn-primary modal-ok" data-close>닫기</button>
@@ -1767,7 +1809,7 @@
 (function () {
   var shell = window.AppShell;
   var files = [
-    { src: "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2", external: true },
+    { src: "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.111.0", external: true },
     { src: "config.js" },
     { src: "sb.js" },
     { src: "db.js" },

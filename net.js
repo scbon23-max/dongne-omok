@@ -120,10 +120,11 @@ window.Net = (function () {
       if (!metas || !metas.length) return;
       metas.forEach(function (meta, metaIndex) {
         if (!meta || !meta.nick) return;
-        var row = byNick[meta.nick] || { count: 0, meta: null, metaSessionId: "", sessionIds: [] };
+        var row = byNick[meta.nick] || { count: 0, meta: null, metaSessionId: "", sessionIds: [], viewings: Object.create(null) };
         row.count++;
         var sessionId = sessionIdOf(meta.clientSessionId) || ("legacy:" + key + ":" + metaIndex).slice(0, 96);
         if (row.sessionIds.indexOf(sessionId) < 0) row.sessionIds.push(sessionId);
+        row.viewings[sessionId] = meta.viewing == null ? "" : String(meta.viewing).slice(0, 80);
         var joinTs = Number(meta.joinTs) || 0;
         var selectedJoinTs = row.meta ? (Number(row.meta.joinTs) || 0) : Infinity;
         if (!row.meta || joinTs < selectedJoinTs || (joinTs === selectedJoinTs && sessionId < row.metaSessionId)) {
@@ -139,6 +140,7 @@ window.Net = (function () {
       return Object.assign({}, row.meta, {
         presenceCount: row.count,
         presenceSessionIds: row.sessionIds.slice(),
+        presenceViewings: row.sessionIds.map(function (sessionId) { return row.viewings[sessionId] || ""; }),
         hasCurrentSession: row.sessionIds.indexOf(CLIENT_SESSION_ID) >= 0
       });
     });
@@ -158,6 +160,9 @@ window.Net = (function () {
         hostEligible: member.hostEligible !== false,
         clientSessionId: sessionIdOf(member.clientSessionId),
         presenceSessionIds: sessions,
+        presenceViewings: Array.isArray(member.presenceViewings)
+          ? member.presenceViewings.map(function (value) { return String(value == null ? "" : value).slice(0, 80); }).sort()
+          : [],
         presenceCount: Math.max(0, Math.floor(Number(member.presenceCount) || 0)),
         hasCurrentSession: !!member.hasCurrentSession,
         catchBoardFrameId: String(member.catchBoardFrameId == null ? "" : member.catchBoardFrameId).slice(0, 80),
@@ -175,29 +180,111 @@ window.Net = (function () {
 
   // ── 로비 채널 (로그인하면 상시 접속, 방에 들어가도 유지) ──
   var lobbyCh = null, lobbyMeta = null, lobbyH = {}, lobbyGen = 0, lobbyWant = false, lobbyTries = 0, lobbyReT = null, lobbyReady = false, lobbyPending = [];
+  var lobbyStatus = "IDLE", lobbyLastSyncAt = 0, lobbyLastTrackAt = 0, lobbyLastTrackStatus = "idle";
+  var lobbyTrackTries = 0, lobbyTrackRetryT = null, lobbyTrackRequestId = 0;
   function initLobby(meta, hs) {
     lobbyH = hs || {};
-    if (!enabled) { if (lobbyH.onStatus) lobbyH.onStatus("LOCAL"); return false; }
+    if (!enabled) {
+      lobbyStatus = "LOCAL";
+      if (lobbyH.onStatus) lobbyH.onStatus("LOCAL");
+      return false;
+    }
     lobbyMeta = withClientSession(meta); lobbyWant = true; lobbyTries = 0;
     openLobby();
     return true;
   }
+  function stopLobbyTrackRetry() {
+    if (lobbyTrackRetryT) { clearTimeout(lobbyTrackRetryT); lobbyTrackRetryT = null; }
+  }
+  function notifyLobbyTrack(reason) {
+    if (lobbyH.onTrackStatus) {
+      lobbyH.onTrackStatus({
+        status: lobbyLastTrackStatus,
+        at: lobbyLastTrackAt,
+        reason: reason || "",
+        retries: lobbyTrackTries
+      });
+    }
+  }
+  function scheduleLobbyTrackRetry(reason) {
+    if (!lobbyWant || !lobbyReady || lobbyTrackRetryT) return;
+    var delay = backoff(lobbyTrackTries++);
+    lobbyTrackRetryT = setTimeout(function () {
+      lobbyTrackRetryT = null;
+      trackLobbyPresence(reason || "retry");
+    }, delay);
+  }
+  function trackLobbyPresence(reason) {
+    if (!enabled || !lobbyReady || !lobbyCh) return Promise.resolve("unavailable");
+    stopLobbyTrackRetry();
+    var gen = lobbyGen, channel = lobbyCh, requestId = ++lobbyTrackRequestId;
+    lobbyLastTrackAt = Date.now();
+    lobbyLastTrackStatus = "sending";
+    notifyLobbyTrack(reason);
+    try {
+      return Promise.resolve(channel.track(lobbyMeta)).then(function (status) {
+        if (gen !== lobbyGen || channel !== lobbyCh || requestId !== lobbyTrackRequestId) return "superseded";
+        status = status == null ? "ok" : String(status);
+        lobbyLastTrackAt = Date.now();
+        lobbyLastTrackStatus = status;
+        if (status === "ok") lobbyTrackTries = 0;
+        else scheduleLobbyTrackRetry("retry");
+        notifyLobbyTrack(reason);
+        return status;
+      }, function () {
+        if (gen !== lobbyGen || channel !== lobbyCh || requestId !== lobbyTrackRequestId) return "superseded";
+        lobbyLastTrackAt = Date.now();
+        lobbyLastTrackStatus = "error";
+        scheduleLobbyTrackRetry("retry");
+        notifyLobbyTrack(reason);
+        return "error";
+      });
+    } catch (e) {
+      lobbyLastTrackAt = Date.now();
+      lobbyLastTrackStatus = "error";
+      scheduleLobbyTrackRetry("retry");
+      notifyLobbyTrack(reason);
+      return Promise.resolve("error");
+    }
+  }
   function openLobby() {
     var gen = ++lobbyGen;
     lobbyReady = false;
+    lobbyStatus = "CONNECTING";
+    lobbyTrackTries = 0;
+    lobbyTrackRequestId++;
+    stopLobbyTrackRetry();
+    if (lobbyReT) { clearTimeout(lobbyReT); lobbyReT = null; }
+    if (lobbyH.onStatus) lobbyH.onStatus("CONNECTING");
     if (lobbyCh) { try { window.SB.removeChannel(lobbyCh); } catch (e) {} lobbyCh = null; }
     lobbyCh = window.SB.channel("lobby:" + clubId(), {
       config: { broadcast: { self: true }, presence: { key: presenceKey(lobbyMeta) } }
     });
     lobbyCh.on("broadcast", { event: "m" }, function (p) { if (lobbyH.onMessage) lobbyH.onMessage(p.payload, transportMetaOf(p.payload)); });
-    lobbyCh.on("presence", { event: "sync" }, lobbyEmit);
-    lobbyCh.on("presence", { event: "join" }, lobbyEmit);
-    lobbyCh.on("presence", { event: "leave" }, lobbyEmit);
+    lobbyCh.on("presence", { event: "sync" }, function (payload) {
+      if (gen === lobbyGen) lobbyEmit("sync", payload);
+    });
+    lobbyCh.on("presence", { event: "join" }, function (payload) {
+      if (gen === lobbyGen) lobbyEmit("join", payload);
+    });
+    lobbyCh.on("presence", { event: "leave" }, function (payload) {
+      if (gen === lobbyGen) lobbyEmit("leave", payload);
+    });
     lobbyCh.subscribe(function (status) {
       if (gen !== lobbyGen) return;
+      lobbyStatus = status;
       if (lobbyH.onStatus) lobbyH.onStatus(status);
-      if (status === "SUBSCRIBED") { lobbyTries = 0; lobbyReady = true; lobbyCh.track(lobbyMeta); flushLobby(); if (lobbyH.onReady) lobbyH.onReady(); }
-      else if (isDead(status)) { lobbyReady = false; reconnectLobby(); }
+      if (status === "SUBSCRIBED") {
+        lobbyTries = 0;
+        lobbyReady = true;
+        trackLobbyPresence("subscribe");
+        flushLobby();
+        if (lobbyH.onReady) lobbyH.onReady();
+      } else if (isDead(status)) {
+        lobbyReady = false;
+        stopLobbyTrackRetry();
+        reconnectLobby();
+      }
     });
   }
   function reconnectLobby() {
@@ -205,7 +292,11 @@ window.Net = (function () {
     var d = backoff(lobbyTries++);
     lobbyReT = setTimeout(function () { lobbyReT = null; if (lobbyWant) openLobby(); }, d);
   }
-  function lobbyEmit() { if (lobbyCh && lobbyH.onPresence) lobbyH.onPresence(rosterOf(lobbyCh)); }
+  function lobbyEmit(event, payload) {
+    if (!lobbyCh || !lobbyH.onPresence) return;
+    if (event === "sync") lobbyLastSyncAt = Date.now();
+    lobbyH.onPresence(rosterOf(lobbyCh), { event: event || "sync", payload: payload || null });
+  }
   function flushLobby() { if (lobbyCh) flushPackets(lobbyCh, lobbyPending); }
   function sendLobby(o) {
     if (!enabled) return;
@@ -219,7 +310,29 @@ window.Net = (function () {
     if (lobbyReady && lobbyCh) return sendPacket(lobbyCh, payload);
     return new Promise(function (resolve) { queuePacket(lobbyPending, payload, resolve, false); });
   }
-  function trackLobby(m) { lobbyMeta = withClientSession(m); if (enabled && lobbyCh) lobbyCh.track(lobbyMeta); }
+  function trackLobby(m) {
+    lobbyMeta = withClientSession(m);
+    if (enabled && lobbyReady && lobbyCh) return trackLobbyPresence("update");
+    return Promise.resolve("queued");
+  }
+  function lobbyDiagnostics() {
+    var rows = lobbyCh ? rosterOf(lobbyCh) : [];
+    var sessions = rows.reduce(function (sum, member) {
+      return sum + Math.max(1, Math.floor(Number(member && member.presenceCount) || 0));
+    }, 0);
+    return {
+      status: lobbyStatus,
+      ready: lobbyReady,
+      lastSyncAt: lobbyLastSyncAt,
+      lastTrackAt: lobbyLastTrackAt,
+      lastTrackStatus: lobbyLastTrackStatus,
+      trackRetries: lobbyTrackTries,
+      reconnectAttempts: lobbyTries,
+      memberCount: rows.length,
+      sessionCount: sessions,
+      clientSessionId: CLIENT_SESSION_ID
+    };
+  }
 
   // ── 방 채널 (방에 들어갈 때만, 나가면 떠남) ──
   var channel = null, myMeta = null, handlers = {}, curRoom = null, roomGen = 0, roomWant = false, roomTries = 0, roomReT = null, roomReady = false, roomPending = [], roomPresenceT = null, roomPresenceFingerprint = null;
@@ -392,6 +505,12 @@ window.Net = (function () {
     get clientSessionId() { return CLIENT_SESSION_ID; },
     transportMetaOf: transportMetaOf,
     initLobby: initLobby, sendLobby: sendLobby, sendLobbyWithResult: sendLobbyWithResult, trackLobby: trackLobby,
+    lobbyDiagnostics: lobbyDiagnostics,
+    retryLobbyPresence: function () {
+      if (enabled && lobbyReady) return trackLobbyPresence("manual");
+      if (enabled && lobbyWant) openLobby();
+      return Promise.resolve("reconnecting");
+    },
     resyncLobby: function () { if (enabled && lobbyWant) openLobby(); },
     init: init, send: send, sendWithResult: sendWithResult, track: track, leaveRoom: leaveRoom,
     syncDirectInputs: syncDirectInputs, sendDirectInput: sendDirectInput, sendDirectInputWithResult: sendDirectInputWithResult

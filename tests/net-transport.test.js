@@ -36,7 +36,12 @@ function loadNet(options = {}) {
       if (options.send) return options.send(this, message);
       return Promise.resolve("ok");
     }
-    track(meta) { this.meta = meta; }
+    track(meta) {
+      this.meta = meta;
+      this.trackCalls = (this.trackCalls || 0) + 1;
+      if (options.track) return options.track(this, meta);
+      return Promise.resolve("ok");
+    }
     presenceState() { return this.state; }
     status(value) { this.subscribeHandler(value); }
     emit(type, event, payload) {
@@ -111,6 +116,63 @@ test("presence keeps the compatible nick roster while exposing duplicate session
   assert.deepEqual(Array.from(roster[0].presenceSessionIds), [fixture.Net.clientSessionId, "c-tab-two"]);
   assert.equal(roster[0].hasCurrentSession, true);
   fixture.Net.leaveRoom();
+});
+
+test("lobby presence exposes synchronized members, sessions, and connection diagnostics", async () => {
+  const updates = [];
+  const statuses = [];
+  const fixture = loadNet({ sessionId: "lobby-local" });
+  fixture.Net.initLobby({ nick: "민서", joinTs: 1 }, {
+    onStatus(value) { statuses.push(value); },
+    onPresence(value, options) { updates.push({ value, options }); }
+  });
+  const lobby = fixture.channels.find((channel) => channel.topic === "lobby:main");
+  await Promise.resolve();
+
+  lobby.state = {
+    local: [{ nick: "민서", joinTs: 1, clientSessionId: fixture.Net.clientSessionId }],
+    remote: [
+      { nick: "서준", joinTs: 2, clientSessionId: "c-remote-a", viewing: "room-1" },
+      { nick: "서준", joinTs: 3, clientSessionId: "c-remote-b", viewing: null }
+    ]
+  };
+  lobby.emit("presence", "sync");
+
+  assert.deepEqual(statuses, ["CONNECTING", "SUBSCRIBED"]);
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].options.event, "sync");
+  assert.equal(updates[0].value.length, 2);
+  const remote = updates[0].value.find((member) => member.nick === "서준");
+  assert.equal(remote.presenceCount, 2);
+  assert.deepEqual(Array.from(remote.presenceViewings), ["room-1", ""]);
+
+  const diagnostics = fixture.Net.lobbyDiagnostics();
+  assert.equal(diagnostics.status, "SUBSCRIBED");
+  assert.equal(diagnostics.ready, true);
+  assert.equal(diagnostics.lastTrackStatus, "ok");
+  assert.equal(diagnostics.memberCount, 2);
+  assert.equal(diagnostics.sessionCount, 3);
+  assert.ok(diagnostics.lastSyncAt > 0);
+
+  await fixture.Net.trackLobby({ nick: "민서", joinTs: 1, viewing: "room-2" });
+  assert.equal(lobby.meta.viewing, "room-2");
+  assert.equal(fixture.Net.lobbyDiagnostics().lastTrackStatus, "ok");
+});
+
+test("lobby presence registration retries after a transient track timeout", async () => {
+  const trackStatuses = ["timed out", "ok"];
+  const fixture = loadNet({
+    sessionId: "lobby-retry",
+    track() { return Promise.resolve(trackStatuses.shift() || "ok"); }
+  });
+  fixture.Net.initLobby({ nick: "민서", joinTs: 1 }, {});
+  const lobby = fixture.channels.find((channel) => channel.topic === "lobby:main");
+
+  await new Promise((resolve) => setTimeout(resolve, 1150));
+
+  assert.equal(lobby.trackCalls, 2);
+  assert.equal(fixture.Net.lobbyDiagnostics().lastTrackStatus, "ok");
+  assert.equal(fixture.Net.lobbyDiagnostics().trackRetries, 0);
 });
 
 test("identical room presence heartbeats are suppressed until meaningful metadata changes", () => {
