@@ -721,6 +721,18 @@ async function assetRankingDetail(
     { p_nickname: targetNick },
   );
   if (statsError || !isRecord(stats)) throw new Error("ranking_detail_lookup");
+  const { count: refillCount, error: refillCountError } = await client
+    .from("holdem_economy_events")
+    .select("id", { count: "exact", head: true })
+    .eq("nickname", targetNick)
+    .eq("event_type", "refill");
+  if (
+    refillCountError ||
+    !Number.isSafeInteger(refillCount) ||
+    refillCount < 0
+  ) {
+    throw new Error("ranking_detail_lookup");
+  }
 
   const handCount = Number(stats.handCount);
   if (!Number.isSafeInteger(handCount) || handCount < 0) {
@@ -771,6 +783,7 @@ async function assetRankingDetail(
     todayNet: rankingChipAmount(stats.todayNet, true),
     sevenDayNet: rankingChipAmount(stats.sevenDayNet, true),
     refillTotal: rankingChipAmount(stats.refillTotal),
+    refillCount,
     refillToday: rankingChipAmount(stats.refillToday),
     refillSevenDays: rankingChipAmount(stats.refillSevenDays),
     initialGrantTotal: rankingChipAmount(stats.initialGrantTotal),

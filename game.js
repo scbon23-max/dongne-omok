@@ -6007,6 +6007,7 @@
       todayNet: Math.floor(Number(value.todayNet) || 0),
       sevenDayNet: Math.floor(Number(value.sevenDayNet) || 0),
       refillTotal: Math.max(0, Math.floor(Number(value.refillTotal) || 0)),
+      refillCount: Math.max(0, Math.floor(Number(value.refillCount) || 0)),
       refillToday: Math.max(0, Math.floor(Number(value.refillToday) || 0)),
       refillSevenDays: Math.max(0, Math.floor(Number(value.refillSevenDays) || 0)),
       initialGrantTotal: Math.max(0, Math.floor(Number(value.initialGrantTotal) || 0)),
@@ -6087,6 +6088,7 @@
     var ledgerNote = '<div class="holdem-asset-ranking-ledger-note">' +
       '<span>시작 지급 ' + esc(formatHoldemAsset(detail.initialGrantTotal)) +
       ' · 보충칩 누적 ' + esc(formatHoldemAsset(detail.refillTotal)) +
+      ' · 무료충전 ' + esc(detail.refillCount + "회") +
       ' · 오늘 ' + esc(formatHoldemAsset(detail.refillToday)) +
       ' · 7일 ' + esc(formatHoldemAsset(detail.refillSevenDays)) + '</span>' +
       (detail.adjustmentTotal
@@ -6126,6 +6128,7 @@
       '<span><small>누적 잃은 금액</small>' + signedHoldemAssetHtml(-detail.totalLost) + '</span>' +
       '<span><small>누적 순손익</small>' + signedHoldemAssetHtml(detail.totalNet) + '</span>' +
       '<span><small>전체 참여</small><strong>' + esc(detail.handCount + "핸드") + '</strong></span>' +
+      '<span><small>총 무료충전</small><strong>' + esc(detail.refillCount + "회") + '</strong></span>' +
       '<span><small>오늘 게임손익</small>' + signedHoldemAssetHtml(detail.todayNet) + '</span>' +
       '<span><small>최근 7일 손익</small>' + signedHoldemAssetHtml(detail.sevenDayNet) + '</span>' +
       '</div>' + ledgerNote +
