@@ -86,7 +86,8 @@ test("Hold'em room creation shows assets, hides tournaments, and requires a ring
   assert.match(index, /id="create-holdem-buyin-slider"[^>]*type="hidden"[^>]*max="100000"[^>]*step="100"[^>]*value=""/);
   assert.match(index, /data-holdem-buyin="15000"[\s\S]*data-holdem-buyin="30000"[\s\S]*data-holdem-buyin="75000"/);
   assert.doesNotMatch(index, /class="active"[^>]*data-holdem-buyin="30000"/);
-  assert.match(index, /참가비용 범위/);
+  assert.match(index, /방을 선택해주세요/);
+  assert.match(styles, /#create-holdem-mode-confirm:disabled\s*\{[\s\S]*cursor:\s*not-allowed/);
   assert.match(index, /<small>최소<\/small><b>10,000원<\/b>[\s\S]*<small>최대<\/small><b>20,000원<\/b>/);
   assert.match(index, /<small>최소<\/small><b>20,000원<\/b>[\s\S]*<small>최대<\/small><b>40,000원<\/b>/);
   assert.match(index, /<small>최소<\/small><b>50,000원<\/b>[\s\S]*<small>최대<\/small><b>100,000원<\/b>/);
