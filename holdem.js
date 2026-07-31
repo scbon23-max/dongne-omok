@@ -6559,10 +6559,51 @@ window.TexasHoldem = (function () {
     return true;
   }
 
+  function isActionHotkeyTextTarget(target) {
+    return !!target && !!target.closest &&
+      !!target.closest("input, textarea, select, [contenteditable='true']");
+  }
+
+  function isActionHotkeyBlocked(event) {
+    if (!event || event.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return true;
+    if (profileDialogOpen || buyInDialogOpen || settingsOpen) return true;
+    if (isActionHotkeyTextTarget(event.target)) return true;
+    return false;
+  }
+
+  function usableActionButton(id) {
+    var button = $(id);
+    if (!button || button.disabled) return null;
+    if (button.classList && button.classList.contains("hidden")) return null;
+    if (typeof window.getComputedStyle === "function") {
+      var style = window.getComputedStyle(button);
+      if (style && (style.display === "none" || style.visibility === "hidden" || style.opacity === "0")) return null;
+    }
+    return button;
+  }
+
+  function actionHotkeyButton(key) {
+    if (key === "ArrowLeft") return usableActionButton("holdem-fold-btn");
+    if (key === "ArrowDown") return usableActionButton("holdem-check-btn") || usableActionButton("holdem-call-btn");
+    if (key === "ArrowRight") return usableActionButton("holdem-bet-btn") || usableActionButton("holdem-raise-btn");
+    return null;
+  }
+
+  function triggerActionHotkey(event) {
+    if (isActionHotkeyBlocked(event)) return false;
+    var button = actionHotkeyButton(event.key);
+    if (!button) return false;
+    event.preventDefault();
+    if (typeof button.click === "function") button.click();
+    else onRootClick({ target: button });
+    return true;
+  }
+
   function onDocumentKeydown(event) {
     var screen = root();
     if (!active || !screen || screen.classList.contains("hidden")) return;
     if (event.target && screen.contains(event.target)) return;
+    if (triggerActionHotkey(event)) return;
     openChatFromEnter(event);
   }
 
@@ -6585,6 +6626,7 @@ window.TexasHoldem = (function () {
       return;
     }
     if (openChatFromEnter(event)) return;
+    if (triggerActionHotkey(event)) return;
     if ((event.key === "Enter" || event.key === " ") && event.target &&
         event.target.closest && event.target.closest(".holdem-seat:not(.is-empty)")) {
       var profileSeat = event.target.closest(".holdem-seat:not(.is-empty)");
