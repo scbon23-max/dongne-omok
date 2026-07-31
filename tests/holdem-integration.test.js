@@ -210,6 +210,9 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-pre-action-panel",
     "holdem-refill-panel",
     "holdem-refill-btn",
+    "holdem-profile-refill",
+    "holdem-profile-refill-status",
+    "holdem-profile-refill-btn",
     "holdem-buyin-backdrop",
     "holdem-buyin-slider",
     "holdem-buyin-confirm",
@@ -711,7 +714,9 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /reviewUntil: settleEnd \+ RESULT_REVIEW_MS/);
   assert.match(controller, /function openBuyInDialog\(mode, seat\)[\s\S]*state\.phase === "complete" && !resultTransitionReady\(\)/);
   assert.match(controller, /function maybeAutoOpenRebuyDialog\(\)[\s\S]*if \(!resultTransitionReady\(\)\) return/);
+  assert.match(controller, /function maybeAutoOpenRebuyDialog\(\)[\s\S]*if \(state\.canRefill\) \{\s*return;\s*\}/);
   assert.match(controller, /function releaseResultTransitions\(\)[\s\S]*maybeAutoOpenRebuyDialog\(\)[\s\S]*scheduleAutoNextHand\(\)/);
+  assert.match(styles, /\.holdem-profile-refill\s*\{/);
   assert.match(styles, /\.holdem-result-panel\s*\{[\s\S]*display: none !important/);
   assert.match(controller, /function resultWinningComboForSeat\(seatIndex\)[\s\S]*resultWinnerEvaluationForSeat\(seatIndex\)[\s\S]*winnerCombo\.holeCards\[cardIndex\] \? "is-winning-combo-card" : "is-winning-combo-muted"/);
   assert.match(controller, /function resultWinningBoardCombo\(\)[\s\S]*dimCommunityCards:\s*true[\s\S]*resultCombo:\s*true/);

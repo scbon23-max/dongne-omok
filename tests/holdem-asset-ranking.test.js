@@ -179,8 +179,10 @@ test("Hold'em ranking details expose session summaries without private hand data
   assert.match(edge, /totalLost:\s*rankingChipAmount\(stats\.totalLost\)/);
   assert.match(edge, /totalNet:\s*rankingChipAmount\(stats\.totalNet, true\)/);
   assert.match(edge, /initialGrantTotal:\s*rankingChipAmount\(stats\.initialGrantTotal\)/);
-  assert.match(edge, /\.from\("holdem_economy_events"\)[\s\S]*\.select\("id", \{ count: "exact", head: true \}\)[\s\S]*\.eq\("nickname", targetNick\)[\s\S]*\.eq\("event_type", "refill"\)/);
-  assert.match(edge, /refillCount,\s*[\s\S]*refillToday:/);
+  assert.match(edge, /const REFILL_COUNT_BASELINE_ISO = "2026-07-31T15:55:47\+09:00"/);
+  assert.match(edge, /const REFILL_COUNT_BASELINE_LABEL = "2026\.7\.31"/);
+  assert.match(edge, /\.from\("holdem_economy_events"\)[\s\S]*\.select\("id", \{ count: "exact", head: true \}\)[\s\S]*\.eq\("nickname", targetNick\)[\s\S]*\.eq\("event_type", "refill"\)[\s\S]*\.gte\("created_at", REFILL_COUNT_BASELINE_ISO\)/);
+  assert.match(edge, /refillCount,\s*[\s\S]*refillCountBaselineDate:\s*REFILL_COUNT_BASELINE_LABEL,\s*[\s\S]*refillToday:/);
   assert.match(edge, /refillToday:[\s\S]*refillSevenDays:/);
   assert.match(edge, /handCount,\s*[\s\S]*minHands:\s*RANKING_MIN_HANDS/);
   assert.match(edge, /minHands:\s*RANKING_MIN_HANDS/);
@@ -239,8 +241,10 @@ test("Hold'em detail totals are aggregated over every stored hand in SQL", () =>
   assert.match(game, /게임 손익 집계 시작/);
   assert.match(game, /시작 지급/);
   assert.match(game, /무료충전/);
-  assert.match(game, /총 무료충전/);
+  assert.match(game, /무료충전 횟수/);
   assert.match(game, /refillCount:\s*Math\.max\(0, Math\.floor\(Number\(value\.refillCount\) \|\| 0\)\)/);
+  assert.match(game, /refillCountBaselineDate:\s*String\(value\.refillCountBaselineDate \|\| ""\)\.trim\(\)\.slice\(0, 20\)/);
+  assert.match(game, /detail\.refillCountBaselineDate[\s\S]*기준/);
   assert.match(game, /보충칩과 자산 조정은 게임 손익에서 제외됩니다/);
   assert.match(game, /최근 10개 경기 구간/);
 });

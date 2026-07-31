@@ -237,6 +237,9 @@ function profileTopUpTestDocument() {
     "holdem-profile-wallet-status",
     "holdem-profile-asset-record-btn",
     "holdem-profile-role-action",
+    "holdem-profile-refill",
+    "holdem-profile-refill-status",
+    "holdem-profile-refill-btn",
     "holdem-profile-topup",
     "holdem-profile-topup-current",
     "holdem-profile-topup-max",
@@ -248,7 +251,9 @@ function profileTopUpTestDocument() {
   const elements = {};
   ids.forEach((id) => {
     elements[id] = fakeElement(
-      id === "holdem-profile-backdrop" || id === "holdem-profile-topup"
+      id === "holdem-profile-backdrop" ||
+      id === "holdem-profile-refill" ||
+      id === "holdem-profile-topup"
         ? ["hidden"]
         : []
     );
@@ -1658,6 +1663,76 @@ test("an all-in result finishes every reveal before opening the rebuy dialog", a
   }
 });
 
+test("a free refill waits for the profile button instead of auto-refilling", async () => {
+  const calls = [];
+  const db = {
+    getHoldemWallet() {
+      calls.push("wallet");
+      return Promise.resolve({
+        ok: true,
+        wallet: { balance: 50000, tableBalance: 0, totalAssets: 50000 },
+      });
+    },
+    holdemInvoke(auth, action) {
+      calls.push(action);
+      return Promise.resolve({ ok: true, version: 22, snapshot: null });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const previous = controller._test.emptyState();
+  previous.mode = "ring";
+  previous.phase = "preflop";
+  previous.version = 20;
+  previous.handId = "7";
+  previous.handNumber = 7;
+  previous.heroSeat = 0;
+  previous.seats[0] = { seat: 0, nick: "alice", stack: 0 };
+  previous.seats[1] = { seat: 1, nick: "bob", stack: 30000 };
+  controller._test.setState(previous);
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+
+  const originalNow = Date.now;
+  let now = 1_900_000_000_000;
+  Date.now = () => now;
+  try {
+    const completed = {
+      phase: "hand_end",
+      mode: "ring",
+      handId: "7",
+      handNo: 7,
+      settings: {
+        mode: "ring",
+        chipUnit: 100,
+        buyInMin: 10000,
+        buyInMax: 50000,
+        defaultBuyIn: 30000,
+      },
+      viewer: { seat: 0 },
+      seats: [
+        { seat: 0, nick: "alice", stack: 0, lastAction: "allin" },
+        { seat: 1, nick: "bob", stack: 30000 },
+      ],
+      board: ["As", "Kd", "Qc", "Jh", "Ts"],
+      winners: ["bob"],
+      canRefill: true,
+      refillsRemainingToday: 1,
+      refillStatusKnown: true,
+    };
+    assert.equal(controller._test.applySnapshot(completed, 21), true);
+
+    now += controller._test.resultTransitionDelayMs();
+    assert.equal(controller._test.resultTransitionReady(), true);
+    controller._test.maybeAutoOpenRebuyDialog();
+    await Promise.resolve();
+
+    assert.deepEqual(calls, []);
+  } finally {
+    Date.now = originalNow;
+    controller._test.setActive(false);
+  }
+});
+
 test("the completed UI keeps a fold winner's hand hidden until reveal", () => {
   const controller = loadController();
   const ctx = { now: 1_800_000_000_000, randomInt: () => 0 };
@@ -2272,6 +2347,36 @@ test("a busted ring player receives the free refill without opening a wallet dia
   assert.deepEqual(calls.map((call) => call.action), ["refill", "snapshot"]);
   assert.equal(calls[0].payload.expectedVersion, 1);
   assert.equal(controller.state.seats[0].stack, 20000);
+  controller.leave();
+});
+
+test("the hero profile shows today's remaining manual free refills", () => {
+  const ui = profileTopUpTestDocument();
+  const controller = loadController("alice", {
+    document: ui.document,
+  });
+  const state = controller._test.emptyState();
+  state.mode = "ring";
+  state.phase = "waiting";
+  state.version = 8;
+  state.heroSeat = 0;
+  state.seats[0] = { seat: 0, nick: "alice", stack: 0 };
+  state.seats[1] = { seat: 1, nick: "bob", stack: 30000 };
+  state.canRefill = true;
+  state.refillStatusKnown = true;
+  state.refillsRemainingToday = 2;
+  state.refillAmount = 20000;
+  controller._test.setState(state);
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+
+  controller._test.openProfileDialog(0);
+
+  assert.equal(ui.elements["holdem-profile-refill"].classList.contains("hidden"), false);
+  assert.match(ui.elements["holdem-profile-refill-status"].textContent, /오늘 무료충전 가능 2회/);
+  assert.equal(ui.elements["holdem-profile-refill-btn"].classList.contains("hidden"), false);
+  assert.equal(ui.elements["holdem-profile-refill-btn"].disabled, false);
+  assert.equal(ui.elements["holdem-profile-topup"].classList.contains("hidden"), true);
   controller.leave();
 });
 

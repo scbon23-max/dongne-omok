@@ -61,6 +61,9 @@ type Account = {
   isAdmin: boolean;
 };
 
+const REFILL_COUNT_BASELINE_ISO = "2026-07-31T15:55:47+09:00";
+const REFILL_COUNT_BASELINE_LABEL = "2026.7.31";
+
 type TableRow = {
   room_id: string;
   state: unknown;
@@ -725,7 +728,8 @@ async function assetRankingDetail(
     .from("holdem_economy_events")
     .select("id", { count: "exact", head: true })
     .eq("nickname", targetNick)
-    .eq("event_type", "refill");
+    .eq("event_type", "refill")
+    .gte("created_at", REFILL_COUNT_BASELINE_ISO);
   if (
     refillCountError ||
     !Number.isSafeInteger(refillCount) ||
@@ -784,6 +788,7 @@ async function assetRankingDetail(
     sevenDayNet: rankingChipAmount(stats.sevenDayNet, true),
     refillTotal: rankingChipAmount(stats.refillTotal),
     refillCount,
+    refillCountBaselineDate: REFILL_COUNT_BASELINE_LABEL,
     refillToday: rankingChipAmount(stats.refillToday),
     refillSevenDays: rankingChipAmount(stats.refillSevenDays),
     initialGrantTotal: rankingChipAmount(stats.initialGrantTotal),
