@@ -6452,9 +6452,9 @@ window.TexasHoldem = (function () {
     '</section>' +
     '<section class="holdem-history-board-section"><header><strong>커뮤니티 카드</strong></header>' +
       historyBoardHtml(entry) + '</section>' +
+    showdownSection +
     '<section class="holdem-history-timeline"><header class="holdem-history-section-title"><strong>액션 기록</strong></header>' +
-      historyTimelineHtml(entry) + '</section>' +
-    showdownSection;
+      historyTimelineHtml(entry) + '</section>';
   }
 
   function historyEntryByHandNo(handNo) {

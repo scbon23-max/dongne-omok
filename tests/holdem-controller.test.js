@@ -986,6 +986,10 @@ test("the Hold'em history panel renders compact public hand records", () => {
   assert.match(elements["holdem-history-detail"].innerHTML, /레이즈/);
   assert.match(elements["holdem-history-detail"].innerHTML, /data-rank="A"/);
   assert.doesNotMatch(elements["holdem-history-detail"].innerHTML, /data-rank="Q"/);
+  assert.ok(
+    elements["holdem-history-detail"].innerHTML.indexOf("참가자 결과") <
+      elements["holdem-history-detail"].innerHTML.indexOf("액션 기록"),
+  );
 
   controller._test.closeHandHistory();
   assert.equal(elements["holdem-history-panel"].classList.contains("hidden"), true);
