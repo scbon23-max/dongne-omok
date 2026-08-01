@@ -140,6 +140,7 @@ test("the authenticated server ranking includes live table chips but exposes onl
   assert.match(edge, /\.from\("holdem_tables"\)[\s\S]*\.select\("state"\)/);
   assert.match(edge, /\.from\("accounts"\)[\s\S]*\.select\("nickname,is_admin"\)[\s\S]*\.eq\("is_admin", true\)/);
   assert.match(edge, /const RANKING_MIN_HANDS = 5/);
+  assert.match(edge, /const RANKING_EXCLUDED_NICKNAMES = new Set\(\["테스터"\]\)/);
   assert.match(edge, /\.rpc\("holdem_completed_hand_counts"\)/);
   assert.doesNotMatch(edge, /\.select\("nickname"\)[\s\S]*\.limit\(10000\)/);
   assert.match(edge, /Object\.entries\(handCounts\)/);
@@ -157,6 +158,7 @@ test("the authenticated server ranking includes live table chips but exposes onl
   );
   assert.match(edge, /const adminNicknames = new Set\([\s\S]*safeText\(row\?\.nickname, 40\)/);
   assert.doesNotMatch(edge, /if \(adminNicknames\.has\(nickname\)\) return null/);
+  assert.match(edge, /if \(RANKING_EXCLUDED_NICKNAMES\.has\(nickname\)\) return null/);
   assert.match(edge, /const completedHands = new Map<string, number>\(\)/);
   assert.match(edge, /const isAdmin = adminNicknames\.has\(nickname\)/);
   assert.match(edge, /const handCount = completedHands\.get\(nickname\) \?\? 0/);

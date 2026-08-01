@@ -144,6 +144,7 @@ const MAX_CAS_RETRIES = 5;
 const CHIP_UNIT = 100;
 const INITIAL_WALLET_BALANCE = 100000;
 const RANKING_MIN_HANDS = 5;
+const RANKING_EXCLUDED_NICKNAMES = new Set(["테스터"]);
 const RING_MIN_BUY_IN = 10000;
 const RING_MAX_BUY_IN = 100000;
 const RING_ROOM_BUY_INS = new Set([15000, 30000, 75000]);
@@ -605,6 +606,7 @@ async function assetRankingRows(client: ReturnType<typeof createClient>) {
   });
   const ranked = (Array.isArray(walletRows) ? walletRows : []).map((row) => {
     const nickname = safeText(row?.nickname, 40);
+    if (RANKING_EXCLUDED_NICKNAMES.has(nickname)) return null;
     const isAdmin = adminNicknames.has(nickname);
     const handCount = completedHands.get(nickname) ?? 0;
     if (!isAdmin && handCount < RANKING_MIN_HANDS) return null;
