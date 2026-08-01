@@ -7203,6 +7203,15 @@ body.is-admin .feedback-user-compose { display: none; }
   background: linear-gradient(#7d2942, #35121f);
   color: #ffe1ec;
 }
+.holdem-screen.is-actioning .holdem-quick-bets button.is-key-selected {
+  border-color: rgba(99, 235, 213, .9);
+  box-shadow:
+    0 0 0 2px rgba(99, 235, 213, .22),
+    0 0 18px rgba(99, 235, 213, .24),
+    inset 0 1px 0 rgba(255,255,255,.16),
+    0 8px 15px rgba(0,0,0,.4);
+  transform: translateY(-1px);
+}
 .holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="allin"] { order: 1; }
 .holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="eight-pot"] { order: 2; }
 .holdem-screen.is-actioning .holdem-quick-bets button[data-holdem-bet="four-pot"] { order: 3; }

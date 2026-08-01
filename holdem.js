@@ -172,6 +172,7 @@ window.TexasHoldem = (function () {
   var raiseValue = 0;
   var raiseRangeKey = "";
   var raiseMenuOpen = false;
+  var quickBetSelectionKind = "";
   var actionMenuKey = "";
   var profileDialogOpen = false;
   var profileWalletPending = false;
@@ -5962,8 +5963,64 @@ window.TexasHoldem = (function () {
     return "";
   }
 
-  function syncQuickBetButtons() {
+  function quickBetButtons() {
     var buttons = root() ? root().querySelectorAll("[data-holdem-bet]") : [];
+    return Array.prototype.slice.call(buttons || []);
+  }
+
+  function quickBetButtonKind(button) {
+    return button ? button.getAttribute("data-holdem-bet") || "" : "";
+  }
+
+  function availableQuickBetButtons() {
+    return quickBetButtons().filter(function (button) {
+      if (!button || button.disabled) return false;
+      if (button.classList && button.classList.contains("hidden")) return false;
+      return true;
+    });
+  }
+
+  function selectedQuickBetButton() {
+    var buttons = availableQuickBetButtons();
+    if (!buttons.length) return null;
+    for (var i = 0; i < buttons.length; i++) {
+      if (quickBetButtonKind(buttons[i]) === quickBetSelectionKind) return buttons[i];
+    }
+    quickBetSelectionKind = quickBetButtonKind(buttons[buttons.length - 1]);
+    return buttons[buttons.length - 1];
+  }
+
+  function syncQuickBetKeyboardSelection() {
+    var allButtons = quickBetButtons();
+    if (!raiseMenuOpen) quickBetSelectionKind = "";
+    var selected = raiseMenuOpen ? selectedQuickBetButton() : null;
+    for (var i = 0; i < allButtons.length; i++) {
+      var isSelected = !!(selected && allButtons[i] === selected);
+      allButtons[i].classList.toggle("is-key-selected", isSelected);
+      allButtons[i].setAttribute("aria-selected", isSelected ? "true" : "false");
+    }
+  }
+
+  function moveQuickBetSelection(direction) {
+    var buttons = availableQuickBetButtons();
+    if (!buttons.length) return false;
+    var current = selectedQuickBetButton();
+    var index = Math.max(0, buttons.indexOf(current));
+    index = clamp(index + direction, 0, buttons.length - 1);
+    quickBetSelectionKind = quickBetButtonKind(buttons[index]);
+    syncQuickBetKeyboardSelection();
+    return true;
+  }
+
+  function triggerSelectedQuickBet() {
+    var selected = selectedQuickBetButton();
+    if (!selected) return false;
+    quickBet(quickBetButtonKind(selected));
+    return true;
+  }
+
+  function syncQuickBetButtons() {
+    var buttons = quickBetButtons();
     for (var i = 0; i < buttons.length; i++) {
       var kind = buttons[i].getAttribute("data-holdem-bet");
       var available = quickBetAvailable(kind);
@@ -5973,6 +6030,7 @@ window.TexasHoldem = (function () {
       buttons[i].innerHTML = '<span>' + esc(quickBetLabel(kind)) + '</span>' +
         (amount ? '<strong class="holdem-action-amount-fit' + actionAmountFitClass(amount) + '">' + esc(amount) + '</strong>' : "");
     }
+    syncQuickBetKeyboardSelection();
   }
 
   function renderPracticeJoinControls(busy) {
@@ -6032,8 +6090,12 @@ window.TexasHoldem = (function () {
     if (menuKey !== actionMenuKey) {
       actionMenuKey = menuKey;
       raiseMenuOpen = false;
+      quickBetSelectionKind = "";
     }
-    if ((!hasMove && !hasPreAction) || !canSize) raiseMenuOpen = false;
+    if ((!hasMove && !hasPreAction) || !canSize) {
+      raiseMenuOpen = false;
+      quickBetSelectionKind = "";
+    }
 
     show("holdem-lobby", false);
     show("holdem-seat-controls", canResume);
@@ -6120,6 +6182,7 @@ window.TexasHoldem = (function () {
     show("holdem-raise-panel", hasMove && canSize && raiseMenuOpen);
     if (canSize) syncRaiseControls();
     if (canSize) syncQuickBetButtons();
+    if (!canSize) syncQuickBetKeyboardSelection();
     renderFoldRevealControls(busy);
     var slider = $("holdem-raise-slider");
     if (slider) slider.disabled = busy;
@@ -6980,6 +7043,7 @@ window.TexasHoldem = (function () {
     } else if (id === "holdem-bet-btn") {
       if (!raiseMenuOpen && state.legal.bet) {
         raiseMenuOpen = true;
+        quickBetSelectionKind = "";
         renderControls();
       } else {
         performMove("bet", raiseValue);
@@ -6987,6 +7051,7 @@ window.TexasHoldem = (function () {
     } else if (id === "holdem-raise-btn") {
       if (!raiseMenuOpen && state.legal.raise) {
         raiseMenuOpen = true;
+        quickBetSelectionKind = "";
         renderControls();
       } else {
         performMove("raise", raiseValue);
@@ -7077,8 +7142,19 @@ window.TexasHoldem = (function () {
     return null;
   }
 
+  function triggerQuickBetHotkey(event) {
+    if (!raiseMenuOpen) return false;
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "ArrowLeft") return false;
+    if (!availableQuickBetButtons().length) return false;
+    event.preventDefault();
+    if (event.key === "ArrowUp") return moveQuickBetSelection(-1);
+    if (event.key === "ArrowDown") return moveQuickBetSelection(1);
+    return triggerSelectedQuickBet();
+  }
+
   function triggerActionHotkey(event) {
     if (isActionHotkeyBlocked(event)) return false;
+    if (triggerQuickBetHotkey(event)) return true;
     var button = actionHotkeyButton(event.key);
     if (!button) return false;
     event.preventDefault();
