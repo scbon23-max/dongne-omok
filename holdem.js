@@ -2825,13 +2825,15 @@ window.TexasHoldem = (function () {
     }, delayMs == null ? REFRESH_DEBOUNCE_MS : clamp(integer(delayMs, 0), 0, 1000));
   }
 
-  function joinTable(preferredSeat, buyInAmount) {
+  function joinTable(preferredSeat, buyInAmount, options) {
+    options = options || {};
     var payload = {};
     var seat = safeSeat(preferredSeat);
     if (seat >= 0) payload.seat = seat;
     if (Number.isFinite(Number(buyInAmount)) && Number(buyInAmount) > 0) {
       payload.buyIn = Math.max(0, Math.round(Number(buyInAmount)));
     }
+    if (options.freeRefill === true) payload.freeRefill = true;
     return invoke("join", payload, {
       key: "join",
       label: "join",
@@ -3745,12 +3747,15 @@ window.TexasHoldem = (function () {
     });
   }
 
-  function rebuyRingChips(amount) {
+  function rebuyRingChips(amount, options) {
+    options = options || {};
     if (requests.rebuy) return Promise.resolve({ ok: false, reason: "busy" });
-    return invoke("rebuy", {
+    var payload = {
       amount: Math.max(0, Math.round(Number(amount) || 0)),
       expectedVersion: state.version
-    }, {
+    };
+    if (options.freeRefill === true) payload.freeRefill = true;
+    return invoke("rebuy", payload, {
       key: "rebuy",
       label: "rebuy",
       broadcast: true
@@ -4784,6 +4789,20 @@ window.TexasHoldem = (function () {
     };
   }
 
+  function canUseFreeRefillForBuyIn(bounds) {
+    bounds = bounds || tableBuyInBounds(buyInWallet);
+    var refillAmount = Math.max(0, Math.floor(Number(state.refillAmount) || 0));
+    if (state.mode !== "ring" || refillAmount <= 0) return false;
+    if (!state.refillStatusKnown || state.refillsRemainingToday <= 0) return false;
+    if (buyInMode !== "join" && buyInMode !== "rebuy") return false;
+    if (buyInMode === "join" && buyInSeat < 0) return false;
+    if (buyInMode === "rebuy") {
+      var hero = buyInSeat >= 0 ? state.seats[buyInSeat] : null;
+      if (!hero || hero.stack > 0) return false;
+    }
+    return bounds.selectableMax < bounds.min;
+  }
+
   function normalizeBuyInAmount(value) {
     var bounds = tableBuyInBounds(buyInWallet);
     var amount = Math.round(nonnegative(value, bounds.defaultAmount) / bounds.unit) * bounds.unit;
@@ -4825,7 +4844,8 @@ window.TexasHoldem = (function () {
           totalAssets: Math.max(0, Math.floor(Number(wallet.totalAssets) || 0))
         }
         : null;
-      if (buyInMode === "rebuy" && buyInWallet && buyInWallet.balance <= 0) {
+      if (buyInMode === "rebuy" && buyInWallet && buyInWallet.balance <= 0 &&
+          !canUseFreeRefillForBuyIn(tableBuyInBounds(buyInWallet))) {
         closeBuyInDialog();
         renderControls();
         return buyInWallet;
@@ -4884,18 +4904,21 @@ window.TexasHoldem = (function () {
       return Promise.resolve({ ok: false, reason: "unavailable" });
     }
     var bounds = tableBuyInBounds(buyInWallet);
-    if (bounds.selectableMax < bounds.min) {
+    var useFreeRefill = canUseFreeRefillForBuyIn(bounds);
+    if (bounds.selectableMax < bounds.min && !useFreeRefill) {
       closeBuyInDialog();
       renderControls();
       return Promise.resolve({ ok: false, reason: "wallet_insufficient" });
     }
-    var amount = normalizeBuyInAmount(buyInValue);
+    var amount = useFreeRefill
+      ? Math.max(0, Math.round(Number(state.refillAmount) || 20000))
+      : normalizeBuyInAmount(buyInValue);
     var action = buyInMode;
     var seat = buyInSeat;
     if (action === "rebuy") {
       buyInWalletPending = true;
       renderBuyInDialog();
-      return rebuyRingChips(amount).then(function (result) {
+      return rebuyRingChips(amount, { freeRefill: useFreeRefill }).then(function (result) {
         buyInWalletPending = false;
         autoBuyInKey = "";
         if (result && result.ok && heroRingStackRestored()) {
@@ -4922,7 +4945,7 @@ window.TexasHoldem = (function () {
     } else if (action === "join_request") {
       return requestPracticeJoin(amount);
     } else if (!requests.join) {
-      return joinTable(seat, amount);
+      return joinTable(seat, amount, { freeRefill: useFreeRefill });
     }
     return Promise.resolve({ ok: false, reason: "busy" });
   }
@@ -4960,6 +4983,7 @@ window.TexasHoldem = (function () {
     if (!backdrop) return;
     var bounds = tableBuyInBounds(buyInWallet);
     var lacksAssets = !!buyInWallet && bounds.selectableMax < bounds.min;
+    var freeRefillAvailable = canUseFreeRefillForBuyIn(bounds);
     var newGame = buyInMode === "new_game";
     var joinRequest = buyInMode === "join_request";
     var title = joinRequest ? "같이 플레이 참가금액" : newGame ? "새 게임 참가금액" :
@@ -4981,6 +5005,14 @@ window.TexasHoldem = (function () {
       : lacksAssets
       ? "보유 자산이 이 방의 최소 참가금보다 부족해요."
       : "선택한 금액만 테이블에 가져가고 나머지는 보유 자산에 남아요.");
+    if (freeRefillAvailable) {
+      setText(
+        "holdem-buyin-note",
+        "보유 자산이 부족해도 오늘 무료충전 " +
+          state.refillsRemainingToday + "회가 남아 있어요. " +
+          formatChips(state.refillAmount || 20000) + "으로 바로 참가할 수 있어요."
+      );
+    }
     var slider = $("holdem-buyin-slider");
     if (slider) {
       slider.min = String(bounds.min);
@@ -4989,7 +5021,17 @@ window.TexasHoldem = (function () {
       slider.value = String(normalizeBuyInAmount(buyInValue || bounds.defaultAmount));
       slider.disabled = buyInWalletPending || lacksAssets;
     }
-    disable("holdem-buyin-confirm", buyInWalletPending || lacksAssets || (buyInMode === "join" && buyInSeat < 0));
+    var confirm = $("holdem-buyin-confirm");
+    if (confirm) {
+      confirm.textContent = freeRefillAvailable
+        ? formatChips(state.refillAmount || 20000) + " 무료충전으로 참가"
+        : buyInMode === "rebuy"
+        ? "다시 참가"
+        : "참가";
+    }
+    disable("holdem-buyin-confirm", buyInWalletPending ||
+      (lacksAssets && !freeRefillAvailable) ||
+      (buyInMode === "join" && buyInSeat < 0));
     disable("holdem-buyin-spectate", buyInWalletPending && buyInMode === "rebuy");
     show("holdem-buyin-spectate", !newGame && !joinRequest);
   }

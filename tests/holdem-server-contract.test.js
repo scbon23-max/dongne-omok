@@ -24,6 +24,15 @@ const ringRefillMigration = fs.readFileSync(
   ),
   "utf8"
 );
+const freeRefillBuyInMigration = fs.readFileSync(
+  path.join(
+    root,
+    "supabase",
+    "migrations",
+    "202608010001_holdem_free_refill_buyins.sql"
+  ),
+  "utf8"
+);
 const walletMigration = fs.readFileSync(
   path.join(
     root,
@@ -284,7 +293,7 @@ test("the engine gets secure randomness and only changed results reach CAS", () 
   );
   assert.match(
     edge,
-    /const nextState = normalizeState\(resultState\);[\s\S]*const cas = action === "refill"/
+    /const nextState = normalizeState\(resultState\);[\s\S]*const cas = freeRefillBuyIn && ringTable[\s\S]*: action === "refill"/
   );
   assert.match(
     edge,
@@ -399,6 +408,22 @@ test("ring refills are account-wide, Korea-day limited, and atomic with the tabl
   assert.match(edge, /client\.rpc\(\s*"holdem_ring_refill_v3_compare_and_swap"/s);
   assert.match(edge, /\.from\("holdem_ring_refills"\)/);
   assert.match(edge, /cas\.reason === "refill_limit"/);
+});
+
+test("free refill buy-ins can create or restore ring seats without wallet debits", () => {
+  assert.match(
+    freeRefillBuyInMigration,
+    /create or replace function public\.holdem_ring_free_buyin_v1_compare_and_swap/i
+  );
+  assert.match(freeRefillBuyInMigration, /p_expected_version = 0 and table_exists/i);
+  assert.match(freeRefillBuyInMigration, /current_count >= 3[\s\S]*'refill_limit'/i);
+  assert.match(freeRefillBuyInMigration, /insert into public\.holdem_economy_events[\s\S]*'refill'/i);
+  assert.match(edge, /freeRefillBuyIn = \(/);
+  assert.match(edge, /internalRefill: action === "refill" \|\| freeRefillBuyIn/);
+  assert.match(edge, /client\.rpc\(\s*"holdem_ring_free_buyin_v1_compare_and_swap"/s);
+  assert.match(engine, /freeRefillBuyIns/);
+  assert.match(engine, /freeRefillBuyInAmount/);
+  assert.match(engine, /!hasSavedRingStack && !freeJoin/);
 });
 
 test("Hold'em wallets use 100-chip accounting and update atomically with ring tables", () => {

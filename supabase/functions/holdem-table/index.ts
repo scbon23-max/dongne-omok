@@ -1170,6 +1170,29 @@ async function compareAndSwapRingRefill(
   return row as CasRow;
 }
 
+async function compareAndSwapRingFreeBuyIn(
+  client: ReturnType<typeof createClient>,
+  roomId: string,
+  expectedVersion: number,
+  state: JsonRecord,
+  ownerNick: string,
+  nick: string,
+): Promise<CasRow> {
+  const { data, error } = await client.rpc(
+    "holdem_ring_free_buyin_v1_compare_and_swap",
+    {
+      p_room_id: roomId,
+      p_expected_version: expectedVersion,
+      p_state: state,
+      p_owner_nickname: ownerNick,
+      p_nickname: nick,
+    },
+  );
+  const row = Array.isArray(data) ? data[0] : null;
+  if (error || !row) throw new Error("ring_free_buyin_write");
+  return row as CasRow;
+}
+
 async function compareAndSwapRingWallet(
   client: ReturnType<typeof createClient>,
   roomId: string,
@@ -1495,11 +1518,14 @@ Deno.serve(async (request) => {
           "bot_turn",
         );
       }
+      const freeRefillBuyIn = (
+        action === "join" || action === "rebuy"
+      ) && command.freeRefill === true;
       const result = engine.command(baseState, command, {
         now: requestedAt,
         randomInt: secureRandomInt,
         internalBot: action === "bot_step",
-        internalRefill: action === "refill",
+        internalRefill: action === "refill" || freeRefillBuyIn,
       });
       if (
         !result ||
@@ -1551,7 +1577,16 @@ Deno.serve(async (request) => {
       if (economyEvents.length && !assetBackedRingTable) {
         throw new Error("unexpected_economy_event");
       }
-      const cas = action === "refill" && assetBackedRingTable
+      const cas = freeRefillBuyIn && ringTable
+        ? await compareAndSwapRingFreeBuyIn(
+          client,
+          roomId,
+          baseVersion,
+          nextState,
+          ownerNick,
+          account.nick,
+        )
+        : action === "refill" && assetBackedRingTable
         ? await compareAndSwapRingRefill(
           client,
           roomId,

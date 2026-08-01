@@ -1626,6 +1626,72 @@ test("ring joins and bust rebuys can choose an in-room buy-in amount", () => {
   assert.equal(view.buyInDefault, 30000);
 });
 
+test("free refill buy-ins seat and restore broke ring players without wallet charges", () => {
+  let state = Engine.createTable({
+    roomId: "free-refill-buyin",
+    ownerNick: "owner",
+    mode: "ring",
+    assetBacked: false,
+    chipUnit: 100,
+    startingStack: 40000,
+    smallBlind: 200,
+    bigBlind: 400,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  });
+
+  let ownerJoined = Engine.command(state, {
+    type: "join",
+    nick: "owner",
+    seat: 0,
+    freeRefill: true,
+    requestId: "free:join-owner",
+  }, {
+    now: 1,
+    randomInt: () => 0,
+    internalRefill: true,
+  });
+  assert.equal(ownerJoined.ok, true, ownerJoined.reason);
+  assert.equal(ownerJoined.state.settings.assetBacked, true);
+  assert.equal(ownerJoined.state.seats[0].stack, 20000);
+  assert.deepEqual(ownerJoined.state.walletAdjustments, []);
+
+  state = ownerJoined.state;
+  const guestJoined = Engine.command(state, {
+    type: "join",
+    nick: "guest",
+    seat: 1,
+    buyIn: 30000,
+    requestId: "free:join-guest",
+  }, context(2));
+  assert.equal(guestJoined.ok, true, guestJoined.reason);
+  assert.equal(guestJoined.state.seats[0].stack, 20000);
+  assert.equal(guestJoined.state.seats[1].stack, 30000);
+  assert.deepEqual(
+    guestJoined.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    [{ nickname: "guest", delta: -30000 }],
+  );
+
+  state = guestJoined.state;
+  state.walletAdjustments = [];
+  state.seats[0].stack = 0;
+  state.ringStacks.owner = 0;
+  const ownerRebuy = Engine.command(state, {
+    type: "rebuy",
+    nick: "owner",
+    amount: 20000,
+    freeRefill: true,
+    requestId: "free:rebuy-owner",
+  }, {
+    now: 3,
+    randomInt: () => 0,
+    internalRefill: true,
+  });
+  assert.equal(ownerRebuy.ok, true, ownerRebuy.reason);
+  assert.equal(ownerRebuy.state.seats[0].stack, 20000);
+  assert.deepEqual(ownerRebuy.state.walletAdjustments, []);
+});
+
 test("a standard ring room keeps the free bust refill at 20,000 chips", () => {
   let state = tableWithPlayers(["owner", "guest"], {
     mode: "ring",

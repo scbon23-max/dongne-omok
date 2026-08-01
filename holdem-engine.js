@@ -427,6 +427,7 @@
       },
       ringStacks: {},
       practiceBuyIns: {},
+      freeRefillBuyIns: {},
       walletAdjustments: [],
       economyEvents: [],
       handResults: [],
@@ -578,6 +579,17 @@
       });
     }
     state.practiceBuyIns = savedPracticeBuyIns;
+    var savedFreeRefillBuyIns = Object.create(null);
+    if (state.freeRefillBuyIns && typeof state.freeRefillBuyIns === "object" &&
+        !Array.isArray(state.freeRefillBuyIns)) {
+      Object.keys(state.freeRefillBuyIns).slice(0, 200).forEach(function (nick) {
+        if (!nick || nick.length > 40) return;
+        savedFreeRefillBuyIns[nick] = requestedRingBuyIn(state, {
+          buyIn: state.freeRefillBuyIns[nick]
+        });
+      });
+    }
+    state.freeRefillBuyIns = savedFreeRefillBuyIns;
     var nextBotSeq = Math.max(1, integer(state.nextBotSeq, 1));
     state.seats.forEach(function (player, seatIndex) {
       if (!player) return;
@@ -684,6 +696,41 @@
     if (!Number.isFinite(amount)) amount = bounds.defaultAmount;
     amount = roundToChipUnit(amount, bounds.unit);
     return clamp(amount, bounds.min, bounds.max, bounds.defaultAmount);
+  }
+
+  function canUseFreeRefillBuyIn(state, cmd, context) {
+    return !!(
+      state &&
+      state.settings &&
+      state.settings.mode === "ring" &&
+      cmd &&
+      cmd.freeRefill === true &&
+      context &&
+      context.internalRefill === true
+    );
+  }
+
+  function freeRefillBuyInAmount(state) {
+    return roundToChipUnit(
+      clamp(
+        state && state.settings && state.settings.refillAmount,
+        normalizedChipUnit(state && state.settings && state.settings.chipUnit),
+        100000000,
+        20000
+      ),
+      normalizedChipUnit(state && state.settings && state.settings.chipUnit)
+    );
+  }
+
+  function rememberFreeRefillBuyIn(state, nick, amount) {
+    if (!state || !state.settings || state.settings.mode !== "ring") return;
+    nick = text(nick, 40);
+    if (!nick) return;
+    if (!state.freeRefillBuyIns || typeof state.freeRefillBuyIns !== "object" ||
+        Array.isArray(state.freeRefillBuyIns)) {
+      state.freeRefillBuyIns = Object.create(null);
+    }
+    state.freeRefillBuyIns[nick] = requestedRingBuyIn(state, { buyIn: amount });
   }
 
   function resetPracticeSessionStacks(state, cmd) {
@@ -886,6 +933,9 @@
     var selectedBuyIns = state.practiceBuyIns && typeof state.practiceBuyIns === "object"
       ? state.practiceBuyIns
       : Object.create(null);
+    var freeRefillBuyIns = state.freeRefillBuyIns && typeof state.freeRefillBuyIns === "object"
+      ? state.freeRefillBuyIns
+      : Object.create(null);
     state.settings.assetBacked = true;
     state.settings.practice = false;
     humanPlayers(state).forEach(function (player) {
@@ -897,7 +947,9 @@
         : player.stack;
       player.stack = amount;
       state.ringStacks[player.nick] = amount;
-      addWalletAdjustment(state, player.nick, -amount, "buy_in");
+      if (!own(freeRefillBuyIns, player.nick)) {
+        addWalletAdjustment(state, player.nick, -amount, "buy_in");
+      }
     });
     state.practiceBuyIns = Object.create(null);
   }
@@ -1921,22 +1973,30 @@
           if (seat < 0) result = { ok: false, reason: "table_full" };
           else if (next.seats[seat]) result = { ok: false, reason: "seat_taken" };
           else {
+            var freeJoin = canUseFreeRefillBuyIn(next, cmd, context);
             var hasSavedRingStack = next.settings.mode === "ring" &&
               own(next.ringStacks, nick) && Number(next.ringStacks[nick]) > 0;
             var joinStack = next.settings.mode === "ring"
-              ? (hasSavedRingStack
+              ? (freeJoin
+                ? freeRefillBuyInAmount(next)
+                : hasSavedRingStack
                 ? clamp(next.ringStacks[nick], 0, 100000000, next.settings.startingStack)
                 : requestedRingBuyIn(next, cmd))
               : next.settings.startingStack;
             next.seats[seat] = createPlayer(nick, seat, joinStack, now);
             if (next.settings.mode === "ring") {
               next.ringStacks[nick] = joinStack;
-              if (next.settings.assetBacked === true && !hasSavedRingStack) {
+              if (freeJoin) {
+                rememberFreeRefillBuyIn(next, nick, joinStack);
+                next.settings.assetBacked = true;
+                next.settings.practice = false;
+              }
+              if (next.settings.assetBacked === true && !hasSavedRingStack && !freeJoin) {
                 addWalletAdjustment(next, nick, -joinStack, "buy_in");
               }
               if (humanPlayers(next).length >= 2) convertRingTableToAssetBacked(next);
             }
-            next.lastEvent = { type: "joined", nick: nick, seat: seat, at: now };
+            next.lastEvent = { type: freeJoin ? "free_refill_joined" : "joined", nick: nick, seat: seat, at: now };
             result = { ok: true };
             changed = true;
           }
@@ -2118,9 +2178,12 @@
         else if (!player || player.isBot) result = { ok: false, reason: "not_joined" };
         else if (PLAYING_PHASES[next.phase]) result = { ok: false, reason: "hand_active" };
         else {
-          var rebuyAmount = requestedRingBuyIn(next, cmd);
+          var freeRebuy = canUseFreeRefillBuyIn(next, cmd, context);
+          var rebuyAmount = freeRebuy ? freeRefillBuyInAmount(next) : requestedRingBuyIn(next, cmd);
           var rebuyDelta = Math.max(0, rebuyAmount - Math.max(0, integer(player.stack, 0)));
-          if (rebuyDelta <= 0) {
+          if (freeRebuy && player.stack > 0) {
+            result = { ok: false, reason: "refill_not_needed" };
+          } else if (rebuyDelta <= 0) {
             result = { ok: false, reason: "rebuy_not_needed" };
           } else {
             player.stack = rebuyAmount;
@@ -2139,9 +2202,15 @@
             player.winAmount = 0;
             resetPlayerTimeoutState(next, player);
             next.ringStacks[nick] = rebuyAmount;
-            addWalletAdjustment(next, nick, -rebuyDelta, "rebuy");
+            if (freeRebuy) {
+              rememberFreeRefillBuyIn(next, nick, rebuyAmount);
+              next.settings.assetBacked = true;
+              next.settings.practice = false;
+            } else {
+              addWalletAdjustment(next, nick, -rebuyDelta, "rebuy");
+            }
             next.lastEvent = {
-              type: "ring_rebuy",
+              type: freeRebuy ? "ring_free_refill_rebuy" : "ring_rebuy",
               nick: nick,
               amount: rebuyAmount,
               delta: rebuyDelta,
