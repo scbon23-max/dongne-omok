@@ -431,9 +431,10 @@ window.Db = (function () {
       ? { ok: false, reason: "database", error: result.error }
       : { ok: true, id: id };
   }
-  async function completeFeedback(nick, id, post) {
+  async function completeFeedback(nick, id, post, comment) {
     nick = activityText(nick, 40);
     id = feedbackId(id);
+    comment = activityText(comment, 500);
     if (!sb || nick !== ADMIN || !id) return { ok: false, reason: "forbidden" };
     post = post && typeof post === "object" ? post : {};
     var payload = { v: 1, type: "done", id: id };
@@ -443,6 +444,7 @@ window.Db = (function () {
     if (requester) payload.requester = requester;
     if (title) payload.title = title;
     if (body) payload.body = body;
+    if (comment) payload.comment = comment;
     var result = await sb.from("chat").insert({
       room: FEEDBACK_ROOM,
       nick: nick,
@@ -484,6 +486,7 @@ window.Db = (function () {
             requester: activityText(payload.requester, 40),
             title: activityText(payload.title, 80),
             body: activityText(payload.body, 1500),
+            comment: activityText(payload.comment, 500),
             completedAt: row.created_at || null
           });
         }
@@ -503,6 +506,7 @@ window.Db = (function () {
         id: item.id,
         title: title,
         body: body,
+        comment: item.comment || "",
         createdAt: post.createdAt || null,
         completedAt: item.completedAt
       };
@@ -523,7 +527,12 @@ window.Db = (function () {
       try {
         var payload = JSON.parse(text.slice(FEEDBACK_PREFIX.length));
         var id = payload && payload.v === 1 && payload.type === "done" ? feedbackId(payload.id) : "";
-        if (id) completed[id] = row.created_at || true;
+        if (id && !completed[id]) {
+          completed[id] = {
+            at: row.created_at || true,
+            comment: activityText(payload.comment, 500)
+          };
+        }
       } catch (e) {}
     });
     var seen = Object.create(null);
@@ -546,7 +555,8 @@ window.Db = (function () {
           body: body,
           createdAt: row.created_at || null,
           completed: !!completed[id],
-          completedAt: completed[id] || null
+          completedAt: completed[id] && completed[id].at || null,
+          completedComment: completed[id] && completed[id].comment || ""
         };
       } catch (e) {
         return null;

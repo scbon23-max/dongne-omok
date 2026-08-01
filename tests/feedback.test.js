@@ -61,7 +61,7 @@ test("feedback posts and completion events use an isolated chat namespace", asyn
 
   const post = await Db.submitFeedback("산본", "  버튼 오류  ", "  눌러도 반응이 없어요  ");
   const denied = await Db.completeFeedback("산본", post.id);
-  const completed = await Db.completeFeedback("구나", post.id);
+  const completed = await Db.completeFeedback("구나", post.id, null, "  해결해서 적용했습니다  ");
 
   assert.equal(post.ok, true);
   assert.match(post.id, /^fb-[a-z0-9]+-[a-z0-9]+$/);
@@ -78,7 +78,12 @@ test("feedback posts and completion events use an isolated chat namespace", asyn
     JSON.parse(JSON.stringify(postPayload)),
     { v: 1, type: "post", id: post.id, title: "버튼 오류", body: "눌러도 반응이 없어요" }
   );
-  assert.deepEqual(JSON.parse(JSON.stringify(donePayload)), { v: 1, type: "done", id: post.id });
+  assert.deepEqual(JSON.parse(JSON.stringify(donePayload)), {
+    v: 1,
+    type: "done",
+    id: post.id,
+    comment: "해결해서 적용했습니다"
+  });
 });
 
 test("feedback history marks only administrator completion events", async () => {
@@ -100,11 +105,12 @@ test("feedback history marks only administrator completion events", async () => 
   assert.equal(posts[0].completed, false);
   assert.equal(posts[1].id, "feedback-01");
   assert.equal(posts[1].completed, true);
+  assert.equal(posts[1].completedComment, "");
 });
 
 test("feedback completion notifications include the original request for the requester", async () => {
   const rows = [
-    { nick: "구나", text: '@feedback:{"v":1,"type":"done","id":"feedback-03","requester":"산본","title":"닫기 오류","body":"팝업 닫기가 눌리지 않아요"}', created_at: "2026-07-24T05:06:00Z" },
+    { nick: "구나", text: '@feedback:{"v":1,"type":"done","id":"feedback-03","requester":"산본","title":"닫기 오류","body":"팝업 닫기가 눌리지 않아요","comment":"닫기 버튼 범위를 넓혔어요"}', created_at: "2026-07-24T05:06:00Z" },
     { nick: "구나", text: '@feedback:{"v":1,"type":"done","id":"feedback-02","requester":"베니","title":"다른 의견","body":"다른 사람 글"}', created_at: "2026-07-24T05:05:00Z" },
     { nick: "구나", text: '@feedback:{"v":1,"type":"done","id":"feedback-01"}', created_at: "2026-07-24T05:04:00Z" },
     { nick: "산본", text: '@feedback:{"v":1,"type":"post","id":"feedback-01","title":"버그","body":"화면이 멈췄어요"}', created_at: "2026-07-24T05:01:00Z" }
@@ -121,6 +127,8 @@ test("feedback completion notifications include the original request for the req
       { id: "feedback-01", title: "버그", body: "화면이 멈췄어요" }
     ]
   );
+  assert.equal(notices[0].comment, "닫기 버튼 범위를 넓혔어요");
+  assert.equal(notices[1].comment, "");
 });
 
 test("the lobby exposes feedback composition while the admin gets an expandable inbox", () => {
@@ -144,11 +152,16 @@ test("the lobby exposes feedback composition while the admin gets an expandable 
   assert.match(gameSource, /<summary class="feedback-item-summary">/);
   assert.match(gameSource, /async function submitFeedbackForm\(\)/);
   assert.match(gameSource, /async function completeFeedbackPost\(id, button\) \{\s*if \(!me\.isAdmin/);
-  assert.match(gameSource, /Db\.completeFeedback\(me\.nick, id, post\)/);
+  assert.match(gameSource, /textarea\[data-feedback-comment\]/);
+  assert.match(gameSource, /Db\.completeFeedback\(me\.nick, id, post, comment\)/);
+  assert.match(gameSource, /완료 알림 보내기/);
   assert.match(gameSource, /async function checkFeedbackCompletionNotices\(\)/);
+  assert.match(gameSource, /item\.comment \? '<div class="feedback-complete-comment"/);
   assert.match(indexSource, /id="feedback-complete-modal"/);
   assert.match(indexSource, /id="feedback-complete-list"/);
   assert.match(stylesSource, /\.feedback-complete-modal \{/);
+  assert.match(stylesSource, /\.feedback-complete-compose \{/);
+  assert.match(stylesSource, /\.feedback-complete-comment \{/);
   assert.match(gameSource, /\$\("lobby-feedback-btn"\)\.addEventListener\("click", openFeedbackModal\)/);
   assert.match(gameSource, /\$\("feedback-send-btn"\)\.addEventListener\("click", submitFeedbackForm\)/);
   assert.match(stylesSource, /body\.is-admin \.feedback-user-compose \{ display: none; \}/);

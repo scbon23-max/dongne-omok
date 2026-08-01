@@ -4086,6 +4086,9 @@
       return;
     }
     box.innerHTML = feedbackPosts.map(function (post) {
+      var doneComment = post.completed && post.completedComment
+        ? '<div class="feedback-complete-comment"><span>완료 코멘트</span><p>' + esc(post.completedComment) + '</p></div>'
+        : "";
       return '<details class="feedback-item ' + (post.completed ? "completed" : "") + '">'
         + '<summary class="feedback-item-summary">'
         + '<div class="feedback-item-head"><strong class="feedback-item-title">' + esc(post.title) + '</strong>'
@@ -4094,10 +4097,43 @@
         + '<p class="feedback-meta">' + esc(post.nick) + ' · ' + esc(feedbackDate(post.createdAt)) + '</p>'
         + '</summary>'
         + '<div class="feedback-item-detail"><p class="feedback-content">' + esc(post.body) + '</p>'
-        + '<button class="feedback-done-btn" type="button" data-feedback-done="' + esc(post.id) + '"'
-        + (post.completed ? " disabled" : "") + '>' + (post.completed ? "완료됨" : "완료 표시") + '</button></div>'
+        + doneComment
+        + (post.completed
+          ? '<button class="feedback-done-btn" type="button" disabled>완료됨</button>'
+          : '<button class="feedback-done-btn" type="button" data-feedback-open-complete="' + esc(post.id) + '">완료 표시</button>'
+            + '<div class="feedback-complete-compose hidden" data-feedback-complete-box="' + esc(post.id) + '">'
+            + '<label for="feedback-comment-' + esc(post.id) + '">완료 코멘트</label>'
+            + '<textarea id="feedback-comment-' + esc(post.id) + '" data-feedback-comment maxlength="500" rows="3" placeholder="처리 내용이나 전달할 말을 적어주세요"></textarea>'
+            + '<div class="feedback-complete-actions">'
+            + '<button class="feedback-complete-cancel" type="button" data-feedback-complete-cancel="' + esc(post.id) + '">취소</button>'
+            + '<button class="feedback-done-btn" type="button" data-feedback-done="' + esc(post.id) + '">완료 알림 보내기</button>'
+            + '</div></div>') + '</div>'
         + '</details>';
     }).join("");
+    var openButtons = box.querySelectorAll("[data-feedback-open-complete]");
+    for (var o = 0; o < openButtons.length; o++) openButtons[o].addEventListener("click", function () {
+      var id = this.getAttribute("data-feedback-open-complete");
+      var item = this.closest ? this.closest(".feedback-item") : null;
+      var compose = item && item.querySelector("[data-feedback-complete-box]");
+      if (!compose) return;
+      compose.classList.remove("hidden");
+      this.classList.add("hidden");
+      if (item) item.open = true;
+      var input = compose.querySelector("textarea[data-feedback-comment]");
+      setTimeout(function () { if (input) input.focus(); }, 0);
+    });
+    var cancelButtons = box.querySelectorAll("[data-feedback-complete-cancel]");
+    for (var c = 0; c < cancelButtons.length; c++) cancelButtons[c].addEventListener("click", function () {
+      var item = this.closest ? this.closest(".feedback-item") : null;
+      var compose = item && item.querySelector("[data-feedback-complete-box]");
+      var open = item && item.querySelector("[data-feedback-open-complete]");
+      if (compose) {
+        var input = compose.querySelector("textarea[data-feedback-comment]");
+        if (input) input.value = "";
+        compose.classList.add("hidden");
+      }
+      if (open) open.classList.remove("hidden");
+    });
     var buttons = box.querySelectorAll("[data-feedback-done]");
     for (var i = 0; i < buttons.length; i++) buttons[i].addEventListener("click", function () {
       completeFeedbackPost(this.getAttribute("data-feedback-done"), this);
@@ -4171,11 +4207,15 @@
   }
   async function completeFeedbackPost(id, button) {
     if (!me.isAdmin || !window.Db || !Db.completeFeedback || !id) return;
+    var compose = button.closest ? button.closest("[data-feedback-complete-box]") : null;
+    var input = compose && compose.querySelector("textarea[data-feedback-comment]");
+    var comment = input ? input.value.trim().slice(0, 500) : "";
     button.disabled = true;
     button.textContent = "처리 중…";
+    if (input) input.disabled = true;
     try {
       var post = feedbackPosts.find(function (item) { return item.id === id; }) || null;
-      var result = await withTimeout(Db.completeFeedback(me.nick, id, post), 8000);
+      var result = await withTimeout(Db.completeFeedback(me.nick, id, post, comment), 8000);
       if (!result || !result.ok) throw new Error(result && result.reason || "complete_failed");
       toast("완료로 표시했어요");
       if (lobbyMode) Net.sendLobby({ t: "feedback_updated", id: id });
@@ -4183,7 +4223,8 @@
     } catch (e) {
       toast("완료 처리하지 못했어요");
       button.disabled = false;
-      button.textContent = "완료 표시";
+      button.textContent = "완료 알림 보내기";
+      if (input) input.disabled = false;
     }
   }
   var FEEDBACK_COMPLETE_SEEN_KEY = "dongne_feedback_complete_seen_v1:";
@@ -4221,6 +4262,7 @@
         + '<span class="feedback-complete-state">완료</span>'
         + '<h3 class="feedback-complete-title">' + esc(item.title) + '</h3>'
         + '<p class="feedback-complete-body">' + esc(item.body) + '</p>'
+        + (item.comment ? '<div class="feedback-complete-comment"><span>완료 코멘트</span><p>' + esc(item.comment) + '</p></div>' : "")
         + (doneDate ? '<p class="feedback-complete-meta">처리일 · ' + esc(doneDate) + '</p>' : "")
         + '</article>';
     }).join("");

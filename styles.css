@@ -3672,6 +3672,68 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .feedback-meta { margin-top: 3px; color: #87949a; font-size: 11px; line-height: 1.35; }
 .feedback-item-detail { padding: 0 2px 12px; }
 .feedback-content { color: #43545c; font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.feedback-complete-compose {
+  margin-top: 10px;
+  padding: 11px;
+  border-radius: 8px;
+  background: #f3f6f6;
+}
+.feedback-complete-compose label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 900;
+}
+.feedback-complete-compose textarea {
+  width: 100%;
+  min-height: 78px;
+  padding: 10px 11px;
+  border: 0;
+  border-radius: 8px;
+  outline: none;
+  background: #fff;
+  color: var(--navy);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  resize: vertical;
+}
+.feedback-complete-compose textarea:focus { box-shadow: 0 0 0 2px rgba(43,181,154,.38); }
+.feedback-complete-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 9px; }
+.feedback-complete-cancel {
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 7px;
+  background: #dfe7e9;
+  color: #52646c;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.feedback-complete-actions .feedback-done-btn { margin-top: 0; }
+.feedback-complete-comment {
+  margin-top: 10px;
+  padding: 10px 11px;
+  border-radius: 8px;
+  background: #eaf6f3;
+}
+.feedback-complete-comment span {
+  display: block;
+  margin-bottom: 5px;
+  color: #247f72;
+  font-size: 11px;
+  font-weight: 1000;
+}
+.feedback-complete-comment p {
+  margin: 0;
+  color: #334a50;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .feedback-done-btn {
   display: block;
   min-width: 72px;
@@ -3758,6 +3820,12 @@ body.is-admin .feedback-user-compose { display: none; }
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.feedback-complete-card .feedback-complete-comment {
+  background: rgba(125,225,196,.12);
+  border: 1px solid rgba(125,225,196,.18);
+}
+.feedback-complete-card .feedback-complete-comment span { color: var(--teal); }
+.feedback-complete-card .feedback-complete-comment p { color: #ecf8f7; }
 .feedback-complete-meta {
   margin: 8px 0 0;
   color: #87a0ab;
