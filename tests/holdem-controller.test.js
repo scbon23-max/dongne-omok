@@ -3150,6 +3150,72 @@ test("automatic next hand selection skips a player leaving to spectate", async (
   controller.leave();
 });
 
+test("a later human seat recovers the next hand when the first seat browser stalls", async () => {
+  const calls = [];
+  const timers = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 10,
+        snapshot: {
+          phase: action === "start" ? "preflop" : "hand_end",
+          mode: "ring",
+          version: 10,
+          canStart: action !== "start",
+          viewer: { seat: 5 },
+          seats: [
+            { seat: 0, nick: "owner", stack: 14000 },
+            null,
+            null,
+            null,
+            null,
+            { seat: 5, nick: "guest", stack: 13000 },
+          ],
+        },
+      });
+    },
+  };
+  const controller = loadController("guest", {
+    db,
+    setTimeout(fn, delay) {
+      const timer = { fn, delay, cleared: false };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimeout(timer) {
+      if (timer) timer.cleared = true;
+    },
+  });
+  const state = controller._test.emptyState();
+  state.mode = "ring";
+  state.phase = "complete";
+  state.version = 9;
+  state.handId = "1";
+  state.heroSeat = 5;
+  state.canStart = true;
+  state.seats[0] = { seat: 0, nick: "owner", stack: 14000 };
+  state.seats[5] = { seat: 5, nick: "guest", stack: 13000 };
+  controller._test.setState(state);
+  controller._test.setActive(true);
+
+  controller._test.scheduleAutoNextHand();
+  const fallbackTimer = timers.find((timer) =>
+    !timer.cleared &&
+    timer.delay === controller._test.constants.autoNextHandMs +
+      controller._test.constants.autoNextHandFallbackStepMs
+  );
+  assert.ok(fallbackTimer, "the second human must keep a delayed recovery timer");
+  fallbackTimer.fn();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(calls.filter((call) => call.action === "start").length, 1);
+  assert.equal(calls[0].auth.nick, "guest");
+  controller.leave();
+});
+
 test("opening a ring rebuy picker pauses automatic next hand start", async () => {
   const calls = [];
   const timers = [];

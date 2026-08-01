@@ -1862,6 +1862,28 @@ test("accepting an AI practice request removes every bot and starts a human-only
       officialGame.state.seats.find((player) => player && player.nick === "guest").totalBet,
     12000,
   );
+
+  const firstActor = officialGame.state.seats[officialGame.state.actorSeat];
+  assert.equal(firstActor.nick, "owner");
+  const completed = Engine.command(officialGame.state, {
+    type: "act",
+    nick: firstActor.nick,
+    action: "fold",
+    requestId: "request:guest-wins-first-hand",
+  }, context(13));
+  assert.equal(completed.ok, true, completed.reason);
+  assert.equal(completed.state.phase, "hand_end");
+  assert.equal(Engine.view(completed.state, "owner").canStart, true);
+  assert.equal(Engine.view(completed.state, "guest").canStart, true);
+
+  const nextHand = Engine.command(completed.state, {
+    type: "start",
+    nick: "guest",
+    requestId: "request:guest-recovers-next-hand",
+  }, context(14));
+  assert.equal(nextHand.ok, true, nextHand.reason);
+  assert.equal(nextHand.state.phase, "preflop");
+  assert.equal(nextHand.state.handNo, 2);
 });
 
 test("legacy mixed human and AI tables are repaired before another command runs", () => {

@@ -53,6 +53,7 @@ window.TexasHoldem = (function () {
   var CLOCK_MS = 250;
   var REFRESH_DEBOUNCE_MS = 90;
   var AUTO_NEXT_HAND_MS = 5000;
+  var AUTO_NEXT_HAND_FALLBACK_STEP_MS = 1500;
   var BOT_ACTION_DELAY_MIN_MS = 2000;
   var BOT_ACTION_DELAY_MAX_MS = 5000;
   var RESULT_FINAL_ACTION_MS = 2000;
@@ -3544,13 +3545,18 @@ window.TexasHoldem = (function () {
     if (move) performMove(move, amount);
   }
 
-  function autoStartNick() {
+  function autoStartRank() {
+    var currentNick = text(me().nick, 40);
+    var rank = 0;
     for (var i = 0; i < state.seats.length; i++) {
       var seat = state.seats[i];
       if (seat && !seat.isBot && seat.stack > 0 &&
-          !seat.leaving && !seat.away && !seat.sittingOut) return seat.nick;
+          !seat.leaving && !seat.away && !seat.sittingOut) {
+        if (text(seat.nick, 40) === currentNick) return rank;
+        rank += 1;
+      }
     }
-    return "";
+    return -1;
   }
 
   function hasBustedHumanSeat() {
@@ -3630,18 +3636,20 @@ window.TexasHoldem = (function () {
     autoNextTimer = null;
     if (!active || state.phase !== "complete" || !state.canStart ||
         state.newGameBuyInRequired || hasBustedHumanSeat() ||
-        buyInFlowBlocksAutoAdvance() || autoNextKey !== key) return;
+        buyInFlowBlocksAutoAdvance() || autoNextKey !== key ||
+        autoStartRank() < 0) return;
     if (!resultTransitionReady()) {
       scheduleAutoNextHand();
       return;
     }
-    if (text(me().nick, 40) !== autoStartNick()) return;
     return invoke("start", {
       expectedVersion: state.version
     }, {
       key: "start",
       label: "auto_start",
       broadcast: true,
+      silent: true,
+      ui: false,
       requestId: requestId("autostart", key)
     }).then(function (result) {
       if (!result || !result.ok) scheduleAutoNextHand();
@@ -3650,17 +3658,19 @@ window.TexasHoldem = (function () {
   }
 
   function scheduleAutoNextHand() {
+    var startRank = autoStartRank();
     if (state.phase !== "complete" || !state.canStart || state.newGameBuyInRequired ||
         hasBustedHumanSeat() || buyInFlowBlocksAutoAdvance() ||
-        text(me().nick, 40) !== autoStartNick()) {
+        startRank < 0) {
       clearAutoNextHand();
       return;
     }
-    var key = String(state.handId || state.handNumber || state.version) + ":next";
+    var key = String(state.handId || state.handNumber || state.version) + ":next:" + startRank;
     if (autoNextKey === key && autoNextTimer) return;
     clearAutoNextHand();
     autoNextKey = key;
-    var delay = Math.max(AUTO_NEXT_HAND_MS, resultTransitionDelayMs());
+    var delay = Math.max(AUTO_NEXT_HAND_MS, resultTransitionDelayMs()) +
+      (startRank * AUTO_NEXT_HAND_FALLBACK_STEP_MS);
     autoNextDueAt = Date.now() + delay;
     autoNextTimer = setTimeout(function () { autoStartHand(key); }, delay);
   }
@@ -7611,6 +7621,8 @@ window.TexasHoldem = (function () {
         maxSeats: MAX_SEATS,
         pollMs: POLL_MS,
         clockMs: CLOCK_MS,
+        autoNextHandMs: AUTO_NEXT_HAND_MS,
+        autoNextHandFallbackStepMs: AUTO_NEXT_HAND_FALLBACK_STEP_MS,
         resultFinalActionMs: RESULT_FINAL_ACTION_MS,
         resultCardsFirstMs: RESULT_CARDS_FIRST_MS,
         resultBoardRevealStepMs: RESULT_BOARD_REVEAL_STEP_MS,
