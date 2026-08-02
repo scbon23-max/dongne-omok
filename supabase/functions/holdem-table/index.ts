@@ -925,11 +925,19 @@ function ringSettings(state: unknown) {
   if (safeText(state.settings.mode, 24) !== "ring") return null;
   return {
     amount: Math.max(0, Number(state.settings.refillAmount) || 0),
+    assetBacked: state.settings.assetBacked === true,
     dailyLimit: Math.max(
       1,
       Math.min(3, Number(state.settings.dailyRefillLimit) || 3),
     ),
   };
+}
+
+function isAssetBackedRingState(state: unknown) {
+  return isRecord(state) &&
+    isRecord(state.settings) &&
+    safeText(state.settings.mode, 24) === "ring" &&
+    state.settings.assetBacked === true;
 }
 
 async function ringRefillStatus(
@@ -969,6 +977,10 @@ async function publicTableResponse(
       ? null
       : await ringRefillStatus(client, nick, refill.dailyLimit);
     const engineAllowsRefill = snapshot.canRefill === true;
+    const hasNoAssets = engineAllowsRefill && refill.assetBacked
+      ? (await walletProfile(client, nick)).totalAssets <= 0
+      : true;
+    const freeRefillEligible = engineAllowsRefill && hasNoAssets;
     snapshot.ringRefill = {
       amount: refill.amount,
       dailyLimit: refill.dailyLimit,
@@ -976,11 +988,13 @@ async function publicTableResponse(
         ? {
           usedToday: status.used,
           remainingToday: status.remaining,
-          canRefill: engineAllowsRefill && status.remaining > 0,
+          canRefill: freeRefillEligible && status.remaining > 0,
         }
-        : { canRefill: engineAllowsRefill }),
+        : { canRefill: freeRefillEligible }),
     };
-    if (status) snapshot.canRefill = engineAllowsRefill && status.remaining > 0;
+    snapshot.canRefill = status
+      ? freeRefillEligible && status.remaining > 0
+      : freeRefillEligible;
   }
   return jsonResponse({
     ok,
@@ -1506,6 +1520,21 @@ Deno.serve(async (request) => {
         );
       }
 
+      if (action === "refill" && isAssetBackedRingState(baseState)) {
+        const profile = await walletProfile(client, account.nick);
+        if (profile.totalAssets > 0) {
+          return publicTableResponse(
+            client,
+            engine,
+            baseState,
+            account.nick,
+            baseVersion,
+            false,
+            "assets_remaining",
+          );
+        }
+      }
+
       const command = action === "bot_step" && ai
         ? botCommand(engine, ai, baseState)
         : authenticatedCommand(body, action, account, requestId);
@@ -1646,6 +1675,17 @@ Deno.serve(async (request) => {
           parseVersion(cas.current_version) || baseVersion,
           false,
           "wallet_insufficient",
+        );
+      }
+      if (cas.reason === "assets_remaining") {
+        return publicTableResponse(
+          client,
+          engine,
+          isRecord(cas.current_state) ? cas.current_state : baseState,
+          account.nick,
+          parseVersion(cas.current_version) || baseVersion,
+          false,
+          "assets_remaining",
         );
       }
 

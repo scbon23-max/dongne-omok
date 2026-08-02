@@ -2668,6 +2668,7 @@ window.TexasHoldem = (function () {
       ring_only: "링게임에서만 충전할 수 있어요.",
       refill_not_needed: "보유한 테이블 금액이 남아 있어요.",
       refill_limit: "오늘 사용할 수 있는 충전 3회를 모두 사용했어요.",
+      assets_remaining: "총자산이 남아 있어 무료 충전은 사용할 수 없어요. 보유 자산으로 다시 참가해 주세요.",
       wallet_insufficient: "홀덤 자산이 이 방의 바이인보다 부족해요.",
       bots_solo_only: "AI 연습은 방에 혼자 있을 때만 사용할 수 있어요.",
       practice_ai_only: "AI 연습 중인 방에는 다른 사람이 함께할 수 없어요.",
@@ -5884,6 +5885,8 @@ window.TexasHoldem = (function () {
       return state.canRefill
         ? "내 프로필을 열어 무료충전 버튼을 누르면 " +
           formatChips(state.refillAmount || 20000) + "을 충전할 수 있어요"
+        : state.refillsRemainingToday > 0
+        ? "총자산이 남아 있어 보유 자산으로 다시 참가할 수 있어요"
         : "무료 충전을 모두 사용했어요. 보유 자산으로 다시 참가할 수 있어요";
     }
     if (isBetweenHands(state.phase) && state.lastRake > 0) {
@@ -6187,7 +6190,9 @@ window.TexasHoldem = (function () {
       var refillStatus = state.practiceMode
         ? "연습용 금액을 자동으로 충전하고 있어요"
         : state.refillStatusKnown
-        ? (state.refillsRemainingToday > 0
+        ? (!state.canRefill && state.refillsRemainingToday > 0
+          ? "총자산이 남아 있어 무료 충전 대신 보유 자산으로 다시 참가할 수 있어요"
+          : state.refillsRemainingToday > 0
           ? "스택이 0원이 되어 " + formatChips(state.refillAmount || 20000) +
             " 무료충전이 가능해요 · 오늘 " + state.refillsRemainingToday + "회 남음"
           : "오늘 무료 충전 " + (state.dailyRefillLimit || 3) + "회를 모두 사용했어요")
@@ -7594,7 +7599,7 @@ window.TexasHoldem = (function () {
         '<li>완전히 같은 패는 팟을 나누며, 나눌 수 없는 남는 금액은 규칙상 먼저 받을 위치의 참가자에게 갑니다.</li>' +
         '</ul></section>' +
         '<section class="cm-rule-section"><h3>4. 충전과 수수료</h3><ul class="cm-rule-list">' +
-        '<li>핸드 종료 후 스택이 0원이 되면 20,000원을 즉시 지급하며, 계정당 하루 3회까지 받을 수 있습니다.</li>' +
+        '<li>핸드 종료 후 총자산이 0원이 되면 20,000원을 즉시 지급하며, 계정당 하루 3회까지 받을 수 있습니다.</li>' +
         '<li>실제 자산 테이블은 플랍이 공개된 핸드에만 팟의 2%를 수수료로 차감하며, 최대 금액은 해당 방의 1BB입니다.</li>' +
         '<li>수수료는 100원 단위로 내림 처리하고, AI 연습 테이블에는 적용하지 않습니다.</li>' +
         '</ul></section>' +
