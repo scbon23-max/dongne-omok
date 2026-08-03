@@ -100,6 +100,8 @@ function loadGameChatHarness(options = {}) {
         curRoomGame = "holdem";
         curGame = "holdem";
       },
+      setMe: function (nick) { me.nick = nick; },
+      setNet: function (value) { netMode = !!value; },
       setSession: function (rows) { sessionChat = rows.slice(); },
       getSession: function () { return sessionChat.slice(); },
       renderHistory: renderHoldemChatHistory,
@@ -178,6 +180,9 @@ function loadGameChatHarness(options = {}) {
     document,
     GameCatalog,
     Db: options.db || null,
+    Net: {
+      send() {},
+    },
     Renju: {
       SIZE: 15,
       BLACK: 1,
@@ -401,16 +406,23 @@ test("the send button path creates exactly one local toast", () => {
   assert.equal(elements["holdem-chat-overlay"].children.length, 1);
 });
 
-test("Hold'em room chat is session-only and clears when the room resets", async () => {
-  let historyCalls = 0;
+test("Hold'em room chat loads persisted history, stores new messages, and clears on reset", async () => {
+  const historyCalls = [];
+  const saved = [];
   const db = {
-    getChatHistory() {
-      historyCalls += 1;
+    getChatHistory(room, limit) {
+      historyCalls.push({ room, limit });
       return Promise.resolve([{ nick: "old-room", text: "stale", created_at: "2026-07-30T00:00:00Z" }]);
+    },
+    addChatMsg(room, nick, text) {
+      saved.push({ room, nick, text });
+      return Promise.resolve({});
     },
   };
   const { audit, document, elements } = loadGameChatHarness({ db });
   audit.setRoom("room-a");
+  audit.setMe("me");
+  audit.setNet(true);
   document.activeElement = elements["holdem-chat-input"];
   audit.setFocus(true);
   audit.addLive("room-a", "only in this room");
@@ -419,9 +431,12 @@ test("Hold'em room chat is session-only and clears when the room resets", async 
   await Promise.resolve();
   await Promise.resolve();
 
-  assert.equal(historyCalls, 0);
-  assert.equal(audit.getSession().length, 1);
-  assert.equal(elements["holdem-chat-history"].children.length, 1);
+  assert.deepEqual(historyCalls, [{ room: "r:room-a", limit: 200 }]);
+  assert.equal(audit.getSession().length, 2);
+  assert.equal(elements["holdem-chat-history"].children.length, 2);
+
+  assert.equal(audit.sendText("saved for next entrant", { suppressOverlay: true }), true);
+  assert.deepEqual(saved, [{ room: "r:room-a", nick: "me", text: "saved for next entrant" }]);
 
   audit.setRoom("room-b");
   audit.resetRoomChat();

@@ -831,7 +831,7 @@ test("Hold'em chat keeps transient toasts separate from the recent typing histor
   assert.match(styles, /\.holdem-seat-avatar\s*\{[\s\S]*overflow:\s*visible/);
   assert.match(styles, /\.holdem-seat-avatar img\s*\{[\s\S]*border-radius:\s*inherit/);
   assert.match(game, /function renderHoldemChatHistory\(\)/);
-  assert.match(game, /if \(!panel && g === "holdem"\) \{\s*renderHoldemChatHistory\(\);\s*return;\s*\}/);
+  assert.match(game, /if \(!panel && g === "holdem"\) \{\s*Db\.getChatHistory\(requestedRoom, 200\)/);
   assert.match(game, /Db\.getChatHistory\(requestedRoom, 200\)/);
   assert.match(game, /requestedGeneration !== chatLoadGeneration/);
   assert.match(game, /requestedRoom !== chatRoomOf\(curGame\)/);
@@ -861,7 +861,7 @@ test("Hold'em chat keeps transient toasts separate from the recent typing histor
   assert.match(controller, /seatEmojiHtml\(seat\)/);
   assert.match(game, /var showImmediately = !\(options && options\.suppressOverlay\)/);
   assert.doesNotMatch(game, /sessionChat\.length > 300/);
-  assert.match(game, /if \(window\.Db && game !== "holdem"\) Db\.addChatMsg\(chatRoomOf\(game\), me\.nick, v\)/);
+  assert.match(game, /if \(window\.Db\) Db\.addChatMsg\(chatRoomOf\(game\), me\.nick, v\)/);
   assert.match(controller, /function clearHoldemChatKeyboardSyncTimers\(\)/);
   assert.match(controller, /function cancelHoldemChatKeyboardHide\(\)/);
   assert.match(controller, /chatKeyboardHideTimer = setTimeout\(function \(\)[\s\S]*setChatOpen\(false\);[\s\S]*\}, 220\)/);

@@ -2297,12 +2297,37 @@
     if (!window.Db || !curRoomId) return;
     var g = activeFamily();
     var panel = gameUi(g).chatLogId;
-    if (!panel && g === "holdem") {
-      renderHoldemChatHistory();
-      return;
-    }
     var requestedRoom = chatRoomOf(curGame);
     var requestedGeneration = chatLoadGeneration;
+    if (!panel && g === "holdem") {
+      Db.getChatHistory(requestedRoom, 200).then(function (msgs) {
+        if (requestedGeneration !== chatLoadGeneration ||
+            requestedRoom !== chatRoomOf(curGame) ||
+            g !== activeFamily()) return;
+        if (msgs.length) oldestChatTs = msgs[0].created_at;
+        if (msgs.length < 200) noMoreChat = true;
+        var histCount = {};
+        var merged = [];
+        msgs.forEach(function (m) {
+          merged.push({ game: "holdem", who: m.nick, text: m.text });
+          var k = m.nick + "\u0001" + m.text;
+          histCount[k] = (histCount[k] || 0) + 1;
+        });
+        sessionChat.forEach(function (sc) {
+          if (sc.game !== "holdem") return;
+          var k = sc.who + "\u0001" + sc.text;
+          if (histCount[k] > 0) { histCount[k]--; return; }
+          merged.push(sc);
+        });
+        sessionChat = sessionChat.filter(function (sc) {
+          return sc.game !== "holdem";
+        }).concat(merged);
+        renderHoldemChatHistory();
+      }).catch(function () {
+        renderHoldemChatHistory();
+      });
+      return;
+    }
     Db.getChatHistory(requestedRoom, 200).then(function (msgs) {
       if (requestedGeneration !== chatLoadGeneration ||
           requestedRoom !== chatRoomOf(curGame) ||
@@ -5198,7 +5223,7 @@
     if (netMode) {
       addChatTo(game, me.nick, v, showImmediately);
       Net.send({ t: "chat", game: game, nick: me.nick, text: v });
-      if (window.Db && game !== "holdem") Db.addChatMsg(chatRoomOf(game), me.nick, v);
+      if (window.Db) Db.addChatMsg(chatRoomOf(game), me.nick, v);
     } else addChatTo(game, me.nick, v, showImmediately);
     return true;
   }
