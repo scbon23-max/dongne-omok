@@ -2503,6 +2503,88 @@ test("a busted ring player receives the free refill without opening a wallet dia
   controller.leave();
 });
 
+test("an all-in player can reserve the fixed free refill for the end of the hand", async () => {
+  const calls = [];
+  const restoredSnapshot = {
+    phase: "waiting",
+    mode: "ring",
+    handId: "8",
+    canRefill: false,
+    ringRefill: {
+      amount: 20000,
+      dailyLimit: 3,
+      usedToday: 2,
+      remainingToday: 1,
+      canRefill: false,
+      canQueue: false,
+    },
+    viewer: { seat: 0 },
+    seats: [{ seat: 0, nick: "alice", stack: 20000, inHand: false }],
+  };
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 3,
+        snapshot: restoredSnapshot,
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const activeHand = controller._test.emptyState();
+  activeHand.mode = "ring";
+  activeHand.phase = "river";
+  activeHand.version = 1;
+  activeHand.handId = "8";
+  activeHand.heroSeat = 0;
+  activeHand.seats[0] = {
+    seat: 0,
+    nick: "alice",
+    stack: 0,
+    inHand: true,
+    allIn: true,
+  };
+  activeHand.canRefill = false;
+  activeHand.canQueueRefill = true;
+  activeHand.refillStatusKnown = true;
+  activeHand.refillsRemainingToday = 2;
+  activeHand.refillAmount = 20000;
+  controller._test.setState(activeHand);
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+
+  const queued = await controller._test.requestFreeRefill();
+
+  assert.equal(queued.ok, true);
+  assert.equal(queued.queued, true);
+  assert.equal(controller._test.getFreeRefillState().queued, true);
+  assert.equal(calls.length, 0);
+
+  const afterHand = controller._test.emptyState();
+  afterHand.mode = "ring";
+  afterHand.phase = "waiting";
+  afterHand.version = 2;
+  afterHand.handId = "8";
+  afterHand.heroSeat = 0;
+  afterHand.seats[0] = { seat: 0, nick: "alice", stack: 0, inHand: false };
+  afterHand.canRefill = true;
+  afterHand.canQueueRefill = false;
+  afterHand.refillStatusKnown = true;
+  afterHand.refillsRemainingToday = 2;
+  afterHand.refillAmount = 20000;
+  controller._test.setState(afterHand);
+
+  const applied = await controller._test.applyQueuedFreeRefill();
+
+  assert.equal(applied.ok, true);
+  assert.deepEqual(calls.map((call) => call.action), ["refill", "snapshot"]);
+  assert.equal(calls[0].payload.expectedVersion, 2);
+  assert.equal(controller.state.seats[0].stack, 20000);
+  assert.equal(controller._test.getFreeRefillState().queued, false);
+  controller.leave();
+});
+
 test("the hero profile shows today's remaining manual free refills", () => {
   const ui = profileTopUpTestDocument();
   const controller = loadController("alice", {

@@ -69,6 +69,15 @@ const walletEmptyRefillMigration = fs.readFileSync(
   ),
   "utf8"
 );
+const lowBalanceRefillMigration = fs.readFileSync(
+  path.join(
+    root,
+    "supabase",
+    "migrations",
+    "202608030002_holdem_low_balance_refill.sql"
+  ),
+  "utf8"
+);
 const adminWalletMigration = fs.readFileSync(
   path.join(
     root,
@@ -182,7 +191,7 @@ test("the edge function authenticates the account and never trusts a payload nic
   );
 });
 
-test("routine table reads run together and active hands skip refill lookups", () => {
+test("routine table reads run together and refill lookups stay candidate-scoped", () => {
   assert.match(
     edge,
     /const \[account, initialTable\] = await Promise\.all\(\[\s*accountPromise,\s*tablePromise,\s*\]\)/
@@ -197,7 +206,7 @@ test("routine table reads run together and active hands skip refill lookups", ()
   );
   assert.match(
     edge,
-    /const activeHand = isRecord\(state\)[\s\S]*ACTIVE_HAND_PHASES\.has[\s\S]*const status = activeHand\s*\?\s*null\s*:\s*await ringRefillStatus/
+    /const canQueueAfterHand = activeHand[\s\S]*const status = engineAllowsRefill \|\| canQueueAfterHand \|\| !activeHand[\s\S]*await ringRefillStatus/
   );
 });
 
@@ -436,10 +445,11 @@ test("ring refills are account-wide, Korea-day limited, and atomic with the tabl
   );
   assert.match(
     edge,
-    /action === "refill"[\s\S]*profile\.totalAssets > 0[\s\S]*"assets_remaining"/
+    /action === "refill"[\s\S]*profile\.totalAssets >= RING_MIN_BUY_IN[\s\S]*"assets_remaining"/
   );
-  assert.match(edge, /const freeRefillEligible = engineAllowsRefill && hasNoAssets/);
+  assert.match(edge, /const freeRefillEligible = engineAllowsRefill && hasLowAssets/);
   assert.match(edge, /snapshot\.canRefill = status[\s\S]*freeRefillEligible/);
+  assert.match(edge, /canQueue: canQueueAfterHand && status\.remaining > 0/);
   assert.match(edge, /cas\.reason === "assets_remaining"/);
   assert.match(edge, /"wallet_refill"/);
   assert.match(edge, /action === "wallet_refill"/);
@@ -460,6 +470,14 @@ test("ring refills are account-wide, Korea-day limited, and atomic with the tabl
     walletEmptyRefillMigration,
     /update public\.holdem_wallets[\s\S]*wallet\.balance \+ refill_amount/i
   );
+  assert.match(
+    lowBalanceRefillMigration,
+    /minimum_playable_assets bigint := 10000[\s\S]*total_assets_value >= minimum_playable_assets[\s\S]*'assets_remaining'/i
+  );
+  assert.match(
+    lowBalanceRefillMigration,
+    /create or replace function public\.holdem_ring_refill_v3_compare_and_swap[\s\S]*total_assets >= minimum_playable_assets[\s\S]*'assets_remaining'/i
+  );
 });
 
 test("free refill buy-ins can create or restore ring seats without wallet debits", () => {
@@ -470,7 +488,15 @@ test("free refill buy-ins can create or restore ring seats without wallet debits
   assert.match(freeRefillBuyInMigration, /p_expected_version = 0 and table_exists/i);
   assert.match(freeRefillBuyInMigration, /current_count >= 3[\s\S]*'refill_limit'/i);
   assert.match(freeRefillBuyInMigration, /insert into public\.holdem_economy_events[\s\S]*'refill'/i);
+  assert.match(
+    lowBalanceRefillMigration,
+    /create or replace function public\.holdem_ring_free_buyin_v1_compare_and_swap[\s\S]*total_assets_value >= minimum_playable_assets[\s\S]*'assets_remaining'/i
+  );
   assert.match(edge, /freeRefillBuyIn = \(/);
+  assert.match(
+    edge,
+    /if \(freeRefillBuyIn\)[\s\S]*profile\.totalAssets >= RING_MIN_BUY_IN[\s\S]*"assets_remaining"/
+  );
   assert.match(edge, /internalRefill: action === "refill" \|\| freeRefillBuyIn/);
   assert.match(edge, /client\.rpc\(\s*"holdem_ring_free_buyin_v1_compare_and_swap"/s);
   assert.match(engine, /freeRefillBuyIns/);

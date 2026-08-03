@@ -6342,11 +6342,19 @@
       Number.isFinite(Number(holdemWalletProfile.tableBalance))
       ? Math.max(0, Math.floor(Number(holdemWalletProfile.tableBalance)))
       : 0;
-    var canFreeRefill = mode === "ring" && totalAssets === 0 && !holdemWalletPending;
+    var refillsRemaining = holdemWalletProfile &&
+      holdemWalletProfile.refillsRemainingToday != null &&
+      Number.isFinite(Number(holdemWalletProfile.refillsRemainingToday))
+      ? Math.max(0, Math.floor(Number(holdemWalletProfile.refillsRemainingToday)))
+      : null;
+    var lowBalance = mode === "ring" && totalAssets != null &&
+      totalAssets < HOLDEM_MIN_BUY_IN;
+    var refillLimitReached = lowBalance && refillsRemaining === 0;
+    var canFreeRefill = lowBalance && !holdemWalletPending && !refillLimitReached;
     var walletBox = $("create-holdem-wallet-balance")
       ? $("create-holdem-wallet-balance").closest(".create-holdem-wallet")
       : null;
-    if (walletBox) walletBox.classList.toggle("can-refill", canFreeRefill || holdemWalletRefillPending);
+    if (walletBox) walletBox.classList.toggle("can-refill", lowBalance || holdemWalletRefillPending);
     if ($("create-holdem-wallet-balance")) {
       $("create-holdem-wallet-balance").textContent = holdemWalletPending
         ? "불러오는 중"
@@ -6363,8 +6371,11 @@
           ? "서버 연결을 확인한 뒤 다시 시도해주세요."
           : holdemWalletRefillPending
             ? "무료충전을 처리하고 있어요."
-          : canFreeRefill
-            ? "총자산이 0원이면 여기서 20,000원을 받을 수 있어요."
+          : refillLimitReached
+            ? "오늘 무료충전 3회를 모두 사용했어요. 한국시간 자정에 다시 받을 수 있어요."
+          : lowBalance
+            ? "총자산이 10,000원 미만이라 20,000원 무료충전이 가능해요" +
+              (refillsRemaining == null ? "." : " · 오늘 " + refillsRemaining + "회 남음")
           : tableBalance > 0
             ? "총 자산 중 " + formatHoldemAsset(tableBalance) +
               "은 현재 테이블에서 사용 중이며, " +
@@ -6373,10 +6384,12 @@
     }
     var refillButton = $("create-holdem-wallet-refill-btn");
     if (refillButton) {
-      refillButton.classList.toggle("hidden", !(canFreeRefill || holdemWalletRefillPending));
+      refillButton.classList.toggle("hidden", !(lowBalance || holdemWalletRefillPending));
       refillButton.disabled = !canFreeRefill || holdemWalletRefillPending;
       refillButton.textContent = holdemWalletRefillPending
         ? "충전 중..."
+        : refillLimitReached
+          ? "오늘 무료충전 완료"
         : "20,000원 무료충전";
     }
     var recordButton = $("create-holdem-asset-record-btn");
@@ -6446,7 +6459,13 @@
           0,
           Math.floor(Number(wallet.totalAssets) || Number(wallet.balance))
         ),
-        initialBalance: Math.max(0, Math.floor(Number(wallet.initialBalance) || HOLDEM_INITIAL_ASSETS))
+        initialBalance: Math.max(0, Math.floor(Number(wallet.initialBalance) || HOLDEM_INITIAL_ASSETS)),
+        refillsUsedToday: Math.max(0, Math.floor(Number(wallet.refillsUsedToday) || 0)),
+        refillsRemainingToday: wallet.refillsRemainingToday != null &&
+          Number.isFinite(Number(wallet.refillsRemainingToday))
+          ? Math.max(0, Math.floor(Number(wallet.refillsRemainingToday)))
+          : null,
+        dailyRefillLimit: Math.max(0, Math.floor(Number(wallet.dailyRefillLimit) || 3))
       }
       : null;
     holdemWalletNick = holdemWalletProfile ? String(me.nick || "") : "";
@@ -6510,10 +6529,10 @@
     var totalAssets = holdemWalletProfile && Number.isFinite(Number(holdemWalletProfile.totalAssets))
       ? Math.max(0, Math.floor(Number(holdemWalletProfile.totalAssets)))
       : null;
-    if (totalAssets !== 0) {
+    if (totalAssets == null || totalAssets >= HOLDEM_MIN_BUY_IN) {
       toast(totalAssets == null
         ? "자산을 확인한 뒤 다시 시도해주세요"
-        : "총자산이 0원일 때만 무료충전할 수 있어요");
+        : "총자산이 10,000원 미만일 때 무료충전할 수 있어요");
       return;
     }
     holdemWalletRefillPending = true;
@@ -6534,7 +6553,7 @@
       return;
     }
     if (result && result.reason === "assets_remaining") {
-      toast("총자산이 남아 있어 무료충전은 사용할 수 없어요");
+      toast("총자산이 10,000원 이상이라 무료충전은 사용할 수 없어요");
     } else if (result && result.reason === "refill_limit") {
       toast("오늘 무료충전 3회를 모두 사용했어요");
     } else if (result && result.reason === "auth") {

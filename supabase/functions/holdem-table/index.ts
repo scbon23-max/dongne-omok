@@ -500,6 +500,8 @@ async function walletRefillIfEmpty(
       defaultBuyIn: RING_DEFAULT_BUY_IN,
       refillAmount: RING_REFILL_AMOUNT,
       dailyRefillLimit: 3,
+      refillsUsedToday,
+      refillsRemainingToday,
     },
   };
 }
@@ -1008,6 +1010,28 @@ async function ringRefillStatus(
   return { used, remaining: Math.max(0, dailyLimit - used) };
 }
 
+async function walletProfileWithRefillStatus(
+  client: ReturnType<typeof createClient>,
+  nick: string,
+) {
+  const [wallet, status] = await Promise.all([
+    walletProfile(client, nick),
+    ringRefillStatus(client, nick, 3),
+  ]);
+  return {
+    ...wallet,
+    ...(status
+      ? {
+        refillsUsedToday: status.used,
+        refillsRemainingToday: status.remaining,
+      }
+      : {}),
+    refillStatusKnown: status !== null,
+    canFreeRefill: wallet.totalAssets < RING_MIN_BUY_IN &&
+      status !== null && status.remaining > 0,
+  };
+}
+
 async function publicTableResponse(
   client: ReturnType<typeof createClient>,
   engine: HoldemEngineApi,
@@ -1022,14 +1046,23 @@ async function publicTableResponse(
   if (refill && isRecord(snapshot)) {
     const activeHand = isRecord(state) &&
       ACTIVE_HAND_PHASES.has(safeText(state.phase, 24));
-    const status = activeHand
-      ? null
-      : await ringRefillStatus(client, nick, refill.dailyLimit);
     const engineAllowsRefill = snapshot.canRefill === true;
-    const hasNoAssets = engineAllowsRefill && refill.assetBacked
-      ? (await walletProfile(client, nick)).totalAssets <= 0
+    const viewer = isRecord(snapshot.viewer) ? snapshot.viewer : null;
+    const viewerSeat = viewer?.seat == null ? -1 : Number(viewer.seat);
+    const viewerPlayer = Number.isSafeInteger(viewerSeat) &&
+        Array.isArray(snapshot.seats)
+      ? snapshot.seats[viewerSeat]
+      : null;
+    const canQueueAfterHand = activeHand && isRecord(viewerPlayer) &&
+      viewerPlayer.isBot !== true && Number(viewerPlayer.stack) <= 0 &&
+      viewerPlayer.inHand === true;
+    const status = engineAllowsRefill || canQueueAfterHand || !activeHand
+      ? await ringRefillStatus(client, nick, refill.dailyLimit)
+      : null;
+    const hasLowAssets = engineAllowsRefill && refill.assetBacked
+      ? (await walletProfile(client, nick)).totalAssets < RING_MIN_BUY_IN
       : true;
-    const freeRefillEligible = engineAllowsRefill && hasNoAssets;
+    const freeRefillEligible = engineAllowsRefill && hasLowAssets;
     snapshot.ringRefill = {
       amount: refill.amount,
       dailyLimit: refill.dailyLimit,
@@ -1038,8 +1071,9 @@ async function publicTableResponse(
           usedToday: status.used,
           remainingToday: status.remaining,
           canRefill: freeRefillEligible && status.remaining > 0,
+          canQueue: canQueueAfterHand && status.remaining > 0,
         }
-        : { canRefill: freeRefillEligible }),
+        : { canRefill: freeRefillEligible, canQueue: false }),
     };
     snapshot.canRefill = status
       ? freeRefillEligible && status.remaining > 0
@@ -1388,7 +1422,7 @@ Deno.serve(async (request) => {
       await cleanupExpiredTables(client);
       return jsonResponse({
         ok: true,
-        wallet: await walletProfile(client, account.nick),
+        wallet: await walletProfileWithRefillStatus(client, account.nick),
       });
     }
     if (profileAssetAction) {
@@ -1583,7 +1617,7 @@ Deno.serve(async (request) => {
 
       if (action === "refill" && isAssetBackedRingState(baseState)) {
         const profile = await walletProfile(client, account.nick);
-        if (profile.totalAssets > 0) {
+        if (profile.totalAssets >= RING_MIN_BUY_IN) {
           return publicTableResponse(
             client,
             engine,
@@ -1613,6 +1647,20 @@ Deno.serve(async (request) => {
       const freeRefillBuyIn = (
         action === "join" || action === "rebuy"
       ) && command.freeRefill === true;
+      if (freeRefillBuyIn) {
+        const profile = await walletProfile(client, account.nick);
+        if (profile.totalAssets >= RING_MIN_BUY_IN) {
+          return publicTableResponse(
+            client,
+            engine,
+            baseState,
+            account.nick,
+            baseVersion,
+            false,
+            "assets_remaining",
+          );
+        }
+      }
       const result = engine.command(baseState, command, {
         now: requestedAt,
         randomInt: secureRandomInt,
