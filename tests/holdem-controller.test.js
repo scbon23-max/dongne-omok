@@ -2941,6 +2941,39 @@ test("another player's profile loads total assets without ranking eligibility", 
   controller.leave();
 });
 
+test("another player's profile asset falls back when db helper is stale", async () => {
+  const calls = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        asset: { nickname: payload.targetNick, totalAssets: 91200 },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  const state = controller._test.emptyState();
+  state.heroSeat = 0;
+  state.seats[0] = { seat: 0, nick: "alice", stack: 30000 };
+  state.seats[1] = { seat: 1, nick: "bob", stack: 25000 };
+  controller._test.setState(state);
+  controller._test.setActive(true);
+
+  controller._test.openProfileDialog(1);
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].action, "profile_asset");
+  assert.equal(calls[0].payload.roomId, "room-controller");
+  assert.equal(calls[0].payload.targetNick, "bob");
+  assert.equal(controller._test.getProfileAssetState().pending, false);
+  assert.equal(controller._test.getProfileAssetState().nick, "bob");
+  assert.equal(controller._test.getProfileAssetState().totalAssets, 91200);
+  controller.leave();
+});
+
 test("your ring profile queues an in-hand top up and applies it before the next hand", async () => {
   const calls = [];
   const timers = [];

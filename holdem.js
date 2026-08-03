@@ -4415,7 +4415,11 @@ window.TexasHoldem = (function () {
       renderProfileWallet();
       return Promise.resolve(profileAsset);
     }
-    if (!window.Db || typeof Db.getHoldemProfileAsset !== "function" ||
+    var canLoadProfileAsset = window.Db && (
+      typeof Db.getHoldemProfileAsset === "function" ||
+      typeof Db.holdemInvoke === "function"
+    );
+    if (!canLoadProfileAsset ||
         !currentAuth.hash || !text(currentAuth.nick || me().nick, 40) || !nick) {
       profileAssetPending = false;
       profileAsset = null;
@@ -4428,7 +4432,13 @@ window.TexasHoldem = (function () {
     profileAsset = null;
     profileAssetNick = nick;
     renderProfileWallet();
-    return Promise.resolve(Db.getHoldemProfileAsset(currentAuth, nick)).then(function (result) {
+    var request = typeof Db.getHoldemProfileAsset === "function"
+      ? Db.getHoldemProfileAsset(currentAuth, nick)
+      : Db.holdemInvoke(currentAuth, "profile_asset", {
+        roomId: roomId(),
+        targetNick: nick
+      });
+    return Promise.resolve(request).then(function (result) {
       if (seq !== profileAssetRequestSeq) return null;
       var asset = result && result.ok && result.asset && typeof result.asset === "object"
         ? result.asset
