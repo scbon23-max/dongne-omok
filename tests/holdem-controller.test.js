@@ -2922,6 +2922,51 @@ test("reserved spectating waits until the result review is complete", async () =
   }
 });
 
+test("pressing spectate again cancels an active spectate reservation", async () => {
+  const calls = [];
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 31,
+        snapshot: {
+          phase: "flop",
+          version: 31,
+          handId: "spectate-cancel",
+          heroSeat: 0,
+          actingSeat: 1,
+          seats: [
+            { seat: 0, nick: "alice", stack: 5000, inHand: true, leaving: false, cardCount: 2 },
+            { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+          ],
+        },
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+  controller._test.setState(controller._test.normalizeSnapshot({
+    phase: "flop",
+    version: 30,
+    handId: "spectate-cancel",
+    heroSeat: 0,
+    actingSeat: 1,
+    seats: [
+      { seat: 0, nick: "alice", stack: 5000, inHand: true, leaving: true, leaveIntent: "spectate", cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+    ],
+  }, 30));
+
+  await controller._test.leaveTableForSpectate({ toggleReservation: true });
+
+  assert.equal(calls[0].action, "leave");
+  assert.equal(calls[0].payload.expectedVersion, 30);
+  assert.equal(calls[0].payload.cancelLeave, true);
+  assert.equal(calls[0].payload.leaveIntent, undefined);
+});
+
 test("ring rebuys use a separate wallet-backed server command", async () => {
   const calls = [];
   const db = {

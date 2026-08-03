@@ -2852,9 +2852,44 @@ window.TexasHoldem = (function () {
     });
   }
 
-  function leaveTableForSpectate() {
+  function leaveTableForSpectate(options) {
+    options = options || {};
     if (state.heroSeat < 0 || requests.seat_role) return Promise.resolve({ ok: false, reason: "not_joined" });
     var hero = state.seats[state.heroSeat];
+    if (options.toggleReservation === true &&
+        (spectateAfterHandRequested || isSpectateReservation(hero))) {
+      spectateAfterHandRequested = false;
+      if (hero) {
+        hero.leaving = false;
+        hero.leavingIntent = "";
+        renderSeats();
+        renderControls();
+      }
+      return invoke("leave", {
+        expectedVersion: state.version,
+        cancelLeave: true
+      }, {
+        key: "seat_role",
+        label: "spectate_cancel",
+        broadcast: true
+      }).then(function (result) {
+        if (result && result.stale) return result;
+        if (result && result.ok && api && typeof api.toast === "function") {
+          api.toast("관전 예약을 취소했어요.", 2200);
+        }
+        if (!result || !result.ok) {
+          hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+          if (hero) {
+            hero.leaving = true;
+            hero.leavingIntent = "spectate";
+            renderSeats();
+            renderControls();
+          }
+          spectateAfterHandRequested = true;
+        }
+        return refreshSnapshot(result && result.ok ? "spectate_cancelled" : "spectate_cancel_retry", true);
+      });
+    }
     spectateAfterHandRequested = !!(hero && isHandActive(state.phase) && hero.inHand);
     autoSeatSuppressed = true;
     autoSeatKey = "";
@@ -5156,7 +5191,7 @@ window.TexasHoldem = (function () {
   function spectateFromProfileDialog() {
     if (state.heroSeat < 0) return;
     closeProfileDialog();
-    leaveTableForSpectate();
+    leaveTableForSpectate({ toggleReservation: true });
   }
 
   function toggleProfileRole() {
