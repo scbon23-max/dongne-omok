@@ -2642,6 +2642,47 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 .create-holdem-wallet small {
   display: none;
 }
+.create-holdem-wallet.can-refill small {
+  position: relative;
+  z-index: 1;
+  display: block;
+  color: #c9ebe4;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.create-holdem-refill-btn {
+  position: relative;
+  z-index: 1;
+  min-height: 38px;
+  margin-top: 4px;
+  border: 1px solid rgba(255,223,151,.78);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255,213,116,.98), rgba(221,156,50,.98));
+  color: #2a1600;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 1000;
+  line-height: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.4),
+    0 10px 20px rgba(0,0,0,.22),
+    0 0 18px rgba(242,199,125,.18);
+}
+.create-holdem-refill-btn:not(:disabled) {
+  cursor: pointer;
+}
+.create-holdem-refill-btn:not(:disabled):hover,
+.create-holdem-refill-btn:not(:disabled):focus-visible {
+  border-color: rgba(255,243,194,.95);
+  background:
+    linear-gradient(180deg, rgba(255,230,145,.98), rgba(235,174,59,.98));
+  outline: none;
+}
+.create-holdem-refill-btn:disabled {
+  opacity: .68;
+  cursor: wait;
+}
 .holdem-asset-record-backdrop {
   position: fixed;
   inset: 0;

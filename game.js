@@ -589,7 +589,7 @@
     { amount: 75000, title: "하이롤러", minBuyIn: 50000, maxBuyIn: 100000, smallBlind: 500, bigBlind: 1000 }
   ];
   var roomLease = null, roomLeaseTimer = null, roomCreatePending = false, roomLeaseRestorePending = false;
-  var holdemWalletProfile = null, holdemWalletPending = false;
+  var holdemWalletProfile = null, holdemWalletPending = false, holdemWalletRefillPending = false;
   var holdemWalletNick = "", holdemWalletRequestSeq = 0;
   var createHoldemBuyIn = 0;
   var activeCreateHoldemMode = "ring";
@@ -6317,9 +6317,16 @@
       Number.isFinite(Number(holdemWalletProfile.tableBalance))
       ? Math.max(0, Math.floor(Number(holdemWalletProfile.tableBalance)))
       : 0;
+    var canFreeRefill = mode === "ring" && totalAssets === 0 && !holdemWalletPending;
+    var walletBox = $("create-holdem-wallet-balance")
+      ? $("create-holdem-wallet-balance").closest(".create-holdem-wallet")
+      : null;
+    if (walletBox) walletBox.classList.toggle("can-refill", canFreeRefill || holdemWalletRefillPending);
     if ($("create-holdem-wallet-balance")) {
       $("create-holdem-wallet-balance").textContent = holdemWalletPending
         ? "불러오는 중"
+        : holdemWalletRefillPending
+          ? "충전 중"
         : totalAssets == null
           ? "확인할 수 없음"
           : formatHoldemAsset(totalAssets);
@@ -6329,11 +6336,23 @@
         ? "서버에서 내 홀덤 자산을 확인하고 있어요."
         : totalAssets == null
           ? "서버 연결을 확인한 뒤 다시 시도해주세요."
+          : holdemWalletRefillPending
+            ? "무료충전을 처리하고 있어요."
+          : canFreeRefill
+            ? "총자산이 0원이면 여기서 20,000원을 받을 수 있어요."
           : tableBalance > 0
             ? "총 자산 중 " + formatHoldemAsset(tableBalance) +
               "은 현재 테이블에서 사용 중이며, " +
               formatHoldemAsset(availableBalance) + "을 사용할 수 있습니다."
             : "";
+    }
+    var refillButton = $("create-holdem-wallet-refill-btn");
+    if (refillButton) {
+      refillButton.classList.toggle("hidden", !(canFreeRefill || holdemWalletRefillPending));
+      refillButton.disabled = !canFreeRefill || holdemWalletRefillPending;
+      refillButton.textContent = holdemWalletRefillPending
+        ? "충전 중..."
+        : "20,000원 무료충전";
     }
     var recordButton = $("create-holdem-asset-record-btn");
     if (totalAssets != null && !holdemWalletPending) {
@@ -6389,8 +6408,24 @@
     }
     var confirm = $("create-holdem-mode-confirm");
     if (confirm) {
-      confirm.disabled = mode === "ring" && (!canBuyIn || !selectedBuyInAvailable || holdemWalletPending);
+      confirm.disabled = mode === "ring" &&
+        (!canBuyIn || !selectedBuyInAvailable || holdemWalletPending || holdemWalletRefillPending);
     }
+  }
+  function applyHoldemWalletProfile(wallet) {
+    holdemWalletProfile = wallet && Number.isFinite(Number(wallet.balance))
+      ? {
+        balance: Math.max(0, Math.floor(Number(wallet.balance))),
+        tableBalance: Math.max(0, Math.floor(Number(wallet.tableBalance) || 0)),
+        totalAssets: Math.max(
+          0,
+          Math.floor(Number(wallet.totalAssets) || Number(wallet.balance))
+        ),
+        initialBalance: Math.max(0, Math.floor(Number(wallet.initialBalance) || HOLDEM_INITIAL_ASSETS))
+      }
+      : null;
+    holdemWalletNick = holdemWalletProfile ? String(me.nick || "") : "";
+    return holdemWalletProfile;
   }
   async function loadHoldemWallet(force) {
     var requestedNick = String(me.nick || "");
@@ -6435,20 +6470,54 @@
       typeof result.wallet === "object"
       ? result.wallet
       : null;
-    holdemWalletProfile = wallet && Number.isFinite(Number(wallet.balance))
-      ? {
-        balance: Math.max(0, Math.floor(Number(wallet.balance))),
-        tableBalance: Math.max(0, Math.floor(Number(wallet.tableBalance) || 0)),
-        totalAssets: Math.max(
-          0,
-          Math.floor(Number(wallet.totalAssets) || Number(wallet.balance))
-        ),
-        initialBalance: Math.max(0, Math.floor(Number(wallet.initialBalance) || HOLDEM_INITIAL_ASSETS))
-      }
-      : null;
+    applyHoldemWalletProfile(wallet);
     holdemWalletNick = holdemWalletProfile ? requestedNick : "";
     renderHoldemWalletControls(activeCreateHoldemMode);
     return holdemWalletProfile;
+  }
+  async function refillCreateHoldemWallet() {
+    if (holdemWalletRefillPending) return;
+    if (!window.Db || !Db.refillHoldemWallet || !sessionAuthHash) {
+      toast("무료충전을 처리할 수 없어 잠시 후 다시 시도해주세요");
+      return;
+    }
+    if (!holdemWalletProfile) await loadHoldemWallet(true);
+    var totalAssets = holdemWalletProfile && Number.isFinite(Number(holdemWalletProfile.totalAssets))
+      ? Math.max(0, Math.floor(Number(holdemWalletProfile.totalAssets)))
+      : null;
+    if (totalAssets !== 0) {
+      toast(totalAssets == null
+        ? "자산을 확인한 뒤 다시 시도해주세요"
+        : "총자산이 0원일 때만 무료충전할 수 있어요");
+      return;
+    }
+    holdemWalletRefillPending = true;
+    renderHoldemWalletControls(activeCreateHoldemMode);
+    var result;
+    try {
+      result = await Db.refillHoldemWallet(roomLeaseAuth());
+    } catch (error) {
+      result = { ok: false, reason: "network" };
+    }
+    holdemWalletRefillPending = false;
+    if (result && result.wallet) {
+      applyHoldemWalletProfile(result.wallet);
+    }
+    renderHoldemWalletControls(activeCreateHoldemMode);
+    if (result && result.ok) {
+      toast("20,000원 무료충전 완료");
+      return;
+    }
+    if (result && result.reason === "assets_remaining") {
+      toast("총자산이 남아 있어 무료충전은 사용할 수 없어요");
+    } else if (result && result.reason === "refill_limit") {
+      toast("오늘 무료충전 3회를 모두 사용했어요");
+    } else if (result && result.reason === "auth") {
+      toast("로그인을 확인한 뒤 다시 시도해주세요");
+    } else {
+      toast("무료충전에 실패했어요. 잠시 후 다시 시도해주세요");
+    }
+    loadHoldemWallet(true);
   }
   function setCreateHoldemBuyIn(value) {
     var balance = holdemWalletProfile
@@ -7428,6 +7497,7 @@
         : null;
       openHoldemAssetRecordDialog(me.nick, totalAssets);
     });
+    $("create-holdem-wallet-refill-btn").addEventListener("click", refillCreateHoldemWallet);
     $("holdem-asset-record-close").addEventListener("click", closeHoldemAssetRecordDialog);
     $("holdem-asset-record-backdrop").addEventListener("click", function (event) {
       if (event.target === this) closeHoldemAssetRecordDialog();

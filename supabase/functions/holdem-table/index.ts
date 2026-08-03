@@ -95,6 +95,7 @@ const CORS = {
 const ACTIONS = new Set([
   "wallet",
   "profile_asset",
+  "wallet_refill",
   "ranking",
   "ranking_detail",
   "join",
@@ -452,6 +453,54 @@ async function walletProfile(
     defaultBuyIn: RING_DEFAULT_BUY_IN,
     refillAmount: RING_REFILL_AMOUNT,
     dailyRefillLimit: 3,
+  };
+}
+
+async function walletRefillIfEmpty(
+  client: ReturnType<typeof createClient>,
+  nick: string,
+) {
+  const { data, error } = await client.rpc("holdem_wallet_refill_if_empty", {
+    p_nickname: nick,
+  });
+  const row = Array.isArray(data) ? data[0] : null;
+  const availableBalance = Number(row?.current_balance);
+  const tableBalance = Number(row?.table_balance);
+  const totalAssets = Number(row?.total_assets);
+  const refillsUsedToday = Math.max(0, Number(row?.refills_used) || 0);
+  const refillsRemainingToday = Math.max(0, Number(row?.refills_remaining) || 0);
+  if (
+    error ||
+    !row ||
+    !Number.isSafeInteger(availableBalance) ||
+    !Number.isSafeInteger(tableBalance) ||
+    !Number.isSafeInteger(totalAssets) ||
+    availableBalance < 0 ||
+    tableBalance < 0 ||
+    totalAssets !== availableBalance + tableBalance
+  ) {
+    throw new Error("wallet_refill");
+  }
+  return {
+    applied: row.applied === true,
+    reason: row.reason ? safeText(row.reason, 80) : "",
+    refillsUsedToday,
+    refillsRemainingToday,
+    wallet: {
+      balance: availableBalance,
+      availableBalance,
+      tableBalance,
+      totalAssets,
+      initialBalance: INITIAL_WALLET_BALANCE,
+      chipUnit: CHIP_UNIT,
+      smallBlind: ringBlindForBuyIn(RING_DEFAULT_BUY_IN).smallBlind,
+      bigBlind: ringBlindForBuyIn(RING_DEFAULT_BUY_IN).bigBlind,
+      minBuyIn: RING_MIN_BUY_IN,
+      maxBuyIn: RING_MAX_BUY_IN,
+      defaultBuyIn: RING_DEFAULT_BUY_IN,
+      refillAmount: RING_REFILL_AMOUNT,
+      dailyRefillLimit: 3,
+    },
   };
 }
 
@@ -1287,10 +1336,11 @@ Deno.serve(async (request) => {
   }
   const walletAction = action === "wallet";
   const profileAssetAction = action === "profile_asset";
+  const walletRefillAction = action === "wallet_refill";
   const rankingAction = action === "ranking";
   const rankingDetailAction = action === "ranking_detail";
   const roomlessAction = walletAction || profileAssetAction ||
-    rankingAction || rankingDetailAction;
+    walletRefillAction || rankingAction || rankingDetailAction;
   const roomId = roomlessAction ? "" : safeText(body.roomId, 81);
   const requestId = roomlessAction ? "" : safeText(body.requestId, 101);
   if (!roomlessAction) {
@@ -1349,6 +1399,17 @@ Deno.serve(async (request) => {
           client,
           safeText(body.targetNick, 40),
         ),
+      });
+    }
+    if (walletRefillAction) {
+      await cleanupExpiredTables(client);
+      const refill = await walletRefillIfEmpty(client, account.nick);
+      return jsonResponse({
+        ok: refill.applied,
+        ...(refill.reason ? { reason: refill.reason } : {}),
+        wallet: refill.wallet,
+        refillsUsedToday: refill.refillsUsedToday,
+        refillsRemainingToday: refill.refillsRemainingToday,
       });
     }
     if (rankingAction) {

@@ -60,6 +60,15 @@ const refillTotalAssetsMigration = fs.readFileSync(
   ),
   "utf8"
 );
+const walletEmptyRefillMigration = fs.readFileSync(
+  path.join(
+    root,
+    "supabase",
+    "migrations",
+    "202608030001_holdem_wallet_empty_refill.sql"
+  ),
+  "utf8"
+);
 const adminWalletMigration = fs.readFileSync(
   path.join(
     root,
@@ -432,6 +441,25 @@ test("ring refills are account-wide, Korea-day limited, and atomic with the tabl
   assert.match(edge, /const freeRefillEligible = engineAllowsRefill && hasNoAssets/);
   assert.match(edge, /snapshot\.canRefill = status[\s\S]*freeRefillEligible/);
   assert.match(edge, /cas\.reason === "assets_remaining"/);
+  assert.match(edge, /"wallet_refill"/);
+  assert.match(edge, /action === "wallet_refill"/);
+  assert.match(edge, /holdem_wallet_refill_if_empty/);
+  assert.match(
+    walletEmptyRefillMigration,
+    /create or replace function public\.holdem_wallet_refill_if_empty/i
+  );
+  assert.match(
+    walletEmptyRefillMigration,
+    /total_assets_value > 0[\s\S]*'assets_remaining'/i
+  );
+  assert.match(
+    walletEmptyRefillMigration,
+    /current_count >= daily_limit[\s\S]*'refill_limit'/i
+  );
+  assert.match(
+    walletEmptyRefillMigration,
+    /update public\.holdem_wallets[\s\S]*wallet\.balance \+ refill_amount/i
+  );
 });
 
 test("free refill buy-ins can create or restore ring seats without wallet debits", () => {
