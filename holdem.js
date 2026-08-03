@@ -2889,7 +2889,12 @@ window.TexasHoldem = (function () {
     }
     leaveAfterHandRequested = true;
     if (hero.leaving) {
+      var previousLeavingIntent = hero.leavingIntent;
       leaveAfterHandRequested = false;
+      hero.leaving = false;
+      hero.leavingIntent = "";
+      renderSeats();
+      renderControls();
       return invoke("leave", {
         expectedVersion: state.version,
         cancelLeave: true
@@ -2902,7 +2907,16 @@ window.TexasHoldem = (function () {
         if (result && result.ok && api && typeof api.toast === "function") {
           api.toast("나가기 예약을 취소했어요.", 2200);
         }
-        if (!result || !result.ok) leaveAfterHandRequested = true;
+        if (!result || !result.ok) {
+          hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
+          if (hero) {
+            hero.leaving = true;
+            hero.leavingIntent = previousLeavingIntent;
+            renderSeats();
+            renderControls();
+          }
+          leaveAfterHandRequested = true;
+        }
         return refreshSnapshot(result && result.ok ? "leave_cancelled" : "leave_cancel_retry", true);
       });
     }

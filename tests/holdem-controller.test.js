@@ -1565,6 +1565,72 @@ test("pressing leave again cancels an active leave reservation", async () => {
   assert.equal(calls[0].payload.leaveIntent, undefined);
 });
 
+test("cancelling a reserved leave immediately removes the local leave badge", async () => {
+  let resolveInvoke;
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      if (action === "snapshot") {
+        return Promise.resolve({
+          ok: true,
+          version: 12,
+          snapshot: {
+            phase: "flop",
+            version: 12,
+            handId: "leave-badge-cancel",
+            heroSeat: 0,
+            actingSeat: 1,
+            seats: [
+              { seat: 0, nick: "alice", stack: 5000, inHand: true, leaving: false, cardCount: 2 },
+              { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+            ],
+          },
+        });
+      }
+      return new Promise((resolve) => {
+        resolveInvoke = () => resolve({
+          ok: true,
+          version: 12,
+          snapshot: {
+            phase: "flop",
+            version: 12,
+            handId: "leave-badge-cancel",
+            heroSeat: 0,
+            actingSeat: 1,
+            seats: [
+              { seat: 0, nick: "alice", stack: 5000, inHand: true, leaving: false, cardCount: 2 },
+              { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+            ],
+          },
+        });
+      });
+    },
+  };
+  const dom = resultTestDocument();
+  const controller = loadController("alice", { db, document: dom.document });
+  controller._test.setActive(true);
+  controller._test.setState(controller._test.normalizeSnapshot({
+    phase: "flop",
+    version: 11,
+    handId: "leave-badge-cancel",
+    heroSeat: 0,
+    actingSeat: 1,
+    seats: [
+      { seat: 0, nick: "alice", stack: 5000, inHand: true, leaving: true, cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+    ],
+  }, 11));
+  controller._test.renderSeats();
+  assert.match(dom.elements["holdem-seats"].innerHTML, /holdem-seat-leave-badge/);
+
+  const promise = controller._test.requestLeaveAfterHand();
+
+  assert.equal(controller.state.seats[0].leaving, false);
+  assert.doesNotMatch(dom.elements["holdem-seats"].innerHTML, /holdem-seat-leave-badge/);
+  resolveInvoke();
+  await promise;
+  assert.equal(controller.state.seats[0].leaving, false);
+});
+
 test("reserved room leave waits until the result review is complete", async () => {
   const originalNow = Date.now;
   let now = 1_800_000_000_000;
