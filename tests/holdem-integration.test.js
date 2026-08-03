@@ -727,11 +727,12 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /function scheduleAutoReadyForNextHand\(\)[\s\S]*hero && hero\.sittingOut[\s\S]*clearAutoReadyForNextHand\(\)/);
   assert.match(controller, /!hadSnapshot && latestPresenceLists[\s\S]*syncPresenceToServer\(latestPresenceLists, \{ force: true \}\)/);
   assert.match(controller, /scheduleAutoReadyForNextHand\(\)[\s\S]*scheduleAutoNextHand\(\)/);
-  assert.match(controller, /function scheduleAutoNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*hasBustedHumanSeat\(\)[\s\S]*Math\.max\(AUTO_NEXT_HAND_MS, resultTransitionDelayMs\(\)\)[\s\S]*setTimeout\(function \(\) \{ autoStartHand\(key\); \}, delay\)/);
+  assert.match(controller, /function scheduleAutoNextHand\(\)[\s\S]*state\.phase !== "complete"[\s\S]*Math\.max\(AUTO_NEXT_HAND_MS, resultTransitionDelayMs\(\)\)[\s\S]*setTimeout\(function \(\) \{ autoStartHand\(key\); \}, delay\)/);
+  assert.doesNotMatch(controller, /scheduleAutoNextHand\(\)[\s\S]{0,260}hasBustedHumanSeat\(\)/);
   assert.match(controller, /reviewUntil: settleEnd \+ RESULT_REVIEW_MS/);
   assert.match(controller, /function openBuyInDialog\(mode, seat\)[\s\S]*state\.phase === "complete" && !resultTransitionReady\(\)/);
   assert.match(controller, /function maybeAutoOpenRebuyDialog\(\)[\s\S]*if \(!resultTransitionReady\(\)\) return/);
-  assert.match(controller, /function maybeAutoOpenRebuyDialog\(\)[\s\S]*if \(state\.canRefill\) \{\s*return;\s*\}/);
+  assert.doesNotMatch(controller, /function maybeAutoOpenRebuyDialog\(\)[\s\S]*openBuyInDialog\("rebuy"[\s\S]*function releaseResultTransitions/);
   assert.match(controller, /function releaseResultTransitions\(\)[\s\S]*maybeAutoOpenRebuyDialog\(\)[\s\S]*scheduleAutoNextHand\(\)/);
   assert.match(styles, /\.holdem-profile-refill\s*\{/);
   assert.match(styles, /\.holdem-result-panel\s*\{[\s\S]*display: none !important/);

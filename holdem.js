@@ -3577,13 +3577,6 @@ window.TexasHoldem = (function () {
     return -1;
   }
 
-  function hasBustedHumanSeat() {
-    if (state.mode !== "ring") return false;
-    return state.seats.some(function (seat) {
-      return !!(seat && !seat.isBot && !seat.leaving && seat.stack <= 0);
-    });
-  }
-
   function clearAutoNextHand() {
     if (autoNextTimer) {
       clearTimeout(autoNextTimer);
@@ -3602,7 +3595,7 @@ window.TexasHoldem = (function () {
   }
 
   function buyInFlowBlocksAutoAdvance() {
-    return buyInDialogOpen || buyInWalletPending || requests.rebuy || hasQueuedProfileTopUp();
+    return false;
   }
 
   function autoReadyForNextHand(key) {
@@ -3653,7 +3646,7 @@ window.TexasHoldem = (function () {
   function autoStartHand(key) {
     autoNextTimer = null;
     if (!active || state.phase !== "complete" || !state.canStart ||
-        state.newGameBuyInRequired || hasBustedHumanSeat() ||
+        state.newGameBuyInRequired ||
         buyInFlowBlocksAutoAdvance() || autoNextKey !== key ||
         autoStartRank() < 0) return;
     if (!resultTransitionReady()) {
@@ -3678,7 +3671,7 @@ window.TexasHoldem = (function () {
   function scheduleAutoNextHand() {
     var startRank = autoStartRank();
     if (state.phase !== "complete" || !state.canStart || state.newGameBuyInRequired ||
-        hasBustedHumanSeat() || buyInFlowBlocksAutoAdvance() ||
+        buyInFlowBlocksAutoAdvance() ||
         startRank < 0) {
       clearAutoNextHand();
       return;
@@ -5076,10 +5069,6 @@ window.TexasHoldem = (function () {
       String(state.handId || state.handNumber) + ":" + resolution;
     if (autoBuyInKey === key) return;
     autoBuyInKey = key;
-    if (state.canRefill) {
-      return;
-    }
-    openBuyInDialog("rebuy", state.heroSeat);
   }
 
   function releaseResultTransitions() {

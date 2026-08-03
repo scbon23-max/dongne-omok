@@ -1733,7 +1733,7 @@ test("folded players can leave immediately without waiting for results", async (
   assert.equal(controller.isBusy(), false);
 });
 
-test("an all-in result finishes every reveal before opening the rebuy dialog", async () => {
+test("an all-in bust does not auto-open rebuy and block the next hand", async () => {
   const calls = [];
   const db = {
     getHoldemWallet() {
@@ -1809,7 +1809,7 @@ test("an all-in result finishes every reveal before opening the rebuy dialog", a
     assert.equal(controller._test.resultTransitionReady(), true);
     controller._test.maybeAutoOpenRebuyDialog();
     await Promise.resolve();
-    assert.deepEqual(calls, ["wallet"]);
+    assert.deepEqual(calls, []);
   } finally {
     Date.now = originalNow;
     controller._test.setActive(false);
@@ -3315,10 +3315,9 @@ test("a later human seat recovers the next hand when the first seat browser stal
   controller.leave();
 });
 
-test("opening a ring rebuy picker pauses automatic next hand start", async () => {
+test("a busted ring player does not pause automatic next hand start", async () => {
   const calls = [];
   const timers = [];
-  let stack = 2200;
   const db = {
     getHoldemWallet(auth) {
       calls.push({ auth, action: "wallet", payload: {} });
@@ -3329,38 +3328,23 @@ test("opening a ring rebuy picker pauses automatic next hand start", async () =>
     },
     holdemInvoke(auth, action, payload) {
       calls.push({ auth, action, payload });
-      if (action === "rebuy") {
-        stack = 20000;
-        return Promise.resolve({
-          ok: true,
-          version: 6,
-          snapshot: {
-            phase: "hand_end",
-            mode: "ring",
-            viewer: { seat: 0 },
-            seats: [
-              { seat: 0, nick: "alice", stack },
-              { seat: 1, nick: "bob", stack: 20000 },
-            ],
-          },
-        });
-      }
       return Promise.resolve({
         ok: true,
         version: 6,
         snapshot: {
-          phase: "hand_end",
+          phase: action === "start" ? "preflop" : "hand_end",
           mode: "ring",
           viewer: { seat: 0 },
           seats: [
-            { seat: 0, nick: "alice", stack },
+            { seat: 0, nick: "alice", stack: 0 },
             { seat: 1, nick: "bob", stack: 20000 },
+            { seat: 2, nick: "chris", stack: 20000 },
           ],
         },
       });
     },
   };
-  const controller = loadController("alice", {
+  const controller = loadController("bob", {
     db,
     setTimeout(fn, delay) {
       const timer = { fn, delay, cleared: false };
@@ -3376,12 +3360,13 @@ test("opening a ring rebuy picker pauses automatic next hand start", async () =>
   state.phase = "complete";
   state.version = 5;
   state.handId = "5";
-  state.heroSeat = 0;
+  state.heroSeat = 1;
   state.ownerNick = "alice";
   state.canStart = true;
   state.canReady = true;
-  state.seats[0] = { seat: 0, nick: "alice", stack: 2200 };
+  state.seats[0] = { seat: 0, nick: "alice", stack: 0 };
   state.seats[1] = { seat: 1, nick: "bob", stack: 20000 };
+  state.seats[2] = { seat: 2, nick: "chris", stack: 20000 };
   state.buyInMin = 10000;
   state.buyInMax = 20000;
   state.buyInDefault = 15000;
@@ -3392,24 +3377,12 @@ test("opening a ring rebuy picker pauses automatic next hand start", async () =>
   assert.equal(timers.length, 1);
   assert.equal(timers[0].cleared, false);
 
-  controller._test.openBuyInDialog("rebuy", 0);
-  await Promise.resolve();
-  await Promise.resolve();
-  assert.equal(timers[0].cleared, true);
-
   await timers[0].fn();
-  assert.equal(
-    calls.some((call) => call.action === "start"),
-    false,
-    "a stale auto-start callback must not start a hand while rebuy is open",
-  );
+  await Promise.resolve();
+  await Promise.resolve();
 
-  controller._test.setBuyInValue(20000);
-  const result = await controller._test.confirmBuyInDialog();
-  assert.equal(result.ok, true);
-  assert.equal(controller.state.seats[0].stack, 20000);
-  assert.equal(controller._test.getBuyInDialogState().open, false);
-  assert.equal(calls.some((call) => call.action === "rebuy"), true);
+  assert.equal(calls.some((call) => call.action === "start"), true);
+  assert.equal(calls.find((call) => call.action === "start").auth.nick, "bob");
   controller.leave();
 });
 

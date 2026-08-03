@@ -2144,7 +2144,7 @@
         if (next.settings.mode !== "ring") result = { ok: false, reason: "ring_only" };
         else if (context.internalRefill !== true) result = { ok: false, reason: "internal" };
         else if (!player || player.isBot) result = { ok: false, reason: "not_joined" };
-        else if (PLAYING_PHASES[next.phase]) result = { ok: false, reason: "hand_active" };
+        else if (PLAYING_PHASES[next.phase] && player.inHand) result = { ok: false, reason: "hand_active" };
         else if (player.stack > 0) result = { ok: false, reason: "refill_not_needed" };
         else {
           player.stack = next.settings.refillAmount;
@@ -2176,7 +2176,7 @@
         player = playerByNick(next, nick);
         if (next.settings.mode !== "ring") result = { ok: false, reason: "ring_only" };
         else if (!player || player.isBot) result = { ok: false, reason: "not_joined" };
-        else if (PLAYING_PHASES[next.phase]) result = { ok: false, reason: "hand_active" };
+        else if (PLAYING_PHASES[next.phase] && player.inHand) result = { ok: false, reason: "hand_active" };
         else {
           var freeRebuy = canUseFreeRefillBuyIn(next, cmd, context);
           var rebuyAmount = freeRebuy ? freeRefillBuyInAmount(next) : requestedRingBuyIn(next, cmd);
@@ -2827,7 +2827,8 @@
       blindLevel: Math.max(0, integer(state.blindLevel, 0)),
       nextBlindAt: state.nextBlindAt == null ? null : Math.max(0, integer(state.nextBlindAt, 0)),
       canRefill: state.settings.mode === "ring" && !!viewerPlayer &&
-        !viewerPlayer.isBot && viewerPlayer.stack <= 0 && !PLAYING_PHASES[state.phase],
+        !viewerPlayer.isBot && viewerPlayer.stack <= 0 &&
+        (!PLAYING_PHASES[state.phase] || !viewerPlayer.inHand),
       refillAmount: state.settings.refillAmount,
       buyInMin: buyInBounds.min,
       buyInMax: buyInBounds.max,

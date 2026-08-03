@@ -1251,6 +1251,72 @@ test("ring games keep one blind level, fixed entry chips, and server-only bust r
   );
 });
 
+test("busted ring players can refill during the next active hand without stopping play", () => {
+  const names = ["owner", "guest", "third"];
+  let state = tableWithPlayers(names, {
+    mode: "ring",
+    assetBacked: true,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  });
+  state = readyAndStart(state, names, 2000);
+  const actorSeat = state.actorSeat;
+  state.seats[0].stack = 0;
+  state.seats[0].inHand = false;
+  state.seats[0].waiting = true;
+  state.seats[0].ready = false;
+  state.ringStacks.owner = 0;
+
+  assert.equal(state.phase, "preflop");
+  assert.equal(Engine.view(state, "owner").canRefill, true);
+  const refill = Engine.command(state, {
+    type: "refill",
+    nick: "owner",
+    requestId: "active-refill",
+  }, {
+    now: 2001,
+    randomInt: () => 0,
+    internalRefill: true,
+  });
+
+  assert.equal(refill.ok, true, refill.reason);
+  assert.equal(refill.state.phase, "preflop");
+  assert.equal(refill.state.actorSeat, actorSeat);
+  assert.equal(refill.state.seats[0].stack, 20000);
+  assert.equal(refill.state.seats[0].inHand, false);
+  assert.equal(refill.state.seats[0].waiting, true);
+  assert.equal(refill.state.seats[0].ready, true);
+
+  let allInState = tableWithPlayers(names, {
+    mode: "ring",
+    assetBacked: true,
+    startingStack: 20000,
+    smallBlind: 100,
+    bigBlind: 200,
+    refillAmount: 20000,
+    dailyRefillLimit: 3,
+  });
+  allInState = readyAndStart(allInState, names, 2100);
+  allInState.seats[0].stack = 0;
+  allInState.seats[0].inHand = true;
+  allInState.seats[0].allIn = true;
+  assert.equal(Engine.view(allInState, "owner").canRefill, false);
+  const blocked = Engine.command(allInState, {
+    type: "refill",
+    nick: "owner",
+    requestId: "active-allin-refill",
+  }, {
+    now: 2101,
+    randomInt: () => 0,
+    internalRefill: true,
+  });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.reason, "hand_active");
+});
+
 test("rejoining a ring seat clears stale away and spectating state", () => {
   const names = ["owner", "guest"];
   let state = tableWithPlayers(names, {
