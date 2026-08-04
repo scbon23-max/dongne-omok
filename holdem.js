@@ -141,6 +141,9 @@ window.TexasHoldem = (function () {
   var moneyUnitMode = "chips";
   var cardFrontSkin = DEFAULT_CARD_FRONT_SKIN;
   var cardBackSkin = DEFAULT_CARD_BACK_SKIN;
+  var anyCallEventEnabled = false;
+  var anyCallChecked = false;
+  var anyCallAutoKey = "";
   var settingsOpen = false;
   var historyOpen = false;
   var selectedHistoryHandNo = 0;
@@ -419,6 +422,10 @@ window.TexasHoldem = (function () {
     return isObject(person) ? person : { nick: "" };
   }
 
+  function canUseAnyCallEvent() {
+    return me().isAdmin === true;
+  }
+
   function auth() {
     var value = api && typeof api.galleryAuth === "function" ? api.galleryAuth() : null;
     return isObject(value) ? value : { nick: me().nick || "", hash: "" };
@@ -467,6 +474,11 @@ window.TexasHoldem = (function () {
     moneyUnitMode = saved.moneyUnitMode === "bb" ? "bb" : "chips";
     cardFrontSkin = normalizeCardFrontSkin(saved.cardFrontSkin);
     cardBackSkin = normalizeCardBackSkin(saved.cardBackSkin);
+    anyCallEventEnabled = saved.anyCallEventEnabled === true && canUseAnyCallEvent();
+    if (!anyCallEventEnabled) {
+      anyCallChecked = false;
+      anyCallAutoKey = "";
+    }
   }
 
   function roomId() {
@@ -5589,6 +5601,18 @@ window.TexasHoldem = (function () {
     if (settingsButton) settingsButton.setAttribute("aria-expanded", settingsOpen ? "true" : "false");
     applyCardFrontSkin();
     applyCardBackSkin();
+    var canUseAnyCall = canUseAnyCallEvent();
+    if (!canUseAnyCall) {
+      anyCallEventEnabled = false;
+      anyCallChecked = false;
+      anyCallAutoKey = "";
+    }
+    show("holdem-anycall-setting", canUseAnyCall);
+    var anyCallToggle = $("holdem-anycall-event-toggle");
+    if (anyCallToggle) {
+      anyCallToggle.checked = canUseAnyCall && anyCallEventEnabled;
+      anyCallToggle.disabled = !canUseAnyCall;
+    }
     var isBb = moneyUnitMode === "bb";
     setText("holdem-unit-label", isBb ? "BB \uB2E8\uC704" : "\uC6D0 \uB2E8\uC704");
     var screen = root();
@@ -5667,6 +5691,69 @@ window.TexasHoldem = (function () {
 
   function toggleMoneyUnitMode() {
     setMoneyUnitMode(moneyUnitMode === "bb" ? "chips" : "bb");
+  }
+
+  function setAnyCallEventEnabled(enabled) {
+    anyCallEventEnabled = !!enabled && canUseAnyCallEvent();
+    if (!anyCallEventEnabled) {
+      anyCallChecked = false;
+      anyCallAutoKey = "";
+    }
+    writeStoredHoldemSettings({ anyCallEventEnabled: anyCallEventEnabled });
+    renderSettings();
+    renderControls();
+    maybePerformAnyCall();
+  }
+
+  function setAnyCallChecked(checked) {
+    anyCallChecked = !!checked && anyCallEventEnabled && canUseAnyCallEvent();
+    anyCallAutoKey = "";
+    renderControls();
+    maybePerformAnyCall();
+  }
+
+  function anyCallMove() {
+    if (state.legal.check) return "check";
+    if (state.legal.call) return "call";
+    return "";
+  }
+
+  function anyCallActionKey(move) {
+    return [
+      state.handId,
+      state.version,
+      state.actionSeq,
+      state.heroSeat,
+      move,
+      state.toCall || 0
+    ].join(":");
+  }
+
+  function maybePerformAnyCall() {
+    if (!active || !hasSnapshot || !anyCallEventEnabled || !anyCallChecked || !canUseAnyCallEvent()) return;
+    if (pendingUiCount > 0 || requests.move || state.heroSeat < 0 || state.actingSeat !== state.heroSeat) return;
+    var move = anyCallMove();
+    if (!move) {
+      anyCallAutoKey = "";
+      return;
+    }
+    var key = anyCallActionKey(move);
+    if (key === anyCallAutoKey) return;
+    anyCallAutoKey = key;
+    setTimeout(function () {
+      if (key !== anyCallAutoKey) return;
+      if (!active || !hasSnapshot || !anyCallEventEnabled || !anyCallChecked || requests.move) return;
+      if (state.heroSeat < 0 || state.actingSeat !== state.heroSeat || anyCallMove() !== move ||
+          anyCallActionKey(move) !== key) return;
+      var promise = performMove(move);
+      if (promise && typeof promise.then === "function") {
+        promise.then(function (result) {
+          if (result && result.ok === false && anyCallAutoKey === key) anyCallAutoKey = "";
+        }, function () {
+          if (anyCallAutoKey === key) anyCallAutoKey = "";
+        });
+      }
+    }, 0);
   }
 
   function renderSeats() {
@@ -6419,7 +6506,14 @@ window.TexasHoldem = (function () {
       setText("holdem-refill-status", refillStatus);
     }
 
+    var anyCallVisible = hasMove && anyCallEventEnabled && canUseAnyCallEvent();
     show("holdem-action-panel", hasMove);
+    show("holdem-anycall-control", anyCallVisible);
+    var anyCallControl = $("holdem-anycall-check");
+    if (anyCallControl) {
+      anyCallControl.checked = anyCallVisible && anyCallChecked;
+      anyCallControl.disabled = busy || !(state.legal.check || state.legal.call);
+    }
     moves.forEach(function (move) {
       var id = move === "allin" ? "holdem-allin-btn" : "holdem-" + move + "-btn";
       var visible = hasMove && !!state.legal[move];
@@ -6466,6 +6560,7 @@ window.TexasHoldem = (function () {
     }
     renderEmojiControls();
     renderConnection();
+    maybePerformAnyCall();
   }
 
   function renderTimer() {
@@ -7341,7 +7436,11 @@ window.TexasHoldem = (function () {
   }
 
   function onRootChange(event) {
-    if (event.target && event.target.id === "holdem-profile-avatar-input") {
+    if (event.target && event.target.id === "holdem-anycall-event-toggle") {
+      setAnyCallEventEnabled(event.target.checked);
+    } else if (event.target && event.target.id === "holdem-anycall-check") {
+      setAnyCallChecked(event.target.checked);
+    } else if (event.target && event.target.id === "holdem-profile-avatar-input") {
       var file = event.target.files && event.target.files[0];
       if (file) updateProfileAvatarFromFile(file);
       event.target.value = "";
@@ -7659,6 +7758,8 @@ window.TexasHoldem = (function () {
     settingsOpen = false;
     historyOpen = false;
     selectedHistoryHandNo = 0;
+    anyCallChecked = false;
+    anyCallAutoKey = "";
 
     if (wasJoined && previousRoom) {
       var req = requestId("leave");
@@ -7917,6 +8018,16 @@ window.TexasHoldem = (function () {
       requestLeaveAfterHand: requestLeaveAfterHand,
       maybeLeaveRoomAfterHand: maybeLeaveRoomAfterHand,
       performMove: performMove,
+      setAnyCallEventEnabled: setAnyCallEventEnabled,
+      setAnyCallChecked: setAnyCallChecked,
+      maybePerformAnyCall: maybePerformAnyCall,
+      getAnyCallState: function () {
+        return {
+          eventEnabled: anyCallEventEnabled,
+          checked: anyCallChecked,
+          key: anyCallAutoKey
+        };
+      },
       reserveFoldReveal: reserveFoldReveal,
       effectiveFoldRevealCards: effectiveFoldRevealCards,
       queuedActionOptions: queuedActionOptions,

@@ -772,6 +772,13 @@
             <button class="holdem-unit-option" type="button" data-money-unit-mode="bb" role="radio" aria-checked="false">BB</button>
           </div>
         </div>
+        <label id="holdem-anycall-setting" class="holdem-setting-row holdem-anycall-setting admin-only hidden">
+          <div>
+            <span>애니콜 이벤트</span>
+            <small>체크/콜만 자동 실행</small>
+          </div>
+          <input id="holdem-anycall-event-toggle" type="checkbox" aria-label="애니콜 이벤트">
+        </label>
         <div class="holdem-setting-card-fronts" aria-labelledby="holdem-card-front-title">
           <div class="holdem-setting-section-head">
             <span id="holdem-card-front-title">카드 앞면 스킨</span>
@@ -994,6 +1001,11 @@
           <button type="button" data-holdem-bet="half">½ 팟</button>
         </div>
       </div>
+
+      <label id="holdem-anycall-control" class="holdem-anycall-control admin-only hidden">
+        <input id="holdem-anycall-check" type="checkbox" aria-label="애니콜 자동 체크/콜">
+        <span>애니콜</span>
+      </label>
 
       <div id="holdem-action-buttons" class="holdem-action-buttons">
         <button id="holdem-allin-btn" class="holdem-action allin hidden" type="button">올인</button>

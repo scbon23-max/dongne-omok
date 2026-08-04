@@ -4562,6 +4562,8 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-settings-head button:focus-visible,
 .holdem-unit-option:focus-visible,
+.holdem-anycall-setting input:focus-visible,
+.holdem-anycall-control input:focus-visible,
 .holdem-card-front-option:focus-visible,
 .holdem-card-back-option:focus-visible {
   outline: 2px solid rgba(242,199,125,.92);
@@ -4603,6 +4605,16 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-setting-section-head small {
   margin: 0;
   text-align: right;
+}
+.holdem-anycall-setting {
+  cursor: pointer;
+}
+.holdem-anycall-setting input {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: #60e1d2;
 }
 .holdem-unit-options {
   width: 108px;
@@ -7353,6 +7365,39 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-action-amount-fit.is-long-amount { font-size: clamp(12px, 3.4vw, 17px); }
 .holdem-action-amount-fit.is-xl-amount { font-size: clamp(10px, 2.8vw, 14px); }
+.holdem-anycall-control {
+  width: calc(33.333333% - 5.333px);
+  min-height: 32px;
+  margin: 0 0 6px calc(66.666667% + 5.333px);
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(96,225,210,.36);
+  border-radius: 7px;
+  background: rgba(10, 55, 54, .88);
+  color: #cffff6;
+  font-size: 12px;
+  font-weight: 1000;
+  line-height: 1;
+  pointer-events: auto;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 5px 12px rgba(0,0,0,.25);
+}
+.holdem-anycall-control.hidden { display: none; }
+.holdem-anycall-control input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #60e1d2;
+}
+.holdem-anycall-control span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .holdem-action-buttons { display: flex; gap: 7px; }
 .holdem-action-panel:not(.hidden) .holdem-action-buttons,
 .holdem-screen.is-actioning .holdem-action-buttons {

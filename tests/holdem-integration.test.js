@@ -529,6 +529,13 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /hasAttribute\("data-card-front-skin"\)[\s\S]*setCardFrontSkin\(button\.getAttribute\("data-card-front-skin"\)\)/);
   assert.match(controller, /hasAttribute\("data-card-back-skin"\)[\s\S]*setCardBackSkin\(button\.getAttribute\("data-card-back-skin"\)\)/);
   assert.match(controller, /hasAttribute\("data-money-unit-mode"\)[\s\S]*setMoneyUnitMode\(button\.getAttribute\("data-money-unit-mode"\)\)/);
+  assert.match(controller, /function canUseAnyCallEvent\(\)[\s\S]*me\(\)\.isAdmin === true/);
+  assert.match(controller, /function maybePerformAnyCall\(\)[\s\S]*anyCallMove\(\)[\s\S]*performMove\(move\)/);
+  assert.match(controller, /function anyCallMove\(\)[\s\S]*state\.legal\.check[\s\S]*return "check"[\s\S]*state\.legal\.call[\s\S]*return "call"/);
+  assert.match(controller, /id === "holdem-anycall-event-toggle"[\s\S]*setAnyCallEventEnabled\(event\.target\.checked\)/);
+  assert.match(controller, /id === "holdem-anycall-check"[\s\S]*setAnyCallChecked\(event\.target\.checked\)/);
+  assert.match(index, /id="holdem-anycall-setting" class="holdem-setting-row holdem-anycall-setting admin-only hidden"/);
+  assert.match(index, /id="holdem-anycall-control" class="holdem-anycall-control admin-only hidden"/);
   assert.match(controller, /querySelectorAll\("\.holdem-unit-option"\)[\s\S]*option\.setAttribute\("aria-checked", selected \? "true" : "false"\)/);
   assert.match(index, /class="holdem-unit-option"[\s\S]*data-money-unit-mode="chips"[\s\S]*data-money-unit-mode="bb"/);
   assert.doesNotMatch(index, /id="holdem-unit-toggle"/);

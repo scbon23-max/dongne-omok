@@ -43,7 +43,7 @@ function loadController(nick = "alice", options = {}) {
   vm.createContext(context);
   vm.runInContext(source, context, { filename: "holdem.js" });
   window.TexasHoldem._test.setApi({
-    me: () => ({ nick }),
+    me: () => ({ nick, isAdmin: options.isAdmin === true }),
     roomId: () => "room-controller",
     galleryAuth: () => ({ nick, hash: "a".repeat(64) }),
   });
@@ -166,6 +166,8 @@ function controlTestDocument() {
     "holdemgame",
     "holdem-board",
     "holdem-action-panel",
+    "holdem-anycall-control",
+    "holdem-anycall-check",
     "holdem-solo-bot-fill-panel",
     "holdem-solo-bot-fill-btn",
     "holdem-pre-action-panel",
@@ -201,6 +203,8 @@ function controlTestDocument() {
     "holdem-emoji-panel",
     "holdem-connection",
     "holdem-status",
+    "holdem-anycall-setting",
+    "holdem-anycall-event-toggle",
   ];
   const elements = {};
   ids.forEach((id) => {
@@ -493,6 +497,116 @@ test("a move shows its local action tag immediately and clears it after rejectio
   assert.equal(result.ok, false);
   assert.equal(controller._test.getPendingMove(), null);
   assert.equal(controller._test.seatActionLabel(state.seats[0]), "");
+  controller.leave();
+});
+
+test("admin anycall event auto performs only check or call once per action state", async () => {
+  const calls = [];
+  const resolvers = [];
+  const db = {
+    holdemInvoke(_auth, action, payload) {
+      calls.push({ action, payload });
+      return new Promise((resolve) => {
+        resolvers.push(resolve);
+      });
+    },
+  };
+  const controller = loadController("alice", {
+    db,
+    isAdmin: true,
+    setTimeout(fn) {
+      fn();
+      return 1;
+    },
+  });
+  const state = controller._test.emptyState();
+  state.version = 10;
+  state.phase = "flop";
+  state.handId = "anycall-1";
+  state.handNumber = 44;
+  state.actionSeq = 1;
+  state.heroSeat = 0;
+  state.perspectiveSeat = 0;
+  state.actingSeat = 0;
+  state.legal = { check: true, fold: true, raise: true };
+  state.seats[0] = {
+    seat: 0,
+    nick: "alice",
+    displayName: "alice",
+    stack: 100000,
+    inHand: true,
+  };
+
+  controller._test.setState(state);
+  controller._test.setHasSnapshot(true);
+  controller._test.setActive(true);
+  controller._test.setAnyCallEventEnabled(true);
+  controller._test.setAnyCallChecked(true);
+
+  let actCalls = calls.filter((call) => call.action === "act");
+  assert.equal(actCalls.length, 1);
+  assert.equal(actCalls[0].payload.move, "check");
+  controller._test.renderControls();
+  actCalls = calls.filter((call) => call.action === "act");
+  assert.equal(actCalls.length, 1);
+
+  resolvers[0]({ ok: true, version: 11, snapshot: null });
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  state.version = 11;
+  state.actionSeq = 2;
+  state.toCall = 800;
+  state.legal = { call: true, fold: true, raise: true };
+  controller._test.setState(state);
+  controller._test.renderControls();
+
+  actCalls = calls.filter((call) => call.action === "act");
+  assert.equal(actCalls.length, 2);
+  assert.equal(actCalls[1].payload.move, "call");
+  controller._test.renderControls();
+  actCalls = calls.filter((call) => call.action === "act");
+  assert.equal(actCalls.length, 2);
+  assert.deepEqual(actCalls.map((call) => call.payload.move).sort(), ["call", "check"]);
+  controller.leave();
+});
+
+test("non-admins cannot enable holdem anycall event automation", () => {
+  const calls = [];
+  const db = {
+    holdemInvoke(_auth, action, payload) {
+      calls.push({ action, payload });
+      return Promise.resolve({ ok: true, version: payload.expectedVersion + 1, snapshot: null });
+    },
+  };
+  const controller = loadController("guest", {
+    db,
+    isAdmin: false,
+    setTimeout(fn) {
+      fn();
+      return 1;
+    },
+  });
+  const state = controller._test.emptyState();
+  state.version = 1;
+  state.phase = "turn";
+  state.handId = "anycall-guest";
+  state.actionSeq = 1;
+  state.heroSeat = 0;
+  state.perspectiveSeat = 0;
+  state.actingSeat = 0;
+  state.legal = { check: true };
+  state.seats[0] = { seat: 0, nick: "guest", displayName: "guest", stack: 10000, inHand: true };
+
+  controller._test.setState(state);
+  controller._test.setHasSnapshot(true);
+  controller._test.setActive(true);
+  controller._test.setAnyCallEventEnabled(true);
+  controller._test.setAnyCallChecked(true);
+
+  assert.equal(controller._test.getAnyCallState().eventEnabled, false);
+  assert.equal(controller._test.getAnyCallState().checked, false);
+  assert.equal(calls.length, 0);
   controller.leave();
 });
 
