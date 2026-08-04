@@ -196,9 +196,6 @@ function controlTestDocument() {
     "holdem-table-start-btn",
     "holdem-ready-btn",
     "holdem-start-btn",
-    "holdem-refill-panel",
-    "holdem-refill-btn",
-    "holdem-refill-status",
     "holdem-emoji-toggle",
     "holdem-emoji-panel",
     "holdem-connection",
@@ -2699,6 +2696,105 @@ test("an all-in player can reserve the fixed free refill for the end of the hand
   controller.leave();
 });
 
+test("a transient refill failure keeps the reservation and retries it", async () => {
+  const calls = [];
+  let refillAttempts = 0;
+  const waitingSnapshot = {
+    phase: "waiting",
+    mode: "ring",
+    handId: "9",
+    canRefill: true,
+    ringRefill: {
+      amount: 20000,
+      dailyLimit: 3,
+      usedToday: 0,
+      remainingToday: 3,
+      canRefill: true,
+      canQueue: false,
+    },
+    viewer: { seat: 0 },
+    seats: [{ seat: 0, nick: "alice", stack: 0, inHand: false }],
+  };
+  const restoredSnapshot = {
+    ...waitingSnapshot,
+    canRefill: false,
+    ringRefill: {
+      ...waitingSnapshot.ringRefill,
+      usedToday: 1,
+      remainingToday: 2,
+      canRefill: false,
+    },
+    seats: [{ seat: 0, nick: "alice", stack: 20000, inHand: false }],
+  };
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      if (action === "refill") {
+        refillAttempts += 1;
+        if (refillAttempts === 1) return Promise.reject(new Error("offline"));
+        return Promise.resolve({ ok: true, version: 3, snapshot: restoredSnapshot });
+      }
+      return Promise.resolve({
+        ok: true,
+        version: refillAttempts > 1 ? 3 : 2,
+        snapshot: refillAttempts > 1 ? restoredSnapshot : waitingSnapshot,
+      });
+    },
+  };
+  const controller = loadController("alice", {
+    db,
+    setTimeout(fn, delay) {
+      return { fn, delay, cleared: false };
+    },
+    clearTimeout(timer) {
+      if (timer) timer.cleared = true;
+    },
+  });
+  const activeHand = controller._test.emptyState();
+  activeHand.mode = "ring";
+  activeHand.phase = "river";
+  activeHand.version = 1;
+  activeHand.handId = "9";
+  activeHand.heroSeat = 0;
+  activeHand.seats[0] = {
+    seat: 0,
+    nick: "alice",
+    stack: 0,
+    inHand: true,
+    allIn: true,
+  };
+  activeHand.canQueueRefill = true;
+  activeHand.refillStatusKnown = true;
+  activeHand.refillsRemainingToday = 3;
+  activeHand.refillAmount = 20000;
+  controller._test.setState(activeHand);
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+  await controller._test.requestFreeRefill();
+
+  const afterHand = controller._test.normalizeSnapshot(waitingSnapshot, 2);
+  controller._test.setState(afterHand);
+  const failed = await controller._test.applyQueuedFreeRefill();
+
+  assert.equal(failed.ok, false);
+  assert.equal(failed.reason, "network");
+  assert.equal(controller._test.getFreeRefillState().queued, true);
+  assert.equal(controller._test.getFreeRefillState().attemptKey, "");
+
+  const retried = await controller._test.applyQueuedFreeRefill();
+
+  assert.equal(retried.ok, true);
+  assert.deepEqual(calls.map((call) => call.action), [
+    "refill",
+    "snapshot",
+    "refill",
+    "snapshot",
+  ]);
+  assert.equal(controller.state.seats[0].stack, 20000);
+  assert.equal(controller._test.getFreeRefillState().queued, false);
+  controller.leave();
+});
+
 test("the hero profile shows today's remaining manual free refills", () => {
   const ui = profileTopUpTestDocument();
   const controller = loadController("alice", {
@@ -3281,9 +3377,8 @@ test("another player's profile asset falls back when db helper is stale", async 
   controller.leave();
 });
 
-test("your ring profile queues an in-hand top up and applies it before the next hand", async () => {
+test("an all-in top-up reservation applies while the next hand continues without that player", async () => {
   const calls = [];
-  const timers = [];
   const ui = profileTopUpTestDocument();
   let version = 3;
   let phase = "flop";
@@ -3310,7 +3405,8 @@ test("your ring profile queues an in-hand top up and applies it before the next 
     viewer: { seat: 0 },
     seats: [
       { seat: 0, nick: "alice", stack, inHand: phase === "flop" },
-      { seat: 1, nick: "bob", stack: 30000, inHand: phase === "flop" },
+      { seat: 1, nick: "bob", stack: 30000, inHand: phase === "flop" || phase === "preflop" },
+      { seat: 2, nick: "chris", stack: 30000, inHand: phase === "flop" || phase === "preflop" },
     ],
     buyInMin: 10000,
     buyInMax: 50000,
@@ -3344,14 +3440,6 @@ test("your ring profile queues an in-hand top up and applies it before the next 
     db,
     localStorage,
     document: ui.document,
-    setTimeout(fn, delay) {
-      const timer = { fn, delay, cleared: false };
-      timers.push(timer);
-      return timer;
-    },
-    clearTimeout(timer) {
-      if (timer) timer.cleared = true;
-    },
   });
   const state = controller._test.emptyState();
   state.mode = "ring";
@@ -3360,6 +3448,7 @@ test("your ring profile queues an in-hand top up and applies it before the next 
   state.heroSeat = 0;
   state.seats[0] = { seat: 0, nick: "alice", stack, inHand: true };
   state.seats[1] = { seat: 1, nick: "bob", stack: 30000, inHand: true };
+  state.seats[2] = { seat: 2, nick: "chris", stack: 30000, inHand: true };
   state.buyInMin = 10000;
   state.buyInMax = 50000;
   state.buyInDefault = 30000;
@@ -3387,39 +3476,30 @@ test("your ring profile queues an in-hand top up and applies it before the next 
   assert.match(ui.elements["holdem-profile-topup-status"].textContent, /충전 예약 완료/);
   assert.deepEqual(calls.map((call) => call.action), ["wallet"]);
 
-  phase = "hand_end";
-  const completed = controller._test.emptyState();
-  completed.mode = "ring";
-  completed.phase = "complete";
-  completed.version = version;
-  completed.heroSeat = 0;
-  completed.seats[0] = { seat: 0, nick: "alice", stack };
-  completed.seats[1] = { seat: 1, nick: "bob", stack: 30000 };
-  completed.buyInMin = 10000;
-  completed.buyInMax = 50000;
-  completed.buyInDefault = 30000;
-  controller._test.setState(completed);
+  phase = "preflop";
+  stack = 0;
+  const nextHand = controller._test.emptyState();
+  nextHand.mode = "ring";
+  nextHand.phase = "preflop";
+  nextHand.version = version;
+  nextHand.heroSeat = 0;
+  nextHand.seats[0] = { seat: 0, nick: "alice", stack: 0, inHand: false };
+  nextHand.seats[1] = { seat: 1, nick: "bob", stack: 30000, inHand: true };
+  nextHand.seats[2] = { seat: 2, nick: "chris", stack: 30000, inHand: true };
+  nextHand.buyInMin = 10000;
+  nextHand.buyInMax = 50000;
+  nextHand.buyInDefault = 30000;
+  controller._test.setState(nextHand);
 
   const applied = await controller._test.applyQueuedProfileTopUp();
   assert.equal(applied.ok, true);
   assert.equal(calls.filter((call) => call.action === "rebuy").length, 1);
   assert.equal(calls.find((call) => call.action === "rebuy").payload.amount, 40000);
   assert.equal(controller.state.seats[0].stack, 40000);
+  assert.equal(controller.state.phase, "preflop");
+  assert.equal(controller.state.seats[0].inHand, false);
   assert.equal(controller._test.getProfileTopUpState().queuedAmount, 0);
   assert.equal(storageValues.size, 0);
-  const nextHandTimer = timers.find((timer) => !timer.cleared && timer.delay >= 5000);
-  assert.ok(nextHandTimer, "clearing the completed top-up must re-arm automatic play");
-  const originalNow = Date.now;
-  const resumeAt = Date.now() + nextHandTimer.delay + 1;
-  Date.now = () => resumeAt;
-  try {
-    nextHandTimer.fn();
-    await Promise.resolve();
-    await Promise.resolve();
-    assert.equal(calls.some((call) => call.action === "start"), true);
-  } finally {
-    Date.now = originalNow;
-  }
   controller.leave();
 });
 

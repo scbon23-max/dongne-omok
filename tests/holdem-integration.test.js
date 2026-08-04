@@ -212,8 +212,6 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-solo-bot-fill-panel",
     "holdem-solo-bot-fill-btn",
     "holdem-pre-action-panel",
-    "holdem-refill-panel",
-    "holdem-refill-btn",
     "holdem-profile-refill",
     "holdem-profile-refill-status",
     "holdem-profile-refill-btn",
@@ -236,6 +234,9 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-profile-avatar-input",
     "holdem-profile-wallet-balance",
   ].forEach((id) => assert.match(index, new RegExp(`id="${id}"`)));
+  assert.doesNotMatch(index, /id="holdem-refill-panel"/);
+  assert.doesNotMatch(index, /id="holdem-refill-btn"/);
+  assert.doesNotMatch(index, /테이블 금액이 모두 소진됐어요/);
   assert.match(index, /id="holdem-call-btn"[\s\S]*id="holdem-call-amount" class="holdem-action-call-amount"[\s\S]*class="holdem-action-call-label"/);
   assert.match(index, /id="holdem-connection" class="holdem-connection hidden"[\s\S]*><\/div>/);
   assert.match(index, /id="holdem-announcer" class="holdem-announcer"[\s\S]*><\/div>/);
@@ -597,7 +598,7 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /!isHandActive\(state\.phase\) && !practiceSpectator/);
   assert.match(engine, /reason:\s*"buy_in_required"/);
   assert.match(controller, /AI와 하는 연습용 임시 원화 자산/);
-  assert.match(controller, /연습용 금액을 자동으로 충전/);
+  assert.doesNotMatch(controller, /연습용 금액을 자동으로 충전/);
   assert.match(styles, /\.holdem-seat-action\s*\{/);
   assert.match(controller, /function actionTagEntryKey\(entry, snapshot\)[\s\S]*entry\.seq \|\| action[\s\S]*amount \|\| 0/);
   assert.match(controller, /pendingActionTagAnimationKeys\[actionTagKey\] = true/);

@@ -208,6 +208,10 @@ test("routine table reads run together and refill lookups stay candidate-scoped"
     edge,
     /const canQueueAfterHand = activeHand[\s\S]*const status = engineAllowsRefill \|\| canQueueAfterHand \|\| !activeHand[\s\S]*await ringRefillStatus/
   );
+  assert.match(
+    edge,
+    /const hasLowAssets = \(engineAllowsRefill \|\| canQueueAfterHand\) && refill\.assetBacked[\s\S]*await walletProfile\(client, nick\)[\s\S]*totalAssets < RING_MIN_BUY_IN/
+  );
 });
 
 test("committed table versions broadcast only a safe refresh hint", () => {
@@ -267,6 +271,10 @@ test("the endpoint action, poker move, version, and hand identity stay distinct"
     edge,
     /const VERSIONED_ACTIONS = new Set\(\[[^\]]*"reveal_cards"/
   );
+  const versionedActions = edge.match(
+    /const VERSIONED_ACTIONS = new Set\(\[[\s\S]*?\]\);/
+  )[0];
+  assert.doesNotMatch(versionedActions, /"refill"|"rebuy"/);
   assert.match(edge, /const expectedVersion = parseVersion\(body\.expectedVersion\)/);
   assert.match(
     edge,
@@ -449,7 +457,7 @@ test("ring refills are account-wide, Korea-day limited, and atomic with the tabl
   );
   assert.match(edge, /const freeRefillEligible = engineAllowsRefill && hasLowAssets/);
   assert.match(edge, /snapshot\.canRefill = status[\s\S]*freeRefillEligible/);
-  assert.match(edge, /canQueue: canQueueAfterHand && status\.remaining > 0/);
+  assert.match(edge, /canQueue: canQueueAfterHand && hasLowAssets && status\.remaining > 0/);
   assert.match(edge, /cas\.reason === "assets_remaining"/);
   assert.match(edge, /"wallet_refill"/);
   assert.match(edge, /action === "wallet_refill"/);

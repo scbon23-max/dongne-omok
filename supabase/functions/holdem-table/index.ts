@@ -122,9 +122,9 @@ const VERSIONED_ACTIONS = new Set([
   "add_bot",
   "remove_bot",
   "bot_step",
-  "refill",
-  "rebuy",
 ]);
+// Refill and rebuy are target-stack operations. The CAS loop safely reapplies
+// them to the newest table state when ordinary game actions advance the version.
 const HAND_SCOPED_ACTIONS = new Set(["act", "reveal_cards", "tick"]);
 HAND_SCOPED_ACTIONS.add("bot_step");
 const POKER_ACTIONS = new Set([
@@ -1059,7 +1059,7 @@ async function publicTableResponse(
     const status = engineAllowsRefill || canQueueAfterHand || !activeHand
       ? await ringRefillStatus(client, nick, refill.dailyLimit)
       : null;
-    const hasLowAssets = engineAllowsRefill && refill.assetBacked
+    const hasLowAssets = (engineAllowsRefill || canQueueAfterHand) && refill.assetBacked
       ? (await walletProfile(client, nick)).totalAssets < RING_MIN_BUY_IN
       : true;
     const freeRefillEligible = engineAllowsRefill && hasLowAssets;
@@ -1071,7 +1071,7 @@ async function publicTableResponse(
           usedToday: status.used,
           remainingToday: status.remaining,
           canRefill: freeRefillEligible && status.remaining > 0,
-          canQueue: canQueueAfterHand && status.remaining > 0,
+          canQueue: canQueueAfterHand && hasLowAssets && status.remaining > 0,
         }
         : { canRefill: freeRefillEligible, canQueue: false }),
     };

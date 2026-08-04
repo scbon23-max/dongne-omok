@@ -3796,6 +3796,12 @@ window.TexasHoldem = (function () {
     });
   }
 
+  function stackMutationRetryable(reason) {
+    return !reason || reason === "network" || reason === "stale" ||
+      reason === "conflict" || reason === "hand_active" ||
+      reason === "restore_unconfirmed";
+  }
+
   function refillRingChips() {
     if (!state.canRefill || requests.refill) {
       return Promise.resolve({ ok: false, reason: "unavailable" });
@@ -3882,7 +3888,10 @@ window.TexasHoldem = (function () {
       if (result && result.ok) {
         clearQueuedFreeRefill("20,000원 무료충전이 완료됐어요.");
         if (profileDialogOpen) loadProfileWallet(true);
-      } else if (reason !== "hand_active" && reason !== "stale" && reason !== "conflict") {
+      } else if (stackMutationRetryable(reason)) {
+        freeRefillAttemptKey = "";
+        scheduleRefresh("free_refill_retry", true, reason === "network" ? 500 : 100);
+      } else {
         clearQueuedFreeRefill(reason === "refill_limit"
           ? "오늘 무료충전 3회를 모두 사용했어요."
           : reason === "assets_remaining"
@@ -4901,7 +4910,7 @@ window.TexasHoldem = (function () {
       clearQueuedProfileTopUp("현재 칩이 예약 금액 이상이라 추가 차감 없이 완료됐어요.", "queued");
       return Promise.resolve({ ok: true, reason: "already_reached" });
     }
-    if (isHandActive(state.phase) ||
+    if ((isHandActive(state.phase) && hero.inHand) ||
         (state.phase === "complete" && !resultTransitionReady()) ||
         requests.rebuy || requests.refill ||
         (hero.stack <= 0 && state.canRefill)) {
@@ -4928,7 +4937,13 @@ window.TexasHoldem = (function () {
       } else if (reason === "wallet_insufficient") {
         clearQueuedProfileTopUp("보유 자산이 부족해요. 금액을 낮춰 다시 선택해 주세요.", "error");
         loadProfileWallet(true);
-      } else if (reason !== "hand_active" && reason !== "stale" && reason !== "conflict") {
+      } else if (stackMutationRetryable(reason)) {
+        profileTopUpAttemptKey = "";
+        profileTopUpMessage = "연결되는 즉시 예약 충전을 다시 적용할게요.";
+        profileTopUpMessageKind = "queued";
+        renderProfileTopUp();
+        scheduleRefresh("top_up_retry", true, reason === "network" ? 500 : 100);
+      } else {
         profileTopUpMessage = "충전을 완료하지 못했어요. 다시 시도해 주세요.";
         profileTopUpMessageKind = "error";
         renderProfileTopUp();
@@ -4938,6 +4953,7 @@ window.TexasHoldem = (function () {
   }
 
   function submitProfileTopUp() {
+    var hero = profileTopUpSeat();
     var bounds = profileTopUpBounds();
     if (!canShowProfileTopUpForSeat(state.heroSeat) || profileWalletPending ||
         !profileWallet || bounds.selectableMax < bounds.min || requests.rebuy) {
@@ -4947,7 +4963,7 @@ window.TexasHoldem = (function () {
     storeQueuedProfileTopUp(amount);
     profileTopUpValue = amount;
     profileTopUpAttemptKey = "";
-    if (isHandActive(state.phase) ||
+    if ((isHandActive(state.phase) && hero && hero.inHand) ||
         (state.phase === "complete" && !resultTransitionReady())) {
       profileTopUpMessage = "충전 예약 완료 · 현재 핸드 종료 후 " +
         formatChips(amount) + "으로 적용돼요.";
@@ -6463,48 +6479,7 @@ window.TexasHoldem = (function () {
     disable("holdem-ready-btn", busy || !canResume);
     disable("holdem-start-btn", busy);
     disable("holdem-table-start-btn", busy);
-    show("holdem-refill-panel", needsRefill);
     renderPracticeJoinControls(busy);
-    var refillButton = $("holdem-refill-btn");
-    if (refillButton) {
-      refillButton.textContent = requests.refill
-        ? "충전 중"
-        : queuedFreeRefill
-          ? "무료충전 예약됨"
-          : freeRefillCanQueue
-            ? "20,000원 무료충전 예약"
-            : freeRefillNow
-              ? "20,000원 무료충전"
-              : state.phase === "complete" && !resultReady
-                ? "결과 확인 중"
-                : "재참가 금액 선택";
-      refillButton.disabled = busy || queuedFreeRefill ||
-        (!freeRefillNow && !freeRefillCanQueue &&
-          (isHandActive(state.phase) || state.phase === "complete" && !resultReady));
-    }
-    if (needsRefill) {
-      var refillStatus = state.practiceMode
-        ? "연습용 금액을 자동으로 충전하고 있어요"
-        : queuedFreeRefill
-        ? "예약됨 · 현재 핸드가 끝나면 20,000원을 무료충전해요"
-        : freeRefillCanQueue
-        ? "지금 예약하면 현재 핸드 종료 후 자동으로 적용돼요"
-        : freeRefillNow
-        ? "총자산이 10,000원 미만이라 무료충전할 수 있어요" +
-          (state.refillStatusKnown ? " · 오늘 " + state.refillsRemainingToday + "회 남음" : "")
-        : state.phase === "complete" && !resultReady
-        ? "결과 확인이 끝나면 무료충전 가능 여부를 바로 알려드려요"
-        : state.refillStatusKnown
-        ? (!state.canRefill && state.refillsRemainingToday > 0
-          ? "총자산이 10,000원 이상이라 보유 자산으로 다시 참가할 수 있어요"
-          : state.refillsRemainingToday > 0
-          ? "스택이 0원이 되어 " + formatChips(state.refillAmount || 20000) +
-            " 무료충전이 가능해요 · 오늘 " + state.refillsRemainingToday + "회 남음"
-          : "오늘 무료 충전 " + (state.dailyRefillLimit || 3) + "회를 모두 사용했어요")
-        : "스택이 0원이 되면 " + formatChips(state.refillAmount || 20000) +
-          " 무료충전 가능 여부를 확인해요";
-      setText("holdem-refill-status", refillStatus);
-    }
 
     var anyCallVisible = hasMove && anyCallEventEnabled && canUseAnyCallEvent();
     show("holdem-action-panel", hasMove);
@@ -7374,14 +7349,6 @@ window.TexasHoldem = (function () {
       resolvePracticeJoin(false);
     } else if (id === "holdem-ready-btn") {
       setReady();
-    } else if (id === "holdem-refill-btn") {
-      var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
-      if (state.mode === "ring" && hero && hero.stack <= 0 &&
-          (canUseFreeRefillNow() || canQueueFreeRefill())) {
-        requestFreeRefill();
-      } else if (state.mode === "ring" && hero && hero.stack <= 0) {
-        openBuyInDialog("rebuy", state.heroSeat);
-      }
     } else if (id === "holdem-bot-add-btn") {
       addBot();
     } else if (id === "holdem-bot-fill-btn" || id === "holdem-solo-bot-fill-btn") {
