@@ -4736,7 +4736,7 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-front-mini-card.classic.spade,
 .holdem-front-mini-card.classic.club { color: #090d0e; }
 .holdem-front-mini-card.classic.heart,
-.holdem-front-mini-card.classic.diamond { color: #e3434c; }
+.holdem-front-mini-card.classic.diamond { color: #c6202e; }
 .holdem-card-front-preview.four-color .holdem-front-mini-card.spade { background: #323a40; }
 .holdem-card-front-preview.four-color .holdem-front-mini-card.heart { background: #e3434c; }
 .holdem-card-front-preview.four-color .holdem-front-mini-card.diamond { background: #2878d9; }
@@ -5041,7 +5041,7 @@ body.is-admin .feedback-user-compose { display: none; }
 }
 .holdem-card.red,
 .holdem-card[data-suit="h"],
-.holdem-card[data-suit="d"] { color: #e3434c; }
+.holdem-card[data-suit="d"] { color: #c6202e; }
 .holdem-card.black,
 .holdem-card[data-suit="s"],
 .holdem-card[data-suit="c"] { color: #090d0e; }
