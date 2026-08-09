@@ -32,6 +32,8 @@
     pausedRemainMs: null,
     resultInfo: null,
     winChatText: null,
+    winningLine: null,
+    winRevealUntil: null,
     drawAsk: null,       // { gseq, black: null|true|false, white: null|true|false } — 80수 자동 제안
     drawAskDone: false    // 자동 제안을 이미 물어봤는지(이번 판 1회)
   };
@@ -54,11 +56,13 @@
   var canvas, ctx, MARGIN = 28, GAP, RADIUS;
   var BOARD_SIZE = 450, boardPixelRatio = 1, boardResizeId = null, boardResizeBound = false;
   var STONE_SOURCE_INSET = 0.09;
+  var WIN_REVEAL_MS = 3000;
   var stoneImages = { black: null, white: null, ready: false };
   var hostTimerId = null, dispTimerId = null;
   var GRACE_MS = 60000;
   var graceTimers = { black: null, white: null };
   var winShownSeq = -1, liveSeq = -1, resultCalcSeq = -1, omokWinChatSeq = -1, alkWinChatSeq = -1;
+  var winRevealTimerId = null, winRevealAnimId = null;
   var voidReqFrom = null, voidReqGseq = 0, undoReqCtx = null;
   var beginReqCtx = null, swapReqCtx = null;
   var audioCtx = null, soundMuted = false, lastStoneCount = 0, stoneBuffer = null, stoneLoading = false, silenceEl = null;
@@ -1095,7 +1099,7 @@
     clearAlkMapRoulette();
     G.board = Renju.emptyBoard(); G.turn = BLACK; G.lastMove = null; G.over = false; G.winner = 0; G.draw = false;
     G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = []; G.aiLevel = null;
-    G.recorded = false; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.winChatText = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
+    G.recorded = false; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.winChatText = null; G.winningLine = null; G.winRevealUntil = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
     A.seats = { black: null, white: null }; A.turn = "b"; A.started = false; A.over = false; A.winner = null;
     A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; A.winChatText = null;
     A.timerSec = 5; A.moveDeadline = null; A.pausedRemainMs = null;
@@ -2734,7 +2738,9 @@
       seats: G.seats, timerSec: G.timerSec, moveDeadline: G.moveDeadline,
       moveRemainMs: G.moveDeadline ? Math.max(0, G.moveDeadline - Date.now()) : null,
       rev: G.rev, gameSeq: G.gameSeq, history: G.history, aiLevel: G.aiLevel,
-      started: G.started, lastPlayers: G.lastPlayers, resultAt: G.resultAt, resultInfo: G.resultInfo, winChatText: G.winChatText, manualPaused: G.manualPaused, paused: G.paused, pausedRemainMs: G.pausedRemainMs,
+      started: G.started, lastPlayers: G.lastPlayers, resultAt: G.resultAt, resultInfo: G.resultInfo, winChatText: G.winChatText,
+      winningLine: G.winningLine, winRevealUntil: G.winRevealUntil, winRevealRemainMs: G.winRevealUntil ? Math.max(0, G.winRevealUntil - Date.now()) : null,
+      manualPaused: G.manualPaused, paused: G.paused, pausedRemainMs: G.pausedRemainMs,
       drawAsk: G.drawAsk, drawAskDone: G.drawAskDone
     };
   }
@@ -2752,16 +2758,21 @@
     if (instantReplay && instantReplay.gameSeq !== G.gameSeq) discardInstantReplay();
     G.history = s.history || [];
     G.started = !!s.started; G.lastPlayers = s.lastPlayers || null; G.resultAt = s.resultAt || null; G.resultInfo = s.resultInfo || null; G.winChatText = s.winChatText || null;
+    G.winningLine = s.winningLine || null;
+    G.winRevealUntil = (typeof s.winRevealRemainMs === "number") ? (Date.now() + s.winRevealRemainMs) : (s.winRevealUntil || null);
+    if (G.over && !G.draw && !G.winningLine && G.lastMove) G.winningLine = findWinningLine(G.board, G.lastMove.r, G.lastMove.c, G.winner);
     G.manualPaused = !!s.manualPaused;
     G.paused = !!s.paused; G.pausedRemainMs = (typeof s.pausedRemainMs === "number") ? s.pausedRemainMs : null;
     G.drawAsk = s.drawAsk || null; G.drawAskDone = !!s.drawAskDone;
     maybeSeatSound();
     syncTimerChips(); syncPauseButton(); updateTurnUI(); renderPlayersList(); render(); updateCenterButton(); updateDrawAskUI();
     if (G.over) {
-      if (liveSeq === G.gameSeq && winShownSeq !== G.gameSeq) showWin();
+      if (winShownSeq !== G.gameSeq) showWinAfterReveal();
       else { renderWinResult(); showWinChatOnce("omok", G.gameSeq, G.winChatText); }
     } else {
       liveSeq = G.gameSeq;
+      clearWinRevealSchedule();
+      G.winRevealUntil = null;
       winShownSeq = -1; resultCalcSeq = -1; omokWinChatSeq = -1; $("omok-win").classList.add("hidden");
     }
   }
@@ -2791,6 +2802,82 @@
     return true;
   }
 
+  function clearWinRevealSchedule() {
+    if (winRevealTimerId) { clearTimeout(winRevealTimerId); winRevealTimerId = null; }
+    if (winRevealAnimId) {
+      if (window.cancelAnimationFrame) window.cancelAnimationFrame(winRevealAnimId);
+      else clearTimeout(winRevealAnimId);
+      winRevealAnimId = null;
+    }
+  }
+
+  function clearOmokWinReveal() {
+    clearWinRevealSchedule();
+    G.winningLine = null;
+    G.winRevealUntil = null;
+  }
+
+  function findWinningLine(board, r, c, color) {
+    var dirs = [[1, 0], [0, 1], [1, 1], [1, -1]];
+    for (var d = 0; d < dirs.length; d++) {
+      var dr = dirs[d][0], dc = dirs[d][1];
+      var line = [{ r: r, c: c }];
+      var nr = r + dr, nc = c + dc;
+      while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === color) {
+        line.push({ r: nr, c: nc });
+        nr += dr; nc += dc;
+      }
+      nr = r - dr; nc = c - dc;
+      while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === color) {
+        line.unshift({ r: nr, c: nc });
+        nr -= dr; nc -= dc;
+      }
+      if (line.length >= 5) return line;
+    }
+    return null;
+  }
+
+  function shouldRevealOmokWin() {
+    return !!(G.over && !G.draw && G.winner && G.winRevealUntil &&
+      Date.now() < G.winRevealUntil && G.winningLine && G.winningLine.length >= 5);
+  }
+
+  function scheduleWinRevealAnimation(seq) {
+    if (!shouldRevealOmokWin() || winShownSeq === seq) return;
+    if (winRevealAnimId) {
+      if (window.cancelAnimationFrame) window.cancelAnimationFrame(winRevealAnimId);
+      else clearTimeout(winRevealAnimId);
+      winRevealAnimId = null;
+    }
+    function tick() {
+      winRevealAnimId = null;
+      if (!G.over || G.gameSeq !== seq || winShownSeq === seq || instantReplay) return;
+      render();
+      if (shouldRevealOmokWin()) {
+        winRevealAnimId = window.requestAnimationFrame ? window.requestAnimationFrame(tick) : setTimeout(tick, 80);
+      }
+    }
+    tick();
+  }
+
+  function showWinAfterReveal() {
+    if (!G.over || winShownSeq === G.gameSeq) return;
+    if (shouldRevealOmokWin()) {
+      clearWinRevealSchedule();
+      $("omok-win").classList.add("hidden");
+      var seq = G.gameSeq;
+      scheduleWinRevealAnimation(seq);
+      winRevealTimerId = setTimeout(function () {
+        winRevealTimerId = null;
+        if (!G.over || G.gameSeq !== seq || winShownSeq === seq || instantReplay) return;
+        render();
+        showWin();
+      }, Math.max(0, G.winRevealUntil - Date.now()));
+      return;
+    }
+    showWin();
+  }
+
   function hostApplyMove(nick, r, c) {
     if (G.over || !G.started || G.paused) return;
     if (netMode && G.seats[colorName(G.turn)] !== nick) return;
@@ -2801,8 +2888,13 @@
     G.lastMove = { r: r, c: c };
     if (!G.history) G.history = [];
     G.history.push({ r: r, c: c, color: G.turn });
-    if (res.win) { G.over = true; G.winner = G.turn; G.draw = false; announceOmokWinChat(); endGame(); return; }
-    if (boardFull()) { G.over = true; G.winner = 0; G.draw = true; endGame(); return; }
+    if (res.win) {
+      G.over = true; G.winner = G.turn; G.draw = false;
+      G.winningLine = findWinningLine(G.board, r, c, G.turn);
+      G.winRevealUntil = Date.now() + WIN_REVEAL_MS;
+      announceOmokWinChat(); endGame(); return;
+    }
+    if (boardFull()) { G.over = true; G.winner = 0; G.draw = true; clearOmokWinReveal(); endGame(); return; }
     if (!G.drawAskDone && !G.drawAsk && isRealTwoPlayerGame() && G.history.length >= DRAW_ASK_MOVES) {
       G.drawAsk = { gseq: G.gameSeq, black: null, white: null };
     }
@@ -2823,7 +2915,7 @@
     stopHostTimer();
     broadcastState();
     recordResult();
-    updateTurnUI(); render(); showWin(); updateCenterButton();
+    updateTurnUI(); render(); showWinAfterReveal(); updateCenterButton();
   }
 
   function recordResult() {
@@ -2924,7 +3016,7 @@
     if (netMode && !amHost) return;
     if (!G.started || G.over) return;
     G.drawAsk = null;
-    G.winner = 0; G.over = true; G.draw = true;
+    G.winner = 0; G.over = true; G.draw = true; clearOmokWinReveal();
     Net.send({ t: "chat", nick: "__sys", text: "무승부로 대국이 끝났어요" });
     endGame();
   }
@@ -3114,7 +3206,7 @@
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
     G.drawAsk = null; G.drawAskDone = false;
-    G.resultAt = null; G.resultInfo = null; G.winChatText = null;
+    G.resultAt = null; G.resultInfo = null; G.winChatText = null; clearOmokWinReveal();
     G.started = true;
     G.manualPaused = false; G.paused = false; G.pausedRemainMs = null; clearAllGrace();
     G.lastPlayers = { black: G.seats.black, white: G.seats.white };
@@ -3134,7 +3226,7 @@
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
     G.drawAsk = null; G.drawAskDone = false;
-    G.resultAt = null; G.resultInfo = null; G.winChatText = null;
+    G.resultAt = null; G.resultInfo = null; G.winChatText = null; clearOmokWinReveal();
     G.started = false;
     G.manualPaused = false; G.paused = false; G.pausedRemainMs = null; clearAllGrace();
     G.moveDeadline = null;
@@ -3170,7 +3262,7 @@
     if (!col) return;
     var winnerColor = (col === BLACK) ? WHITE : BLACK;
     var winnerNick = (winnerColor === BLACK) ? G.seats.black : G.seats.white;
-    G.winner = winnerColor; G.over = true; G.draw = false;
+    G.winner = winnerColor; G.over = true; G.draw = false; clearOmokWinReveal();
     Net.send({ t: "chat", nick: "__sys", text: nick + "님이 기권 — " + winnerNick + "님 승리" });
     endGame();
   }
@@ -4994,6 +5086,7 @@
       }
     }
     if (position.lastMove) drawLastMoveMarker(position.lastMove, board);
+    if (!instantReplay && shouldRevealOmokWin()) drawWinningLineHighlight(G.winningLine, G.lastMove, board);
     drawMoveCount(position.moveCount);
     var cnt = stoneCount();
     if (cnt === lastStoneCount + 1 && isOmokFamily(curGame)) playStone();
@@ -5019,6 +5112,41 @@
     var color = board[move.r] && board[move.r][move.c];
     if (color !== BLACK && color !== WHITE) return;
     strokeBoundaryCircle(ctx, px(move.c), px(move.r), RADIUS, "#D94A2F", 2);
+  }
+  function drawWinningLineHighlight(line, lastMove, board) {
+    if (!line || line.length < 5) return;
+    var pulse = 0.45 + 0.55 * ((Math.sin(Date.now() / 115) + 1) / 2);
+    var softAlpha = 0.14 + pulse * 0.18;
+    var ringAlpha = 0.42 + pulse * 0.5;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.shadowColor = "rgba(255,207,94,.8)";
+    ctx.shadowBlur = RADIUS * (0.42 + pulse * 0.45);
+    if (line.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(px(line[0].c), px(line[0].r));
+      for (var i = 1; i < line.length; i++) ctx.lineTo(px(line[i].c), px(line[i].r));
+      ctx.strokeStyle = "rgba(255,230,118," + softAlpha + ")";
+      ctx.lineWidth = RADIUS * 1.58;
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(243,97,42," + (0.44 + pulse * 0.34) + ")";
+      ctx.lineWidth = Math.max(3, RADIUS * 0.22);
+      ctx.stroke();
+    }
+    for (var j = 0; j < line.length; j++) {
+      var p = line[j];
+      if (!p || !board[p.r] || (board[p.r][p.c] !== BLACK && board[p.r][p.c] !== WHITE)) continue;
+      ctx.fillStyle = "rgba(255,236,158," + softAlpha + ")";
+      ctx.beginPath(); ctx.arc(px(p.c), px(p.r), RADIUS * 1.08, 0, Math.PI * 2); ctx.fill();
+      strokeBoundaryCircle(ctx, px(p.c), px(p.r), RADIUS * 1.05, "rgba(255,214,84," + ringAlpha + ")", Math.max(2, RADIUS * 0.14));
+    }
+    if (lastMove) {
+      var x = px(lastMove.c), y = px(lastMove.r);
+      strokeBoundaryCircle(ctx, x, y, RADIUS * 1.24, "rgba(255,255,255," + (0.72 + pulse * 0.24) + ")", Math.max(2.6, RADIUS * 0.18));
+      strokeBoundaryCircle(ctx, x, y, RADIUS * 1.43, "rgba(243,97,42," + (0.72 + pulse * 0.24) + ")", Math.max(2.2, RADIUS * 0.13));
+    }
+    ctx.restore();
   }
   function drawStone(x, y, color) {
     var img = color === BLACK ? stoneImages.black : stoneImages.white;
