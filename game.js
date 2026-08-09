@@ -5117,7 +5117,6 @@
     if (!line || line.length < 5) return;
     var pulse = 0.45 + 0.55 * ((Math.sin(Date.now() / 115) + 1) / 2);
     var softAlpha = 0.14 + pulse * 0.18;
-    var ringAlpha = 0.42 + pulse * 0.5;
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -5139,12 +5138,10 @@
       if (!p || !board[p.r] || (board[p.r][p.c] !== BLACK && board[p.r][p.c] !== WHITE)) continue;
       ctx.fillStyle = "rgba(255,236,158," + softAlpha + ")";
       ctx.beginPath(); ctx.arc(px(p.c), px(p.r), RADIUS * 1.08, 0, Math.PI * 2); ctx.fill();
-      strokeBoundaryCircle(ctx, px(p.c), px(p.r), RADIUS * 1.05, "rgba(255,214,84," + ringAlpha + ")", Math.max(2, RADIUS * 0.14));
     }
     if (lastMove) {
       var x = px(lastMove.c), y = px(lastMove.r);
-      strokeBoundaryCircle(ctx, x, y, RADIUS * 1.24, "rgba(255,255,255," + (0.72 + pulse * 0.24) + ")", Math.max(2.6, RADIUS * 0.18));
-      strokeBoundaryCircle(ctx, x, y, RADIUS * 1.43, "rgba(243,97,42," + (0.72 + pulse * 0.24) + ")", Math.max(2.2, RADIUS * 0.13));
+      strokeBoundaryCircle(ctx, x, y, RADIUS * 1.25, "rgba(243,97,42," + (0.72 + pulse * 0.24) + ")", Math.max(2.6, RADIUS * 0.16));
     }
     ctx.restore();
   }
