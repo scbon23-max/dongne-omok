@@ -392,7 +392,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-table-hint:empty \{ display: none; \}/);
   assert.match(styles, /\.holdem-board \.holdem-card\s*\{[\s\S]*--holdem-card-width:\s*clamp\(38px,\s*10vw,\s*52px\)/);
   assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-style:\s*dashed/);
-  assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-color:\s*rgba\(213,239,235,\.12\)/);
+  assert.match(styles, /\.holdem-board \.holdem-card\.empty\s*\{[\s\S]*border-color:\s*var\(--holdem-board-empty-border\)/);
   assert.match(styles, /\.holdem-board \.holdem-card \+ \.holdem-card\s*\{\s*margin-left:\s*0;\s*\}/);
   assert.match(controller, /function relevantBestCardCodes\(evaluation\)[\s\S]*if \(category === 0\)[\s\S]*groupedRanks = \[evaluation\.tiebreak\[0\]\]/);
   assert.match(controller, /function heroCurrentHand\(\)[\s\S]*if \(code && bestCards\[code\]\) holeCards\[index\] = true[\s\S]*if \(code && bestCards\[code\]\) communityCards\[index\] = true/);
