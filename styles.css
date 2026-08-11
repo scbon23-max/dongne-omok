@@ -3411,6 +3411,8 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   margin-top: 10px;
 }
 .create-holdem-buyin-presets button {
+  position: relative;
+  overflow: hidden;
   min-width: 0;
   min-height: 118px;
   display: grid;
@@ -3429,6 +3431,25 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   text-align: center;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
 }
+.create-holdem-buyin-presets button[data-holdem-buyin="30000"] {
+  border-color: rgba(154,187,215,.32);
+  background:
+    linear-gradient(180deg, rgba(28,63,91,.98), rgba(11,33,52,.98));
+  color: #bbcfdf;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.1),
+    0 5px 14px rgba(3,15,27,.16);
+}
+.create-holdem-buyin-presets button[data-holdem-buyin="75000"] {
+  border-color: rgba(222,178,88,.36);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(243,203,123,.2), transparent 45%),
+    linear-gradient(180deg, rgba(39,34,25,.98), rgba(10,11,14,.99));
+  color: #d6c6a8;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.12),
+    0 7px 18px rgba(0,0,0,.2);
+}
 .create-holdem-buyin-presets button strong,
 .create-holdem-buyin-range {
   display: block;
@@ -3437,6 +3458,12 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   color: #f2c77d;
   font-size: 13px;
   line-height: 1.15;
+}
+.create-holdem-buyin-presets button[data-holdem-buyin="30000"] strong {
+  color: #e5f1fb;
+}
+.create-holdem-buyin-presets button[data-holdem-buyin="75000"] strong {
+  color: #f4d084;
 }
 .create-holdem-buyin-range {
   width: 100%;
@@ -3465,6 +3492,18 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   font-weight: 1000;
   line-height: 1;
 }
+.create-holdem-buyin-presets button[data-holdem-buyin="30000"] .create-holdem-buyin-range {
+  background: rgba(4,17,30,.34);
+}
+.create-holdem-buyin-presets button[data-holdem-buyin="30000"] .create-holdem-buyin-range small {
+  color: #9bb9d2;
+}
+.create-holdem-buyin-presets button[data-holdem-buyin="75000"] .create-holdem-buyin-range {
+  background: rgba(0,0,0,.3);
+}
+.create-holdem-buyin-presets button[data-holdem-buyin="75000"] .create-holdem-buyin-range small {
+  color: #cfb77f;
+}
 .create-holdem-buyin-range b {
   color: #eefbf8;
   font-size: 9.8px;
@@ -3473,6 +3512,12 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
   word-break: keep-all;
   overflow-wrap: normal;
   white-space: nowrap;
+}
+.create-holdem-buyin-presets button[data-holdem-buyin="30000"] .create-holdem-buyin-range b {
+  color: #f4f8fc;
+}
+.create-holdem-buyin-presets button[data-holdem-buyin="75000"] .create-holdem-buyin-range b {
+  color: #fff5d9;
 }
 .create-holdem-buyin-presets button.active {
   border-color: rgba(242,199,125,.82);
@@ -3483,6 +3528,27 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
     inset 0 1px 0 rgba(255,255,255,.16),
     0 0 0 1px rgba(242,199,125,.16),
     0 8px 18px rgba(0,0,0,.18);
+}
+.create-holdem-buyin-presets button[data-holdem-buyin="30000"].active {
+  border-color: rgba(202,225,245,.86);
+  background:
+    linear-gradient(180deg, rgba(40,87,126,.98), rgba(13,45,74,.98));
+  color: #f4f9ff;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.2),
+    0 0 0 1px rgba(160,201,235,.18),
+    0 10px 22px rgba(17,64,108,.25);
+}
+.create-holdem-buyin-presets button[data-holdem-buyin="75000"].active {
+  border-color: rgba(250,215,132,.9);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255,222,146,.32), transparent 46%),
+    linear-gradient(180deg, rgba(58,47,31,.99), rgba(12,12,14,.99));
+  color: #fff3cf;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.2),
+    0 0 0 1px rgba(244,200,101,.2),
+    0 11px 24px rgba(150,103,24,.25);
 }
 .create-holdem-buyin-presets button:disabled {
   opacity: .36;
