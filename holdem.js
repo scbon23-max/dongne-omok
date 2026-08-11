@@ -6956,6 +6956,14 @@ window.TexasHoldem = (function () {
     renderHandHistory();
   }
 
+  function holdemTableTier() {
+    if (state.mode !== "ring") return "light";
+    var bigBlind = Math.max(0, Math.floor(Number(state.bigBlind) || 0));
+    if (bigBlind >= 1000) return "highroller";
+    if (bigBlind >= 400) return "standard";
+    return "light";
+  }
+
   function selectHistoryHand(handNo) {
     var entry = historyEntryByHandNo(Math.max(0, integer(handNo, 0)));
     if (!entry) return false;
@@ -6969,6 +6977,7 @@ window.TexasHoldem = (function () {
     if (!screen) return;
     screen.dataset.phase = state.phase;
     screen.dataset.cardFrontSkin = normalizeCardFrontSkin(cardFrontSkin);
+    screen.dataset.tableTier = holdemTableTier();
     screen.classList.toggle("is-playing", isHandActive(state.phase));
     screen.classList.toggle("is-connected", connected);
     syncResultClasses();

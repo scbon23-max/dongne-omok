@@ -4460,6 +4460,10 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-screen {
   --holdem-felt: #075b63;
   --holdem-felt-deep: #043e47;
+  --holdem-felt-glow: #08717a;
+  --holdem-table-ring: rgba(2,7,9,.88);
+  --holdem-table-inset: rgba(1,22,27,.52);
+  --holdem-table-line: rgba(178,232,225,.17);
   --holdem-edge: #172932;
   --holdem-edge-light: #45616b;
   --holdem-gold: #f2c77d;
@@ -4470,6 +4474,27 @@ body.is-admin .feedback-user-compose { display: none; }
   overflow: hidden;
   background: #070b0e;
   color: #f8fbfb;
+}
+.holdem-screen[data-table-tier="standard"] {
+  --holdem-felt: #123f68;
+  --holdem-felt-deep: #082542;
+  --holdem-felt-glow: #2a679a;
+  --holdem-table-ring: rgba(2,10,19,.9);
+  --holdem-table-inset: rgba(5,22,42,.58);
+  --holdem-table-line: rgba(195,222,244,.2);
+  --holdem-edge: #152333;
+  --holdem-edge-light: #8ba9c4;
+}
+.holdem-screen[data-table-tier="highroller"] {
+  --holdem-felt: #272016;
+  --holdem-felt-deep: #08090c;
+  --holdem-felt-glow: #4f3f22;
+  --holdem-table-ring: rgba(0,0,0,.94);
+  --holdem-table-inset: rgba(0,0,0,.62);
+  --holdem-table-line: rgba(246,204,111,.24);
+  --holdem-edge: #111216;
+  --holdem-edge-light: #d6a84b;
+  --holdem-gold: #f4d084;
 }
 .holdem-stage {
   position: relative;
@@ -4902,18 +4927,18 @@ body.is-admin .feedback-user-compose { display: none; }
   background:
     radial-gradient(ellipse at 50% 15%, rgba(255,255,255,.12), transparent 35%),
     radial-gradient(circle at 30% 30%, rgba(255,255,255,.025) 0 1px, transparent 1.5px) 0 0 / 5px 5px,
-    linear-gradient(145deg, #08717a, var(--holdem-felt) 45%, var(--holdem-felt-deep));
+    linear-gradient(145deg, var(--holdem-felt-glow), var(--holdem-felt) 45%, var(--holdem-felt-deep));
   box-shadow:
     0 0 0 2px var(--holdem-edge-light),
-    0 0 0 7px rgba(2,7,9,.88),
+    0 0 0 7px var(--holdem-table-ring),
     0 18px 48px rgba(0,0,0,.75),
-    inset 0 0 55px rgba(1,22,27,.52);
+    inset 0 0 55px var(--holdem-table-inset);
 }
 .holdem-table::before {
   content: "";
   position: absolute;
   inset: 8px;
-  border: 1px solid rgba(178,232,225,.17);
+  border: 1px solid var(--holdem-table-line);
   border-radius: inherit;
   pointer-events: none;
 }
