@@ -504,6 +504,11 @@ window.TexasHoldem = (function () {
     return text(value, 40);
   }
 
+  function roomBuyIn() {
+    var value = api && typeof api.holdemBuyIn === "function" ? api.holdemBuyIn() : 0;
+    return Math.max(0, Math.floor(Number(value) || 0));
+  }
+
   function profileTopUpStorageKey() {
     var currentRoom = roomId();
     var nick = text(auth().nick || me().nick, 40);
@@ -6957,6 +6962,9 @@ window.TexasHoldem = (function () {
   }
 
   function holdemTableTier() {
+    var buyIn = roomBuyIn();
+    if (buyIn >= 75000) return "highroller";
+    if (buyIn >= 30000) return "standard";
     if (state.mode !== "ring") return "light";
     var bigBlind = Math.max(0, Math.floor(Number(state.bigBlind) || 0));
     if (bigBlind >= 1000) return "highroller";

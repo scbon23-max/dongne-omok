@@ -205,6 +205,7 @@
       roomId: function () { return curRoomId || ""; },
       roomName: function () { return curRoomTitle || curRoomId || ""; },
       roomGame: function () { return curRoomGame || curGame || ""; },
+      holdemBuyIn: function () { return currentRoomHoldemBuyIn(); },
       isNet: function () { return netMode; },
       isConnected: function () { return !netMode || connected; },
       setHostEligible: function (eligible) {
@@ -617,6 +618,14 @@
     var option = holdemBuyInOption(createHoldemBuyIn);
     return option ? option.amount : 0;
   }
+  function currentRoomHoldemBuyIn() {
+    if (curRoomGame !== "holdem_ring") return 0;
+    if (roomLease && roomLease.roomId === curRoomId) {
+      return normalizeHoldemBuyIn(roomLease.buyIn);
+    }
+    var room = curRoomId && rooms ? rooms[curRoomId] : null;
+    return room ? normalizeHoldemBuyIn(room.buyIn) : 0;
+  }
   function holdemBuyInForBalance(balance, preferred) {
     var available = Math.max(0, Math.floor(Number(balance) || 0));
     var selected = holdemBuyInOption(preferred);
@@ -998,7 +1007,7 @@
     var aiLevel = (black === AI_NICK || white === AI_NICK) ? G.aiLevel : null;
     var shownBlack = (black === AI_NICK && aiLevel) ? aiLevelName(aiLevel) : black;
     var shownWhite = (white === AI_NICK && aiLevel) ? aiLevelName(aiLevel) : white;
-    return { id: curRoomId, game: curRoomGame, name: curRoomTitle, host: me.nick, status: st, summary: summary, black: shownBlack || null, white: shownWhite || null, aiLevel: aiLevel, count: (netMode ? Math.max(displayRoster.length, roster.length, 1) : 1), ts: roomCreatedTs };
+    return { id: curRoomId, game: curRoomGame, name: curRoomTitle, host: me.nick, status: st, summary: summary, black: shownBlack || null, white: shownWhite || null, aiLevel: aiLevel, count: (netMode ? Math.max(displayRoster.length, roster.length, 1) : 1), ts: roomCreatedTs, buyIn: currentRoomHoldemBuyIn() };
   }
   function broadcastRoomOpen() {
     if (lobbyMode && roomIsDiscoverable(curRoomGame)) {
