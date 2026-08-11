@@ -23,10 +23,12 @@ test("Hold'em create room starts without a selected buy-in", () => {
   assert.match(game, /storeHoldemCreateSelection\(createHoldemMode, createHoldemSpeed, createHoldemBuyIn\)/);
 });
 
-test("Hold'em create room rescues every balance below the cheapest buy-in", () => {
+test("Hold'em create room rescues every balance below the free-refill asset limit", () => {
   assert.match(game, /var HOLDEM_MIN_BUY_IN = 10000/);
-  assert.match(game, /totalAssets < HOLDEM_MIN_BUY_IN/);
-  assert.match(game, /totalAssets >= HOLDEM_MIN_BUY_IN/);
+  assert.match(game, /var HOLDEM_FREE_REFILL_ASSET_LIMIT = 20000/);
+  assert.match(game, /totalAssets < HOLDEM_FREE_REFILL_ASSET_LIMIT/);
+  assert.match(game, /totalAssets >= HOLDEM_FREE_REFILL_ASSET_LIMIT/);
+  assert.match(game, /19,900원 이하/);
   assert.match(game, /20,000원 무료충전/);
   assert.doesNotMatch(game, /totalAssets === 0/);
 });

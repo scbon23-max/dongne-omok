@@ -217,6 +217,7 @@ test("the six-seat table exposes every required game control", () => {
     "holdem-profile-refill-btn",
     "holdem-buyin-backdrop",
     "holdem-buyin-slider",
+    "holdem-buyin-remaining",
     "holdem-buyin-confirm",
     "holdem-fold-btn",
     "holdem-check-btn",
@@ -610,6 +611,9 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /leaving:\s*!!firstDefined\(entry\.leaving/);
   assert.match(controller, /classes\.push\("is-leaving"\)/);
   assert.match(controller, /class="holdem-seat-leave-badge"[\s\S]*나가기 예약/);
+  const leaveButtonBranch = controller.match(/id === "holdem-leave-btn"[\s\S]*?\} else if \(id === "holdem-chat-toggle"/)?.[0] || "";
+  assert.match(leaveButtonBranch, /requestLeaveAfterHand\(\)/);
+  assert.doesNotMatch(leaveButtonBranch, /api\.leaveRoom/);
   assert.match(styles, /\.holdem-seat-leave-badge\s*\{/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me \.holdem-seat-leave-badge\s*\{[\s\S]*grid-row:\s*2/);
   assert.doesNotMatch(styles, /\.holdem-seat-action\s*\{[^}]*animation:/);
@@ -698,7 +702,11 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /function maybeAutoSeatJoin\(\)[\s\S]*firstEmptySeat\(\)[\s\S]*requestHumanSeatJoin\(targetSeat\)/);
   assert.match(index, /id="holdem-buyin-spectate"[^>]*>관전하기</);
   assert.match(index, /<dt>내 총자산<\/dt>[\s\S]*id="holdem-buyin-balance"/);
+  assert.match(index, /<dt>충전 후 남는 자산<\/dt>[\s\S]*id="holdem-buyin-remaining"/);
+  assert.match(index, /id="holdem-profile-topup-remaining"/);
+  assert.match(controller, /function displayedBuyInTotalAssets\(\)[\s\S]*buyInWallet\.totalAssets/);
   assert.match(controller, /function displayedBuyInBalance\(bounds\)[\s\S]*var spent = buyInMode === "rebuy"[\s\S]*walletBalance - spent/);
+  assert.match(controller, /function profileTopUpRemainingBalance\(bounds\)[\s\S]*bounds\.value - bounds\.currentStack[\s\S]*bounds\.walletBalance - spend/);
   assert.match(index, /id="holdem-profile-role-action"[^>]*>관전하기</);
   assert.match(engine, /ready:\s*stack > 0/);
   assert.match(engine, /leavingIntent:\s*""/);

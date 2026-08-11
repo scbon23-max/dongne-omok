@@ -151,6 +151,7 @@ const RING_MAX_BUY_IN = 100000;
 const RING_ROOM_BUY_INS = new Set([15000, 30000, 75000]);
 const RING_DEFAULT_BUY_IN = 30000;
 const RING_REFILL_AMOUNT = 20000;
+const RING_FREE_REFILL_ASSET_LIMIT = RING_REFILL_AMOUNT;
 const HOLDEM_ROOM_GAMES = new Set([
   "holdem",
   "holdem_tournament",
@@ -1027,7 +1028,7 @@ async function walletProfileWithRefillStatus(
       }
       : {}),
     refillStatusKnown: status !== null,
-    canFreeRefill: wallet.totalAssets < RING_MIN_BUY_IN &&
+    canFreeRefill: wallet.totalAssets < RING_FREE_REFILL_ASSET_LIMIT &&
       status !== null && status.remaining > 0,
   };
 }
@@ -1060,7 +1061,7 @@ async function publicTableResponse(
       ? await ringRefillStatus(client, nick, refill.dailyLimit)
       : null;
     const hasLowAssets = (engineAllowsRefill || canQueueAfterHand) && refill.assetBacked
-      ? (await walletProfile(client, nick)).totalAssets < RING_MIN_BUY_IN
+      ? (await walletProfile(client, nick)).totalAssets < RING_FREE_REFILL_ASSET_LIMIT
       : true;
     const freeRefillEligible = engineAllowsRefill && hasLowAssets;
     snapshot.ringRefill = {
@@ -1617,7 +1618,7 @@ Deno.serve(async (request) => {
 
       if (action === "refill" && isAssetBackedRingState(baseState)) {
         const profile = await walletProfile(client, account.nick);
-        if (profile.totalAssets >= RING_MIN_BUY_IN) {
+        if (profile.totalAssets >= RING_FREE_REFILL_ASSET_LIMIT) {
           return publicTableResponse(
             client,
             engine,
@@ -1649,7 +1650,7 @@ Deno.serve(async (request) => {
       ) && command.freeRefill === true;
       if (freeRefillBuyIn) {
         const profile = await walletProfile(client, account.nick);
-        if (profile.totalAssets >= RING_MIN_BUY_IN) {
+        if (profile.totalAssets >= RING_FREE_REFILL_ASSET_LIMIT) {
           return publicTableResponse(
             client,
             engine,

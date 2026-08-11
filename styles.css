@@ -6781,7 +6781,10 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-profile-topup-bounds {
   color: #91aaa7;
   font-size: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.holdem-profile-topup-bounds > span:last-child { grid-column: 1 / -1; }
 .holdem-profile-topup-bounds strong {
   margin-left: 3px;
   color: #d8efeb;

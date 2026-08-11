@@ -48,7 +48,7 @@ window.TexasHoldem = (function () {
   "use strict";
 
   var MAX_SEATS = 6;
-  var MIN_PLAYABLE_ASSETS = 10000;
+  var FREE_REFILL_ASSET_LIMIT = 20000;
   var HAND_HISTORY_LIMIT = 20;
   var POLL_MS = 5000;
   var CLOCK_MS = 250;
@@ -2689,7 +2689,7 @@ window.TexasHoldem = (function () {
       ring_only: "링게임에서만 충전할 수 있어요.",
       refill_not_needed: "보유한 테이블 금액이 남아 있어요.",
       refill_limit: "오늘 사용할 수 있는 충전 3회를 모두 사용했어요.",
-      assets_remaining: "총자산이 10,000원 이상이라 무료충전은 사용할 수 없어요. 보유 자산으로 다시 참가해 주세요.",
+      assets_remaining: "총자산이 20,000원 이상이라 무료충전은 사용할 수 없어요. 보유 자산으로 다시 참가해 주세요.",
       wallet_insufficient: "홀덤 자산이 이 방의 바이인보다 부족해요.",
       bots_solo_only: "AI 연습은 방에 혼자 있을 때만 사용할 수 있어요.",
       practice_ai_only: "AI 연습 중인 방에는 다른 사람이 함께할 수 없어요.",
@@ -2939,11 +2939,6 @@ window.TexasHoldem = (function () {
   function requestLeaveAfterHand() {
     if (state.heroSeat < 0 || requests.leave_after_hand) return Promise.resolve({ ok: false, reason: "not_joined" });
     var hero = state.seats[state.heroSeat];
-    if (!hero || !isHandActive(state.phase) || !hero.inHand || hero.folded) {
-      if (api && typeof api.leaveRoom === "function") api.leaveRoom();
-      return Promise.resolve({ ok: true, reason: "leave_now" });
-    }
-    leaveAfterHandRequested = true;
     if (hero.leaving) {
       var previousLeavingIntent = hero.leavingIntent;
       leaveAfterHandRequested = false;
@@ -2976,6 +2971,11 @@ window.TexasHoldem = (function () {
         return refreshSnapshot(result && result.ok ? "leave_cancelled" : "leave_cancel_retry", true);
       });
     }
+    if (!hero || !isHandActive(state.phase) || !hero.inHand) {
+      if (api && typeof api.leaveRoom === "function") api.leaveRoom();
+      return Promise.resolve({ ok: true, reason: "leave_now" });
+    }
+    leaveAfterHandRequested = true;
     return invoke("leave", {
       expectedVersion: state.version,
       leaveIntent: "leave"
@@ -2996,10 +2996,10 @@ window.TexasHoldem = (function () {
     if (!active) return;
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
     var waitingForResult = state.phase === "complete" && !resultTransitionReady();
-    if (waitingForResult && !(hero && hero.folded)) return;
+    if (waitingForResult) return;
     if (leaveAfterHandRequested) {
       if (!api || typeof api.leaveRoom !== "function") return;
-      if (hero && hero.leaving && isHandActive(state.phase) && !hero.folded) return;
+      if (hero && hero.leaving && isHandActive(state.phase)) return;
       if (isBusy()) return;
       leaveAfterHandRequested = false;
       setTimeout(function () {
@@ -3872,7 +3872,7 @@ window.TexasHoldem = (function () {
       if (!state.refillStatusKnown) return Promise.resolve({ ok: true, queued: true });
       clearQueuedFreeRefill(state.refillsRemainingToday <= 0
         ? "오늘 무료충전 3회를 모두 사용했어요."
-        : "총자산이 10,000원 이상이라 보유 자산으로 재참가할 수 있어요.");
+        : "총자산이 20,000원 이상이라 보유 자산으로 재참가할 수 있어요.");
       return Promise.resolve({ ok: false, reason: "unavailable" });
     }
     var attemptKey = String(state.version) + ":" + String(state.heroSeat);
@@ -3895,7 +3895,7 @@ window.TexasHoldem = (function () {
         clearQueuedFreeRefill(reason === "refill_limit"
           ? "오늘 무료충전 3회를 모두 사용했어요."
           : reason === "assets_remaining"
-            ? "총자산이 10,000원 이상이라 무료충전할 수 없어요."
+            ? "총자산이 20,000원 이상이라 무료충전할 수 없어요."
             : "무료충전을 완료하지 못했어요. 다시 시도해 주세요.");
       }
       return result;
@@ -4734,7 +4734,7 @@ window.TexasHoldem = (function () {
       } else if (isHandActive(state.phase) || !resultTransitionReady()) {
         statusText += " · 결과 확인 후 사용할 수 있어요";
       } else if (state.refillStatusKnown && remaining > 0) {
-        statusText += " · 총자산이 10,000원 미만일 때 사용할 수 있어요";
+        statusText += " · 총자산이 19,900원 이하일 때 사용할 수 있어요";
       }
     } else {
       statusText += " · 스택이 0원이 되면 사용할 수 있어요";
@@ -4799,6 +4799,12 @@ window.TexasHoldem = (function () {
     renderProfileTopUp();
   }
 
+  function profileTopUpRemainingBalance(bounds) {
+    bounds = bounds || profileTopUpBounds();
+    var spend = Math.max(0, bounds.value - bounds.currentStack);
+    return Math.max(0, bounds.walletBalance - spend);
+  }
+
   function canShowProfileTopUpForSeat(seat) {
     var targetSeat = safeSeat(seat);
     var hero = profileTopUpSeat();
@@ -4829,6 +4835,11 @@ window.TexasHoldem = (function () {
     setText("holdem-profile-topup-current", formatChips(bounds.currentStack));
     setText("holdem-profile-topup-max", formatChips(bounds.max));
     setText("holdem-profile-topup-amount", formatChips(bounds.value));
+    setText("holdem-profile-topup-remaining", profileWalletPending
+      ? "확인 중"
+      : profileWallet
+        ? formatAsset(profileTopUpRemainingBalance(bounds))
+        : "확인 불가");
 
     var slider = $("holdem-profile-topup-slider");
     var unavailable = profileWalletPending || !profileWallet || bounds.selectableMax < bounds.min;
@@ -5013,7 +5024,7 @@ window.TexasHoldem = (function () {
     if (state.mode !== "ring" || refillAmount <= 0) return false;
     if (!state.refillStatusKnown || state.refillsRemainingToday <= 0) return false;
     if (!buyInWallet || !Number.isFinite(Number(buyInWallet.totalAssets)) ||
-        Number(buyInWallet.totalAssets) >= MIN_PLAYABLE_ASSETS) return false;
+        Number(buyInWallet.totalAssets) >= FREE_REFILL_ASSET_LIMIT) return false;
     if (buyInMode !== "join" && buyInMode !== "rebuy") return false;
     if (buyInMode === "join" && buyInSeat < 0) return false;
     if (buyInMode === "rebuy") {
@@ -5040,6 +5051,14 @@ window.TexasHoldem = (function () {
     var spent = buyInMode === "rebuy" ? Math.max(0, selected - currentStack) : selected;
     var walletBalance = Math.max(0, Math.floor(Number(buyInWallet.balance) || 0));
     return Math.max(0, walletBalance - spent);
+  }
+
+  function displayedBuyInTotalAssets() {
+    if (!buyInWallet) return null;
+    if (Number.isFinite(Number(buyInWallet.totalAssets))) {
+      return Math.max(0, Math.floor(Number(buyInWallet.totalAssets)));
+    }
+    return Math.max(0, Math.floor(Number(buyInWallet.balance) || 0));
   }
 
   function loadBuyInWallet() {
@@ -5219,6 +5238,11 @@ window.TexasHoldem = (function () {
     setText("holdem-buyin-title", title);
     setText("holdem-buyin-range", formatChips(bounds.min) + " ~ " + formatChips(bounds.max));
     setText("holdem-buyin-balance", buyInWalletPending
+      ? "확인 중"
+      : buyInWallet
+        ? formatAsset(displayedBuyInTotalAssets())
+        : "확인 불가");
+    setText("holdem-buyin-remaining", buyInWalletPending
       ? "확인 중"
       : buyInWallet
         ? formatAsset(displayedBuyInBalance(bounds))
@@ -6190,7 +6214,7 @@ window.TexasHoldem = (function () {
         : !state.refillStatusKnown
         ? "무료충전 가능 여부를 확인하고 있어요"
         : state.refillsRemainingToday > 0
-        ? "총자산이 10,000원 이상이라 보유 자산으로 다시 참가할 수 있어요"
+        ? "총자산이 20,000원 이상이라 보유 자산으로 다시 참가할 수 있어요"
         : "무료 충전을 모두 사용했어요. 보유 자산으로 다시 참가할 수 있어요";
     }
     if (isBetweenHands(state.phase) && state.lastRake > 0) {
@@ -7335,8 +7359,7 @@ window.TexasHoldem = (function () {
     } else if (id === "holdem-rank-btn") {
       if (api && typeof api.openHoldemRank === "function") api.openHoldemRank();
     } else if (id === "holdem-leave-btn") {
-      if (isBusy()) requestLeaveAfterHand();
-      else if (api && typeof api.leaveRoom === "function") api.leaveRoom();
+      requestLeaveAfterHand();
     } else if (id === "holdem-chat-toggle") {
       toggleChatOpen();
     } else if (id === "holdem-chat-send") {
@@ -7891,7 +7914,7 @@ window.TexasHoldem = (function () {
         '<li>완전히 같은 패는 팟을 나누며, 나눌 수 없는 남는 금액은 규칙상 먼저 받을 위치의 참가자에게 갑니다.</li>' +
         '</ul></section>' +
         '<section class="cm-rule-section"><h3>4. 충전과 수수료</h3><ul class="cm-rule-list">' +
-        '<li>총자산이 10,000원 미만이면 버튼을 눌러 20,000원을 무료충전할 수 있습니다. 핸드 진행 중에는 종료 후 적용을 예약할 수 있으며, 계정당 하루 3회까지 받을 수 있습니다.</li>' +
+        '<li>총자산이 19,900원 이하이면 버튼을 눌러 20,000원을 무료충전할 수 있습니다. 핸드 진행 중에는 종료 후 적용을 예약할 수 있으며, 계정당 하루 3회까지 받을 수 있습니다.</li>' +
         '<li>실제 자산 테이블은 플랍이 공개된 핸드에만 팟의 2%를 수수료로 차감하며, 최대 금액은 해당 방의 1BB입니다.</li>' +
         '<li>수수료는 100원 단위로 내림 처리하고, AI 연습 테이블에는 적용하지 않습니다.</li>' +
         '</ul></section>' +

@@ -585,6 +585,7 @@
   var HOLDEM_CHIP_UNIT = 100;
   var HOLDEM_INITIAL_ASSETS = 100000;
   var HOLDEM_MIN_BUY_IN = 10000;
+  var HOLDEM_FREE_REFILL_ASSET_LIMIT = 20000;
   var HOLDEM_MAX_BUY_IN = 100000;
   var HOLDEM_DEFAULT_BUY_IN = 30000;
   var HOLDEM_BUY_IN_OPTIONS = [
@@ -6473,7 +6474,7 @@
       ? Math.max(0, Math.floor(Number(holdemWalletProfile.refillsRemainingToday)))
       : null;
     var lowBalance = mode === "ring" && totalAssets != null &&
-      totalAssets < HOLDEM_MIN_BUY_IN;
+      totalAssets < HOLDEM_FREE_REFILL_ASSET_LIMIT;
     var refillLimitReached = lowBalance && refillsRemaining === 0;
     var canFreeRefill = lowBalance && !holdemWalletPending && !refillLimitReached;
     var walletBox = $("create-holdem-wallet-balance")
@@ -6499,7 +6500,7 @@
           : refillLimitReached
             ? "오늘 무료충전 3회를 모두 사용했어요. 한국시간 자정에 다시 받을 수 있어요."
           : lowBalance
-            ? "총자산이 10,000원 미만이라 20,000원 무료충전이 가능해요" +
+            ? "총자산이 19,900원 이하라 20,000원 무료충전이 가능해요" +
               (refillsRemaining == null ? "." : " · 오늘 " + refillsRemaining + "회 남음")
           : tableBalance > 0
             ? "총 자산 중 " + formatHoldemAsset(tableBalance) +
@@ -6654,10 +6655,10 @@
     var totalAssets = holdemWalletProfile && Number.isFinite(Number(holdemWalletProfile.totalAssets))
       ? Math.max(0, Math.floor(Number(holdemWalletProfile.totalAssets)))
       : null;
-    if (totalAssets == null || totalAssets >= HOLDEM_MIN_BUY_IN) {
+    if (totalAssets == null || totalAssets >= HOLDEM_FREE_REFILL_ASSET_LIMIT) {
       toast(totalAssets == null
         ? "자산을 확인한 뒤 다시 시도해주세요"
-        : "총자산이 10,000원 미만일 때 무료충전할 수 있어요");
+        : "총자산이 19,900원 이하일 때 무료충전할 수 있어요");
       return;
     }
     holdemWalletRefillPending = true;
@@ -6678,7 +6679,7 @@
       return;
     }
     if (result && result.reason === "assets_remaining") {
-      toast("총자산이 10,000원 이상이라 무료충전은 사용할 수 없어요");
+      toast("총자산이 20,000원 이상이라 무료충전은 사용할 수 없어요");
     } else if (result && result.reason === "refill_limit") {
       toast("오늘 무료충전 3회를 모두 사용했어요");
     } else if (result && result.reason === "auth") {

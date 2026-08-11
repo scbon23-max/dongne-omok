@@ -245,6 +245,7 @@ function profileTopUpTestDocument() {
     "holdem-profile-topup-current",
     "holdem-profile-topup-max",
     "holdem-profile-topup-amount",
+    "holdem-profile-topup-remaining",
     "holdem-profile-topup-slider",
     "holdem-profile-topup-status",
     "holdem-profile-topup-confirm",
@@ -258,6 +259,36 @@ function profileTopUpTestDocument() {
         ? ["hidden"]
         : []
     );
+  });
+  return {
+    document: {
+      getElementById(id) {
+        return elements[id] || null;
+      },
+      createElement() {
+        return fakeElement();
+      },
+    },
+    elements,
+  };
+}
+
+function buyInTestDocument() {
+  const ids = [
+    "holdem-buyin-backdrop",
+    "holdem-buyin-title",
+    "holdem-buyin-range",
+    "holdem-buyin-balance",
+    "holdem-buyin-remaining",
+    "holdem-buyin-amount",
+    "holdem-buyin-note",
+    "holdem-buyin-slider",
+    "holdem-buyin-confirm",
+    "holdem-buyin-spectate",
+  ];
+  const elements = {};
+  ids.forEach((id) => {
+    elements[id] = fakeElement(id === "holdem-buyin-backdrop" ? ["hidden"] : []);
   });
   return {
     document: {
@@ -1815,9 +1846,34 @@ test("reserved room leave waits until the result review is complete", async () =
   }
 });
 
-test("folded players can leave immediately without waiting for results", async () => {
+test("a reserved leave stays through the result review even after the player folds", async () => {
+  const originalNow = Date.now;
+  let now = 1_800_000_100_000;
+  Date.now = () => now;
   const leaveCalls = [];
-  const controller = loadController("alice");
+  const calls = [];
+  const reservedSnapshot = {
+    phase: "flop",
+    version: 12,
+    handId: "folded-leave-review",
+    heroSeat: 0,
+    actingSeat: 1,
+    seats: [
+      { seat: 0, nick: "alice", stack: 5000, inHand: true, folded: true, leaving: true, leaveIntent: "leave", cardCount: 2 },
+      { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+    ],
+  };
+  const db = {
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: reservedSnapshot.version,
+        snapshot: reservedSnapshot,
+      });
+    },
+  };
+  const controller = loadController("alice", { db });
   controller._test.setApi({
     me: () => ({ nick: "alice" }),
     roomId: () => "room-controller",
@@ -1825,23 +1881,50 @@ test("folded players can leave immediately without waiting for results", async (
     leaveRoom: () => leaveCalls.push("leave"),
   });
   controller._test.setActive(true);
-  controller._test.setState(controller._test.normalizeSnapshot({
-    phase: "flop",
-    version: 11,
-    handId: "folded-leave-now",
-    heroSeat: 0,
-    actingSeat: 1,
-    seats: [
-      { seat: 0, nick: "alice", stack: 5000, inHand: true, folded: true, cardCount: 2 },
-      { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
-    ],
-  }, 11));
+  try {
+    controller._test.setState(controller._test.normalizeSnapshot({
+      phase: "flop",
+      version: 11,
+      handId: "folded-leave-review",
+      heroSeat: 0,
+      actingSeat: 1,
+      seats: [
+        { seat: 0, nick: "alice", stack: 5000, inHand: true, folded: true, cardCount: 2 },
+        { seat: 1, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+      ],
+    }, 11));
 
-  const result = await controller._test.requestLeaveAfterHand();
+    const result = await controller._test.requestLeaveAfterHand();
 
-  assert.equal(result.reason, "leave_now");
-  assert.deepEqual(leaveCalls, ["leave"]);
-  assert.equal(controller.isBusy(), false);
+    assert.equal(result.ok, true);
+    assert.equal(calls.filter((call) => call.action === "leave").length, 1);
+    assert.deepEqual(leaveCalls, []);
+    assert.equal(controller.state.seats[0].leaving, true);
+
+    controller._test.applySnapshot({
+      phase: "hand_end",
+      version: 13,
+      handId: "folded-leave-review",
+      heroSeat: 0,
+      seats: [
+        { seat: 0, nick: "alice", stack: 5000, inHand: true, folded: true, leaving: true, leaveIntent: "leave", cardCount: 2 },
+        { seat: 1, nick: "bob", stack: 10000, winAmount: 5000 },
+      ],
+      pot: 5000,
+      pots: [{ amount: 5000, winners: [1] }],
+      winners: ["bob"],
+    }, 13);
+    assert.deepEqual(leaveCalls, []);
+    assert.equal(controller._test.resultTransitionReady(), false);
+
+    now += controller._test.resultTransitionDelayMs();
+    controller._test.renderSettlementAnimation();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.deepEqual(leaveCalls, ["leave"]);
+    assert.equal(controller.isBusy(), false);
+  } finally {
+    Date.now = originalNow;
+  }
 });
 
 test("an all-in bust does not auto-open rebuy and block the next hand", async () => {
@@ -3261,6 +3344,7 @@ test("pressing spectate again cancels an active spectate reservation", async () 
 
 test("ring rebuys use a separate wallet-backed server command", async () => {
   const calls = [];
+  const ui = buyInTestDocument();
   const db = {
     getHoldemWallet(auth) {
       calls.push({ auth, action: "wallet", payload: {} });
@@ -3280,7 +3364,7 @@ test("ring rebuys use a separate wallet-backed server command", async () => {
       });
     },
   };
-  const controller = loadController("alice", { db });
+  const controller = loadController("alice", { db, document: ui.document });
   const state = controller._test.emptyState();
   state.mode = "ring";
   state.phase = "complete";
@@ -3296,7 +3380,11 @@ test("ring rebuys use a separate wallet-backed server command", async () => {
   controller._test.openBuyInDialog("rebuy", 0);
   await Promise.resolve();
   await Promise.resolve();
+  assert.equal(ui.elements["holdem-buyin-balance"].textContent, "40,000원");
+  assert.equal(ui.elements["holdem-buyin-remaining"].textContent, "10,000원");
   controller._test.setBuyInValue(20000);
+  assert.equal(ui.elements["holdem-buyin-amount"].textContent, "20,000원");
+  assert.equal(ui.elements["holdem-buyin-remaining"].textContent, "20,000원");
   const result = await controller._test.confirmBuyInDialog();
 
   assert.equal(result.ok, true);
@@ -3464,10 +3552,13 @@ test("an all-in top-up reservation applies while the next hand continues without
   assert.equal(ui.elements["holdem-profile-topup"].classList.contains("hidden"), false);
   assert.equal(ui.elements["holdem-profile-topup-current"].textContent, "25,000원");
   assert.equal(ui.elements["holdem-profile-topup-max"].textContent, "50,000원");
+  assert.equal(ui.elements["holdem-profile-topup-remaining"].textContent, "35,000원");
   assert.equal(ui.elements["holdem-profile-topup-confirm"].textContent, "충전 예약");
   assert.match(ui.elements["holdem-profile-topup-status"].textContent, /현재 핸드/);
 
   controller._test.setProfileTopUpValue(40000);
+  assert.equal(ui.elements["holdem-profile-topup-amount"].textContent, "40,000원");
+  assert.equal(ui.elements["holdem-profile-topup-remaining"].textContent, "45,000원");
   const queued = await controller._test.submitProfileTopUp();
   assert.equal(queued.ok, true);
   assert.equal(queued.queued, true);
