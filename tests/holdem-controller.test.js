@@ -1773,6 +1773,35 @@ test("cancelling a reserved leave immediately removes the local leave badge", as
   assert.equal(controller.state.seats[0].leaving, false);
 });
 
+test("an unseated Hold'em spectator leaves the room immediately", async () => {
+  const leaveCalls = [];
+  const controller = loadController("alice");
+  controller._test.setApi({
+    me: () => ({ nick: "alice" }),
+    roomId: () => "room-controller",
+    galleryAuth: () => ({ nick: "alice", hash: "a".repeat(64) }),
+    leaveRoom: () => leaveCalls.push("leave"),
+  });
+  controller._test.setActive(true);
+  controller._test.setState(controller._test.normalizeSnapshot({
+    phase: "flop",
+    version: 21,
+    handId: "spectator-leave",
+    heroSeat: -1,
+    seats: [
+      { seat: 0, nick: "bob", stack: 5000, inHand: true, cardCount: 2 },
+      { seat: 1, nick: "chris", stack: 5000, inHand: true, cardCount: 2 },
+    ],
+  }, 21));
+
+  const result = await controller._test.requestLeaveAfterHand();
+
+  assert.equal(result.ok, true);
+  assert.equal(result.reason, "leave_now");
+  assert.deepEqual(leaveCalls, ["leave"]);
+  assert.equal(controller.isBusy(), false);
+});
+
 test("reserved room leave waits until the result review is complete", async () => {
   const originalNow = Date.now;
   let now = 1_800_000_000_000;
@@ -3193,6 +3222,72 @@ test("spectators automatically claim the first open table seat", async () => {
 
   assert.equal(calls[0].action, "join");
   assert.equal(calls[0].payload.seat, 0);
+});
+
+test("a Hold'em spectator can choose an empty ring seat during an active hand", async () => {
+  const calls = [];
+  const ui = buyInTestDocument();
+  const db = {
+    getHoldemWallet(auth) {
+      calls.push({ auth, action: "wallet", payload: {} });
+      return Promise.resolve({
+        ok: true,
+        wallet: { balance: 60000, tableBalance: 0, totalAssets: 60000 },
+      });
+    },
+    holdemInvoke(auth, action, payload) {
+      calls.push({ auth, action, payload });
+      return Promise.resolve({
+        ok: true,
+        version: 12,
+        snapshot: {
+          phase: "flop",
+          mode: "ring",
+          version: 12,
+          handId: "spectator-seat",
+          heroSeat: 2,
+          seats: [
+            { seat: 0, nick: "bob", stack: 20000, inHand: true, cardCount: 2 },
+            { seat: 1, nick: "chris", stack: 20000, inHand: true, cardCount: 2 },
+            { seat: 2, nick: "alice", stack: 30000, inHand: false },
+          ],
+        },
+      });
+    },
+  };
+  const controller = loadController("alice", { db, document: ui.document });
+  const state = controller._test.emptyState();
+  state.mode = "ring";
+  state.phase = "flop";
+  state.version = 11;
+  state.handId = "spectator-seat";
+  state.heroSeat = -1;
+  state.buyInMin = 20000;
+  state.buyInMax = 40000;
+  state.buyInDefault = 30000;
+  state.seats[0] = { seat: 0, nick: "bob", stack: 20000, inHand: true, cardCount: 2 };
+  state.seats[1] = { seat: 1, nick: "chris", stack: 20000, inHand: true, cardCount: 2 };
+  controller._test.setState(state);
+  controller._test.setActive(true);
+  controller._test.setHasSnapshot(true);
+
+  controller._test.chooseEmptySeat(2);
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(calls[0].action, "wallet");
+  const dialog = controller._test.getBuyInDialogState();
+  assert.equal(dialog.open, true);
+  assert.equal(dialog.mode, "join");
+  assert.equal(dialog.seat, 2);
+  assert.equal(dialog.pending, false);
+
+  const result = await controller._test.confirmBuyInDialog();
+
+  assert.equal(result.ok, true);
+  assert.equal(calls[1].action, "join");
+  assert.equal(calls[1].payload.seat, 2);
+  assert.equal(calls[1].payload.buyIn, 30000);
 });
 
 test("switching to spectate leaves the current table seat", async () => {

@@ -2942,7 +2942,11 @@ window.TexasHoldem = (function () {
   }
 
   function requestLeaveAfterHand() {
-    if (state.heroSeat < 0 || requests.leave_after_hand) return Promise.resolve({ ok: false, reason: "not_joined" });
+    if (requests.leave_after_hand) return Promise.resolve({ ok: false, reason: "busy" });
+    if (state.heroSeat < 0) {
+      if (api && typeof api.leaveRoom === "function") api.leaveRoom();
+      return Promise.resolve({ ok: true, reason: "leave_now" });
+    }
     var hero = state.seats[state.heroSeat];
     if (hero.leaving) {
       var previousLeavingIntent = hero.leavingIntent;
@@ -3993,7 +3997,7 @@ window.TexasHoldem = (function () {
 
   function chooseEmptySeat(seatIndex) {
     var targetSeat = safeSeat(seatIndex);
-    if (targetSeat < 0 || state.seats[targetSeat] || isHandActive(state.phase)) return;
+    if (targetSeat < 0 || state.seats[targetSeat]) return;
     if (seatedAloneWithBotsEnabled()) {
       if (!requests.bot_manage) addBot({ seat: targetSeat });
       return;
@@ -5929,7 +5933,7 @@ window.TexasHoldem = (function () {
       html.push(
         '<article class="' + classes.join(" ") + '" data-seat="' + absolute +
         '" data-relative-seat="' + relative + '" aria-label="' + esc(label) + '"' +
-        (seat || (!seat && !isHandActive(state.phase) && !practiceSpectator)
+        (seat || (!seat && !practiceSpectator)
           ? ' role="button" tabindex="0"'
           : "") + '>' +
           '<div class="' + holesClass + '">' + holes + currentHandHtml + '</div>' +

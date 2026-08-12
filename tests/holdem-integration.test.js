@@ -597,7 +597,7 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /var profileSeat = event\.target\.closest\("\.holdem-seat:not\(\.is-empty\)"\)[\s\S]*openProfileDialog\(profileSeat\.getAttribute\("data-seat"\)\)/);
   assert.match(styles, /\.holdem-profile-topup\s*\{[\s\S]*display:\s*grid/);
   assert.match(controller, /if \(state\.practiceMode\) \{[\s\S]*autoSeatKey = "ai-practice"/);
-  assert.match(controller, /!isHandActive\(state\.phase\) && !practiceSpectator/);
+  assert.match(controller, /seat \|\| \(!seat && !practiceSpectator\)/);
   assert.match(engine, /reason:\s*"buy_in_required"/);
   assert.match(controller, /AI와 하는 연습용 임시 원화 자산/);
   assert.doesNotMatch(controller, /연습용 금액을 자동으로 충전/);
@@ -699,6 +699,8 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /refreshSnapshot\("enter", true\)/);
   assert.doesNotMatch(controller, /startTimers\(\);\s*joinTable\(\);/);
   assert.match(controller, /function chooseEmptySeat\(seatIndex\)[\s\S]*addBot\(\{ seat: targetSeat \}\)[\s\S]*requestHumanSeatJoin\(targetSeat\)/);
+  assert.doesNotMatch(controller.match(/function chooseEmptySeat\(seatIndex\)[\s\S]*?\n  \}/)?.[0] || "", /isHandActive\(state\.phase\)/);
+  assert.match(controller, /seat \|\| \(!seat && !practiceSpectator\)/);
   assert.match(controller, /function maybeAutoSeatJoin\(\)[\s\S]*firstEmptySeat\(\)[\s\S]*requestHumanSeatJoin\(targetSeat\)/);
   assert.match(index, /id="holdem-buyin-spectate"[^>]*>관전하기</);
   assert.match(index, /<dt>내 총자산<\/dt>[\s\S]*id="holdem-buyin-balance"/);
