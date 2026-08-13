@@ -2203,6 +2203,12 @@ window.TexasHoldem = (function () {
     if (cards.length < 2 || board.length < 3) return "";
     var evaluation = evaluateDisplayHand(cards, board);
     if (!evaluation || Number(evaluation.category) < 3) return "";
+    var bestCards = relevantBestCardCodes(evaluation);
+    var usesHeroCard = cards.some(function (card) {
+      var code = engineCardCode(card);
+      return !!(code && bestCards[code]);
+    });
+    if (!usesHeroCard) return "";
     return [
       snapshotHandKey(snapshot),
       "made"

@@ -376,7 +376,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /function syncTurnStartSound\(previous, next, hadSnapshot\)[\s\S]*playTurnStartSfx\(\)/);
   assert.match(controller, /syncTurnStartSound\(state, next, hadSnapshot\)/);
   assert.match(controller, /function premiumPreflopHandKey\(snapshot\)[\s\S]*"JQKA"\.indexOf\(first\.charAt\(0\)\) < 0/);
-  assert.match(controller, /function triplePlusMadeHandKey\(snapshot\)[\s\S]*Number\(evaluation\.category\) < 3[\s\S]*snapshotHandKey\(snapshot\),[\s\S]*"made"/);
+  assert.match(controller, /function triplePlusMadeHandKey\(snapshot\)[\s\S]*Number\(evaluation\.category\) < 3[\s\S]*var bestCards = relevantBestCardCodes\(evaluation\)[\s\S]*if \(!usesHeroCard\) return ""[\s\S]*snapshotHandKey\(snapshot\),[\s\S]*"made"/);
   assert.match(controller, /syncGoodHandCues\(next\)/);
   assert.match(controller, /function actionSoundKind\(action\)[\s\S]*action === "check"/);
   assert.match(controller, /if \(kind === "allin"\)[\s\S]*bgmKey !== lastAllinBgmKey[\s\S]*scheduleAllinBgmSfx/);

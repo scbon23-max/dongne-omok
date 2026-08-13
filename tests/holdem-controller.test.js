@@ -2373,6 +2373,23 @@ test("good hand cues detect preflop JJ+ and triple-or-better made hands", () => 
     { rank: "7", suit: "s" },
   ];
   assert.equal(controller._test.triplePlusMadeHandKey(state), "");
+
+  state.heroCards = [
+    { rank: "A", suit: "s" },
+    { rank: "K", suit: "d" },
+  ];
+  state.board = [
+    { rank: "5", suit: "h" },
+    { rank: "5", suit: "c" },
+    { rank: "5", suit: "s" },
+  ];
+  assert.equal(controller._test.triplePlusMadeHandKey(state), "");
+
+  state.heroCards = [
+    { rank: "5", suit: "d" },
+    { rank: "K", suit: "d" },
+  ];
+  assert.match(controller._test.triplePlusMadeHandKey(state), /made/);
 });
 
 test("every hand category renders the exact highlighted hole and board cards", () => {
