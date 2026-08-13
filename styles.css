@@ -5398,7 +5398,7 @@ body.is-admin .feedback-user-compose { display: none; }
   background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,.78) 48%, transparent 62%);
   opacity: 0;
   transform: translateX(-56%) rotate(8deg);
-  animation: holdemActionTagShine .48s ease-out both;
+  animation: holdemGoodHandShineSweep .86s cubic-bezier(.28,.04,.18,1) both;
 }
 .holdem-board .holdem-card.is-community-flipping {
   transform-style: preserve-3d;
@@ -5926,6 +5926,28 @@ body.is-admin .feedback-user-compose { display: none; }
   100% {
     opacity: 0;
     transform: translateX(56%) rotate(8deg);
+  }
+}
+@keyframes holdemGoodHandShineSweep {
+  0% {
+    opacity: 0;
+    transform: translateX(-62%) rotate(8deg);
+  }
+  18% {
+    opacity: .55;
+    transform: translateX(-48%) rotate(8deg);
+  }
+  42% {
+    opacity: .92;
+    transform: translateX(-28%) rotate(8deg);
+  }
+  58% {
+    opacity: .86;
+    transform: translateX(8%) rotate(8deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(64%) rotate(8deg);
   }
 }
 @keyframes holdemActionTagAllinPulse {
@@ -7690,7 +7712,7 @@ body.is-admin .feedback-user-compose { display: none; }
   background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,.82) 49%, transparent 63%);
   opacity: 0;
   transform: translateX(-56%) rotate(8deg);
-  animation: holdemActionTagShine .48s ease-out both;
+  animation: holdemGoodHandShineSweep .86s cubic-bezier(.28,.04,.18,1) both;
 }
 .holdem-action:active { transform: translateY(1px) scale(.985); }
 .holdem-action:disabled { opacity: .45; cursor: default; }

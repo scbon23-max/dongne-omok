@@ -644,8 +644,9 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /if \(lastSeatsHtml !== nextHtml\)[\s\S]*box\.innerHTML = nextHtml/);
   assert.match(styles, /\.holdem-seat-action\.is-action-enter::before\s*\{[\s\S]*animation:\s*holdemActionTagShine/);
   assert.match(styles, /\.holdem-screen\.is-good-hand-cue \.holdem-action-buttons \.holdem-action:not\(\.hidden\):not\(:disabled\),[\s\S]*#holdem-pre-action-panel \.holdem-pre-action:not\(\.hidden\):not\(:disabled\)\s*\{[\s\S]*will-change:\s*filter/);
-  assert.match(styles, /\.holdem-screen\.is-good-hand-cue \.holdem-action-buttons \.holdem-action:not\(\.hidden\):not\(:disabled\)::after,[\s\S]*animation:\s*holdemActionTagShine \.48s/);
-  assert.match(styles, /\.holdem-screen\.is-made-hand-cue \.holdem-board \.holdem-card\.is-hero-made-hand-card::before,[\s\S]*animation:\s*holdemActionTagShine \.48s/);
+  assert.match(styles, /\.holdem-screen\.is-good-hand-cue \.holdem-action-buttons \.holdem-action:not\(\.hidden\):not\(:disabled\)::after,[\s\S]*animation:\s*holdemGoodHandShineSweep \.86s/);
+  assert.match(styles, /\.holdem-screen\.is-made-hand-cue \.holdem-board \.holdem-card\.is-hero-made-hand-card::before,[\s\S]*animation:\s*holdemGoodHandShineSweep \.86s/);
+  assert.match(styles, /@keyframes holdemGoodHandShineSweep[\s\S]*42%\s*\{[\s\S]*translateX\(-28%\)[\s\S]*100%\s*\{[\s\S]*translateX\(64%\)/);
   assert.doesNotMatch(styles, /@keyframes holdemGoodHandTagSpark/);
   assert.doesNotMatch(styles, /@keyframes holdemGoodHandCardSparkle/);
   assert.match(styles, /@keyframes holdemActionTagPop[\s\S]*scale\(1\.18\)[\s\S]*scale\(1\)/);
