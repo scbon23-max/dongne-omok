@@ -2310,6 +2310,53 @@ test("made hands highlight every hole and community card used by the combination
   assert.deepEqual(Object.keys(currentHand.communityCards), ["0"]);
 });
 
+test("good hand cues detect preflop JJ+ and triple-or-better made hands", () => {
+  const controller = loadController();
+  const state = controller._test.emptyState();
+  state.heroSeat = 0;
+  state.seats[0] = { nick: "alice", inHand: true };
+
+  state.phase = "preflop";
+  state.handId = "premium-1";
+  state.heroCards = [
+    { rank: "J", suit: "s" },
+    { rank: "J", suit: "d" },
+  ];
+  assert.match(controller._test.premiumPreflopHandKey(state), /premium-preflop/);
+
+  state.heroCards = [
+    { rank: "10", suit: "s" },
+    { rank: "10", suit: "d" },
+  ];
+  assert.equal(controller._test.premiumPreflopHandKey(state), "");
+
+  state.heroCards = [
+    { rank: "A", suit: "s" },
+    { rank: "K", suit: "s" },
+  ];
+  assert.equal(controller._test.premiumPreflopHandKey(state), "");
+
+  state.phase = "flop";
+  state.handId = "made-1";
+  state.heroCards = [
+    { rank: "A", suit: "s" },
+    { rank: "K", suit: "d" },
+  ];
+  state.board = [
+    { rank: "A", suit: "h" },
+    { rank: "A", suit: "c" },
+    { rank: "7", suit: "s" },
+  ];
+  assert.match(controller._test.triplePlusMadeHandKey(state), /made/);
+
+  state.board = [
+    { rank: "A", suit: "h" },
+    { rank: "K", suit: "s" },
+    { rank: "7", suit: "s" },
+  ];
+  assert.equal(controller._test.triplePlusMadeHandKey(state), "");
+});
+
 test("every hand category renders the exact highlighted hole and board cards", () => {
   const originalNow = Date.now;
   let now = 2_100_000_000_000;

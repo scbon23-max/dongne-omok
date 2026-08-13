@@ -73,6 +73,9 @@ window.TexasHoldem = (function () {
   var TIMER_WARNING_SFX_VOLUME = 1;
   var TURN_START_SFX_SRC = "assets/holdem/my-turn.mp3";
   var TURN_START_SFX_VOLUME = 0.92;
+  var GOOD_HAND_SFX_SRC = "assets/holdem/good-hand.mp3";
+  var GOOD_HAND_SFX_VOLUME = 0.9;
+  var GOOD_HAND_CUE_MS = 1800;
   var ACTION_SFX_SOURCES = {
     fold: "assets/holdem/fold.mp3",
     check: "assets/holdem/check.mp3",
@@ -224,6 +227,7 @@ window.TexasHoldem = (function () {
   var allinBgmSfxEl = null;
   var timerWarningSfxEls = [];
   var turnStartSfxEls = [];
+  var goodHandSfxEls = [];
   var holdemAudioContext = null;
   var holdemAudioBuffers = Object.create(null);
   var holdemAudioBufferPromises = Object.create(null);
@@ -238,6 +242,11 @@ window.TexasHoldem = (function () {
   var lastWinnerSoundKey = "";
   var lastTimerWarningKey = "";
   var lastTurnSoundKey = "";
+  var lastPremiumHandCueKey = "";
+  var lastMadeHandCueKey = "";
+  var goodHandCueUntil = 0;
+  var madeHandCueUntil = 0;
+  var goodHandCueTimer = null;
   var actionTagAnimationKeys = Object.create(null);
   var pendingActionTagAnimationKeys = Object.create(null);
   var suppressActionTagAnimations = false;
@@ -985,6 +994,7 @@ window.TexasHoldem = (function () {
     loadHoldemAudioBuffer("community-card-open", COMMUNITY_CARD_OPEN_SFX_SRC);
     loadHoldemAudioBuffer("timer-warning", TIMER_WARNING_SFX_SRC);
     loadHoldemAudioBuffer("turn-start", TURN_START_SFX_SRC);
+    loadHoldemAudioBuffer("good-hand", GOOD_HAND_SFX_SRC);
     Object.keys(ACTION_SFX_SOURCES).forEach(function (kind) {
       loadHoldemAudioBuffer("action-" + kind, ACTION_SFX_SOURCES[kind]);
     });
@@ -1121,6 +1131,15 @@ window.TexasHoldem = (function () {
     );
   }
 
+  function ensureGoodHandSfx() {
+    return ensureHoldemAudioPool(
+      goodHandSfxEls,
+      GOOD_HAND_SFX_SRC,
+      GOOD_HAND_SFX_VOLUME,
+      HOLDEM_SFX_POOL_SIZE
+    );
+  }
+
   function playActionSfx(kind) {
     kind = ACTION_SFX_SOURCES[kind] ? kind : "";
     if (!active || !kind || holdemSoundMuted()) return false;
@@ -1146,6 +1165,12 @@ window.TexasHoldem = (function () {
     if (!active || holdemSoundMuted()) return false;
     if (playHoldemAudioBuffer("turn-start", TURN_START_SFX_VOLUME)) return true;
     return playHoldemAudioPool("turn-start", ensureTurnStartSfx(), TURN_START_SFX_VOLUME);
+  }
+
+  function playGoodHandSfx() {
+    if (!active || holdemSoundMuted()) return false;
+    if (playHoldemAudioBuffer("good-hand", GOOD_HAND_SFX_VOLUME)) return true;
+    return playHoldemAudioPool("good-hand", ensureGoodHandSfx(), GOOD_HAND_SFX_VOLUME);
   }
 
   function stopAllinBgmSfx() {
@@ -2073,9 +2098,11 @@ window.TexasHoldem = (function () {
       actionTagAnimationKeys = Object.create(null);
       pendingActionTagAnimationKeys = Object.create(null);
       resetHeroRevealThrow();
+      resetGoodHandCues(false);
     }
     suppressActionTagAnimations = !hadSnapshot;
     state = next;
+    syncGoodHandCues(next);
     normalizeQueuedProfileTopUpForState();
     syncPendingFoldRevealReservation(next);
     rawSnapshot = snapshot;
@@ -2105,6 +2132,116 @@ window.TexasHoldem = (function () {
       snapshot.handNumber || 0,
       snapshot.winners.join("|")
     ].join(":");
+  }
+
+  function snapshotHandKey(snapshot) {
+    return String(snapshot && (snapshot.handId || snapshot.handNumber || snapshot.version) || "hand");
+  }
+
+  function premiumPreflopHandKey(snapshot) {
+    if (!snapshot || snapshot.phase !== "preflop") return "";
+    if (snapshot.heroSeat < 0) return "";
+    var cards = Array.isArray(snapshot.heroCards) ? snapshot.heroCards : [];
+    if (cards.length < 2) return "";
+    var first = engineCardCode(cards[0]);
+    var second = engineCardCode(cards[1]);
+    if (!first || !second) return "";
+    if (first.charAt(0) !== second.charAt(0)) return "";
+    if ("JQKA".indexOf(first.charAt(0)) < 0) return "";
+    return [
+      snapshotHandKey(snapshot),
+      "premium-preflop",
+      [first, second].sort().join("|")
+    ].join(":");
+  }
+
+  function triplePlusMadeHandKey(snapshot) {
+    if (!snapshot || !isHandActive(snapshot.phase)) return "";
+    if (snapshot.heroSeat < 0) return "";
+    var hero = snapshot.heroSeat >= 0 && Array.isArray(snapshot.seats)
+      ? snapshot.seats[snapshot.heroSeat]
+      : null;
+    if (hero && hero.folded) return "";
+    var cards = Array.isArray(snapshot.heroCards) ? snapshot.heroCards : [];
+    var board = Array.isArray(snapshot.board) ? snapshot.board : [];
+    if (cards.length < 2 || board.length < 3) return "";
+    var evaluation = evaluateDisplayHand(cards, board);
+    if (!evaluation || Number(evaluation.category) < 3) return "";
+    return [
+      snapshotHandKey(snapshot),
+      "made",
+      board.map(communityCardKey).join("|"),
+      cards.map(communityCardKey).sort().join("|"),
+      evaluation.category,
+      evaluation.name || ""
+    ].join(":");
+  }
+
+  function clearGoodHandCueTimer() {
+    if (goodHandCueTimer) {
+      clearTimeout(goodHandCueTimer);
+      goodHandCueTimer = null;
+    }
+  }
+
+  function renderGoodHandCueClasses() {
+    var screen = root();
+    if (!screen) return;
+    var now = Date.now();
+    screen.classList.toggle("is-good-hand-cue", goodHandCueUntil > now);
+    screen.classList.toggle("is-made-hand-cue", madeHandCueUntil > now);
+  }
+
+  function scheduleGoodHandCueEnd() {
+    clearGoodHandCueTimer();
+    var until = Math.max(goodHandCueUntil, madeHandCueUntil);
+    var remaining = until - Date.now();
+    if (remaining <= 0) {
+      renderGoodHandCueClasses();
+      return;
+    }
+    goodHandCueTimer = setTimeout(function () {
+      goodHandCueTimer = null;
+      var now = Date.now();
+      if (goodHandCueUntil <= now) goodHandCueUntil = 0;
+      if (madeHandCueUntil <= now) madeHandCueUntil = 0;
+      renderGoodHandCueClasses();
+      if (goodHandCueUntil > now || madeHandCueUntil > now) scheduleGoodHandCueEnd();
+    }, remaining + 40);
+  }
+
+  function resetGoodHandCues(resetKeys) {
+    clearGoodHandCueTimer();
+    goodHandCueUntil = 0;
+    madeHandCueUntil = 0;
+    if (resetKeys) {
+      lastPremiumHandCueKey = "";
+      lastMadeHandCueKey = "";
+    }
+    renderGoodHandCueClasses();
+  }
+
+  function triggerGoodHandCue(kind, key) {
+    if (!key) return;
+    var now = Date.now();
+    if (kind === "made") {
+      if (key === lastMadeHandCueKey) return;
+      lastMadeHandCueKey = key;
+      madeHandCueUntil = now + GOOD_HAND_CUE_MS;
+    } else {
+      if (key === lastPremiumHandCueKey) return;
+      lastPremiumHandCueKey = key;
+      goodHandCueUntil = now + GOOD_HAND_CUE_MS;
+    }
+    playGoodHandSfx();
+    renderGoodHandCueClasses();
+    scheduleGoodHandCueEnd();
+  }
+
+  function syncGoodHandCues(snapshot) {
+    if (!snapshot) return;
+    triggerGoodHandCue("premium", premiumPreflopHandKey(snapshot));
+    triggerGoodHandCue("made", triplePlusMadeHandKey(snapshot));
   }
 
   function actionSoundKind(action) {
@@ -4357,7 +4494,12 @@ window.TexasHoldem = (function () {
       var code = engineCardCode(card);
       if (code && bestCards[code]) communityCards[index] = true;
     });
-    return { name: evaluation.name, holeCards: holeCards, communityCards: communityCards };
+    return {
+      name: evaluation.name,
+      category: Number(evaluation.category) || 0,
+      holeCards: holeCards,
+      communityCards: communityCards
+    };
   }
 
   function resultWinnerEvaluationForSeat(seatIndex) {
@@ -6994,6 +7136,7 @@ window.TexasHoldem = (function () {
     screen.dataset.tableTier = holdemTableTier();
     screen.classList.toggle("is-playing", isHandActive(state.phase));
     screen.classList.toggle("is-connected", connected);
+    renderGoodHandCueClasses();
     syncResultClasses();
     renderHeader();
     renderHandHistory();
@@ -7670,6 +7813,7 @@ window.TexasHoldem = (function () {
     clearAutoReadyForNextHand();
     clearBotTimer();
     resetHeroRevealThrow();
+    resetGoodHandCues(true);
     pendingFoldRevealReservation = null;
     clearCommunityCardOpenSoundTimers();
     clearActionSoundTimers();
@@ -7735,6 +7879,10 @@ window.TexasHoldem = (function () {
     lastActionSoundKey = "";
     lastAllinBgmKey = "";
     lastWinnerSoundKey = "";
+    lastPremiumHandCueKey = "";
+    lastMadeHandCueKey = "";
+    goodHandCueUntil = 0;
+    madeHandCueUntil = 0;
     actionTagAnimationKeys = Object.create(null);
     pendingActionTagAnimationKeys = Object.create(null);
     suppressActionTagAnimations = false;
@@ -7980,6 +8128,8 @@ window.TexasHoldem = (function () {
       seatActionClass: seatActionClass,
       pendingMoveMatchesActionEntry: pendingMoveMatchesActionEntry,
       heroCurrentHand: heroCurrentHand,
+      premiumPreflopHandKey: premiumPreflopHandKey,
+      triplePlusMadeHandKey: triplePlusMadeHandKey,
       handRankings: handRankings,
       resultBoardVisibleCount: resultBoardVisibleCount,
       resultStage: resultStage,

@@ -334,6 +334,8 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /TIMER_WARNING_SFX_VOLUME = 1/);
   assert.match(controller, /TURN_START_SFX_SRC = "assets\/holdem\/my-turn\.mp3"/);
   assert.match(controller, /TURN_START_SFX_VOLUME = 0\.92/);
+  assert.match(controller, /GOOD_HAND_SFX_SRC = "assets\/holdem\/good-hand\.mp3"/);
+  assert.match(controller, /GOOD_HAND_SFX_VOLUME = 0\.9/);
   assert.match(controller, /fold:\s*"assets\/holdem\/fold\.mp3"/);
   assert.match(controller, /check:\s*"assets\/holdem\/check\.mp3"/);
   assert.match(controller, /call:\s*"assets\/holdem\/call\.mp3"/);
@@ -348,6 +350,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /function ensureHoldemAudioContext\(\)[\s\S]*window\.AudioContext \|\| window\.webkitAudioContext/);
   assert.match(controller, /function preloadHoldemAudioBuffers\(\)[\s\S]*loadHoldemAudioBuffer\("timer-warning", TIMER_WARNING_SFX_SRC\)/);
   assert.match(controller, /function preloadHoldemAudioBuffers\(\)[\s\S]*loadHoldemAudioBuffer\("turn-start", TURN_START_SFX_SRC\)/);
+  assert.match(controller, /function preloadHoldemAudioBuffers\(\)[\s\S]*loadHoldemAudioBuffer\("good-hand", GOOD_HAND_SFX_SRC\)/);
   assert.match(controller, /function playHoldemAudioBuffer\(key, volume\)[\s\S]*context\.createBufferSource\(\)/);
   assert.match(controller, /function ensureHoldemAudioPool\([\s\S]*while \(pool\.length < size\)/);
   assert.match(controller, /function playHoldemAudioPool\([\s\S]*nextHoldemPoolAudio/);
@@ -357,6 +360,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /function openHandHistory\(\)[\s\S]*selectedHistoryHandNo/);
   assert.match(game, /window\.DongneSound = \{[\s\S]*setMuted: setSoundMuted[\s\S]*toggle: toggleMute/);
   assert.match(controller, /function playTurnStartSfx\(\)[\s\S]*playHoldemAudioBuffer\("turn-start", TURN_START_SFX_VOLUME\)/);
+  assert.match(controller, /function playGoodHandSfx\(\)[\s\S]*playHoldemAudioBuffer\("good-hand", GOOD_HAND_SFX_VOLUME\)/);
   assert.match(controller, /function playHoldemAudioBuffer\(key, volume\)[\s\S]*source\.onended[\s\S]*source\.disconnect\(\)[\s\S]*gain\.disconnect\(\)/);
   assert.match(controller, /function unlockHoldemAudioFallback\(\)[\s\S]*holdemAudioUnlockEl[\s\S]*el\.play\(\)/);
   assert.match(controller, /function unlockHoldemAudio\(\)[\s\S]*holdemAudioUnlocked[\s\S]*preloadHoldemAudioBuffers\(\)[\s\S]*resumeHoldemAudioContext\(\)\.then/);
@@ -371,6 +375,9 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /function turnStartSoundKey\(snapshot\)[\s\S]*snapshot\.actingSeat !== snapshot\.heroSeat[\s\S]*snapshot\.deadlineAt/);
   assert.match(controller, /function syncTurnStartSound\(previous, next, hadSnapshot\)[\s\S]*playTurnStartSfx\(\)/);
   assert.match(controller, /syncTurnStartSound\(state, next, hadSnapshot\)/);
+  assert.match(controller, /function premiumPreflopHandKey\(snapshot\)[\s\S]*"JQKA"\.indexOf\(first\.charAt\(0\)\) < 0/);
+  assert.match(controller, /function triplePlusMadeHandKey\(snapshot\)[\s\S]*Number\(evaluation\.category\) < 3/);
+  assert.match(controller, /syncGoodHandCues\(next\)/);
   assert.match(controller, /function actionSoundKind\(action\)[\s\S]*action === "check"/);
   assert.match(controller, /if \(kind === "allin"\)[\s\S]*bgmKey !== lastAllinBgmKey[\s\S]*scheduleAllinBgmSfx/);
   assert.match(controller, /function scheduleActionSfx\(kind, delayMs\)[\s\S]*actionSoundTimers\.splice\(index, 1\)/);
@@ -632,6 +639,10 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /@keyframes holdemActionTagAllinPulse[\s\S]*scale\(1\)[\s\S]*scale\(1\.07\)[\s\S]*rgba\(255,87,142,\s*\.2\)/);
   assert.match(controller, /if \(lastSeatsHtml !== nextHtml\)[\s\S]*box\.innerHTML = nextHtml/);
   assert.match(styles, /\.holdem-seat-action\.is-action-enter::before\s*\{[\s\S]*animation:\s*holdemActionTagShine/);
+  assert.match(styles, /\.holdem-screen\.is-good-hand-cue \.holdem-action-buttons \.holdem-action:not\(\.hidden\):not\(:disabled\),[\s\S]*#holdem-pre-action-panel \.holdem-pre-action:not\(\.hidden\):not\(:disabled\)\s*\{[\s\S]*animation:\s*holdemGoodHandTagSpark/);
+  assert.match(styles, /\.holdem-screen\.is-made-hand-cue \.holdem-board \.holdem-card\.is-hero-made-hand-card,[\s\S]*animation:\s*holdemGoodHandCardSparkle/);
+  assert.match(styles, /@keyframes holdemGoodHandTagShine/);
+  assert.match(styles, /@keyframes holdemGoodHandCardSparkle/);
   assert.match(styles, /@keyframes holdemActionTagPop[\s\S]*scale\(1\.18\)[\s\S]*scale\(1\)/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);
   assert.match(controller, /timer\.setAttribute\("data-seconds", seconds\)/);
