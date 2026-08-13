@@ -195,6 +195,7 @@ window.TexasHoldem = (function () {
   var profileTopUpMessage = "";
   var profileTopUpMessageKind = "";
   var queuedProfileTopUpAmount = 0;
+  var queuedProfileTopUpBb = 0;
   var profileTopUpAttemptKey = "";
   var queuedFreeRefill = false;
   var freeRefillAttemptKey = "";
@@ -528,32 +529,55 @@ window.TexasHoldem = (function () {
 
   function restoreQueuedProfileTopUp() {
     queuedProfileTopUpAmount = 0;
+    queuedProfileTopUpBb = 0;
     var key = profileTopUpStorageKey();
     if (!key || typeof localStorage === "undefined") return 0;
     try {
-      var amount = Math.max(0, Math.floor(Number(localStorage.getItem(key)) || 0));
+      var raw = localStorage.getItem(key);
+      var parsed = null;
+      if (raw && String(raw).trim().charAt(0) === "{") {
+        try { parsed = JSON.parse(raw); } catch (_parseError) { parsed = null; }
+      }
+      var amount = Math.max(0, Math.floor(Number(parsed ? parsed.amount : raw) || 0));
       queuedProfileTopUpAmount = amount;
+      queuedProfileTopUpBb = Math.max(0, Number(parsed && parsed.bb) || 0);
       return amount;
     } catch (_error) {
       return 0;
     }
   }
 
-  function storeQueuedProfileTopUp(amount) {
+  function storeQueuedProfileTopUp(amount, options) {
     var key = profileTopUpStorageKey();
+    options = options || {};
     queuedProfileTopUpAmount = Math.max(0, Math.floor(Number(amount) || 0));
+    queuedProfileTopUpBb = queuedProfileTopUpAmount > 0
+      ? Math.max(0, Number(options.bb) || 0)
+      : 0;
     if (!key || typeof localStorage === "undefined") return;
     try {
       if (queuedProfileTopUpAmount > 0) {
-        localStorage.setItem(key, String(queuedProfileTopUpAmount));
+        localStorage.setItem(key, JSON.stringify({
+          amount: queuedProfileTopUpAmount,
+          bb: queuedProfileTopUpBb
+        }));
       } else {
         localStorage.removeItem(key);
       }
     } catch (_error) {}
   }
 
+  function queuedProfileTopUpTargetAmount() {
+    var unit = Math.max(100, integer(state.chipUnit, 100));
+    var target = Math.max(0, Math.floor(Number(queuedProfileTopUpAmount) || 0));
+    if (queuedProfileTopUpBb > 0 && state.bigBlind > 0) {
+      target = Math.round((queuedProfileTopUpBb * state.bigBlind) / unit) * unit;
+    }
+    return Math.max(0, target);
+  }
+
   function normalizeQueuedProfileTopUpForState() {
-    if (!queuedProfileTopUpAmount) return;
+    if (!queuedProfileTopUpAmount && !queuedProfileTopUpBb) return;
     var hero = state.heroSeat >= 0 ? state.seats[state.heroSeat] : null;
     if (state.mode !== "ring" || !hero || hero.isBot ||
         text(hero.nick, 40) !== text(me().nick, 40)) {
@@ -570,9 +594,11 @@ window.TexasHoldem = (function () {
     );
     var normalized = Math.max(
       tableMin,
-      Math.min(tableMax, Math.round(queuedProfileTopUpAmount / unit) * unit)
+      Math.min(tableMax, Math.round(queuedProfileTopUpTargetAmount() / unit) * unit)
     );
-    if (normalized !== queuedProfileTopUpAmount) storeQueuedProfileTopUp(normalized);
+    if (normalized !== queuedProfileTopUpAmount) {
+      storeQueuedProfileTopUp(normalized, { bb: queuedProfileTopUpBb });
+    }
   }
 
   function emptyState() {
@@ -4922,8 +4948,9 @@ window.TexasHoldem = (function () {
       : 0;
     var min = Math.min(tableMax, currentStack + unit);
     var selectableMax = Math.min(tableMax, currentStack + walletBalance);
-    var fallback = queuedProfileTopUpAmount > currentStack
-      ? queuedProfileTopUpAmount
+    var queuedTarget = queuedProfileTopUpTargetAmount();
+    var fallback = queuedTarget > currentStack
+      ? queuedTarget
       : selectableMax;
     var value = Math.round(nonnegative(profileTopUpValue, fallback) / unit) * unit;
     if (selectableMax >= min) value = Math.max(min, Math.min(selectableMax, value || selectableMax));
@@ -4963,7 +4990,7 @@ window.TexasHoldem = (function () {
     if (hero.stack <= 0 &&
         (state.canRefill || state.canQueueRefill || queuedFreeRefill)) return false;
     var bounds = profileTopUpBounds();
-    return bounds.currentStack < bounds.max || queuedProfileTopUpAmount > bounds.currentStack;
+    return bounds.currentStack < bounds.max || queuedProfileTopUpTargetAmount() > bounds.currentStack;
   }
 
   function renderProfileTopUp() {
@@ -4978,8 +5005,9 @@ window.TexasHoldem = (function () {
     if (!visible) return;
 
     if (!profileTopUpValue && bounds.selectableMax >= bounds.min) {
-      profileTopUpValue = queuedProfileTopUpAmount > bounds.currentStack
-        ? Math.min(bounds.selectableMax, queuedProfileTopUpAmount)
+      var queuedTarget = queuedProfileTopUpTargetAmount();
+      profileTopUpValue = queuedTarget > bounds.currentStack
+        ? Math.min(bounds.selectableMax, queuedTarget)
         : bounds.selectableMax;
       bounds = profileTopUpBounds();
     }
@@ -5003,7 +5031,8 @@ window.TexasHoldem = (function () {
     }
 
     var status = $("holdem-profile-topup-status");
-    var queued = queuedProfileTopUpAmount > bounds.currentStack;
+    var queuedTargetAmount = queuedProfileTopUpTargetAmount();
+    var queued = queuedTargetAmount > bounds.currentStack;
     var message = profileTopUpMessage;
     var kind = profileTopUpMessageKind;
     if (requests.rebuy) {
@@ -5019,7 +5048,7 @@ window.TexasHoldem = (function () {
       kind = "error";
     } else if (!message && queued && isHandActive(state.phase)) {
       message = "예약됨 · 현재 핸드가 끝나면 " +
-        formatChips(queuedProfileTopUpAmount) + "으로 적용돼요.";
+        formatChips(queuedTargetAmount) + "으로 적용돼요.";
       kind = "queued";
     } else if (!message && isHandActive(state.phase)) {
       message = "현재 핸드에는 영향을 주지 않고, 종료 직후 다음 핸드부터 적용돼요.";
@@ -5060,13 +5089,13 @@ window.TexasHoldem = (function () {
     var hero = profileTopUpSeat();
     return !!(
       hero &&
-      queuedProfileTopUpAmount > Math.max(0, Math.floor(Number(hero.stack) || 0))
+      queuedProfileTopUpTargetAmount() > Math.max(0, Math.floor(Number(hero.stack) || 0))
     );
   }
 
   function applyQueuedProfileTopUp() {
     var hero = profileTopUpSeat();
-    var target = Math.max(0, Math.floor(Number(queuedProfileTopUpAmount) || 0));
+    var target = queuedProfileTopUpTargetAmount();
     if (!target || !hero || state.mode !== "ring") return Promise.resolve({ ok: false, reason: "unavailable" });
     if (hero.stack >= target) {
       clearQueuedProfileTopUp("현재 칩이 예약 금액 이상이라 추가 차감 없이 완료됐어요.", "queued");
@@ -5074,11 +5103,10 @@ window.TexasHoldem = (function () {
     }
     if ((isHandActive(state.phase) && hero.inHand) ||
         (state.phase === "complete" && !resultTransitionReady()) ||
-        requests.rebuy || requests.refill ||
-        (hero.stack <= 0 && state.canRefill)) {
+        requests.rebuy || requests.refill) {
       return Promise.resolve({ ok: true, queued: true });
     }
-    var attemptKey = String(state.version) + ":" + String(target);
+    var attemptKey = String(state.version) + ":" + String(target) + ":" + String(queuedProfileTopUpBb || "");
     if (profileTopUpAttemptKey === attemptKey) {
       return Promise.resolve({ ok: true, queued: true, reason: "waiting" });
     }
@@ -5122,7 +5150,10 @@ window.TexasHoldem = (function () {
       return Promise.resolve({ ok: false, reason: "unavailable" });
     }
     var amount = Math.max(bounds.min, Math.min(bounds.selectableMax, bounds.value));
-    storeQueuedProfileTopUp(amount);
+    var queuedBb = moneyUnitMode === "bb" && state.bigBlind > 0
+      ? Math.max(0, amount / state.bigBlind)
+      : 0;
+    storeQueuedProfileTopUp(amount, { bb: queuedBb });
     profileTopUpValue = amount;
     profileTopUpAttemptKey = "";
     if ((isHandActive(state.phase) && hero && hero.inHand) ||
@@ -5515,7 +5546,7 @@ window.TexasHoldem = (function () {
     closeHandHistory();
     profileTargetSeat = safeSeat(seat);
     profileDialogOpen = true;
-    profileTopUpValue = queuedProfileTopUpAmount;
+    profileTopUpValue = queuedProfileTopUpTargetAmount();
     profileTopUpMessage = "";
     profileTopUpMessageKind = "";
     renderProfileDialog();
@@ -7965,6 +7996,7 @@ window.TexasHoldem = (function () {
     profileTopUpMessage = "";
     profileTopUpMessageKind = "";
     queuedProfileTopUpAmount = 0;
+    queuedProfileTopUpBb = 0;
     profileTopUpAttemptKey = "";
     queuedFreeRefill = false;
     freeRefillAttemptKey = "";
