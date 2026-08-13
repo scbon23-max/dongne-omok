@@ -2414,6 +2414,38 @@ test("good hand cues detect preflop JJ+ and triple-or-better made hands", () => 
     { rank: "K", suit: "d" },
   ];
   assert.match(controller._test.triplePlusMadeHandKey(state), /made/);
+
+  state.handId = "made-upgrade-1";
+  state.heroCards = [
+    { rank: "A", suit: "s" },
+    { rank: "10", suit: "d" },
+  ];
+  state.board = [
+    { rank: "A", suit: "h" },
+    { rank: "A", suit: "c" },
+    { rank: "2", suit: "s" },
+  ];
+  const tripAcesKey = controller._test.triplePlusMadeHandKey(state);
+  assert.match(tripAcesKey, /made:3$/);
+
+  state.board = [
+    { rank: "A", suit: "h" },
+    { rank: "A", suit: "c" },
+    { rank: "2", suit: "s" },
+    { rank: "10", suit: "c" },
+  ];
+  const fullHouseKey = controller._test.triplePlusMadeHandKey(state);
+  assert.match(fullHouseKey, /made:6$/);
+  assert.notEqual(fullHouseKey, tripAcesKey);
+
+  state.board = [
+    { rank: "A", suit: "h" },
+    { rank: "A", suit: "c" },
+    { rank: "2", suit: "s" },
+    { rank: "10", suit: "c" },
+    { rank: "7", suit: "d" },
+  ];
+  assert.equal(controller._test.triplePlusMadeHandKey(state), fullHouseKey);
 });
 
 test("every hand category renders the exact highlighted hole and board cards", () => {

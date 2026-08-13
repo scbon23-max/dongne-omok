@@ -2215,7 +2215,8 @@ window.TexasHoldem = (function () {
     if (!usesHeroCard) return "";
     return [
       snapshotHandKey(snapshot),
-      "made"
+      "made",
+      Number(evaluation.category) || 0
     ].join(":");
   }
 
