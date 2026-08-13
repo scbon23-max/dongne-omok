@@ -987,6 +987,7 @@
           <output id="holdem-raise-amount" for="holdem-raise-slider">100</output>
         </div>
         <input id="holdem-raise-slider" type="range" min="100" max="40000" step="100" value="100">
+        <button id="holdem-raise-custom-btn" class="holdem-raise-custom-btn" type="button">선택 금액</button>
         <div class="holdem-quick-bets" aria-label="빠른 베팅 금액">
           <button type="button" data-holdem-bet="allin">올인</button>
           <button type="button" data-holdem-bet="eight-pot" data-holdem-bet-tier="over">8 팟</button>
@@ -1453,6 +1454,19 @@
     <div class="modal-body menu-body" id="menu-main">
       <button id="menu-rules-btn" class="menu-item">📖 규칙</button>
       <button id="menu-sound-btn" class="menu-item">🔊 소리 켜짐</button>
+      <div class="menu-nick-color">
+        <div class="menu-nick-color-head">
+          <span>닉네임 컬러</span>
+          <strong id="menu-nick-color-name">닉네임</strong>
+        </div>
+        <div class="menu-nick-color-row">
+          <label class="menu-color-picker" for="menu-nick-color-input">
+            <span id="menu-nick-color-preview" class="menu-nick-color-preview"></span>
+            <input id="menu-nick-color-input" type="color" value="#7dd3fc" aria-label="닉네임 컬러 선택">
+          </label>
+          <button id="menu-nick-color-reset" class="menu-nick-color-reset" type="button">기본색</button>
+        </div>
+      </div>
       <button id="menu-catch-rewards-btn" class="menu-item menu-personal-rewards" type="button">
         <span>🎁 내 레벨 보상</span>
         <small>내 진행도와 받을 수 있는 보상 보기</small>

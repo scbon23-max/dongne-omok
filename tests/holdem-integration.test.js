@@ -548,6 +548,12 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-card-front-options\s*\{[\s\S]*grid-template-columns:\s*repeat\(2/);
   assert.match(styles, /\.holdem-card-back-name\s*\{/);
   assert.match(controller, /show\("holdem-raise-panel", hasMove && canSize && raiseMenuOpen\)/);
+  assert.match(index, /id="holdem-raise-slider"[\s\S]*id="holdem-raise-custom-btn"[\s\S]*class="holdem-quick-bets"/);
+  assert.match(controller, /id === "holdem-raise-custom-btn"[\s\S]*performSizedMove\(raiseValue\)/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel\s*\{[\s\S]*width:\s*calc\(66\.666667% - 2\.667px\)[\s\S]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.holdem-screen\.is-actioning #holdem-raise-slider\s*\{[\s\S]*grid-column:\s*1[\s\S]*writing-mode:\s*vertical-lr[\s\S]*pointer-events:\s*auto/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets\s*\{[\s\S]*grid-column:\s*2/);
+  assert.doesNotMatch(styles, /\.holdem-screen\.is-actioning \.holdem-raise-top,\s*\.holdem-screen\.is-actioning #holdem-raise-slider\s*\{\s*display:\s*none/);
   assert.match(controller, /var queuedAction = null/);
   assert.match(controller, /function queuedActionOptions\(\)[\s\S]*fold_check[\s\S]*maxCallAmount/);
   assert.match(controller, /function renderPreActionPanel\(options, busy, hasMove\)[\s\S]*holdem-pre-action-panel[\s\S]*holdem-pre-call-amount/);
@@ -647,7 +653,7 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /\.holdem-solo-bot-fill-btn\s*\{[\s\S]*min-height:\s*52px[\s\S]*background:\s*linear-gradient/);
   assert.match(styles, /\.holdem-action-panel:not\(\.hidden\) \.holdem-action-summary \{ display: none; \}/);
   assert.match(styles, /\.holdem-action-panel:not\(\.hidden\) \.holdem-action-buttons,[\s\S]*\.holdem-screen\.is-actioning \.holdem-action-buttons\s*\{[\s\S]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
-  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel \{[\s\S]*position: absolute[\s\S]*left: auto[\s\S]*right: 0[\s\S]*bottom: 60px[\s\S]*width: calc\(\(100% - 16px\) \/ 3\)[\s\S]*pointer-events: none/);
+  assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-raise-panel \{[\s\S]*position: absolute[\s\S]*left: auto[\s\S]*right: 0[\s\S]*bottom: 60px[\s\S]*width: calc\(66\.666667% - 2\.667px\)[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)[\s\S]*pointer-events: none/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets\s*\{[\s\S]*display: flex[\s\S]*flex-direction: column[\s\S]*justify-content: flex-end[\s\S]*gap: 6px/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-quick-bets button\s*\{[\s\S]*pointer-events: auto/);
   assert.match(styles, /\.holdem-screen\.is-actioning \.holdem-action-buttons > \.holdem-action \{ grid-row: 1; \}/);

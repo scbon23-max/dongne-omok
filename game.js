@@ -403,6 +403,7 @@
         }
         me.nick = nick;
         me.isAdmin = !!(res.account && res.account.is_admin);
+        loadStoredNickColor();
         sessionAuthHash = window.Db && Db.hashPw ? await Db.hashPw(pw) : "";
         await saveAuth(nick, pw);
         setLoginMsg("");
@@ -411,6 +412,7 @@
         else if (res.reset) toast("비번이 새로 설정됐어요");
       } else {
         me.nick = nick; me.isAdmin = (nick === "구나");
+        loadStoredNickColor();
         showLobby();
       }
     } catch (e) {
@@ -448,6 +450,7 @@
       if (res.ok) {
         me.nick = saved.nick;
         me.isAdmin = !!(res.account && res.account.is_admin);
+        loadStoredNickColor();
         sessionAuthHash = saved.h;
         setLoginMsg("");
         showLobby();
@@ -459,8 +462,82 @@
   }
 
   var myJoinTs = 0;
+  var NICK_COLOR_STORAGE_PREFIX = "dongne_nick_color_v1:";
+  var myNickColor = "";
+  var nickColorOverrides = Object.create(null);
   function currentClientSessionId() {
     return window.Net && Net.clientSessionId ? String(Net.clientSessionId).slice(0, 96) : "local";
+  }
+  function sanitizeNickColor(value) {
+    value = String(value || "").trim();
+    return /^#[0-9a-fA-F]{6}$/.test(value) ? value.toLowerCase() : "";
+  }
+  function nickColorStorageKey(nick) {
+    return NICK_COLOR_STORAGE_PREFIX + encodeURIComponent(String(nick || "").slice(0, 80));
+  }
+  function loadStoredNickColor() {
+    var color = "";
+    try { color = sanitizeNickColor(localStorage.getItem(nickColorStorageKey(me.nick)) || ""); } catch (e) { color = ""; }
+    myNickColor = color;
+    if (me.nick) {
+      if (color) nickColorOverrides[me.nick] = color;
+      else delete nickColorOverrides[me.nick];
+    }
+  }
+  function storeMyNickColor(color) {
+    color = sanitizeNickColor(color);
+    myNickColor = color;
+    if (me.nick) {
+      if (color) nickColorOverrides[me.nick] = color;
+      else delete nickColorOverrides[me.nick];
+      try {
+        if (color) localStorage.setItem(nickColorStorageKey(me.nick), color);
+        else localStorage.removeItem(nickColorStorageKey(me.nick));
+      } catch (e) {}
+    }
+  }
+  function updateNickColorMap(list) {
+    (list || []).forEach(function (member) {
+      if (!member || !member.nick) return;
+      var color = sanitizeNickColor(member.nickColor);
+      if (color) nickColorOverrides[member.nick] = color;
+      else if (member.nick !== me.nick) delete nickColorOverrides[member.nick];
+    });
+    if (me.nick && myNickColor) nickColorOverrides[me.nick] = myNickColor;
+  }
+  function renderNickColorControls() {
+    var name = $("menu-nick-color-name");
+    var input = $("menu-nick-color-input");
+    var preview = $("menu-nick-color-preview");
+    var reset = $("menu-nick-color-reset");
+    var display = me.nick || "닉네임";
+    var active = sanitizeNickColor(myNickColor);
+    var shown = active || nickColor(display);
+    if (name) {
+      name.textContent = display;
+      name.style.color = shown;
+    }
+    if (preview) preview.style.background = shown;
+    if (input) input.value = active || "#7dd3fc";
+    if (reset) reset.disabled = !active;
+  }
+  function syncNickColorPresence() {
+    updateNickColorMap([{ nick: me.nick, nickColor: myNickColor }]);
+    if (window.Net) {
+      if (netMode && Net.track) Net.track(myMetaObj(null));
+      if (lobbyMode && Net.trackLobby) Net.trackLobby(myMetaObj(lobbyViewingValue(curRoomId || null, curRoomGame)));
+    }
+    renderNickColorControls();
+    renderLobbyOnline();
+    renderPresenceUI();
+    renderPlayersList();
+    renderPresenceMonitor();
+    updateTurnUI();
+    renderAlkUI();
+  }
+  function setMyNickColor(value) {
+    storeMyNickColor(value);
+    syncNickColorPresence();
   }
   function myMetaObj(v) {
     return {
@@ -470,6 +547,7 @@
       viewing: v,
       hostEligible: roomHostEligible,
       clientSessionId: currentClientSessionId(),
+      nickColor: myNickColor,
       catchBoardFrameId: catchSelectedBoardFrameId,
       catchLevel: catchPersonalLevel()
     };
@@ -558,6 +636,7 @@
     }
     if (!lobbyConnected) { lobbyConnected = true; appConnect(); startRoomKeeper(); }
     loadCatchPersonalProfile(false);
+    renderNickColorControls();
     renderRoomList();
     updateOnlineCounts(); renderLobbyOnline();
     refreshFeedbackBadge();
@@ -897,6 +976,7 @@
   function onLobbyPresence(list, options) {
     if (options && options.event && options.event !== "sync") return;
     var next = list || [];
+    updateNickColorMap(next);
     if (lobbyPresenceInitialized) captureLobbyPresenceChanges(lobbyRoster, next);
     else lobbyPresenceInitialized = true;
     lobbyRoster = next;
@@ -2534,6 +2614,7 @@
     var shownBefore = {};
     displayRoster.forEach(function (m) { if (m && m.nick) shownBefore[m.nick] = true; });
     Object.keys(awayMembers).forEach(function (nick) { shownBefore[nick] = true; });
+    updateNickColorMap(list);
     roster = (list || []).filter(function (m) { return m && m.nick && !explicitLeaves[m.nick]; });
     var nicks = roster.map(function (m) { return m.nick; });
     if (!firstPresenceAt) firstPresenceAt = Date.now();
@@ -3714,7 +3795,8 @@
     if (!nick) return "탭해서 앉기";
     if (nick === AI_NICK) return esc(aiLevelName(G.aiLevel));
     var sc = scoreMap[game] && scoreMap[game][nick];
-    return esc(nick) + (sc != null ? ' <span class="chip-score">' + sc + '</span>' : '');
+    return '<span class="nick-color-name" style="color:' + nickColor(nick) + '">' + esc(nick) + '</span>' +
+      (sc != null ? ' <span class="chip-score">' + sc + '</span>' : '');
   }
   function updateTurnUI() {
     syncProHintState();
@@ -3801,7 +3883,7 @@
       var hostMark = (!m.away && m.nick === hostNick) ? ' <span class="mini-host">방장</span>' : "";
       var meMark = (m.nick === me.nick) ? ' <span class="mini-me">나</span>' : "";
       var awayMark = m.away ? ' <span class="mini-away">자리비움</span>' : "";
-      html += '<div class="prow' + (m.away ? ' away' : '') + '"><span class="pname"><span class="rtag ' + roleCls + '">' + role + '</span>' + esc(m.nick) + hostMark + meMark + awayMark + '</span>';
+      html += '<div class="prow' + (m.away ? ' away' : '') + '"><span class="pname"><span class="rtag ' + roleCls + '">' + role + '</span><span style="color:' + nickColor(m.nick) + '">' + esc(m.nick) + '</span>' + hostMark + meMark + awayMark + '</span>';
       if (me.isAdmin && !m.away) {
         html += '<span class="passign">';
         html += '<button class="pbtn" data-seat="black" data-nick="' + esc(m.nick) + '">흑</button>';
@@ -5216,6 +5298,9 @@
     return arr;
   })();
   function nickColor(nick) {
+    nick = String(nick || "");
+    var custom = sanitizeNickColor(nickColorOverrides[nick]);
+    if (custom) return custom;
     var h = 0;
     for (var i = 0; i < nick.length; i++) h = (h * 31 + nick.charCodeAt(i)) >>> 0;
     return NICK_COLORS[h % 50];
@@ -6764,6 +6849,7 @@
     if ($("menu-rules")) $("menu-rules").classList.add("hidden");
     if ($("menu-catch-rewards")) $("menu-catch-rewards").classList.add("hidden");
     if ($("menu-title")) $("menu-title").textContent = "메뉴";
+    renderNickColorControls();
     openModal("menu-modal");
   }
   function requestBegin() {
@@ -7448,6 +7534,8 @@
     $("menu-btn").addEventListener("click", openMenu);
     $("menu-rules-btn").addEventListener("click", function () { $("menu-main").classList.add("hidden"); $("menu-rules").classList.remove("hidden"); if ($("menu-title")) $("menu-title").textContent = "규칙"; });
     $("menu-rules-back").addEventListener("click", function () { $("menu-rules").classList.add("hidden"); $("menu-main").classList.remove("hidden"); if ($("menu-title")) $("menu-title").textContent = "메뉴"; });
+    $("menu-nick-color-input").addEventListener("input", function () { setMyNickColor(this.value); });
+    $("menu-nick-color-reset").addEventListener("click", function () { setMyNickColor(""); });
     $("menu-catch-rewards-btn").addEventListener("click", openCatchPersonalRewards);
     $("menu-catch-rewards-back").addEventListener("click", function () {
       $("menu-catch-rewards").classList.add("hidden");

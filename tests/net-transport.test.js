@@ -184,6 +184,7 @@ test("identical room presence heartbeats are suppressed until meaningful metadat
     joinTs: 1,
     viewing: null,
     hostEligible: true,
+    nickColor: "#ff3366",
     catchBoardFrameId: "frame-a",
     catchLevel: 7
   }, {
@@ -199,6 +200,7 @@ test("identical room presence heartbeats are suppressed until meaningful metadat
       viewing: null,
       hostEligible: true,
       clientSessionId: localSession,
+      nickColor: "#ff3366",
       catchBoardFrameId: "frame-a",
       catchLevel: 7
     }]
@@ -211,6 +213,7 @@ test("identical room presence heartbeats are suppressed until meaningful metadat
     joinTs: 1,
     viewing: null,
     hostEligible: true,
+    nickColor: "#ff3366",
     catchBoardFrameId: "frame-a",
     catchLevel: 7
   });
@@ -223,6 +226,7 @@ test("identical room presence heartbeats are suppressed until meaningful metadat
     viewing: "catchmind",
     away: true,
     hostEligible: false,
+    nickColor: "#2244ff",
     catchBoardFrameId: "frame-b",
     catchLevel: 8
   });
@@ -231,6 +235,7 @@ test("identical room presence heartbeats are suppressed until meaningful metadat
   assert.equal(rosters[1][0].viewing, "catchmind");
   assert.equal(rosters[1][0].away, true);
   assert.equal(rosters[1][0].hostEligible, false);
+  assert.equal(rosters[1][0].nickColor, "#2244ff");
   assert.equal(rosters[1][0].catchBoardFrameId, "frame-b");
   assert.equal(rosters[1][0].catchLevel, 8);
   fixture.Net.leaveRoom();

@@ -165,6 +165,7 @@ window.Net = (function () {
           : [],
         presenceCount: Math.max(0, Math.floor(Number(member.presenceCount) || 0)),
         hasCurrentSession: !!member.hasCurrentSession,
+        nickColor: String(member.nickColor == null ? "" : member.nickColor).slice(0, 20),
         catchBoardFrameId: String(member.catchBoardFrameId == null ? "" : member.catchBoardFrameId).slice(0, 80),
         catchLevel: Math.max(0, Math.floor(Number(member.catchLevel) || 0))
       };

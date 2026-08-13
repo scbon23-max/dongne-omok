@@ -6550,9 +6550,11 @@ window.TexasHoldem = (function () {
     if (canSize) syncRaiseControls();
     if (canSize) syncQuickBetButtons();
     if (!canSize) syncQuickBetKeyboardSelection();
+    setText("holdem-raise-custom-btn", state.legal.raise ? "레이즈" : "베팅");
     renderFoldRevealControls(busy);
     var slider = $("holdem-raise-slider");
     if (slider) slider.disabled = busy;
+    disable("holdem-raise-custom-btn", busy || !canSize);
     var quick = root() ? root().querySelectorAll("[data-holdem-bet]") : [];
     for (var i = 0; i < quick.length; i++) quick[i].disabled = busy || quick[i].classList.contains("hidden");
 
@@ -7429,6 +7431,8 @@ window.TexasHoldem = (function () {
       } else {
         performMove("raise", raiseValue);
       }
+    } else if (id === "holdem-raise-custom-btn") {
+      performSizedMove(raiseValue);
     } else if (id === "holdem-allin-btn") {
       performMove("allin");
     } else if (button.hasAttribute("data-holdem-bet")) {

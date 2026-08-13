@@ -629,6 +629,31 @@ test("room presence heals duplicate connections and active ghost speakers", () =
   assert.match(game, /inferredFromActivity: true/);
 });
 
+test("nickname color picker stores and broadcasts personal colors", () => {
+  for (const id of [
+    "menu-nick-color-name",
+    "menu-nick-color-preview",
+    "menu-nick-color-input",
+    "menu-nick-color-reset"
+  ]) {
+    assert.match(index, new RegExp('id="' + id + '"'));
+  }
+
+  assert.match(index, /id="menu-nick-color-input"[^>]*type="color"/);
+  assert.match(game, /var NICK_COLOR_STORAGE_PREFIX = "dongne_nick_color_v1:"/);
+  assert.match(game, /function sanitizeNickColor\(value\)[\s\S]*#\[0-9a-fA-F\]\{6\}/);
+  assert.match(game, /function loadStoredNickColor\(\)[\s\S]*localStorage\.getItem\(nickColorStorageKey\(me\.nick\)\)/);
+  assert.match(game, /function setMyNickColor\(value\)[\s\S]*storeMyNickColor\(value\)[\s\S]*syncNickColorPresence\(\)/);
+  assert.match(game, /nickColor:\s*myNickColor/);
+  assert.match(game, /Net\.track\(myMetaObj\(null\)\)/);
+  assert.match(game, /Net\.trackLobby\(myMetaObj\(lobbyViewingValue\(curRoomId \|\| null, curRoomGame\)\)\)/);
+  assert.match(game, /function nickColor\(nick\)[\s\S]*sanitizeNickColor\(nickColorOverrides\[nick\]\)/);
+  assert.match(game, /updateNickColorMap\(next\)/);
+  assert.match(game, /updateNickColorMap\(list\)/);
+  assert.match(net, /nickColor:\s*String\(member\.nickColor == null \? "" : member\.nickColor\)\.slice\(0, 20\)/);
+  assert.match(styles, /\.menu-nick-color\s*\{[\s\S]*grid-template-columns|\.menu-nick-color-row\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) auto/);
+});
+
 test("CatchMind exposes a self-only reward menu and board-frame picker", () => {
   for (const id of [
     "menu-catch-rewards-btn",
