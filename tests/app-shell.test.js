@@ -113,6 +113,14 @@ test("room entry is not blocked by an HTML and JavaScript build label mismatch",
   assert.match(game, /url\.searchParams\.set\("app_refresh", String\(now\)\)/);
 });
 
+test("KakaoTalk share thumbnail points at the game-list Open Graph image", () => {
+  assert.match(index, /property="og:image" content="https:\/\/scbon23-max\.github\.io\/dongne-omok\/assets\/og-games-thumbnail\.png"/);
+  assert.match(index, /name="twitter:image" content="https:\/\/scbon23-max\.github\.io\/dongne-omok\/assets\/og-games-thumbnail\.png"/);
+  assert.match(index, /property="og:image:width" content="1200"/);
+  assert.match(index, /property="og:image:height" content="630"/);
+  assert.equal(fs.existsSync(path.join(root, "assets", "og-games-thumbnail.png")), true);
+});
+
 test("late-loaded game code still binds the interface", () => {
   assert.match(game, /if \(document\.readyState === "loading"\) document\.addEventListener\("DOMContentLoaded", bind\);\s*else bind\(\);/);
 });
