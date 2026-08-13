@@ -375,7 +375,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /function turnStartSoundKey\(snapshot\)[\s\S]*snapshot\.actingSeat !== snapshot\.heroSeat[\s\S]*snapshot\.deadlineAt/);
   assert.match(controller, /function syncTurnStartSound\(previous, next, hadSnapshot\)[\s\S]*playTurnStartSfx\(\)/);
   assert.match(controller, /syncTurnStartSound\(state, next, hadSnapshot\)/);
-  assert.match(controller, /function premiumPreflopHandKey\(snapshot\)[\s\S]*"JQKA"\.indexOf\(first\.charAt\(0\)\) < 0/);
+  assert.match(controller, /function premiumPreflopHandKey\(snapshot\)[\s\S]*var isPremiumPair = firstRank === secondRank && "JQKA"\.indexOf\(firstRank\) >= 0[\s\S]*var isAceHighPremium = \(firstRank === "A" && "JQK"\.indexOf\(secondRank\) >= 0\)[\s\S]*if \(!isPremiumPair && !isAceHighPremium\) return ""/);
   assert.match(controller, /function triplePlusMadeHandKey\(snapshot\)[\s\S]*Number\(evaluation\.category\) < 3[\s\S]*var bestCards = relevantBestCardCodes\(evaluation\)[\s\S]*if \(!usesHeroCard\) return ""[\s\S]*snapshotHandKey\(snapshot\),[\s\S]*"made"/);
   assert.match(controller, /syncGoodHandCues\(next\)/);
   assert.match(controller, /function actionSoundKind\(action\)[\s\S]*action === "check"/);

@@ -2331,8 +2331,32 @@ test("good hand cues detect preflop JJ+ and triple-or-better made hands", () => 
   assert.equal(controller._test.premiumPreflopHandKey(state), "");
 
   state.heroCards = [
+    { rank: "A", suit: "h" },
+    { rank: "J", suit: "c" },
+  ];
+  assert.match(controller._test.premiumPreflopHandKey(state), /premium-preflop/);
+
+  state.heroCards = [
+    { rank: "A", suit: "d" },
+    { rank: "Q", suit: "h" },
+  ];
+  assert.match(controller._test.premiumPreflopHandKey(state), /premium-preflop/);
+
+  state.heroCards = [
     { rank: "A", suit: "s" },
     { rank: "K", suit: "s" },
+  ];
+  assert.match(controller._test.premiumPreflopHandKey(state), /premium-preflop/);
+
+  state.heroCards = [
+    { rank: "A", suit: "s" },
+    { rank: "10", suit: "s" },
+  ];
+  assert.equal(controller._test.premiumPreflopHandKey(state), "");
+
+  state.heroCards = [
+    { rank: "K", suit: "s" },
+    { rank: "Q", suit: "s" },
   ];
   assert.equal(controller._test.premiumPreflopHandKey(state), "");
 

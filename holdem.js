@@ -2182,8 +2182,12 @@ window.TexasHoldem = (function () {
     var first = engineCardCode(cards[0]);
     var second = engineCardCode(cards[1]);
     if (!first || !second) return "";
-    if (first.charAt(0) !== second.charAt(0)) return "";
-    if ("JQKA".indexOf(first.charAt(0)) < 0) return "";
+    var firstRank = first.charAt(0);
+    var secondRank = second.charAt(0);
+    var isPremiumPair = firstRank === secondRank && "JQKA".indexOf(firstRank) >= 0;
+    var isAceHighPremium = (firstRank === "A" && "JQK".indexOf(secondRank) >= 0) ||
+      (secondRank === "A" && "JQK".indexOf(firstRank) >= 0);
+    if (!isPremiumPair && !isAceHighPremium) return "";
     return [
       snapshotHandKey(snapshot),
       "premium-preflop",
