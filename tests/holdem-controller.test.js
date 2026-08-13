@@ -2347,7 +2347,25 @@ test("good hand cues detect preflop JJ+ and triple-or-better made hands", () => 
     { rank: "A", suit: "c" },
     { rank: "7", suit: "s" },
   ];
-  assert.match(controller._test.triplePlusMadeHandKey(state), /made/);
+  const flopMadeKey = controller._test.triplePlusMadeHandKey(state);
+  assert.match(flopMadeKey, /made/);
+
+  state.board = [
+    { rank: "A", suit: "h" },
+    { rank: "A", suit: "c" },
+    { rank: "7", suit: "s" },
+    { rank: "2", suit: "d" },
+  ];
+  assert.equal(controller._test.triplePlusMadeHandKey(state), flopMadeKey);
+
+  state.board = [
+    { rank: "A", suit: "h" },
+    { rank: "A", suit: "c" },
+    { rank: "7", suit: "s" },
+    { rank: "2", suit: "d" },
+    { rank: "Q", suit: "h" },
+  ];
+  assert.equal(controller._test.triplePlusMadeHandKey(state), flopMadeKey);
 
   state.board = [
     { rank: "A", suit: "h" },

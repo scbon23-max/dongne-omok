@@ -376,7 +376,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /function syncTurnStartSound\(previous, next, hadSnapshot\)[\s\S]*playTurnStartSfx\(\)/);
   assert.match(controller, /syncTurnStartSound\(state, next, hadSnapshot\)/);
   assert.match(controller, /function premiumPreflopHandKey\(snapshot\)[\s\S]*"JQKA"\.indexOf\(first\.charAt\(0\)\) < 0/);
-  assert.match(controller, /function triplePlusMadeHandKey\(snapshot\)[\s\S]*Number\(evaluation\.category\) < 3/);
+  assert.match(controller, /function triplePlusMadeHandKey\(snapshot\)[\s\S]*Number\(evaluation\.category\) < 3[\s\S]*snapshotHandKey\(snapshot\),[\s\S]*"made"/);
   assert.match(controller, /syncGoodHandCues\(next\)/);
   assert.match(controller, /function actionSoundKind\(action\)[\s\S]*action === "check"/);
   assert.match(controller, /if \(kind === "allin"\)[\s\S]*bgmKey !== lastAllinBgmKey[\s\S]*scheduleAllinBgmSfx/);
@@ -643,10 +643,11 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(styles, /@keyframes holdemActionTagAllinPulse[\s\S]*scale\(1\)[\s\S]*scale\(1\.07\)[\s\S]*rgba\(255,87,142,\s*\.2\)/);
   assert.match(controller, /if \(lastSeatsHtml !== nextHtml\)[\s\S]*box\.innerHTML = nextHtml/);
   assert.match(styles, /\.holdem-seat-action\.is-action-enter::before\s*\{[\s\S]*animation:\s*holdemActionTagShine/);
-  assert.match(styles, /\.holdem-screen\.is-good-hand-cue \.holdem-action-buttons \.holdem-action:not\(\.hidden\):not\(:disabled\),[\s\S]*#holdem-pre-action-panel \.holdem-pre-action:not\(\.hidden\):not\(:disabled\)\s*\{[\s\S]*animation:\s*holdemGoodHandTagSpark/);
-  assert.match(styles, /\.holdem-screen\.is-made-hand-cue \.holdem-board \.holdem-card\.is-hero-made-hand-card,[\s\S]*animation:\s*holdemGoodHandCardSparkle/);
-  assert.match(styles, /@keyframes holdemGoodHandTagShine/);
-  assert.match(styles, /@keyframes holdemGoodHandCardSparkle/);
+  assert.match(styles, /\.holdem-screen\.is-good-hand-cue \.holdem-action-buttons \.holdem-action:not\(\.hidden\):not\(:disabled\),[\s\S]*#holdem-pre-action-panel \.holdem-pre-action:not\(\.hidden\):not\(:disabled\)\s*\{[\s\S]*will-change:\s*filter/);
+  assert.match(styles, /\.holdem-screen\.is-good-hand-cue \.holdem-action-buttons \.holdem-action:not\(\.hidden\):not\(:disabled\)::after,[\s\S]*animation:\s*holdemActionTagShine \.48s/);
+  assert.match(styles, /\.holdem-screen\.is-made-hand-cue \.holdem-board \.holdem-card\.is-hero-made-hand-card::before,[\s\S]*animation:\s*holdemActionTagShine \.48s/);
+  assert.doesNotMatch(styles, /@keyframes holdemGoodHandTagSpark/);
+  assert.doesNotMatch(styles, /@keyframes holdemGoodHandCardSparkle/);
   assert.match(styles, /@keyframes holdemActionTagPop[\s\S]*scale\(1\.18\)[\s\S]*scale\(1\)/);
   assert.match(styles, /\.holdem-seat-turn-timer\s*\{/);
   assert.match(controller, /timer\.setAttribute\("data-seconds", seconds\)/);

@@ -2161,7 +2161,17 @@ window.TexasHoldem = (function () {
   }
 
   function snapshotHandKey(snapshot) {
-    return String(snapshot && (snapshot.handId || snapshot.handNumber || snapshot.version) || "hand");
+    if (!snapshot) return "hand";
+    if (snapshot.handId || snapshot.handNumber) {
+      return String(snapshot.handId || snapshot.handNumber);
+    }
+    return [
+      snapshot.heroSeat,
+      snapshot.dealerSeat,
+      snapshot.smallBlindSeat,
+      snapshot.bigBlindSeat,
+      Array.isArray(snapshot.heroCards) ? snapshot.heroCards.map(communityCardKey).sort().join("|") : ""
+    ].join(":");
   }
 
   function premiumPreflopHandKey(snapshot) {
@@ -2195,11 +2205,7 @@ window.TexasHoldem = (function () {
     if (!evaluation || Number(evaluation.category) < 3) return "";
     return [
       snapshotHandKey(snapshot),
-      "made",
-      board.map(communityCardKey).join("|"),
-      cards.map(communityCardKey).sort().join("|"),
-      evaluation.category,
-      evaluation.name || ""
+      "made"
     ].join(":");
   }
 
