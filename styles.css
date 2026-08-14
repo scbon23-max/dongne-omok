@@ -5388,6 +5388,10 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-screen.is-made-hand-cue .holdem-seat.is-me .holdem-hole-cards .holdem-card.is-hero-made-hand-card {
   will-change: filter;
 }
+.holdem-screen.is-good-hand-cue .holdem-seat.is-me .holdem-hole-cards .holdem-card:not(.back):not(.empty) {
+  will-change: filter;
+}
+.holdem-screen.is-good-hand-cue .holdem-seat.is-me .holdem-hole-cards .holdem-card:not(.back):not(.empty)::before,
 .holdem-screen.is-made-hand-cue .holdem-board .holdem-card.is-hero-made-hand-card::before,
 .holdem-screen.is-made-hand-cue .holdem-seat.is-me .holdem-hole-cards .holdem-card.is-hero-made-hand-card::before {
   content: "";
@@ -7699,21 +7703,6 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-action.call { background: linear-gradient(#1a6a64, #104844); color: #9af2df; }
 .holdem-action.raise { background: linear-gradient(#a9471e, #763014); color: #ffc6a6; }
 .holdem-action.allin { background: linear-gradient(#7b2d46, #4b1829); color: #ffd4df; }
-.holdem-screen.is-good-hand-cue .holdem-action-buttons .holdem-action:not(.hidden):not(:disabled),
-.holdem-screen.is-good-hand-cue #holdem-pre-action-panel .holdem-pre-action:not(.hidden):not(:disabled) {
-  will-change: filter;
-}
-.holdem-screen.is-good-hand-cue .holdem-action-buttons .holdem-action:not(.hidden):not(:disabled)::after,
-.holdem-screen.is-good-hand-cue #holdem-pre-action-panel .holdem-pre-action:not(.hidden):not(:disabled)::after {
-  content: "";
-  position: absolute;
-  inset: -45% -55%;
-  pointer-events: none;
-  background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,.82) 49%, transparent 63%);
-  opacity: 0;
-  transform: translateX(-56%) rotate(8deg);
-  animation: holdemGoodHandShineSweep .86s cubic-bezier(.28,.04,.18,1) both;
-}
 .holdem-action:active { transform: translateY(1px) scale(.985); }
 .holdem-action:disabled { opacity: .45; cursor: default; }
 .holdem-action span {
