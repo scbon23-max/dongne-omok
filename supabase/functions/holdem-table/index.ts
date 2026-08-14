@@ -992,6 +992,57 @@ function isAssetBackedRingState(state: unknown) {
     state.settings.assetBacked === true;
 }
 
+function allowsAnyCallEventRefill(
+  body: JsonRecord,
+  account: Account,
+  action: string,
+) {
+  return action === "refill" &&
+    body.anyCallEventRefill === true &&
+    account.isAdmin === true;
+}
+
+function anyCallEventRefillAmount(state: JsonRecord) {
+  const settings = isRecord(state.settings) ? state.settings : {};
+  const bigBlind = Math.max(
+    CHIP_UNIT,
+    Number(settings.bigBlind) ||
+      Number(state.bigBlind) ||
+      ringBlindForBuyIn(RING_DEFAULT_BUY_IN).bigBlind,
+  );
+  return Math.max(
+    CHIP_UNIT,
+    Math.round((bigBlind * 100) / CHIP_UNIT) * CHIP_UNIT,
+  );
+}
+
+function withAnyCallEventRefillAmount(state: JsonRecord) {
+  const settings = isRecord(state.settings) ? state.settings : {};
+  return {
+    ...state,
+    settings: {
+      ...settings,
+      refillAmount: anyCallEventRefillAmount(state),
+    },
+  };
+}
+
+function restoreAnyCallEventRefillSettings(
+  state: unknown,
+  baseState: JsonRecord,
+) {
+  if (!isRecord(state)) return state;
+  const settings = isRecord(state.settings) ? state.settings : {};
+  const baseSettings = isRecord(baseState.settings) ? baseState.settings : {};
+  return {
+    ...state,
+    settings: {
+      ...settings,
+      refillAmount: Number(baseSettings.refillAmount) || RING_REFILL_AMOUNT,
+    },
+  };
+}
+
 async function ringRefillStatus(
   client: ReturnType<typeof createClient>,
   nick: string,
@@ -1254,6 +1305,7 @@ async function compareAndSwapRingRefill(
   state: JsonRecord,
   ownerNick: string,
   nick: string,
+  anyCallEventRefill = false,
 ): Promise<CasRow> {
   const { data, error } = await client.rpc(
     "holdem_ring_refill_v3_compare_and_swap",
@@ -1263,6 +1315,7 @@ async function compareAndSwapRingRefill(
       p_state: state,
       p_owner_nickname: ownerNick,
       p_nickname: nick,
+      p_anycall_event_refill: anyCallEventRefill,
     },
   );
   const row = Array.isArray(data) ? data[0] : null;
@@ -1616,7 +1669,12 @@ Deno.serve(async (request) => {
         );
       }
 
-      if (action === "refill" && isAssetBackedRingState(baseState)) {
+      const anyCallEventRefill = allowsAnyCallEventRefill(body, account, action);
+      if (
+        action === "refill" &&
+        isAssetBackedRingState(baseState) &&
+        !anyCallEventRefill
+      ) {
         const profile = await walletProfile(client, account.nick);
         if (profile.totalAssets >= RING_FREE_REFILL_ASSET_LIMIT) {
           return publicTableResponse(
@@ -1662,7 +1720,10 @@ Deno.serve(async (request) => {
           );
         }
       }
-      const result = engine.command(baseState, command, {
+      const commandState = anyCallEventRefill
+        ? withAnyCallEventRefillAmount(baseState)
+        : baseState;
+      const result = engine.command(commandState, command, {
         now: requestedAt,
         randomInt: secureRandomInt,
         internalBot: action === "bot_step",
@@ -1677,7 +1738,9 @@ Deno.serve(async (request) => {
       }
 
       // The engine return value is authoritative even if it cloned or mutated.
-      const resultState = result.state;
+      const resultState = anyCallEventRefill
+        ? restoreAnyCallEventRefillSettings(result.state, baseState)
+        : result.state;
       if (!result.ok) {
         return publicTableResponse(
           client,
@@ -1735,6 +1798,7 @@ Deno.serve(async (request) => {
           nextState,
           ownerNick,
           account.nick,
+          anyCallEventRefill,
         )
         : assetBackedRingTable || walletAdjustments.length > 0
         ? await compareAndSwapRingWallet(

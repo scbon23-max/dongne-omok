@@ -199,6 +199,7 @@ window.TexasHoldem = (function () {
   var queuedProfileTopUpBb = 0;
   var profileTopUpAttemptKey = "";
   var queuedFreeRefill = false;
+  var queuedFreeRefillAnyCall = false;
   var freeRefillAttemptKey = "";
   var profileAvatarCache = Object.create(null);
   var profileAvatarRequestKey = "";
@@ -3992,13 +3993,21 @@ window.TexasHoldem = (function () {
       reason === "restore_unconfirmed";
   }
 
-  function refillRingChips() {
-    if (!state.canRefill || requests.refill) {
+  function anyCallEventRefillActive() {
+    return !!(anyCallEventEnabled && anyCallChecked && canUseAnyCallEvent());
+  }
+
+  function refillRingChips(options) {
+    options = options || {};
+    var anyCallEventRefill = options.anyCallEvent === true && anyCallEventRefillActive();
+    if ((!state.canRefill && !anyCallEventRefill) || requests.refill) {
       return Promise.resolve({ ok: false, reason: "unavailable" });
     }
-    return invoke("refill", {
+    var payload = {
       expectedVersion: state.version
-    }, {
+    };
+    if (anyCallEventRefill) payload.anyCallEventRefill = true;
+    return invoke("refill", payload, {
       key: "refill",
       label: "refill",
       broadcast: true
@@ -4036,6 +4045,7 @@ window.TexasHoldem = (function () {
 
   function clearQueuedFreeRefill(message) {
     queuedFreeRefill = false;
+    queuedFreeRefillAnyCall = false;
     freeRefillAttemptKey = "";
     if (message && api && typeof api.toast === "function") api.toast(message, 2600);
     renderControls();
@@ -4058,7 +4068,8 @@ window.TexasHoldem = (function () {
         requests.refill) {
       return Promise.resolve({ ok: true, queued: true });
     }
-    if (!state.canRefill) {
+    var anyCallEventRefill = queuedFreeRefillAnyCall && anyCallEventRefillActive();
+    if (!state.canRefill && !anyCallEventRefill) {
       if (!state.refillStatusKnown) return Promise.resolve({ ok: true, queued: true });
       clearQueuedFreeRefill(state.refillsRemainingToday <= 0
         ? "오늘 무료충전 3회를 모두 사용했어요."
@@ -4070,7 +4081,7 @@ window.TexasHoldem = (function () {
       return Promise.resolve({ ok: true, queued: true, reason: "waiting" });
     }
     freeRefillAttemptKey = attemptKey;
-    return refillRingChips().then(function (result) {
+    return refillRingChips({ anyCallEvent: anyCallEventRefill }).then(function (result) {
       var reason = text(
         result && (result.reason || result.response && result.response.reason),
         80
@@ -4098,6 +4109,7 @@ window.TexasHoldem = (function () {
     }
     if (canQueueFreeRefill()) {
       queuedFreeRefill = true;
+      queuedFreeRefillAnyCall = false;
       freeRefillAttemptKey = "";
       renderControls();
       if (profileDialogOpen) renderProfileDialog();
@@ -4113,6 +4125,45 @@ window.TexasHoldem = (function () {
       if (result && result.ok && profileDialogOpen) loadProfileWallet(true);
       return result;
     });
+  }
+
+  function canRequestAnyCallFreeRefill() {
+    var hero = freeRefillHero();
+    if (!anyCallEventRefillActive() || !hero || state.mode !== "ring" || hero.stack > 0) return false;
+    if (isHandActive(state.phase) && hero.inHand && hero.allIn) return true;
+    return !isHandActive(state.phase) && (state.phase !== "complete" || resultTransitionReady());
+  }
+
+  function requestAnyCallFreeRefill() {
+    var hero = freeRefillHero();
+    if (queuedFreeRefill || requests.refill) {
+      return Promise.resolve({ ok: true, queued: queuedFreeRefill });
+    }
+    if (!canRequestAnyCallFreeRefill()) {
+      return Promise.resolve({ ok: false, reason: "unavailable" });
+    }
+    queuedFreeRefill = true;
+    queuedFreeRefillAnyCall = true;
+    freeRefillAttemptKey = "";
+    renderControls();
+    if (profileDialogOpen) renderProfileDialog();
+    if (hero && isHandActive(state.phase) && hero.inHand) {
+      if (api && typeof api.toast === "function") {
+        api.toast("애니콜 올인: 핸드 종료 후 100BB 충전이 적용돼요.", 2600);
+      }
+      return Promise.resolve({ ok: true, queued: true });
+    }
+    return applyQueuedFreeRefill();
+  }
+
+  function maybeQueueAnyCallRefillAfterMove(move, result) {
+    var response = result && result.response;
+    if (response && isObject(response.snapshot)) {
+      applySnapshot(response.snapshot, response.version);
+    }
+    var hero = freeRefillHero();
+    if (move !== "call" || !hero || hero.stack > 0 || !hero.allIn) return;
+    requestAnyCallFreeRefill();
   }
 
   function rebuyRingChips(amount, options) {
@@ -5988,6 +6039,7 @@ window.TexasHoldem = (function () {
       var promise = performMove(move);
       if (promise && typeof promise.then === "function") {
         promise.then(function (result) {
+          if (result && result.ok) maybeQueueAnyCallRefillAfterMove(move, result);
           if (result && result.ok === false && anyCallAutoKey === key) anyCallAutoKey = "";
         }, function () {
           if (anyCallAutoKey === key) anyCallAutoKey = "";
@@ -8284,6 +8336,7 @@ window.TexasHoldem = (function () {
       getFreeRefillState: function () {
         return {
           queued: queuedFreeRefill,
+          anyCall: queuedFreeRefillAnyCall,
           attemptKey: freeRefillAttemptKey
         };
       },

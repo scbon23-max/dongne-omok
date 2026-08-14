@@ -87,6 +87,15 @@ const freeRefillThresholdMigration = fs.readFileSync(
   ),
   "utf8"
 );
+const anyCallEventRefillMigration = fs.readFileSync(
+  path.join(
+    root,
+    "supabase",
+    "migrations",
+    "202608130001_holdem_anycall_event_refill.sql"
+  ),
+  "utf8"
+);
 const adminWalletMigration = fs.readFileSync(
   path.join(
     root,
@@ -328,9 +337,9 @@ test("the engine gets secure randomness and only changed results reach CAS", () 
   assert.match(edge, /crypto\.getRandomValues\(buffer\)/);
   assert.match(
     edge,
-    /const result = engine\.command\(baseState, command, \{[\s\S]*now: requestedAt,[\s\S]*randomInt: secureRandomInt/
+    /const result = engine\.command\(commandState, command, \{[\s\S]*now: requestedAt,[\s\S]*randomInt: secureRandomInt/
   );
-  assert.match(edge, /const resultState = result\.state/);
+  assert.match(edge, /const resultState = anyCallEventRefill[\s\S]*restoreAnyCallEventRefillSettings\(result\.state, baseState\)[\s\S]*: result\.state/);
   assert.match(
     edge,
     /if \(!result\.changed\) \{[\s\S]*return publicTableResponse/
@@ -463,6 +472,37 @@ test("ring refills are account-wide, Korea-day limited, and atomic with the tabl
   assert.match(
     edge,
     /action === "refill"[\s\S]*profile\.totalAssets >= RING_FREE_REFILL_ASSET_LIMIT[\s\S]*"assets_remaining"/
+  );
+  assert.match(edge, /body\.anyCallEventRefill === true[\s\S]*account\.isAdmin === true/);
+  assert.match(edge, /function anyCallEventRefillAmount[\s\S]*bigBlind \* 100/);
+  assert.match(edge, /const commandState = anyCallEventRefill[\s\S]*withAnyCallEventRefillAmount\(baseState\)/);
+  assert.match(edge, /function restoreAnyCallEventRefillSettings[\s\S]*refillAmount: Number\(baseSettings\.refillAmount\) \|\| RING_REFILL_AMOUNT/);
+  assert.match(edge, /const resultState = anyCallEventRefill[\s\S]*restoreAnyCallEventRefillSettings\(result\.state, baseState\)/);
+  assert.match(edge, /!anyCallEventRefill[\s\S]*profile\.totalAssets >= RING_FREE_REFILL_ASSET_LIMIT/);
+  assert.match(edge, /p_anycall_event_refill: anyCallEventRefill/);
+  assert.match(
+    anyCallEventRefillMigration,
+    /p_anycall_event_refill boolean default false/i
+  );
+  assert.match(
+    anyCallEventRefillMigration,
+    /expected_refill_amount := case[\s\S]*p_anycall_event_refill is true[\s\S]*big_blind[\s\S]*\* 100/i
+  );
+  assert.match(
+    anyCallEventRefillMigration,
+    /p_anycall_event_refill is not true[\s\S]*refill_amount is distinct from expected_refill_amount/i
+  );
+  assert.match(
+    anyCallEventRefillMigration,
+    /total_assets >= minimum_playable_assets[\s\S]*p_anycall_event_refill is not true/i
+  );
+  assert.match(
+    anyCallEventRefillMigration,
+    /if p_anycall_event_refill is true then[\s\S]*update public\.holdem_tables[\s\S]*insert into public\.holdem_economy_events[\s\S]*expected_refill_amount/i
+  );
+  assert.match(
+    anyCallEventRefillMigration,
+    /grant execute on function public\.holdem_ring_refill_v3_compare_and_swap\(\s*text,\s*bigint,\s*jsonb,\s*text,\s*text,\s*boolean\s*\)[\s\S]*to service_role/i
   );
   assert.match(edge, /const freeRefillEligible = engineAllowsRefill && hasLowAssets/);
   assert.match(edge, /snapshot\.canRefill = status[\s\S]*freeRefillEligible/);

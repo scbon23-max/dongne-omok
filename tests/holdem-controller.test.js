@@ -599,6 +599,133 @@ test("admin anycall event auto performs only check or call once per action state
   controller.leave();
 });
 
+test("admin anycall all-in auto queues the 100BB refill after the hand", async () => {
+  const calls = [];
+  const afterAnyCall = {
+    phase: "river",
+    mode: "ring",
+    handId: "anycall-refill",
+    version: 2,
+    canRefill: false,
+    ringRefill: {
+      amount: 40000,
+      dailyLimit: 3,
+      usedToday: 3,
+      remainingToday: 0,
+      canRefill: false,
+      canQueue: false,
+    },
+    viewer: { seat: 0 },
+    seats: [{
+      seat: 0,
+      nick: "alice",
+      displayName: "alice",
+      stack: 0,
+      inHand: true,
+      allIn: true,
+    }],
+  };
+  const afterRefill = {
+    phase: "waiting",
+    mode: "ring",
+    handId: "anycall-refill",
+    version: 4,
+    canRefill: false,
+    ringRefill: {
+      amount: 40000,
+      dailyLimit: 3,
+      usedToday: 3,
+      remainingToday: 0,
+      canRefill: false,
+      canQueue: false,
+    },
+    viewer: { seat: 0 },
+    seats: [{
+      seat: 0,
+      nick: "alice",
+      displayName: "alice",
+      stack: 40000,
+      inHand: false,
+    }],
+  };
+  const db = {
+    holdemInvoke(_auth, action, payload) {
+      calls.push({ action, payload });
+      if (action === "act") {
+        return Promise.resolve({ ok: true, version: 2, snapshot: afterAnyCall });
+      }
+      return Promise.resolve({ ok: true, version: 4, snapshot: afterRefill });
+    },
+  };
+  const controller = loadController("alice", {
+    db,
+    isAdmin: true,
+    setTimeout(fn) {
+      fn();
+      return 1;
+    },
+  });
+  const state = controller._test.emptyState();
+  state.mode = "ring";
+  state.version = 1;
+  state.phase = "river";
+  state.handId = "anycall-refill";
+  state.actionSeq = 1;
+  state.heroSeat = 0;
+  state.perspectiveSeat = 0;
+  state.actingSeat = 0;
+  state.bigBlind = 400;
+  state.toCall = 20000;
+  state.legal = { call: true, fold: true };
+  state.canRefill = false;
+  state.refillStatusKnown = true;
+  state.refillsRemainingToday = 0;
+  state.refillAmount = 40000;
+  state.seats[0] = {
+    seat: 0,
+    nick: "alice",
+    displayName: "alice",
+    stack: 20000,
+    inHand: true,
+  };
+
+  controller._test.setState(state);
+  controller._test.setHasSnapshot(true);
+  controller._test.setActive(true);
+  controller._test.setAnyCallEventEnabled(true);
+  controller._test.setAnyCallChecked(true);
+  for (let i = 0; i < 8; i += 1) await Promise.resolve();
+
+  assert.deepEqual(calls.map((call) => call.action), ["act"]);
+  assert.equal(calls[0].payload.move, "call");
+  assert.equal(controller._test.getFreeRefillState().queued, true);
+  assert.equal(controller._test.getFreeRefillState().anyCall, true);
+
+  const handEnded = controller._test.emptyState();
+  handEnded.mode = "ring";
+  handEnded.phase = "waiting";
+  handEnded.version = 3;
+  handEnded.handId = "anycall-refill";
+  handEnded.heroSeat = 0;
+  handEnded.seats[0] = { seat: 0, nick: "alice", stack: 0, inHand: false };
+  handEnded.canRefill = false;
+  handEnded.canQueueRefill = false;
+  handEnded.refillStatusKnown = true;
+  handEnded.refillsRemainingToday = 0;
+  handEnded.refillAmount = 40000;
+  controller._test.setState(handEnded);
+
+  const applied = await controller._test.applyQueuedFreeRefill();
+
+  assert.equal(applied.ok, true);
+  assert.deepEqual(calls.map((call) => call.action), ["act", "refill", "snapshot"]);
+  assert.equal(calls[1].payload.expectedVersion, 3);
+  assert.equal(calls[1].payload.anyCallEventRefill, true);
+  assert.equal(controller.state.seats[0].stack, 40000);
+  assert.equal(controller._test.getFreeRefillState().queued, false);
+  controller.leave();
+});
+
 test("non-admins cannot enable holdem anycall event automation", () => {
   const calls = [];
   const db = {
