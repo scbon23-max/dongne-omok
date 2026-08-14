@@ -722,7 +722,7 @@
   function holdemRingSummaryLabel(amount) {
     var option = holdemBuyInOption(amount) || HOLDEM_BUY_IN_OPTIONS[0];
     return option.title + " · " + holdemBuyInRangeLabel(amount) +
-      " · BB " + option.bigBlind.toLocaleString("ko-KR") + " · 최대 6명";
+      " · BB " + option.bigBlind.toLocaleString("ko-KR") + " · 최대 8명";
   }
 
   function holdemCreateSelectionStorageKey() {

@@ -1400,6 +1400,8 @@ test("a seated solo owner sees an action-area button to fill AI seats", () => {
       null,
       null,
       null,
+      null,
+      null,
     ],
   }, 7);
   controller._test.setState(snapshot);
@@ -1411,7 +1413,7 @@ test("a seated solo owner sees an action-area button to fill AI seats", () => {
   assert.equal(dom.elements.holdemgame.classList.contains("is-solo-bot-fill"), true);
 
   const blocked = controller._test.normalizeSnapshot(Object.assign({}, snapshot, {
-    botCount: 5,
+    botCount: 7,
     seats: [
       { seat: 0, nick: "alice", stack: 20000, waiting: true },
       { seat: 1, nick: "AI 1", isBot: true, botId: "bot-1", stack: 20000 },
@@ -1419,6 +1421,8 @@ test("a seated solo owner sees an action-area button to fill AI seats", () => {
       { seat: 3, nick: "AI 3", isBot: true, botId: "bot-3", stack: 20000 },
       { seat: 4, nick: "AI 4", isBot: true, botId: "bot-4", stack: 20000 },
       { seat: 5, nick: "AI 5", isBot: true, botId: "bot-5", stack: 20000 },
+      { seat: 6, nick: "AI 6", isBot: true, botId: "bot-6", stack: 20000 },
+      { seat: 7, nick: "AI 7", isBot: true, botId: "bot-7", stack: 20000 },
     ],
   }), 8);
   controller._test.setState(blocked);
@@ -4172,7 +4176,7 @@ test("the page loads the strong AI before the controller and exposes exact perso
   }
   assert.doesNotMatch(source, /botDifficulty|botLevel/);
   assert.match(source, /function addFiveBots\(\)/);
-  assert.match(source, /5 - state\.botCount/);
+  assert.match(source, /MAX_AUTO_BOTS - state\.botCount/);
   assert.match(source, /id === "holdem-bot-fill-btn"[\s\S]*addFiveBots\(\)/);
 
   const addBotFunction = source.match(

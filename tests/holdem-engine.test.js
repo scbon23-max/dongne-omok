@@ -1040,15 +1040,15 @@ test("a bot action arriving after its deadline becomes the standard timeout acti
   assert.equal(expired.state.lastEvent.action, "check");
 });
 
-test("AI seats count toward the six-player cap and configuration locks after play begins", () => {
+test("AI seats count toward the eight-player cap and configuration locks after play begins", () => {
   let state = tableWithPlayers(["owner"]);
-  for (let botIndex = 0; botIndex < 5; botIndex += 1) {
+  for (let botIndex = 0; botIndex < 7; botIndex += 1) {
     state = apply(state, {
       type: "add_bot",
       nick: "owner",
     }, 20 + state.seats.filter(Boolean).length);
   }
-  assert.equal(state.seats.filter(Boolean).length, 6);
+  assert.equal(state.seats.filter(Boolean).length, 8);
   const botPersonalities = state.seats
     .filter((player) => player && player.isBot)
     .map((player) => player.botPersonality);
@@ -1057,7 +1057,8 @@ test("AI seats count toward the six-player cap and configuration locks after pla
     ["tight_passive", "tight_aggressive", "loose_passive", "loose_aggressive"],
   );
   assert.equal(new Set(botPersonalities.slice(0, 4)).size, 4);
-  assert.equal(botPersonalities[4], "tight_passive");
+  assert.equal(botPersonalities.length, 7);
+  assert.ok(botPersonalities.every((personality) => Engine.BOT_PERSONALITIES[personality]));
   const full = Engine.command(state, {
     type: "add_bot",
     nick: "owner",
@@ -1889,7 +1890,7 @@ test("accepting an AI practice request removes every bot and starts a human-only
   });
   state = apply(state, { type: "join", nick: "owner", requestId: "request:owner" }, 1);
   state.walletAdjustments = [];
-  for (let bot = 1; bot <= 5; bot += 1) {
+  for (let bot = 1; bot <= 7; bot += 1) {
     state = apply(state, {
       type: "add_bot",
       nick: "owner",
@@ -1897,17 +1898,17 @@ test("accepting an AI practice request removes every bot and starts a human-only
     }, 1 + bot);
   }
   state.walletAdjustments = [];
-  assert.equal(state.seats.filter((player) => player && player.isBot).length, 5);
+  assert.equal(state.seats.filter((player) => player && player.isBot).length, 7);
 
   const directJoin = Engine.command(state, {
     type: "join",
     nick: "guest",
     requestId: "request:direct",
-  }, context(7));
+  }, context(9));
   assert.equal(directJoin.ok, false);
   assert.equal(directJoin.reason, "practice_ai_only");
 
-  state = apply(state, { type: "start", nick: "owner", requestId: "request:start" }, 8);
+  state = apply(state, { type: "start", nick: "owner", requestId: "request:start" }, 10);
   assert.equal(state.phase, "preflop");
 
   let requested = Engine.command(state, {
@@ -1915,14 +1916,14 @@ test("accepting an AI practice request removes every bot and starts a human-only
     nick: "guest",
     buyIn: 12000,
     requestId: "request:ask",
-  }, context(9));
+  }, context(11));
   assert.equal(requested.ok, true, requested.reason);
   assert.deepEqual(Engine.view(requested.state, "owner").pendingJoinRequests, [{
     nick: "guest",
     targetNick: "owner",
     buyIn: 12000,
-    requestedAt: 9,
-    expiresAt: 60009,
+    requestedAt: 11,
+    expiresAt: 60011,
   }]);
 
   const accepted = Engine.command(requested.state, {
@@ -1932,7 +1933,7 @@ test("accepting an AI practice request removes every bot and starts a human-only
     accepted: true,
     requestId: "request:accept",
   }, {
-    now: 10,
+    now: 12,
     randomInt: (max) => max - 1,
   });
   assert.equal(accepted.ok, true, accepted.reason);
@@ -1940,7 +1941,7 @@ test("accepting an AI practice request removes every bot and starts a human-only
   const guest = accepted.state.seats.find((player) => player && player.nick === "guest");
   assert.ok(owner);
   assert.ok(guest);
-  assert.equal(guest.seat, 5);
+  assert.equal(guest.seat, 7);
   assert.equal(guest.ready, true);
   assert.equal(guest.waiting, true);
   assert.equal(guest.inHand, false);

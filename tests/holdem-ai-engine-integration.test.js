@@ -24,10 +24,10 @@ function requireCommand(state, command, context) {
   return result.state;
 }
 
-test("a real six-seat table can run consecutive strong-AI hands across all personalities", {
+test("a real eight-seat table can run consecutive strong-AI hands across all personalities", {
   timeout: 20000,
 }, () => {
-  const totalChips = 60000;
+  const totalChips = 80000;
   let now = 1000;
   let state = Engine.createTable({
     roomId: "ai-engine-soak",
@@ -43,7 +43,7 @@ test("a real six-seat table can run consecutive strong-AI hands across all perso
     requestId: "join:owner",
   }, { now: now++, randomInt: randomIntGenerator(1) });
 
-  Array.from({ length: 5 }).forEach((_, index) => {
+  Array.from({ length: 7 }).forEach((_, index) => {
     state = requireCommand(state, {
       type: "add_bot",
       nick: "owner",

@@ -7,7 +7,7 @@
   "use strict";
 
   var SCHEMA_VERSION = 1;
-  var MAX_SEATS = 6;
+  var MAX_SEATS = 8;
   var ACTION_HISTORY_LIMIT = 128;
   var HAND_HISTORY_LIMIT = 20;
   var HAND_HISTORY_ACTION_LIMIT = 32;
@@ -39,6 +39,12 @@
     tournament_end: true
   };
   var PLAYING_PHASES = { preflop: true, flop: true, turn: true, river: true };
+
+  function emptySeats() {
+    var seats = [];
+    for (var i = 0; i < MAX_SEATS; i++) seats.push(null);
+    return seats;
+  }
   var HAND_NAMES = [
     "하이카드",
     "원페어",
@@ -408,7 +414,7 @@
         tournamentSpeed: mode === "ring" ? "" : tournamentSpeed,
         assetBacked: mode === "ring" && options.assetBacked === true,
         chipUnit: chipUnit,
-        maxPlayers: Math.min(MAX_SEATS, clamp(options.maxPlayers, 2, MAX_SEATS, MAX_SEATS)),
+        maxPlayers: MAX_SEATS,
         startingStack: startingStack,
         initialSmallBlind: smallBlind,
         initialBigBlind: bigBlind,
@@ -431,7 +437,7 @@
       walletAdjustments: [],
       economyEvents: [],
       handResults: [],
-      seats: [null, null, null, null, null, null],
+      seats: emptySeats(),
       handNo: 0,
       tournamentStartedAt: null,
       blindLevel: 0,
@@ -465,7 +471,8 @@
 
   function validState(state) {
     return !!state && typeof state === "object" && state.schemaVersion === SCHEMA_VERSION &&
-      Array.isArray(state.seats) && state.seats.length === MAX_SEATS && PHASES[state.phase];
+      Array.isArray(state.seats) && state.seats.length > 0 && state.seats.length <= MAX_SEATS &&
+      PHASES[state.phase];
   }
 
   function ensureAdditiveState(state, now, randomInt) {
@@ -477,6 +484,14 @@
       : normalizeTournamentSpeed(state.settings.tournamentSpeed);
     state.settings.assetBacked = state.settings.mode === "ring" &&
       state.settings.assetBacked === true;
+    state.settings.maxPlayers = MAX_SEATS;
+    if (!Array.isArray(state.seats)) {
+      state.seats = emptySeats();
+    } else if (state.seats.length < MAX_SEATS) {
+      while (state.seats.length < MAX_SEATS) state.seats.push(null);
+    } else if (state.seats.length > MAX_SEATS) {
+      state.seats = state.seats.slice(0, MAX_SEATS);
+    }
     state.newGameBuyInRequired = state.settings.mode === "ring" &&
       state.newGameBuyInRequired === true;
     state.settings.chipUnit = normalizedChipUnit(state.settings.chipUnit);

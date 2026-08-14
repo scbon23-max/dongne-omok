@@ -47,7 +47,8 @@
 window.TexasHoldem = (function () {
   "use strict";
 
-  var MAX_SEATS = 6;
+  var MAX_SEATS = 8;
+  var MAX_AUTO_BOTS = MAX_SEATS - 1;
   var FREE_REFILL_ASSET_LIMIT = 20000;
   var HAND_HISTORY_LIMIT = 20;
   var POLL_MS = 5000;
@@ -4189,7 +4190,7 @@ window.TexasHoldem = (function () {
     if (!state.canManageBots || requests.bot_manage) return;
     function step() {
       var occupiedSeats = state.seats.filter(Boolean).length;
-      var remaining = Math.min(5 - state.botCount, MAX_SEATS - occupiedSeats);
+      var remaining = Math.min(MAX_AUTO_BOTS - state.botCount, MAX_SEATS - occupiedSeats);
       if (!state.canManageBots || remaining <= 0) return Promise.resolve();
       return addBot({ silent: true }).then(function (result) {
         if (!result || !result.ok) return result;
@@ -4198,7 +4199,7 @@ window.TexasHoldem = (function () {
     }
     return step().then(function () {
       if (api && typeof api.toast === "function") {
-        api.toast("AI를 5명까지 채웠어요.", 2200);
+        api.toast("AI를 " + MAX_AUTO_BOTS + "명까지 채웠어요.", 2200);
       }
     });
   }
@@ -6302,8 +6303,8 @@ window.TexasHoldem = (function () {
 
   function renderHeader() {
     var modeLabel = state.mode === "ring"
-      ? (state.practiceMode ? "6-MAX · AI 연습 홀덤" : "6-MAX · 홀덤")
-      : "6-MAX · " + (state.tournamentSpeed === "turbo" ? "터보" : "일반") + " 토너먼트";
+      ? (state.practiceMode ? "8-MAX · AI 연습 홀덤" : "8-MAX · 홀덤")
+      : "8-MAX · " + (state.tournamentSpeed === "turbo" ? "터보" : "일반") + " 토너먼트";
     var modeDescription = state.practiceMode
       ? "AI와 하는 연습용 임시 원화 자산입니다. 보유 자산·테이블 자산에 반영되지 않아요."
       : state.mode === "ring"
@@ -6651,7 +6652,7 @@ window.TexasHoldem = (function () {
     var canManageBots = isOwner && state.canManageBots && humanCount === 1;
     var occupiedSeats = state.seats.filter(Boolean).length;
     var soloBotFillVisible = waiting && state.heroSeat >= 0 && canManageBots &&
-      state.botCount < 5 && occupiedSeats < MAX_SEATS;
+      state.botCount < MAX_AUTO_BOTS && occupiedSeats < MAX_SEATS;
     var canSize = !!(state.legal.bet || state.legal.raise);
     var resultReady = resultTransitionReady();
     var resultSettled = resultSettlementReady();
@@ -6676,7 +6677,7 @@ window.TexasHoldem = (function () {
     show("holdem-bot-note", false);
     setText("holdem-bot-count", "AI " + state.botCount + "명");
     disable("holdem-bot-add-btn", busy || !canManageBots || occupiedSeats >= MAX_SEATS);
-    disable("holdem-bot-fill-btn", busy || !canManageBots || state.botCount >= 5 || occupiedSeats >= MAX_SEATS);
+    disable("holdem-bot-fill-btn", busy || !canManageBots || state.botCount >= MAX_AUTO_BOTS || occupiedSeats >= MAX_SEATS);
     disable("holdem-bot-remove-btn", busy || !canManageBots || state.botCount <= 0);
     show("holdem-solo-bot-fill-panel", soloBotFillVisible);
     disable("holdem-solo-bot-fill-btn", busy || !soloBotFillVisible || requests.bot_manage);
@@ -6863,7 +6864,7 @@ window.TexasHoldem = (function () {
     if (!box) return;
     if (hint) {
       hint.className = "players-hint";
-      hint.textContent = "홀덤 좌석과 현재 보유 금액입니다. 한 테이블에는 최대 6명이 참가합니다.";
+      hint.textContent = "홀덤 좌석과 현재 보유 금액입니다. 한 테이블에는 최대 " + MAX_SEATS + "명이 참가합니다.";
     }
     var byNick = Object.create(null);
     state.seats.forEach(function (seat, index) {
@@ -8093,19 +8094,19 @@ window.TexasHoldem = (function () {
     if (isHandActive(state.phase)) {
       return {
         status: "게임중",
-        summary: occupied + "/6명 · " + phaseLabel(state.phase) + " · 팟 " + formatChips(state.pot)
+        summary: occupied + "/" + MAX_SEATS + "명 · " + phaseLabel(state.phase) + " · 팟 " + formatChips(state.pot)
       };
     }
     if (isBetweenHands(state.phase)) {
       return {
         status: "끝",
-        summary: occupied + "/6명 · 핸드 종료"
+        summary: occupied + "/" + MAX_SEATS + "명 · 핸드 종료"
       };
     }
     var ready = state.seats.filter(function (seat) { return seat && seat.ready; }).length;
     return {
       status: "대기중",
-      summary: occupied + "/6명 참가 · " + ready + "명 준비" +
+      summary: occupied + "/" + MAX_SEATS + "명 참가 · " + ready + "명 준비" +
         (state.mode === "ring" ? " · 바이인 " + formatChips(state.startingStack) : "")
     };
   }
@@ -8123,7 +8124,7 @@ window.TexasHoldem = (function () {
     return {
       title: "텍사스 홀덤 규칙",
       html: '<div class="cm-rules holdem-rules">' +
-        '<p class="rule-intro">Poker TDA 2024와 일반적인 국제 토너먼트 진행 원칙을 바탕으로 한 6인 노리밋 텍사스 홀덤입니다. 각자 받은 <b>홀 카드 2장</b>과 모두가 공유하는 커뮤니티 카드 5장 중 가장 좋은 5장 조합으로 승부하며, 실제 가치가 없는 홀덤 전용 게임 자산만 사용합니다.</p>' +
+        '<p class="rule-intro">Poker TDA 2024와 일반적인 국제 토너먼트 진행 원칙을 바탕으로 한 8인 노리밋 텍사스 홀덤입니다. 각자 받은 <b>홀 카드 2장</b>과 모두가 공유하는 커뮤니티 카드 5장 중 가장 좋은 5장 조합으로 승부하며, 실제 가치가 없는 홀덤 전용 게임 자산만 사용합니다.</p>' +
         '<section class="cm-rule-section"><h3>1. 진행 순서</h3><ul class="cm-rule-list">' +
         '<li>딜러 버튼 왼쪽의 두 사람이 스몰 블라인드(SB)와 빅 블라인드(BB)를 냅니다.</li>' +
         '<li>프리플랍 → 플랍 3장 → 턴 1장 → 리버 1장 순서로 공개되며 각 단계마다 베팅합니다.</li>' +

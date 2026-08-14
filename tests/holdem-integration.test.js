@@ -26,14 +26,14 @@ const cardBackAssets = [
   "assets/holdem/card-back-midnight-gold.png",
 ];
 
-test("Hold'em is an available six-player controller game", () => {
+test("Hold'em is an available eight-player controller game", () => {
   const context = { window: {} };
   vm.createContext(context);
   vm.runInContext(catalogSource, context, { filename: "game-catalog.js" });
   const definition = context.window.GameCatalog.get("holdem");
 
   assert.equal(definition.family, "holdem");
-  assert.equal(definition.maxPlayers, 6);
+  assert.equal(definition.maxPlayers, 8);
   assert.equal(definition.maxRoomMembers, 0);
   assert.equal(definition.rankable, false);
   assert.equal(definition.createAdminOnly, false);
@@ -186,7 +186,7 @@ test("the app shell loads the engine and controller before the shared game shell
   assert.match(game, /roomId: function \(\) \{ return curRoomId \|\| ""; \}/);
 });
 
-test("the six-seat table exposes every required game control", () => {
+test("the eight-seat table exposes every required game control", () => {
   [
     "holdemgame",
     "holdem-stage",
@@ -261,7 +261,7 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(controller, /function renderSpectatorChip\(\)[\s\S]*관전자 /);
   assert.match(controller, /spectators\.map\(function \(nick\)/);
   assert.match(styles, /\.holdem-table\s*\{[\s\S]*aspect-ratio:\s*9\s*\/\s*14/);
-  for (let seat = 0; seat < 6; seat += 1) {
+  for (let seat = 0; seat < 8; seat += 1) {
     assert.match(
       styles,
       new RegExp(`\\.holdem-seat\\[data-relative-seat="${seat}"\\]`)
@@ -499,9 +499,9 @@ test("the six-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*var\(--holdem-seat-timer-y\)[\s\S]*left:\s*var\(--holdem-seat-timer-x\)[\s\S]*z-index:\s*18/);
   assert.match(styles, /\.holdem-seat\s*\{[\s\S]*--holdem-seat-timer-x:\s*50%[\s\S]*--holdem-seat-timer-y:\s*calc\(var\(--holdem-seat-avatar-size\) \/ 2\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\.is-me\s*\{[\s\S]*--holdem-seat-timer-x:\s*var\(--holdem-hero-profile-center-x\)[\s\S]*--holdem-seat-timer-y:\s*calc\(var\(--holdem-seat-avatar-size\) \/ 2\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-seat-avatar-size\) \/ 2 \+ 24px\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 56px\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-seat-avatar-size\) \/ 2 - 24px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-seat-avatar-size\) \/ 2 \+ 24px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 56px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="6"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="7"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-seat-avatar-size\) \/ 2 - 24px\)/);
   assert.match(controller, /is-visible-cards is-revealed-cards/);
   assert.match(controller, /function heroRevealCardClass\(cardIndex\)[\s\S]*heroPublicRevealIndexes\(state\)/);
   assert.match(controller, /function syncHeroRevealThrow\(previous, next, hadSnapshot\)[\s\S]*heroRevealThrowPlayedKey = canAnimate/);
@@ -819,9 +819,9 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /function startPayoutParticleStream\(key\)[\s\S]*particlesPerWinner = targets\.length > 1 \? 9 : 14[\s\S]*holdem-payout-particle[\s\S]*var sizeSteps = \[4\.5, 5\.8, 7\.2, 9\.4, 12\.2\]/);
   assert.match(controller, /function maybeStartPayoutParticleStream\(\)[\s\S]*resultFlow\.settleStart[\s\S]*startPayoutParticleStream\(key\)/);
   assert.match(controller, /function renderSettlementAnimation\(\)[\s\S]*maybeStartPayoutParticleStream\(\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-winner-edge-nudge\)\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-winner-edge-nudge\)\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="3"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-winner-edge-nudge\)\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="5"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="6"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="7"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-winner-edge-nudge\)\)/);
   assert.match(styles, /\.holdem-screen\.is-settling-pot \.holdem-seat\.is-winner:not\(\.is-payout-receiving\) \.holdem-seat-avatar/);
   assert.match(controller, /var RESULT_CARDS_FIRST_MS = 900/);
   assert.match(controller, /var RESULT_FINAL_ACTION_MS = 2000/);
@@ -928,7 +928,7 @@ test("Hold'em chat keeps transient toasts separate from the recent typing histor
 });
 
 test("the rules and UI clearly identify KRW-unit assets and standard no-limit play", () => {
-  assert.match(index, /6-MAX · NO LIMIT/);
+  assert.match(index, /8-MAX · NO LIMIT/);
   assert.match(index, /실제 현금 가치가 없는 원화 단위 게임 자산/);
   assert.match(index, /data-rules="holdem">텍사스 홀덤 규칙/);
   assert.match(controller, /Poker TDA|TDA/);
