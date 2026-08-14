@@ -302,6 +302,12 @@ test("the eight-seat table exposes every required game control", () => {
   assert.match(db, /async function saveProfileAvatar\(auth, dataUrl\)/);
   assert.match(profileAvatarMigration, /alter table public\.accounts[\s\S]*add column if not exists profile_avatar text/i);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="0"\]\s*\{\s*top:\s*95%;\s*left:\s*50%;\s*\}/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\]\s*\{\s*top:\s*69%;\s*left:\s*-5%;\s*\}/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="2"\]\s*\{\s*top:\s*43%;\s*left:\s*-5%;\s*\}/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="6"\]\s*\{\s*top:\s*43%;\s*left:\s*105%;\s*\}/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="7"\]\s*\{\s*top:\s*69%;\s*left:\s*105%;\s*\}/);
+  assert.match(styles, /@media \(max-width: 370px\), \(max-height: 670px\)[\s\S]*\.holdem-seat\[data-relative-seat="1"\],[\s\S]*\.holdem-seat\[data-relative-seat="2"\]\s*\{\s*left:\s*-2%;\s*\}[\s\S]*\.holdem-seat\[data-relative-seat="6"\],[\s\S]*\.holdem-seat\[data-relative-seat="7"\]\s*\{\s*left:\s*102%;\s*\}/);
+  assert.match(styles, /@media \(min-width: 900px\)[\s\S]*\.holdem-seat\[data-relative-seat="1"\]\s*\{\s*top:\s*66%;\s*left:\s*5%;\s*\}[\s\S]*\.holdem-seat\[data-relative-seat="2"\]\s*\{\s*top:\s*39%;\s*left:\s*5%;\s*\}[\s\S]*\.holdem-seat\[data-relative-seat="6"\]\s*\{\s*top:\s*39%;\s*left:\s*95%;\s*\}[\s\S]*\.holdem-seat\[data-relative-seat="7"\]\s*\{\s*top:\s*66%;\s*left:\s*95%;\s*\}/);
   assert.match(styles, /\.holdem-card\.back/);
   assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-width-auto:[\s\S]*var\(--holdem-card-width/);
   assert.match(styles, /\.holdem-card\s*\{[\s\S]*--holdem-card-rank-top-auto:\s*calc\(var\(--holdem-card-width,\s*clamp\(43px,\s*12vw,\s*74px\)\) \* \.09\)/);

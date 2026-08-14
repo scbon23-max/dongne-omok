@@ -5517,13 +5517,13 @@ body.is-admin .feedback-user-compose { display: none; }
   transition: opacity .18s ease, filter .18s ease;
 }
 .holdem-seat[data-relative-seat="0"] { top: 95%; left: 50%; }
-.holdem-seat[data-relative-seat="1"] { top: 69%; left: -4%; }
-.holdem-seat[data-relative-seat="2"] { top: 43%; left: -7%; }
+.holdem-seat[data-relative-seat="1"] { top: 69%; left: -5%; }
+.holdem-seat[data-relative-seat="2"] { top: 43%; left: -5%; }
 .holdem-seat[data-relative-seat="3"] { top: 17%; left: 3%; }
 .holdem-seat[data-relative-seat="4"] { top: 2%; left: 50%; }
 .holdem-seat[data-relative-seat="5"] { top: 17%; left: 97%; }
-.holdem-seat[data-relative-seat="6"] { top: 43%; left: 107%; }
-.holdem-seat[data-relative-seat="7"] { top: 69%; left: 104%; }
+.holdem-seat[data-relative-seat="6"] { top: 43%; left: 105%; }
+.holdem-seat[data-relative-seat="7"] { top: 69%; left: 105%; }
 .holdem-seat[data-relative-seat="0"].is-me {
   --holdem-hero-profile-column: clamp(86px, 24vw, 124px);
   --holdem-hero-hand-column: 116px;
@@ -8014,8 +8014,10 @@ body.is-admin .feedback-user-compose { display: none; }
     max-width: 92px;
   }
   .holdem-seat-avatar { width: 47px; height: 47px; }
+  .holdem-seat[data-relative-seat="1"],
   .holdem-seat[data-relative-seat="2"] { left: -2%; }
-  .holdem-seat[data-relative-seat="6"] { left: 102%; }
+  .holdem-seat[data-relative-seat="6"],
+  .holdem-seat[data-relative-seat="7"] { left: 102%; }
   .holdem-lobby-panel { padding: 14px; }
   .holdem-action { min-height: 42px; }
 }
@@ -8490,13 +8492,13 @@ body.is-admin .feedback-user-compose { display: none; }
     border-radius: 48% / 46%;
   }
   .holdem-seat[data-relative-seat="0"] { top: 95%; left: 50%; }
-  .holdem-seat[data-relative-seat="1"] { top: 66%; left: 4%; }
-  .holdem-seat[data-relative-seat="2"] { top: 39%; left: 6%; }
+  .holdem-seat[data-relative-seat="1"] { top: 66%; left: 5%; }
+  .holdem-seat[data-relative-seat="2"] { top: 39%; left: 5%; }
   .holdem-seat[data-relative-seat="3"] { top: 14%; left: 20%; }
   .holdem-seat[data-relative-seat="4"] { top: 1%; left: 50%; }
   .holdem-seat[data-relative-seat="5"] { top: 14%; left: 80%; }
-  .holdem-seat[data-relative-seat="6"] { top: 39%; left: 94%; }
-  .holdem-seat[data-relative-seat="7"] { top: 66%; left: 96%; }
+  .holdem-seat[data-relative-seat="6"] { top: 39%; left: 95%; }
+  .holdem-seat[data-relative-seat="7"] { top: 66%; left: 95%; }
   .holdem-table-info { top: 27%; }
   .holdem-pot { top: 42%; }
   .holdem-board { top: 64%; }
