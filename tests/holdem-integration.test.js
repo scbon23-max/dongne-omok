@@ -508,7 +508,7 @@ test("the eight-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-seat-avatar-size\) \/ 2 \+ 24px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \+ 56px\)/);
   assert.match(styles, /\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="6"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="7"\] \.holdem-seat-action\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-seat-avatar-size\) \/ 2 - 24px\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="3"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="5"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* \.12\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-seat-action,[\s\S]*\.holdem-seat\[data-relative-seat="7"\] \.holdem-seat-action\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* \.12\)/);
   assert.match(controller, /is-visible-cards is-revealed-cards/);
   assert.match(controller, /function heroRevealCardClass\(cardIndex\)[\s\S]*heroPublicRevealIndexes\(state\)/);
   assert.match(controller, /function syncHeroRevealThrow\(previous, next, hadSnapshot\)[\s\S]*heroRevealThrowPlayedKey = canAnimate/);

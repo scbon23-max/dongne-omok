@@ -5906,8 +5906,8 @@ body.is-admin .feedback-user-compose { display: none; }
   top: calc(var(--holdem-seat-avatar-size) / 2);
   left: calc(50% - var(--holdem-seat-avatar-size) / 2 - 24px);
 }
-.holdem-seat[data-relative-seat="3"] .holdem-seat-action,
-.holdem-seat[data-relative-seat="5"] .holdem-seat-action {
+.holdem-seat[data-relative-seat="1"] .holdem-seat-action,
+.holdem-seat[data-relative-seat="7"] .holdem-seat-action {
   top: calc(var(--holdem-seat-avatar-size) * .12);
 }
 @keyframes holdemActionTagPop {
