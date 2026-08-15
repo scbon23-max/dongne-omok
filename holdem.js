@@ -3993,20 +3993,18 @@ window.TexasHoldem = (function () {
       reason === "restore_unconfirmed";
   }
 
-  function anyCallEventRefillActive() {
+  function anyCallEventTopUpActive() {
     return !!(anyCallEventEnabled && anyCallChecked && canUseAnyCallEvent());
   }
 
   function refillRingChips(options) {
     options = options || {};
-    var anyCallEventRefill = options.anyCallEvent === true && anyCallEventRefillActive();
-    if ((!state.canRefill && !anyCallEventRefill) || requests.refill) {
+    if (!state.canRefill || requests.refill) {
       return Promise.resolve({ ok: false, reason: "unavailable" });
     }
     var payload = {
       expectedVersion: state.version
     };
-    if (anyCallEventRefill) payload.anyCallEventRefill = true;
     return invoke("refill", payload, {
       key: "refill",
       label: "refill",
@@ -4068,8 +4066,7 @@ window.TexasHoldem = (function () {
         requests.refill) {
       return Promise.resolve({ ok: true, queued: true });
     }
-    var anyCallEventRefill = queuedFreeRefillAnyCall && anyCallEventRefillActive();
-    if (!state.canRefill && !anyCallEventRefill) {
+    if (!state.canRefill) {
       if (!state.refillStatusKnown) return Promise.resolve({ ok: true, queued: true });
       clearQueuedFreeRefill(state.refillsRemainingToday <= 0
         ? "오늘 무료충전 3회를 모두 사용했어요."
@@ -4081,7 +4078,7 @@ window.TexasHoldem = (function () {
       return Promise.resolve({ ok: true, queued: true, reason: "waiting" });
     }
     freeRefillAttemptKey = attemptKey;
-    return refillRingChips({ anyCallEvent: anyCallEventRefill }).then(function (result) {
+    return refillRingChips().then(function (result) {
       var reason = text(
         result && (result.reason || result.response && result.response.reason),
         80
@@ -4127,33 +4124,52 @@ window.TexasHoldem = (function () {
     });
   }
 
-  function canRequestAnyCallFreeRefill() {
+  function anyCallTopUpTargetAmount() {
+    var unit = Math.max(100, integer(state.chipUnit, 100));
+    var tableMax = Math.max(
+      unit,
+      Math.round(nonnegative(state.buyInMax, state.startingStack || unit) / unit) * unit
+    );
+    var target = state.bigBlind > 0
+      ? state.bigBlind * 100
+      : nonnegative(state.buyInDefault, state.startingStack || tableMax);
+    target = Math.round(nonnegative(target, tableMax) / unit) * unit;
+    return Math.max(unit, Math.min(tableMax, target));
+  }
+
+  function canRequestAnyCallAssetTopUp() {
     var hero = freeRefillHero();
-    if (!anyCallEventRefillActive() || !hero || state.mode !== "ring" || hero.stack > 0) return false;
+    if (!anyCallEventTopUpActive() || !hero || state.mode !== "ring") return false;
+    if (hero.stack >= anyCallTopUpTargetAmount()) return false;
     if (isHandActive(state.phase) && hero.inHand && hero.allIn) return true;
     return !isHandActive(state.phase) && (state.phase !== "complete" || resultTransitionReady());
   }
 
-  function requestAnyCallFreeRefill() {
+  function requestAnyCallAssetTopUp() {
     var hero = freeRefillHero();
-    if (queuedFreeRefill || requests.refill) {
-      return Promise.resolve({ ok: true, queued: queuedFreeRefill });
+    if (requests.rebuy) {
+      return Promise.resolve({ ok: true, queued: true });
     }
-    if (!canRequestAnyCallFreeRefill()) {
+    if (!canRequestAnyCallAssetTopUp()) {
       return Promise.resolve({ ok: false, reason: "unavailable" });
     }
-    queuedFreeRefill = true;
-    queuedFreeRefillAnyCall = true;
-    freeRefillAttemptKey = "";
+    var amount = anyCallTopUpTargetAmount();
+    var queuedBb = state.bigBlind > 0 ? Math.max(0, amount / state.bigBlind) : 0;
+    storeQueuedProfileTopUp(amount, { bb: queuedBb });
+    profileTopUpValue = amount;
+    profileTopUpAttemptKey = "";
+    profileTopUpMessage = "애니콜 올인 · 핸드 종료 후 보유 자산으로 " +
+      formatChips(amount) + "까지 충전돼요.";
+    profileTopUpMessageKind = "queued";
     renderControls();
     if (profileDialogOpen) renderProfileDialog();
     if (hero && isHandActive(state.phase) && hero.inHand) {
       if (api && typeof api.toast === "function") {
-        api.toast("애니콜 올인: 핸드 종료 후 100BB 충전이 적용돼요.", 2600);
+        api.toast("애니콜 올인: 핸드 종료 후 보유 자산으로 100BB 충전돼요.", 2600);
       }
       return Promise.resolve({ ok: true, queued: true });
     }
-    return applyQueuedFreeRefill();
+    return applyQueuedProfileTopUp();
   }
 
   function maybeQueueAnyCallRefillAfterMove(move, result) {
@@ -4163,7 +4179,7 @@ window.TexasHoldem = (function () {
     }
     var hero = freeRefillHero();
     if (move !== "call" || !hero || hero.stack > 0 || !hero.allIn) return;
-    requestAnyCallFreeRefill();
+    requestAnyCallAssetTopUp();
   }
 
   function rebuyRingChips(amount, options) {
@@ -4965,11 +4981,15 @@ window.TexasHoldem = (function () {
     if (!visible) return;
 
     var remaining = Math.max(0, Math.floor(Number(state.refillsRemainingToday) || 0));
+    var queuedAssetTopUp = queuedProfileTopUpTargetAmount() > Math.max(0, Math.floor(Number(hero.stack) || 0));
     var statusText = state.refillStatusKnown
       ? "오늘 무료충전 가능 " + remaining + "회"
       : "오늘 무료충전 가능 횟수를 확인하고 있어요";
     if (hero.stack <= 0) {
-      if (queuedFreeRefill) {
+      if (queuedAssetTopUp) {
+        statusText = "예약됨 · 현재 핸드가 끝나면 보유 자산으로 " +
+          formatChips(queuedProfileTopUpTargetAmount()) + "까지 충전해요";
+      } else if (queuedFreeRefill) {
         statusText = "예약됨 · 현재 핸드가 끝나면 20,000원을 무료충전해요";
       } else if (canUseProfileFreeRefill()) {
         statusText += " · 지금 충전할 수 있어요";
@@ -4989,7 +5009,7 @@ window.TexasHoldem = (function () {
 
     var button = $("holdem-profile-refill-btn");
     if (button) {
-      button.classList.toggle("hidden", hero.stack > 0);
+      button.classList.toggle("hidden", hero.stack > 0 || queuedAssetTopUp);
       button.textContent = requests.refill
         ? "충전 중"
         : queuedFreeRefill
@@ -5056,10 +5076,12 @@ window.TexasHoldem = (function () {
     var targetSeat = safeSeat(seat);
     var hero = profileTopUpSeat();
     if (!hero || state.mode !== "ring" || targetSeat !== state.heroSeat) return false;
-    if (hero.stack <= 0 &&
-        (state.canRefill || state.canQueueRefill || queuedFreeRefill)) return false;
     var bounds = profileTopUpBounds();
-    return bounds.currentStack < bounds.max || queuedProfileTopUpTargetAmount() > bounds.currentStack;
+    var queuedTarget = queuedProfileTopUpTargetAmount();
+    if (hero.stack <= 0 &&
+        (state.canRefill || state.canQueueRefill || queuedFreeRefill) &&
+        queuedTarget <= bounds.currentStack) return false;
+    return bounds.currentStack < bounds.max || queuedTarget > bounds.currentStack;
   }
 
   function renderProfileTopUp() {
@@ -6456,7 +6478,10 @@ window.TexasHoldem = (function () {
     }
     if (state.mode === "ring" && state.heroSeat >= 0 &&
         state.seats[state.heroSeat] && state.seats[state.heroSeat].stack <= 0) {
-      return state.canRefill
+      return hasQueuedProfileTopUp()
+        ? "현재 핸드가 끝나면 보유 자산으로 " +
+          formatChips(queuedProfileTopUpTargetAmount()) + "까지 충전돼요"
+        : state.canRefill
         ? "아래 무료충전 버튼을 누르면 " +
           formatChips(state.refillAmount || 20000) + "을 충전할 수 있어요"
         : queuedFreeRefill

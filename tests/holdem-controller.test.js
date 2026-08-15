@@ -599,13 +599,15 @@ test("admin anycall event auto performs only check or call once per action state
   controller.leave();
 });
 
-test("admin anycall all-in auto queues the 100BB refill after the hand", async () => {
+test("admin anycall all-in auto queues a 100BB asset top-up after the hand", async () => {
   const calls = [];
   const afterAnyCall = {
     phase: "river",
     mode: "ring",
     handId: "anycall-refill",
     version: 2,
+    bigBlind: 400,
+    buyInMax: 100000,
     canRefill: false,
     ringRefill: {
       amount: 40000,
@@ -625,11 +627,13 @@ test("admin anycall all-in auto queues the 100BB refill after the hand", async (
       allIn: true,
     }],
   };
-  const afterRefill = {
+  const afterTopUp = {
     phase: "waiting",
     mode: "ring",
     handId: "anycall-refill",
     version: 4,
+    bigBlind: 400,
+    buyInMax: 100000,
     canRefill: false,
     ringRefill: {
       amount: 40000,
@@ -654,7 +658,7 @@ test("admin anycall all-in auto queues the 100BB refill after the hand", async (
       if (action === "act") {
         return Promise.resolve({ ok: true, version: 2, snapshot: afterAnyCall });
       }
-      return Promise.resolve({ ok: true, version: 4, snapshot: afterRefill });
+      return Promise.resolve({ ok: true, version: 4, snapshot: afterTopUp });
     },
   };
   const controller = loadController("alice", {
@@ -698,8 +702,9 @@ test("admin anycall all-in auto queues the 100BB refill after the hand", async (
 
   assert.deepEqual(calls.map((call) => call.action), ["act"]);
   assert.equal(calls[0].payload.move, "call");
-  assert.equal(controller._test.getFreeRefillState().queued, true);
-  assert.equal(controller._test.getFreeRefillState().anyCall, true);
+  assert.equal(controller._test.getFreeRefillState().queued, false);
+  assert.equal(controller._test.getFreeRefillState().anyCall, false);
+  assert.equal(controller._test.getProfileTopUpState().queuedAmount, 40000);
 
   const handEnded = controller._test.emptyState();
   handEnded.mode = "ring";
@@ -707,6 +712,7 @@ test("admin anycall all-in auto queues the 100BB refill after the hand", async (
   handEnded.version = 3;
   handEnded.handId = "anycall-refill";
   handEnded.heroSeat = 0;
+  handEnded.bigBlind = 400;
   handEnded.seats[0] = { seat: 0, nick: "alice", stack: 0, inHand: false };
   handEnded.canRefill = false;
   handEnded.canQueueRefill = false;
@@ -715,14 +721,16 @@ test("admin anycall all-in auto queues the 100BB refill after the hand", async (
   handEnded.refillAmount = 40000;
   controller._test.setState(handEnded);
 
-  const applied = await controller._test.applyQueuedFreeRefill();
+  const applied = await controller._test.applyQueuedProfileTopUp();
 
   assert.equal(applied.ok, true);
-  assert.deepEqual(calls.map((call) => call.action), ["act", "refill", "snapshot"]);
+  assert.deepEqual(calls.map((call) => call.action), ["act", "rebuy", "snapshot"]);
   assert.equal(calls[1].payload.expectedVersion, 3);
-  assert.equal(calls[1].payload.anyCallEventRefill, true);
+  assert.equal(calls[1].payload.amount, 40000);
+  assert.equal(calls[1].payload.anyCallEventRefill, undefined);
   assert.equal(controller.state.seats[0].stack, 40000);
   assert.equal(controller._test.getFreeRefillState().queued, false);
+  assert.equal(controller._test.getProfileTopUpState().queuedAmount, 0);
   controller.leave();
 });
 
