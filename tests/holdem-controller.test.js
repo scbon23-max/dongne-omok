@@ -3855,7 +3855,7 @@ test("another player's profile asset falls back when db helper is stale", async 
   controller.leave();
 });
 
-test("an all-in top-up reservation applies while the next hand continues without that player", async () => {
+test("a server-settled top-up reservation joins the player to the very next hand", async () => {
   const calls = [];
   const ui = profileTopUpTestDocument();
   let version = 3;
@@ -3965,28 +3965,34 @@ test("an all-in top-up reservation applies while the next hand continues without
   assert.equal(calls[1].payload.amount, 40000);
 
   phase = "preflop";
-  stack = 30000;
+  stack = 40000;
   topUpReserved = false;
   const nextHand = controller._test.emptyState();
   nextHand.mode = "ring";
   nextHand.phase = "preflop";
+  nextHand.handNumber = 4;
   nextHand.version = version;
   nextHand.heroSeat = 0;
-  nextHand.seats[0] = { seat: 0, nick: "alice", stack: 30000, inHand: false };
+  nextHand.seats[0] = {
+    seat: 0,
+    nick: "alice",
+    stack: 39600,
+    inHand: true,
+    topUpAppliedHandNo: 4,
+  };
   nextHand.seats[1] = { seat: 1, nick: "bob", stack: 30000, inHand: true };
   nextHand.seats[2] = { seat: 2, nick: "chris", stack: 30000, inHand: true };
   nextHand.buyInMin = 10000;
   nextHand.buyInMax = 50000;
   nextHand.buyInDefault = 30000;
-  controller._test.setState(nextHand);
-
-  const applied = await controller._test.applyQueuedProfileTopUp();
-  assert.equal(applied.ok, true);
-  assert.equal(calls.filter((call) => call.action === "rebuy").length, 1);
-  assert.equal(calls.find((call) => call.action === "rebuy").payload.amount, 40000);
-  assert.equal(controller.state.seats[0].stack, 40000);
+  assert.equal(controller._test.applySnapshot(nextHand, version), true);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(calls.filter((call) => call.action === "rebuy").length, 0);
+  assert.equal(calls.filter((call) => call.action === "reserve_rebuy").length, 1);
+  assert.equal(controller.state.seats[0].stack, 39600);
   assert.equal(controller.state.phase, "preflop");
-  assert.equal(controller.state.seats[0].inHand, false);
+  assert.equal(controller.state.seats[0].inHand, true);
   assert.equal(controller._test.getProfileTopUpState().queuedAmount, 0);
   assert.equal(storageValues.size, 0);
   controller.leave();

@@ -588,6 +588,15 @@ window.TexasHoldem = (function () {
       profileTopUpAttemptKey = "";
       return;
     }
+    if (hero.topUpAppliedHandNo > 0 &&
+        hero.topUpAppliedHandNo === Math.max(0, integer(state.handNumber, 0))) {
+      storeQueuedProfileTopUp(0);
+      profileTopUpValue = 0;
+      profileTopUpAttemptKey = "";
+      profileTopUpMessage = "충전이 완료되어 이번 핸드에 참여했어요.";
+      profileTopUpMessageKind = "queued";
+      return;
+    }
     var unit = Math.max(100, integer(state.chipUnit, 100));
     var tableMin = Math.max(unit, Math.round(nonnegative(state.buyInMin, unit) / unit) * unit);
     var tableMax = Math.max(
@@ -1457,6 +1466,7 @@ window.TexasHoldem = (function () {
         status === "sitting_out" || status === "auto_sit_out"
       ),
       topUpReserved: !!firstDefined(entry.topUpReserved, entry.rebuyReserved, false),
+      topUpAppliedHandNo: Math.max(0, integer(entry.topUpAppliedHandNo, 0)),
       inHand: bool(firstDefined(entry.inHand, entry.playing), status !== "out"),
       cardCount: clamp(integer(firstDefined(entry.cardCount, entry.holeCardCount, entry.hasCards ? 2 : 0), 0), 0, 2),
       status: status,
@@ -3817,7 +3827,7 @@ window.TexasHoldem = (function () {
     for (var i = 0; i < state.seats.length; i++) {
       var seat = state.seats[i];
       if (seat && !seat.isBot && seat.stack > 0 &&
-          !seat.leaving && !seat.away && !seat.sittingOut && !seat.topUpReserved) {
+          !seat.leaving && !seat.away && !seat.sittingOut) {
         if (text(seat.nick, 40) === currentNick) return rank;
         rank += 1;
       }

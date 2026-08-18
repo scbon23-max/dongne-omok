@@ -1693,7 +1693,7 @@ test("ring joins and bust rebuys can choose an in-room buy-in amount", () => {
   assert.equal(view.buyInDefault, 30000);
 });
 
-test("a reserved top-up skips one hand and restores the exact target stack", () => {
+test("a reserved top-up is settled before the very next hand starts", () => {
   const options = {
     mode: "ring",
     assetBacked: true,
@@ -1740,6 +1740,8 @@ test("a reserved top-up skips one hand and restores the exact target stack", () 
   assert.equal(reserved.state.seats[0].topUpReserved, true);
 
   state = reserved.state;
+  state.seats[0].stack = 30000;
+  state.ringStacks.alice = 30000;
   state.phase = "hand_end";
   state.actorSeat = null;
   state.pendingSeats = [];
@@ -1750,26 +1752,14 @@ test("a reserved top-up skips one hand and restores the exact target stack", () 
   }, context(3));
   assert.equal(nextHand.ok, true, nextHand.reason);
   assert.equal(nextHand.state.phase, "preflop");
-  assert.equal(nextHand.state.seats[0].inHand, false);
+  assert.equal(nextHand.state.seats[0].inHand, true);
   assert.equal(nextHand.state.seats[0].topUpReserved, false);
+  assert.equal(nextHand.state.seats[0].topUpAppliedHandNo, nextHand.state.handNo);
+  assert.equal(nextHand.state.seats[0].handStartStack, 40000);
   assert.equal(nextHand.state.seats[1].inHand, true);
   assert.equal(nextHand.state.seats[2].inHand, true);
-
-  state = nextHand.state;
-  state.walletAdjustments = [];
-  state.seats[0].stack = 30000;
-  state.ringStacks.alice = 30000;
-  const topUp = Engine.command(state, {
-    type: "rebuy",
-    nick: "alice",
-    amount: 40000,
-    requestId: "rebuy:alice:100bb",
-  }, context(4));
-  assert.equal(topUp.ok, true, topUp.reason);
-  assert.equal(topUp.state.seats[0].stack, 40000);
-  assert.equal(topUp.state.lastEvent.delta, 10000);
   assert.deepEqual(
-    topUp.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    nextHand.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
     [{ nickname: "alice", delta: -10000 }],
   );
 });

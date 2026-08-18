@@ -882,7 +882,7 @@ function takeWalletAdjustments(state: JsonRecord) {
     }
     return { nickname, delta };
   });
-  if (adjustments.length > 6) throw new Error("invalid_wallet_adjustment");
+  if (adjustments.length > 8) throw new Error("invalid_wallet_adjustment");
   delete state.walletAdjustments;
   return adjustments;
 }

@@ -351,6 +351,8 @@
       away: false,
       sittingOut: false,
       topUpReserved: false,
+      topUpTargetAmount: 0,
+      topUpAppliedHandNo: 0,
       timeoutStreak: 0,
       leaving: false,
       leavingIntent: "",
@@ -639,6 +641,10 @@
       player.away = player.isBot ? false : player.away === true;
       player.sittingOut = player.isBot ? false : player.sittingOut === true;
       player.topUpReserved = player.isBot ? false : player.topUpReserved === true;
+      player.topUpTargetAmount = player.topUpReserved
+        ? requestedRingBuyIn(state, { amount: player.topUpTargetAmount })
+        : 0;
+      player.topUpAppliedHandNo = Math.max(0, integer(player.topUpAppliedHandNo, 0));
       player.timeoutStreak = player.isBot
         ? 0
         : clamp(player.timeoutStreak, 0, AUTO_SIT_OUT_TIMEOUTS, 0);
@@ -813,7 +819,28 @@
 
   function canPlayNextHand(player) {
     return !!player && !player.leaving && !player.away &&
-      !player.sittingOut && !player.topUpReserved && player.stack > 0;
+      !player.sittingOut && player.stack > 0;
+  }
+
+  function settleReservedTopUps(state) {
+    if (!state || !state.settings || state.settings.mode !== "ring") return;
+    state.seats.forEach(function (player) {
+      if (!player || player.isBot || !player.topUpReserved) return;
+      var target = requestedRingBuyIn(state, { amount: player.topUpTargetAmount });
+      var delta = Math.max(0, target - Math.max(0, integer(player.stack, 0)));
+      if (delta > 0) {
+        player.stack = target;
+        state.ringStacks[player.nick] = target;
+        addWalletAdjustment(state, player.nick, -delta, "rebuy");
+      }
+      player.topUpReserved = false;
+      player.topUpTargetAmount = 0;
+      player.topUpAppliedHandNo = Math.max(0, integer(state.handNo, 0)) + 1;
+      if (player.stack > 0 && !player.leaving && !player.away && !player.sittingOut) {
+        player.ready = true;
+        player.waiting = true;
+      }
+    });
   }
 
   function resetPlayerTimeoutState(state, player) {
@@ -1712,6 +1739,7 @@
     removeAwayBustedRingPlayers(state, now);
     removeLeavingPlayers(state);
     updateBlindLevel(state, now);
+    settleReservedTopUps(state);
     var active = state.seats.filter(canPlayNextHand);
     var eligible = state.seats.filter(canPlayNextHand);
     if (eligible.length < 2 || active.length < 2) return { ok: false, reason: "not_enough_players" };
@@ -1741,6 +1769,7 @@
       if (!player) return;
       player.inHand = !!activeSeats[player.seat];
       player.topUpReserved = false;
+      player.topUpTargetAmount = 0;
       player.waiting = !player.inHand;
       player.folded = false;
       player.allIn = false;
@@ -2200,6 +2229,8 @@
           var cancelRebuyReservation = cmd.cancel === true;
           var reserveAmount = requestedRingBuyIn(next, cmd);
           player.topUpReserved = !cancelRebuyReservation && reserveAmount > player.stack;
+          player.topUpTargetAmount = player.topUpReserved ? reserveAmount : 0;
+          if (player.topUpReserved) player.topUpAppliedHandNo = 0;
           next.lastEvent = {
             type: player.topUpReserved ? "ring_rebuy_reserved" : "ring_rebuy_reservation_cleared",
             nick: nick,
@@ -2225,6 +2256,7 @@
           } else {
             player.stack = rebuyAmount;
             player.topUpReserved = false;
+            player.topUpTargetAmount = 0;
             player.ready = true;
             player.waiting = true;
             player.inHand = false;
@@ -2487,6 +2519,7 @@
       away: !!player.away,
       sittingOut: !!player.sittingOut,
       topUpReserved: !!player.topUpReserved,
+      topUpAppliedHandNo: Math.max(0, integer(player.topUpAppliedHandNo, 0)),
       leaving: !!player.leaving,
       leavingIntent: player.leaving ? normalizeLeavingIntent(player.leavingIntent) || "leave" : "",
       inHand: !!player.inHand,
