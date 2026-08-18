@@ -1693,6 +1693,87 @@ test("ring joins and bust rebuys can choose an in-room buy-in amount", () => {
   assert.equal(view.buyInDefault, 30000);
 });
 
+test("a reserved top-up skips one hand and restores the exact target stack", () => {
+  const options = {
+    mode: "ring",
+    assetBacked: true,
+    chipUnit: 100,
+    startingStack: 40000,
+    smallBlind: 200,
+    bigBlind: 400,
+    refillAmount: 20000,
+  };
+  let state = Engine.createTable({
+    roomId: "reserved-top-up",
+    ownerNick: "alice",
+    ...options,
+  });
+  for (const [nick, seat, buyIn] of [
+    ["alice", 0, 25000],
+    ["bob", 1, 30000],
+    ["chris", 2, 30000],
+  ]) {
+    const joined = Engine.command(state, {
+      type: "join",
+      nick,
+      seat,
+      buyIn,
+      requestId: `join:${nick}`,
+    }, context(1));
+    assert.equal(joined.ok, true, joined.reason);
+    state = joined.state;
+  }
+
+  state.phase = "flop";
+  state.seats.forEach((player) => {
+    if (player) player.inHand = true;
+  });
+  const reserved = Engine.command(state, {
+    type: "reserve_rebuy",
+    nick: "alice",
+    amount: 40000,
+    bb: 100,
+    requestId: "reserve:alice:100bb",
+  }, context(2));
+  assert.equal(reserved.ok, true, reserved.reason);
+  assert.equal(reserved.state.seats[0].stack, 25000);
+  assert.equal(reserved.state.seats[0].topUpReserved, true);
+
+  state = reserved.state;
+  state.phase = "hand_end";
+  state.actorSeat = null;
+  state.pendingSeats = [];
+  const nextHand = Engine.command(state, {
+    type: "start",
+    nick: "bob",
+    requestId: "start:without-reserved-player",
+  }, context(3));
+  assert.equal(nextHand.ok, true, nextHand.reason);
+  assert.equal(nextHand.state.phase, "preflop");
+  assert.equal(nextHand.state.seats[0].inHand, false);
+  assert.equal(nextHand.state.seats[0].topUpReserved, false);
+  assert.equal(nextHand.state.seats[1].inHand, true);
+  assert.equal(nextHand.state.seats[2].inHand, true);
+
+  state = nextHand.state;
+  state.walletAdjustments = [];
+  state.seats[0].stack = 30000;
+  state.ringStacks.alice = 30000;
+  const topUp = Engine.command(state, {
+    type: "rebuy",
+    nick: "alice",
+    amount: 40000,
+    requestId: "rebuy:alice:100bb",
+  }, context(4));
+  assert.equal(topUp.ok, true, topUp.reason);
+  assert.equal(topUp.state.seats[0].stack, 40000);
+  assert.equal(topUp.state.lastEvent.delta, 10000);
+  assert.deepEqual(
+    topUp.state.walletAdjustments.map(({ nickname, delta }) => ({ nickname, delta })),
+    [{ nickname: "alice", delta: -10000 }],
+  );
+});
+
 test("free refill buy-ins seat and restore broke ring players without wallet charges", () => {
   let state = Engine.createTable({
     roomId: "free-refill-buyin",

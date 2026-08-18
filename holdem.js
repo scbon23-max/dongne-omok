@@ -1456,6 +1456,7 @@ window.TexasHoldem = (function () {
         entry.spectator,
         status === "sitting_out" || status === "auto_sit_out"
       ),
+      topUpReserved: !!firstDefined(entry.topUpReserved, entry.rebuyReserved, false),
       inHand: bool(firstDefined(entry.inHand, entry.playing), status !== "out"),
       cardCount: clamp(integer(firstDefined(entry.cardCount, entry.holeCardCount, entry.hasCards ? 2 : 0), 0), 0, 2),
       status: status,
@@ -3816,7 +3817,7 @@ window.TexasHoldem = (function () {
     for (var i = 0; i < state.seats.length; i++) {
       var seat = state.seats[i];
       if (seat && !seat.isBot && seat.stack > 0 &&
-          !seat.leaving && !seat.away && !seat.sittingOut) {
+          !seat.leaving && !seat.away && !seat.sittingOut && !seat.topUpReserved) {
         if (text(seat.nick, 40) === currentNick) return rank;
         rank += 1;
       }
@@ -4167,7 +4168,6 @@ window.TexasHoldem = (function () {
       if (api && typeof api.toast === "function") {
         api.toast("애니콜 올인: 핸드 종료 후 보유 자산으로 100BB 충전돼요.", 2600);
       }
-      return Promise.resolve({ ok: true, queued: true });
     }
     return applyQueuedProfileTopUp();
   }
@@ -5164,6 +5164,19 @@ window.TexasHoldem = (function () {
   }
 
   function clearQueuedProfileTopUp(message, kind) {
+    var hero = profileTopUpSeat();
+    if (hero && hero.topUpReserved && active && !requests.rebuy_reserve) {
+      invoke("reserve_rebuy", {
+        cancel: true,
+        expectedVersion: state.version
+      }, {
+        key: "rebuy_reserve",
+        label: "rebuy_reserve_cancel",
+        broadcast: true,
+        silent: true,
+        ui: false
+      });
+    }
     storeQueuedProfileTopUp(0);
     profileTopUpAttemptKey = "";
     profileTopUpValue = 0;
@@ -5184,6 +5197,47 @@ window.TexasHoldem = (function () {
     );
   }
 
+  function reserveQueuedProfileTopUp() {
+    var hero = profileTopUpSeat();
+    var target = queuedProfileTopUpTargetAmount();
+    if (!target || !hero || state.mode !== "ring") {
+      return Promise.resolve({ ok: false, reason: "unavailable" });
+    }
+    if (hero.stack >= target || hero.topUpReserved) {
+      return Promise.resolve({ ok: true, queued: hero.stack < target });
+    }
+    if (requests.rebuy_reserve) return requests.rebuy_reserve;
+    return invoke("reserve_rebuy", {
+      amount: target,
+      bb: queuedProfileTopUpBb,
+      expectedVersion: state.version
+    }, {
+      key: "rebuy_reserve",
+      label: "rebuy_reserve",
+      broadcast: true,
+      silent: true,
+      ui: false
+    }).then(function (result) {
+      var reason = text(
+        result && (result.reason || result.response && result.response.reason),
+        80
+      );
+      if (!result || !result.ok) {
+        profileTopUpMessage = stackMutationRetryable(reason)
+          ? "서버에 충전 예약을 등록하는 즉시 적용할게요."
+          : "충전 예약을 등록하지 못했어요. 다시 시도해 주세요.";
+        profileTopUpMessageKind = stackMutationRetryable(reason) ? "queued" : "error";
+        renderProfileTopUp();
+        if (stackMutationRetryable(reason)) {
+          scheduleRefresh("top_up_reserve_retry", true, reason === "network" ? 500 : 100);
+        }
+      }
+      return result && result.ok
+        ? Object.assign({}, result, { queued: true, amount: target })
+        : result;
+    });
+  }
+
   function applyQueuedProfileTopUp() {
     var hero = profileTopUpSeat();
     var target = queuedProfileTopUpTargetAmount();
@@ -5192,10 +5246,18 @@ window.TexasHoldem = (function () {
       clearQueuedProfileTopUp("현재 칩이 예약 금액 이상이라 추가 차감 없이 완료됐어요.", "queued");
       return Promise.resolve({ ok: true, reason: "already_reached" });
     }
-    if ((isHandActive(state.phase) && hero.inHand) ||
-        (state.phase === "complete" && !resultTransitionReady()) ||
-        requests.rebuy || requests.refill) {
+    if (requests.rebuy || requests.refill) {
       return Promise.resolve({ ok: true, queued: true });
+    }
+    if ((isHandActive(state.phase) && hero.inHand) ||
+        (state.phase === "complete" && !resultTransitionReady())) {
+      return reserveQueuedProfileTopUp();
+    }
+    if (!hero.topUpReserved && !isHandActive(state.phase)) {
+      return reserveQueuedProfileTopUp().then(function (result) {
+        if (!result || !result.ok) return result;
+        return applyQueuedProfileTopUp();
+      });
     }
     var attemptKey = String(state.version) + ":" + String(target) + ":" + String(queuedProfileTopUpBb || "");
     if (profileTopUpAttemptKey === attemptKey) {
@@ -5253,7 +5315,6 @@ window.TexasHoldem = (function () {
         formatChips(amount) + "으로 적용돼요.";
       profileTopUpMessageKind = "queued";
       renderProfileTopUp();
-      return Promise.resolve({ ok: true, queued: true, amount: amount });
     }
     return applyQueuedProfileTopUp();
   }

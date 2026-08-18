@@ -114,6 +114,7 @@ const ACTIONS = new Set([
   "bot_step",
   "snapshot",
   "refill",
+  "reserve_rebuy",
   "rebuy",
 ]);
 const OWNER_ACTIONS = new Set(["settings", "add_bot", "remove_bot"]);

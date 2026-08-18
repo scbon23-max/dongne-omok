@@ -613,6 +613,8 @@ test("the betting UI keeps raise choices collapsed until requested", () => {
   assert.match(controller, /function canShowProfileTopUpForSeat\(seat\)[\s\S]*bounds\.currentStack < bounds\.max/);
   assert.match(controller, /function submitProfileTopUp\(\)[\s\S]*storeQueuedProfileTopUp\(amount, \{ bb: queuedBb \}\)[\s\S]*isHandActive\(state\.phase\)[\s\S]*applyQueuedProfileTopUp\(\)/);
   assert.match(controller, /function applyQueuedProfileTopUp\(\)[\s\S]*resultTransitionReady\(\)[\s\S]*rebuyRingChips\(target\)/);
+  assert.match(controller, /function reserveQueuedProfileTopUp\(\)[\s\S]*invoke\("reserve_rebuy"/);
+  assert.match(engine, /type === "reserve_rebuy"[\s\S]*player\.topUpReserved/);
   assert.match(controller, /PROFILE_TOP_UP_STORAGE_PREFIX = "dongne_holdem_profile_top_up:"/);
   assert.match(controller, /queuedProfileTopUpBb/);
   assert.match(controller, /function queuedProfileTopUpTargetAmount\(\)[\s\S]*queuedProfileTopUpBb \* state\.bigBlind/);

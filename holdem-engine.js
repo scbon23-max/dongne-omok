@@ -350,6 +350,7 @@
       waiting: true,
       away: false,
       sittingOut: false,
+      topUpReserved: false,
       timeoutStreak: 0,
       leaving: false,
       leavingIntent: "",
@@ -637,6 +638,7 @@
       }
       player.away = player.isBot ? false : player.away === true;
       player.sittingOut = player.isBot ? false : player.sittingOut === true;
+      player.topUpReserved = player.isBot ? false : player.topUpReserved === true;
       player.timeoutStreak = player.isBot
         ? 0
         : clamp(player.timeoutStreak, 0, AUTO_SIT_OUT_TIMEOUTS, 0);
@@ -811,7 +813,7 @@
 
   function canPlayNextHand(player) {
     return !!player && !player.leaving && !player.away &&
-      !player.sittingOut && player.stack > 0;
+      !player.sittingOut && !player.topUpReserved && player.stack > 0;
   }
 
   function resetPlayerTimeoutState(state, player) {
@@ -1733,9 +1735,12 @@
     state.lastRake = 0;
     state.actionHistory = [];
     state.botDueAt = null;
+    var activeSeats = Object.create(null);
+    active.forEach(function (player) { activeSeats[player.seat] = true; });
     state.seats.forEach(function (player) {
       if (!player) return;
-      player.inHand = canPlayNextHand(player);
+      player.inHand = !!activeSeats[player.seat];
+      player.topUpReserved = false;
       player.waiting = !player.inHand;
       player.folded = false;
       player.allIn = false;
@@ -2187,6 +2192,23 @@
           result = { ok: true };
           changed = true;
         }
+      } else if (type === "reserve_rebuy") {
+        player = playerByNick(next, nick);
+        if (next.settings.mode !== "ring") result = { ok: false, reason: "ring_only" };
+        else if (!player || player.isBot) result = { ok: false, reason: "not_joined" };
+        else {
+          var cancelRebuyReservation = cmd.cancel === true;
+          var reserveAmount = requestedRingBuyIn(next, cmd);
+          player.topUpReserved = !cancelRebuyReservation && reserveAmount > player.stack;
+          next.lastEvent = {
+            type: player.topUpReserved ? "ring_rebuy_reserved" : "ring_rebuy_reservation_cleared",
+            nick: nick,
+            amount: player.topUpReserved ? reserveAmount : 0,
+            at: now
+          };
+          result = { ok: true, reason: player.topUpReserved ? "rebuy_reserved" : "rebuy_reservation_cleared" };
+          changed = true;
+        }
       } else if (type === "rebuy") {
         player = playerByNick(next, nick);
         if (next.settings.mode !== "ring") result = { ok: false, reason: "ring_only" };
@@ -2202,6 +2224,7 @@
             result = { ok: false, reason: "rebuy_not_needed" };
           } else {
             player.stack = rebuyAmount;
+            player.topUpReserved = false;
             player.ready = true;
             player.waiting = true;
             player.inHand = false;
@@ -2463,6 +2486,7 @@
       waiting: !!player.waiting,
       away: !!player.away,
       sittingOut: !!player.sittingOut,
+      topUpReserved: !!player.topUpReserved,
       leaving: !!player.leaving,
       leavingIntent: player.leaving ? normalizeLeavingIntent(player.leavingIntent) || "leave" : "",
       inHand: !!player.inHand,

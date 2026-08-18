@@ -658,6 +658,18 @@ test("admin anycall all-in auto queues a 100BB asset top-up after the hand", asy
       if (action === "act") {
         return Promise.resolve({ ok: true, version: 2, snapshot: afterAnyCall });
       }
+      if (action === "reserve_rebuy") {
+        return Promise.resolve({
+          ok: true,
+          reason: "rebuy_reserved",
+          version: 3,
+          snapshot: {
+            ...afterAnyCall,
+            version: 3,
+            seats: afterAnyCall.seats.map((seat) => ({ ...seat, topUpReserved: true })),
+          },
+        });
+      }
       return Promise.resolve({ ok: true, version: 4, snapshot: afterTopUp });
     },
   };
@@ -700,7 +712,7 @@ test("admin anycall all-in auto queues a 100BB asset top-up after the hand", asy
   controller._test.setAnyCallChecked(true);
   for (let i = 0; i < 8; i += 1) await Promise.resolve();
 
-  assert.deepEqual(calls.map((call) => call.action), ["act"]);
+  assert.deepEqual(calls.map((call) => call.action), ["act", "reserve_rebuy"]);
   assert.equal(calls[0].payload.move, "call");
   assert.equal(controller._test.getFreeRefillState().queued, false);
   assert.equal(controller._test.getFreeRefillState().anyCall, false);
@@ -713,7 +725,13 @@ test("admin anycall all-in auto queues a 100BB asset top-up after the hand", asy
   handEnded.handId = "anycall-refill";
   handEnded.heroSeat = 0;
   handEnded.bigBlind = 400;
-  handEnded.seats[0] = { seat: 0, nick: "alice", stack: 0, inHand: false };
+  handEnded.seats[0] = {
+    seat: 0,
+    nick: "alice",
+    stack: 0,
+    inHand: false,
+    topUpReserved: true,
+  };
   handEnded.canRefill = false;
   handEnded.canQueueRefill = false;
   handEnded.refillStatusKnown = true;
@@ -724,10 +742,10 @@ test("admin anycall all-in auto queues a 100BB asset top-up after the hand", asy
   const applied = await controller._test.applyQueuedProfileTopUp();
 
   assert.equal(applied.ok, true);
-  assert.deepEqual(calls.map((call) => call.action), ["act", "rebuy", "snapshot"]);
-  assert.equal(calls[1].payload.expectedVersion, 3);
-  assert.equal(calls[1].payload.amount, 40000);
-  assert.equal(calls[1].payload.anyCallEventRefill, undefined);
+  assert.deepEqual(calls.map((call) => call.action), ["act", "reserve_rebuy", "rebuy", "snapshot"]);
+  assert.equal(calls[2].payload.expectedVersion, 3);
+  assert.equal(calls[2].payload.amount, 40000);
+  assert.equal(calls[2].payload.anyCallEventRefill, undefined);
   assert.equal(controller.state.seats[0].stack, 40000);
   assert.equal(controller._test.getFreeRefillState().queued, false);
   assert.equal(controller._test.getProfileTopUpState().queuedAmount, 0);
@@ -3843,6 +3861,7 @@ test("an all-in top-up reservation applies while the next hand continues without
   let version = 3;
   let phase = "flop";
   let stack = 25000;
+  let topUpReserved = false;
   const storageValues = new Map();
   const localStorage = {
     getItem(key) {
@@ -3864,7 +3883,7 @@ test("an all-in top-up reservation applies while the next hand continues without
     canNext: phase === "hand_end",
     viewer: { seat: 0 },
     seats: [
-      { seat: 0, nick: "alice", stack, inHand: phase === "flop" },
+      { seat: 0, nick: "alice", stack, inHand: phase === "flop", topUpReserved },
       { seat: 1, nick: "bob", stack: 30000, inHand: phase === "flop" || phase === "preflop" },
       { seat: 2, nick: "chris", stack: 30000, inHand: phase === "flop" || phase === "preflop" },
     ],
@@ -3882,11 +3901,16 @@ test("an all-in top-up reservation applies while the next hand continues without
     },
     holdemInvoke(auth, action, payload) {
       calls.push({ auth, action, payload });
-      if (action === "rebuy") {
+      if (action === "reserve_rebuy") {
+        topUpReserved = true;
+        version += 1;
+      } else if (action === "rebuy") {
         stack = payload.amount;
+        topUpReserved = false;
         version += 1;
       } else if (action === "start") {
         phase = "preflop";
+        topUpReserved = false;
         version += 1;
       }
       return Promise.resolve({
@@ -3937,16 +3961,18 @@ test("an all-in top-up reservation applies while the next hand continues without
   assert.equal(controller._test.getProfileTopUpState().queuedAmount, 40000);
   assert.equal(ui.elements["holdem-profile-topup-confirm"].textContent, "예약 변경");
   assert.match(ui.elements["holdem-profile-topup-status"].textContent, /충전 예약 완료/);
-  assert.deepEqual(calls.map((call) => call.action), ["wallet"]);
+  assert.deepEqual(calls.map((call) => call.action), ["wallet", "reserve_rebuy"]);
+  assert.equal(calls[1].payload.amount, 40000);
 
   phase = "preflop";
-  stack = 0;
+  stack = 30000;
+  topUpReserved = false;
   const nextHand = controller._test.emptyState();
   nextHand.mode = "ring";
   nextHand.phase = "preflop";
   nextHand.version = version;
   nextHand.heroSeat = 0;
-  nextHand.seats[0] = { seat: 0, nick: "alice", stack: 0, inHand: false };
+  nextHand.seats[0] = { seat: 0, nick: "alice", stack: 30000, inHand: false };
   nextHand.seats[1] = { seat: 1, nick: "bob", stack: 30000, inHand: true };
   nextHand.seats[2] = { seat: 2, nick: "chris", stack: 30000, inHand: true };
   nextHand.buyInMin = 10000;
