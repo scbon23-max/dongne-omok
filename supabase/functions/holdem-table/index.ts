@@ -708,15 +708,21 @@ async function assetRanking(
   viewerNick: string,
 ) {
   const ranked = await assetRankingRows(client);
+  const visibleRows = ranked.slice(0, 100);
   const publicRow = (row: typeof ranked[number]) => ({
     rank: row.rank,
     nickname: row.nickname,
     totalAssets: row.totalAssets,
     handCount: row.handCount,
+    todayNet: todayNet.get(row.nickname) ?? 0,
   });
   const viewer = ranked.find((row) => row.nickname === viewerNick);
+  const todayNet = await todayNetByNickname(
+    client,
+    visibleRows.concat(viewer ? [viewer] : []).map((row) => row.nickname),
+  );
   return {
-    rows: ranked.slice(0, 100).map(publicRow),
+    rows: visibleRows.map(publicRow),
     viewer: viewer ? publicRow(viewer) : null,
     totalPlayers: ranked.length,
     minHands: RANKING_MIN_HANDS,
@@ -760,6 +766,50 @@ function rankingChipAmount(value: unknown, allowNegative = false) {
     throw new Error("ranking_detail_lookup");
   }
   return amount;
+}
+
+function seoulTodayUtcRange(now = new Date()) {
+  const seoulOffsetMs = 9 * 60 * 60 * 1000;
+  const seoulNow = new Date(now.getTime() + seoulOffsetMs);
+  const startUtcMs = Date.UTC(
+    seoulNow.getUTCFullYear(),
+    seoulNow.getUTCMonth(),
+    seoulNow.getUTCDate(),
+  ) - seoulOffsetMs;
+  return {
+    start: new Date(startUtcMs).toISOString(),
+    end: new Date(startUtcMs + 24 * 60 * 60 * 1000).toISOString(),
+  };
+}
+
+async function todayNetByNickname(
+  client: ReturnType<typeof createClient>,
+  nicknames: string[],
+) {
+  const uniqueNicknames = Array.from(new Set(
+    nicknames.map((nick) => safeText(nick, 40)).filter(Boolean),
+  ));
+  const totals = new Map(uniqueNicknames.map((nick) => [nick, 0]));
+  if (!uniqueNicknames.length) return totals;
+
+  const range = seoulTodayUtcRange();
+  const { data, error } = await client
+    .from("holdem_hand_results")
+    .select("nickname,net_amount")
+    .in("nickname", uniqueNicknames)
+    .gte("created_at", range.start)
+    .lt("created_at", range.end);
+  if (error) throw new Error("ranking_lookup");
+
+  (Array.isArray(data) ? data : []).forEach((row) => {
+    const nickname = safeText(row?.nickname, 40);
+    if (!totals.has(nickname)) return;
+    totals.set(
+      nickname,
+      (totals.get(nickname) ?? 0) + rankingChipAmount(row?.net_amount, true),
+    );
+  });
+  return totals;
 }
 
 async function assetRankingDetail(

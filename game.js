@@ -4638,10 +4638,6 @@
       .filter(Boolean);
     var viewer = normalizeHoldemAssetRankingRow(ranking.viewer);
     var totalPlayers = Math.max(rows.length, Math.floor(Number(ranking.totalPlayers) || 0));
-    var initialAssets = Math.max(
-      0,
-      Math.floor(Number(ranking.initialAssets) || HOLDEM_INITIAL_ASSETS)
-    );
     var minHands = Math.max(1, Math.floor(Number(ranking.minHands) || 5));
     var mineHtml = viewer
       ? '<div class="holdem-asset-ranking-mine">' +
@@ -4658,7 +4654,7 @@
           holdemAssetRankingPositionHtml(row.rank) +
           '<span class="holdem-asset-ranking-player"><strong>' + esc(row.nickname) +
           (isMe ? '<i class="holdem-asset-ranking-me-tag">나</i>' : '') + '</strong>' +
-          holdemAssetRankingDeltaHtml(row.totalAssets, initialAssets) + '</span>' +
+          holdemAssetRankingTodayNetHtml(row.todayNet) + '</span>' +
           '<strong class="holdem-asset-ranking-assets">' +
           esc(formatHoldemAsset(row.totalAssets)) + '</strong></button>';
       }).join("")
@@ -6245,7 +6241,12 @@
     var totalAssets = Math.floor(Number(value.totalAssets));
     if (!nickname || !Number.isFinite(rank) || rank < 1 ||
         !Number.isFinite(totalAssets) || totalAssets < 0) return null;
-    return { nickname: nickname, rank: rank, totalAssets: totalAssets };
+    return {
+      nickname: nickname,
+      rank: rank,
+      totalAssets: totalAssets,
+      todayNet: Math.floor(Number(value.todayNet) || 0)
+    };
   }
   function holdemAssetRankingPositionHtml(rank) {
     var medalClass = rank === 1
@@ -6257,11 +6258,11 @@
           : "";
     return '<span class="holdem-asset-ranking-position' + medalClass + '">' + rank + '</span>';
   }
-  function holdemAssetRankingDeltaHtml(totalAssets, initialAssets) {
-    var delta = totalAssets - initialAssets;
-    if (!delta) return '<small>시작 자산과 같음</small>';
-    return '<small class="' + (delta > 0 ? "is-plus" : "is-minus") + '">' +
-      '시작 대비 ' + (delta > 0 ? "+" : "-") + formatHoldemAsset(Math.abs(delta)) + '</small>';
+  function holdemAssetRankingTodayNetHtml(todayNet) {
+    var amount = Math.floor(Number(todayNet) || 0);
+    if (!amount) return '<small>오늘 손익 0원</small>';
+    return '<small class="' + (amount > 0 ? "is-plus" : "is-minus") + '">' +
+      '오늘 손익 ' + (amount > 0 ? "+" : "-") + formatHoldemAsset(Math.abs(amount)) + '</small>';
   }
   function signedHoldemAssetHtml(value) {
     var amount = Math.floor(Number(value) || 0);
@@ -6462,10 +6463,6 @@
       .filter(Boolean);
     var viewer = normalizeHoldemAssetRankingRow(ranking.viewer);
     var totalPlayers = Math.max(rows.length, Math.floor(Number(ranking.totalPlayers) || 0));
-    var initialAssets = Math.max(
-      0,
-      Math.floor(Number(ranking.initialAssets) || HOLDEM_INITIAL_ASSETS)
-    );
     var mine = $("holdem-asset-ranking-mine");
     if (mine) mine.classList.toggle("hidden", !viewer);
     if (viewer) {
@@ -6494,7 +6491,7 @@
         holdemAssetRankingPositionHtml(row.rank) +
         '<span class="holdem-asset-ranking-player"><strong>' + esc(row.nickname) +
         (isMe ? '<i class="holdem-asset-ranking-me-tag">나</i>' : '') + '</strong>' +
-        holdemAssetRankingDeltaHtml(row.totalAssets, initialAssets) + '</span>' +
+        holdemAssetRankingTodayNetHtml(row.todayNet) + '</span>' +
         '<strong class="holdem-asset-ranking-assets">' + formatHoldemAsset(row.totalAssets) + '</strong>' +
         '</button>';
     }).join("");
