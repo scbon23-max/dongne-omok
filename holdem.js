@@ -2625,11 +2625,13 @@ window.TexasHoldem = (function () {
 
   function animatedWinAmount(seatIndex) {
     if (!resultFlow || !resultFlow.winnerSeats[seatIndex]) return 0;
+    var seat = state.seats[seatIndex];
+    var wonAmount = nonnegative(seat && seat.winAmount, 0);
+    if (wonAmount > 0) return wonAmount;
     var from = resultFlow.fromStacks[seatIndex];
     var to = resultFlow.toStacks[seatIndex];
     if (Number.isFinite(from) && Number.isFinite(to) && to > from) return to - from;
-    var seat = state.seats[seatIndex];
-    return nonnegative(seat && seat.winAmount, 0);
+    return 0;
   }
 
   function removePayoutParticleLayer() {

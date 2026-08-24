@@ -1497,6 +1497,21 @@ test("the result clock inserts the winner tag while next hand stays automatic", 
 
   try {
     assert.equal(controller._test.applySnapshot({
+      phase: "river",
+      handId: "result-redraw",
+      handNo: 12,
+      ownerNick: "alice",
+      seats: [
+        { seat: 0, nick: "alice", stack: 10000, inHand: true },
+        { seat: 1, nick: "bob", stack: 9400, inHand: true },
+      ],
+      board: ["As", "Kd", "Qc", "Jh", "Ts"],
+      pot: 1200,
+      canStart: false,
+      canNext: false,
+    }, 11), true);
+
+    assert.equal(controller._test.applySnapshot({
       phase: "hand_end",
       handId: "result-redraw",
       handNo: 12,
@@ -1528,6 +1543,60 @@ test("the result clock inserts the winner tag while next hand stays automatic", 
     assert.equal(dom.elements.holdemgame.classList.contains("is-result-announced"), true);
     assert.equal(dom.elements.holdemgame.classList.contains("is-showdown"), true);
     assert.equal(dom.elements["holdem-table-start-btn"].classList.contains("hidden"), true);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("winner tags show authoritative payout instead of previous-stack delta", () => {
+  const originalNow = Date.now;
+  let now = 1_800_000_100_000;
+  Date.now = () => now;
+  const dom = resultTestDocument();
+  const controller = loadController("alice", { document: dom.document });
+
+  try {
+    assert.equal(controller._test.applySnapshot({
+      phase: "river",
+      handId: "winner-payout",
+      handNo: 13,
+      ownerNick: "alice",
+      seats: [
+        { seat: 0, nick: "alice", stack: 10000, inHand: true },
+        { seat: 1, nick: "bob", stack: 9400, inHand: true },
+      ],
+      board: ["As", "Kd", "Qc", "Jh", "Ts"],
+      pot: 1200,
+      canStart: false,
+      canNext: false,
+    }, 13), true);
+
+    assert.equal(controller._test.applySnapshot({
+      phase: "hand_end",
+      handId: "winner-payout",
+      handNo: 13,
+      ownerNick: "alice",
+      seats: [
+        { seat: 0, nick: "alice", stack: 10600, winAmount: 1200, handName: "Straight" },
+        { seat: 1, nick: "bob", stack: 9400 },
+      ],
+      board: ["As", "Kd", "Qc", "Jh", "Ts"],
+      pot: 1200,
+      pots: [{ amount: 1200, winners: [0] }],
+      winners: ["alice"],
+      canStart: false,
+      canNext: true,
+    }, 14), true);
+
+    now += controller._test.constants.resultCardsFirstMs +
+      controller._test.constants.resultBoardRevealStepMs * 2 +
+      (controller._test.constants.communityRiverFlipMs -
+        controller._test.constants.resultBoardRevealStepMs) +
+      controller._test.constants.resultSettleMs;
+    controller._test.renderSettlementAnimation();
+
+    assert.match(dom.elements["holdem-seats"].innerHTML, /\+1,200원/);
+    assert.doesNotMatch(dom.elements["holdem-seats"].innerHTML, /\+600원/);
   } finally {
     Date.now = originalNow;
   }
