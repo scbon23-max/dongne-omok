@@ -86,6 +86,14 @@ test("the Hold'em controller opens its own asset ranking flow", () => {
   assert.match(game, /holdem-asset-ranking-detail"\)\.addEventListener\("click"[\s\S]*backToHoldemAssetRankingList/);
 });
 
+test("the temporary Hold'em ranking reset changes display values only", () => {
+  assert.match(game, /var HOLDEM_RANKING_DISPLAY_ASSETS = HOLDEM_INITIAL_ASSETS;/);
+  assert.match(game, /function holdemRankingDisplayAssets\(actualAssets\)/);
+  assert.match(game, /if \(HOLDEM_RANKING_DISPLAY_ASSETS == null\) return actualAssets;/);
+  assert.match(game, /totalAssets: holdemRankingDisplayAssets\(totalAssets\)/);
+  assert.doesNotMatch(edge, /HOLDEM_RANKING_DISPLAY_ASSETS/);
+});
+
 test("the lobby overall ranking places Hold'em first and uses asset totals", () => {
   assert.match(index, /id="rank-tabs"[\s\S]*data-g="holdem"[\s\S]*data-g="omok"[\s\S]*data-g="alk"/);
   assert.match(game, /function lobbyRankGames\(\) \{[\s\S]*return \["holdem"\]\.concat\(rankableGames\(\)/);

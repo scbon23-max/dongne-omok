@@ -664,6 +664,7 @@
   var HOLDEM_CREATE_SELECTION_STORAGE_PREFIX = "dongne_holdem_create_selection:";
   var HOLDEM_CHIP_UNIT = 100;
   var HOLDEM_INITIAL_ASSETS = 100000;
+  var HOLDEM_RANKING_DISPLAY_ASSETS = HOLDEM_INITIAL_ASSETS;
   var HOLDEM_MIN_BUY_IN = 10000;
   var HOLDEM_FREE_REFILL_ASSET_LIMIT = 20000;
   var HOLDEM_MAX_BUY_IN = 100000;
@@ -6238,6 +6239,10 @@
   };
   var holdemAssetRankingRequestSeq = 0;
   var holdemAssetRankingDetailSeq = 0;
+  function holdemRankingDisplayAssets(actualAssets) {
+    if (HOLDEM_RANKING_DISPLAY_ASSETS == null) return actualAssets;
+    return Math.max(0, Math.floor(Number(HOLDEM_RANKING_DISPLAY_ASSETS) || 0));
+  }
   function normalizeHoldemAssetRankingRow(value) {
     if (!value || typeof value !== "object") return null;
     var nickname = String(value.nickname || "").trim().slice(0, 40);
@@ -6245,7 +6250,11 @@
     var totalAssets = Math.floor(Number(value.totalAssets));
     if (!nickname || !Number.isFinite(rank) || rank < 1 ||
         !Number.isFinite(totalAssets) || totalAssets < 0) return null;
-    return { nickname: nickname, rank: rank, totalAssets: totalAssets };
+    return {
+      nickname: nickname,
+      rank: rank,
+      totalAssets: holdemRankingDisplayAssets(totalAssets)
+    };
   }
   function holdemAssetRankingPositionHtml(rank) {
     var medalClass = rank === 1
@@ -6284,7 +6293,7 @@
     return {
       nickname: nickname,
       rank: rank,
-      totalAssets: totalAssets,
+      totalAssets: holdemRankingDisplayAssets(totalAssets),
       handCount: Math.max(0, Math.floor(Number(value.handCount) || 0)),
       totalWon: Math.max(0, Math.floor(Number(value.totalWon) || 0)),
       totalLost: Math.max(0, Math.floor(Number(value.totalLost) || 0)),
