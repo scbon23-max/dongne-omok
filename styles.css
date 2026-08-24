@@ -5378,8 +5378,8 @@ body.is-admin .feedback-user-compose { display: none; }
   transform: translateY(-2px) scale(1.035);
 }
 .holdem-card.is-winning-combo-muted {
-  opacity: .28;
-  filter: grayscale(.85) saturate(.42) brightness(.72);
+  opacity: .52;
+  filter: grayscale(.58) saturate(.68) brightness(.9);
 }
 .holdem-hole-cards.is-winning-combo-review .holdem-card.is-winning-combo-muted {
   transform: scale(.96);
@@ -6415,7 +6415,7 @@ body.is-admin .feedback-user-compose { display: none; }
   filter: saturate(1.04) brightness(1.08) drop-shadow(0 10px 14px rgba(0,0,0,.38)) drop-shadow(0 0 10px rgba(255,231,154,.32));
 }
 .holdem-seat.is-me .holdem-hole-cards.is-winning-combo-review .holdem-card.is-winning-combo-muted.is-hero-reveal-forward {
-  filter: grayscale(.85) saturate(.42) brightness(.72);
+  filter: grayscale(.58) saturate(.68) brightness(.9);
 }
 .holdem-screen[data-card-front-skin="four-color"] .holdem-seat.is-me .holdem-hole-cards.is-winning-combo-review .holdem-card.is-winning-combo-card.is-hero-reveal-forward:not(.back) {
   filter: saturate(1.04) brightness(1.04);

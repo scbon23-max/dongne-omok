@@ -806,9 +806,9 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.doesNotMatch(classicWinnerRule, /inset|0 0 0 \d+px/);
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-card\.is-winning-combo-card:not\(\.back\)\s*\{[\s\S]*border:\s*1px solid[\s\S]*0 0 9px rgba\(255,194,42,\.22\)/);
   assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards\.is-winning-combo-review \.holdem-card\.is-winning-combo-card:first-of-type,[\s\S]*transform:\s*translateY\(-2px\) scale\(1\.035\)/);
-  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards\.is-winning-combo-review \.holdem-card\.is-winning-combo-muted\.is-hero-reveal-forward\s*\{[\s\S]*filter:\s*grayscale\(\.85\) saturate\(\.42\) brightness\(\.72\)/);
+  assert.match(styles, /\.holdem-seat\.is-me \.holdem-hole-cards\.is-winning-combo-review \.holdem-card\.is-winning-combo-muted\.is-hero-reveal-forward\s*\{[\s\S]*filter:\s*grayscale\(\.58\) saturate\(\.68\) brightness\(\.9\)/);
   assert.match(styles, /\.holdem-screen\[data-card-front-skin="four-color"\] \.holdem-seat\.is-me \.holdem-hole-cards\.is-winning-combo-review \.holdem-card\.is-winning-combo-card\.is-hero-reveal-forward:not\(\.back\)\s*\{[\s\S]*filter:\s*saturate\(1\.04\) brightness\(1\.04\)/);
-  assert.match(styles, /\.holdem-card\.is-winning-combo-muted\s*\{[\s\S]*opacity:\s*\.28[\s\S]*grayscale/);
+  assert.match(styles, /\.holdem-card\.is-winning-combo-muted\s*\{[\s\S]*opacity:\s*\.52[\s\S]*grayscale\(\.58\) saturate\(\.68\) brightness\(\.9\)/);
   assert.match(styles, /\.holdem-winner-result\s*\{/);
   assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);
   assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*min-width:\s*108px/);
