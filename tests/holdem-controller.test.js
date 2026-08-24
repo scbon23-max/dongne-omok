@@ -376,7 +376,7 @@ test("reserved leave state is kept for seat display", () => {
   assert.equal(normalized.seats[1].leaving, false);
 });
 
-test("spectate reservations discard personalized cards and actions", () => {
+test("spectate reservations keep personalized cards and actions until the hand ends", () => {
   const controller = loadController("alice");
   const normalized = controller._test.normalizeSnapshot({
     phase: "flop",
@@ -403,11 +403,11 @@ test("spectate reservations discard personalized cards and actions", () => {
   }, 9);
 
   assert.equal(normalized.heroSeat, 0);
-  assert.equal(normalized.heroCards.length, 0);
-  assert.equal(normalized.heroRevealCards.length, 0);
-  assert.equal(Object.keys(normalized.legal).length, 0);
-  assert.equal(normalized.toCall, 0);
-  assert.equal(normalized.handName, "");
+  assert.equal(normalized.heroCards.map((card) => card.rank + card.suit).join(","), "As,Kd");
+  assert.equal(normalized.heroRevealCards.join(","), "0");
+  assert.deepEqual(Object.keys(normalized.legal).sort(), ["call", "fold"]);
+  assert.equal(normalized.toCall, 200);
+  assert.equal(normalized.handName, "원페어");
   assert.equal(normalized.seats[0].cardCount, 2);
 });
 

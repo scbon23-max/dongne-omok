@@ -1793,20 +1793,17 @@ window.TexasHoldem = (function () {
         if (seats[i] && seats[i].nick === nick) { heroSeat = i; break; }
       }
     }
-    var heroPrivateViewBlocked = heroSeat >= 0 &&
-      isSpectateReservation(seats[heroSeat]);
-
     // Only the personalized viewer object/top-level personalized field may
     // supply hole-card faces. Opponent seat objects are never inspected for
     // card values, even if a buggy server accidentally includes them.
-    var heroCards = heroPrivateViewBlocked ? [] : normalizeCards(firstDefined(
+    var heroCards = normalizeCards(firstDefined(
       viewer.holeCards,
       viewer.cards,
       raw.heroCards,
       raw.holeCards,
       table.heroCards
     ), 2);
-    var heroRevealCards = heroPrivateViewBlocked ? [] : normalizeCardIndexes(firstDefined(
+    var heroRevealCards = normalizeCardIndexes(firstDefined(
       viewer.revealCards,
       viewer.revealCardIndexes,
       raw.heroRevealCards,
@@ -1816,7 +1813,7 @@ window.TexasHoldem = (function () {
       seats[heroSeat].cardCount = heroCards.length;
     }
 
-    var legal = heroPrivateViewBlocked ? normalizeLegal() : normalizeLegal(firstDefined(
+    var legal = normalizeLegal(firstDefined(
       viewer.legalActions,
       viewer.legalMoves,
       viewer.actions,
@@ -1986,24 +1983,24 @@ window.TexasHoldem = (function () {
         table.actionSeconds != null ? Number(table.actionSeconds) * 1000 : null
       ), 0),
       legal: legal,
-      toCall: heroPrivateViewBlocked ? 0 : nonnegative(firstDefined(
+      toCall: nonnegative(firstDefined(
         actionInfo.toCall,
         actionInfo.callAmount,
         viewer.toCall,
         legal.call && legal.call.amount
       ), 0),
-      minBet: heroPrivateViewBlocked ? 0 : nonnegative(firstDefined(
+      minBet: nonnegative(firstDefined(
         actionInfo.minBet,
         viewer.minBet,
         legal.bet && legal.bet.min
       ), 0),
-      minRaise: heroPrivateViewBlocked ? 0 : nonnegative(firstDefined(
+      minRaise: nonnegative(firstDefined(
         actionInfo.minRaiseTo,
         actionInfo.minRaise,
         viewer.minRaise,
         legal.raise && legal.raise.min
       ), 0),
-      maxRaise: heroPrivateViewBlocked ? 0 : nonnegative(firstDefined(
+      maxRaise: nonnegative(firstDefined(
         actionInfo.maxRaiseTo,
         actionInfo.maxRaise,
         viewer.maxRaise,
@@ -2094,9 +2091,7 @@ window.TexasHoldem = (function () {
       ownerNick: text(firstDefined(table.ownerNick, table.owner, raw.ownerNick), 40),
       winners: winnerNicks(table, seats),
       showdown: showdownRows,
-      handName: heroPrivateViewBlocked
-        ? ""
-        : text(firstDefined(viewer.handName, viewer.bestHandName, raw.handName), 80),
+      handName: text(firstDefined(viewer.handName, viewer.bestHandName, raw.handName), 80),
       message: text(firstDefined(raw.message, table.message, table.announcement, table.resultText), 160)
     };
 
@@ -3109,14 +3104,17 @@ window.TexasHoldem = (function () {
         return refreshSnapshot(result && result.ok ? "spectate_cancelled" : "spectate_cancel_retry", true);
       });
     }
-    spectateAfterHandRequested = !!(hero && isHandActive(state.phase) && hero.inHand);
+    var reserveAfterHand = !!(hero && isHandActive(state.phase) && hero.inHand);
+    spectateAfterHandRequested = reserveAfterHand;
     autoSeatSuppressed = true;
     autoSeatKey = "";
-    state.heroCards = [];
-    state.heroRevealCards = [];
-    state.legal = Object.create(null);
-    state.handName = "";
-    queuedAction = null;
+    if (!reserveAfterHand) {
+      state.heroCards = [];
+      state.heroRevealCards = [];
+      state.legal = Object.create(null);
+      state.handName = "";
+      queuedAction = null;
+    }
     renderSeats();
     renderBoard();
     renderControls();
@@ -3658,7 +3656,6 @@ window.TexasHoldem = (function () {
     var hero = heroSeatForAction();
     return !!(isHandActive(state.phase) &&
       hero &&
-      !isSpectateReservation(hero) &&
       hero.inHand &&
       !hero.folded &&
       !hero.allIn &&
