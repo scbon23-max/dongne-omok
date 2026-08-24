@@ -625,6 +625,11 @@ test("Hold'em wallets use 100-chip accounting and update atomically with ring ta
   assert.match(edge, /action === "wallet"/);
   assert.match(edge, /holdem_wallet_get_or_create/);
   assert.match(edge, /availableBalance[\s\S]*tableBalance[\s\S]*totalAssets/);
+  assert.match(edge, /function walletScopedBuyIn/);
+  assert.match(
+    edge,
+    /action === "join"[\s\S]*!seatedNickInState\(baseState, account\.nick\)[\s\S]*walletProfile\(client, account\.nick\)[\s\S]*walletScopedBuyIn/
+  );
   assert.match(edge, /function takeWalletAdjustments/);
   assert.match(edge, /delete state\.walletAdjustments/);
   assert.match(edge, /const assetBackedRingTable = ringTable/);

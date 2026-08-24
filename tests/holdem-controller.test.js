@@ -653,6 +653,13 @@ test("admin anycall all-in auto queues a 100BB asset top-up after the hand", asy
     }],
   };
   const db = {
+    getHoldemWallet() {
+      calls.push({ action: "wallet", payload: {} });
+      return Promise.resolve({
+        ok: true,
+        wallet: { balance: 40000, tableBalance: 20000, totalAssets: 60000 },
+      });
+    },
     holdemInvoke(_auth, action, payload) {
       calls.push({ action, payload });
       if (action === "act") {
@@ -712,7 +719,7 @@ test("admin anycall all-in auto queues a 100BB asset top-up after the hand", asy
   controller._test.setAnyCallChecked(true);
   for (let i = 0; i < 8; i += 1) await Promise.resolve();
 
-  assert.deepEqual(calls.map((call) => call.action), ["act", "reserve_rebuy"]);
+  assert.deepEqual(calls.map((call) => call.action), ["act", "wallet", "reserve_rebuy"]);
   assert.equal(calls[0].payload.move, "call");
   assert.equal(controller._test.getFreeRefillState().queued, false);
   assert.equal(controller._test.getFreeRefillState().anyCall, false);
@@ -742,13 +749,95 @@ test("admin anycall all-in auto queues a 100BB asset top-up after the hand", asy
   const applied = await controller._test.applyQueuedProfileTopUp();
 
   assert.equal(applied.ok, true);
-  assert.deepEqual(calls.map((call) => call.action), ["act", "reserve_rebuy", "rebuy", "snapshot"]);
-  assert.equal(calls[2].payload.expectedVersion, 3);
-  assert.equal(calls[2].payload.amount, 40000);
-  assert.equal(calls[2].payload.anyCallEventRefill, undefined);
+  assert.deepEqual(calls.map((call) => call.action), ["act", "wallet", "reserve_rebuy", "rebuy", "snapshot", "wallet"]);
+  assert.equal(calls[3].payload.expectedVersion, 3);
+  assert.equal(calls[3].payload.amount, 40000);
+  assert.equal(calls[3].payload.anyCallEventRefill, undefined);
   assert.equal(controller.state.seats[0].stack, 40000);
   assert.equal(controller._test.getFreeRefillState().queued, false);
   assert.equal(controller._test.getProfileTopUpState().queuedAmount, 0);
+  controller.leave();
+});
+
+test("admin anycall top-up does not exceed the player's total Hold'em assets", async () => {
+  const calls = [];
+  const afterAnyCall = {
+    phase: "river",
+    mode: "ring",
+    handId: "anycall-low-assets",
+    version: 2,
+    bigBlind: 400,
+    buyInMax: 40000,
+    canRefill: false,
+    viewer: { seat: 0 },
+    seats: [{
+      seat: 0,
+      nick: "alice",
+      displayName: "alice",
+      stack: 0,
+      inHand: true,
+      allIn: true,
+    }],
+  };
+  const db = {
+    getHoldemWallet() {
+      calls.push({ action: "wallet", payload: {} });
+      return Promise.resolve({
+        ok: true,
+        wallet: { balance: 20000, tableBalance: 0, totalAssets: 20000 },
+      });
+    },
+    holdemInvoke(_auth, action, payload) {
+      calls.push({ action, payload });
+      if (action === "act") {
+        return Promise.resolve({ ok: true, version: 2, snapshot: afterAnyCall });
+      }
+      return Promise.resolve({ ok: true, version: 3, snapshot: afterAnyCall });
+    },
+  };
+  const controller = loadController("alice", {
+    db,
+    isAdmin: true,
+    setTimeout(fn) {
+      fn();
+      return 1;
+    },
+  });
+  const state = controller._test.emptyState();
+  state.mode = "ring";
+  state.version = 1;
+  state.phase = "river";
+  state.handId = "anycall-low-assets";
+  state.actionSeq = 1;
+  state.heroSeat = 0;
+  state.perspectiveSeat = 0;
+  state.actingSeat = 0;
+  state.bigBlind = 400;
+  state.buyInMax = 40000;
+  state.toCall = 20000;
+  state.legal = { call: true, fold: true };
+  state.canRefill = false;
+  state.refillStatusKnown = true;
+  state.refillsRemainingToday = 0;
+  state.seats[0] = {
+    seat: 0,
+    nick: "alice",
+    displayName: "alice",
+    stack: 20000,
+    inHand: true,
+  };
+
+  controller._test.setState(state);
+  controller._test.setHasSnapshot(true);
+  controller._test.setActive(true);
+  controller._test.setAnyCallEventEnabled(true);
+  controller._test.setAnyCallChecked(true);
+  for (let i = 0; i < 8; i += 1) await Promise.resolve();
+
+  assert.deepEqual(calls.map((call) => call.action), ["act", "wallet"]);
+  assert.equal(controller._test.getProfileTopUpState().queuedAmount, 0);
+  assert.equal(controller._test.getProfileTopUpState().messageKind, "error");
+  assert.match(controller._test.getProfileTopUpState().message, /보유 자산이 부족/);
   controller.leave();
 });
 

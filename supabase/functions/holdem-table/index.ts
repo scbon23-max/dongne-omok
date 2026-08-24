@@ -419,6 +419,58 @@ function ringTableBoundsForBuyIn(buyIn: number) {
   return { minBuyIn: 10000, maxBuyIn: 20000, defaultBuyIn: 15000 };
 }
 
+function roundChipAmount(value: unknown, fallback: number) {
+  const amount = Number(value);
+  const base = Number.isFinite(amount) ? amount : fallback;
+  return Math.max(0, Math.floor(base / CHIP_UNIT) * CHIP_UNIT);
+}
+
+function ringBuyInBoundsFromState(state: unknown) {
+  if (!isRecord(state) || !isRecord(state.settings)) return null;
+  if (safeText(state.settings.mode, 24) !== "ring") return null;
+  const maxBuyIn = Math.max(
+    CHIP_UNIT,
+    roundChipAmount(state.settings.startingStack, RING_DEFAULT_BUY_IN),
+  );
+  const bigBlind = Math.max(
+    CHIP_UNIT,
+    roundChipAmount(state.settings.bigBlind, CHIP_UNIT),
+  );
+  const minBuyIn = Math.min(maxBuyIn, roundChipAmount(bigBlind * 50, CHIP_UNIT));
+  const defaultBuyIn = Math.max(
+    minBuyIn,
+    Math.min(maxBuyIn, roundChipAmount(bigBlind * 75, RING_DEFAULT_BUY_IN)),
+  );
+  return { minBuyIn, maxBuyIn, defaultBuyIn };
+}
+
+function seatedNickInState(state: unknown, nick: string) {
+  if (!isRecord(state) || !Array.isArray(state.seats)) return false;
+  const targetNick = safeText(nick, 40);
+  return state.seats.some((seat) => (
+    isRecord(seat) && safeText(seat.nick, 40) === targetNick
+  ));
+}
+
+function walletScopedBuyIn(
+  bounds: { minBuyIn: number; maxBuyIn: number; defaultBuyIn: number },
+  balance: number,
+  preferred?: unknown,
+) {
+  const selectableMax = Math.min(
+    bounds.maxBuyIn,
+    roundChipAmount(balance, 0),
+  );
+  if (selectableMax < bounds.minBuyIn) return 0;
+  const preferredAmount = preferred == null
+    ? bounds.defaultBuyIn
+    : roundChipAmount(preferred, bounds.defaultBuyIn);
+  return Math.max(
+    bounds.minBuyIn,
+    Math.min(preferredAmount, selectableMax),
+  );
+}
+
 async function walletProfile(
   client: ReturnType<typeof createClient>,
   nick: string,
@@ -1753,6 +1805,33 @@ Deno.serve(async (request) => {
           false,
           "bot_turn",
         );
+      }
+      if (
+        action === "join" &&
+        !seatedNickInState(baseState, account.nick) &&
+        command.freeRefill !== true
+      ) {
+        const bounds = ringBuyInBoundsFromState(baseState);
+        if (bounds) {
+          const profile = await walletProfile(client, account.nick);
+          const buyIn = walletScopedBuyIn(
+            bounds,
+            profile.balance,
+            command.buyIn ?? command.amount,
+          );
+          if (buyIn < bounds.minBuyIn) {
+            return publicTableResponse(
+              client,
+              engine,
+              baseState,
+              account.nick,
+              baseVersion,
+              false,
+              "wallet_insufficient",
+            );
+          }
+          command.buyIn = buyIn;
+        }
       }
       const freeRefillBuyIn = (
         action === "join" || action === "rebuy"

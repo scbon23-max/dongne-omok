@@ -4153,6 +4153,17 @@ window.TexasHoldem = (function () {
     return !isHandActive(state.phase) && (state.phase !== "complete" || resultTransitionReady());
   }
 
+  function profileWalletCanCoverTopUpTarget(target, hero) {
+    if (!profileWallet || profileWalletNick !== text(me().nick, 40)) return false;
+    var currentStack = hero
+      ? Math.max(0, Math.floor(Number(hero.stack) || 0))
+      : 0;
+    var walletBalance = Math.max(0, Math.floor(Number(profileWallet.balance) || 0));
+    var totalAssets = Math.max(0, Math.floor(Number(profileWallet.totalAssets) || walletBalance));
+    var spend = Math.max(0, Math.floor(Number(target) || 0) - currentStack);
+    return totalAssets >= target && walletBalance >= spend;
+  }
+
   function requestAnyCallAssetTopUp() {
     var hero = freeRefillHero();
     if (requests.rebuy) {
@@ -4162,6 +4173,25 @@ window.TexasHoldem = (function () {
       return Promise.resolve({ ok: false, reason: "unavailable" });
     }
     var amount = anyCallTopUpTargetAmount();
+    if (!profileWallet || profileWalletNick !== text(me().nick, 40)) {
+      return loadProfileWallet(true).then(function (wallet) {
+        hero = freeRefillHero();
+        if (!wallet || !hero) return { ok: false, reason: "wallet_unavailable" };
+        if (!profileWalletCanCoverTopUpTarget(amount, hero)) {
+          profileTopUpMessage = "보유 자산이 부족해서 100BB 자동충전을 예약하지 않았어요.";
+          profileTopUpMessageKind = "error";
+          if (profileDialogOpen) renderProfileDialog();
+          return { ok: false, reason: "wallet_insufficient" };
+        }
+        return requestAnyCallAssetTopUp();
+      });
+    }
+    if (!profileWalletCanCoverTopUpTarget(amount, hero)) {
+      profileTopUpMessage = "보유 자산이 부족해서 100BB 자동충전을 예약하지 않았어요.";
+      profileTopUpMessageKind = "error";
+      if (profileDialogOpen) renderProfileDialog();
+      return Promise.resolve({ ok: false, reason: "wallet_insufficient" });
+    }
     var queuedBb = state.bigBlind > 0 ? Math.max(0, amount / state.bigBlind) : 0;
     storeQueuedProfileTopUp(amount, { bb: queuedBb });
     profileTopUpValue = amount;
