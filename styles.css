@@ -6092,7 +6092,7 @@ body.is-admin .feedback-user-compose { display: none; }
   box-shadow: 0 0 0 6px rgba(244,204,117,.27), 0 0 34px rgba(244,204,117,.68);
 }
 .holdem-winner-result {
-  --holdem-winner-edge-nudge: clamp(38px, 9vw, 58px);
+  --holdem-winner-table-nudge: clamp(86px, 19vw, 122px);
   position: absolute;
   z-index: 28;
   top: calc(var(--holdem-seat-avatar-size) * -0.56);
@@ -6163,19 +6163,19 @@ body.is-admin .feedback-user-compose { display: none; }
   letter-spacing: -.045em;
 }
 .holdem-seat[data-relative-seat="4"] .holdem-winner-result {
-  top: calc(var(--holdem-seat-avatar-size) * -0.56);
+  top: calc(var(--holdem-seat-avatar-size) * .72);
 }
 .holdem-seat[data-relative-seat="1"] .holdem-winner-result,
 .holdem-seat[data-relative-seat="2"] .holdem-winner-result,
 .holdem-seat[data-relative-seat="3"] .holdem-winner-result {
   top: calc(var(--holdem-seat-avatar-size) * -0.58);
-  left: calc(50% + var(--holdem-winner-edge-nudge));
+  left: calc(50% + var(--holdem-winner-table-nudge));
 }
 .holdem-seat[data-relative-seat="5"] .holdem-winner-result,
 .holdem-seat[data-relative-seat="6"] .holdem-winner-result,
 .holdem-seat[data-relative-seat="7"] .holdem-winner-result {
   top: calc(var(--holdem-seat-avatar-size) * -0.58);
-  left: calc(50% - var(--holdem-winner-edge-nudge));
+  left: calc(50% - var(--holdem-winner-table-nudge));
 }
 .holdem-screen.is-settling-pot .holdem-seat.is-winner:not(.is-payout-receiving) .holdem-seat-avatar {
   animation: holdemWinnerPulse .42s ease-in-out infinite;

@@ -829,9 +829,10 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /function startPayoutParticleStream\(key\)[\s\S]*particlesPerWinner = targets\.length > 1 \? 9 : 14[\s\S]*holdem-payout-particle[\s\S]*var sizeSteps = \[4\.5, 5\.8, 7\.2, 9\.4, 12\.2\]/);
   assert.match(controller, /function maybeStartPayoutParticleStream\(\)[\s\S]*resultFlow\.settleStart[\s\S]*startPayoutParticleStream\(key\)/);
   assert.match(controller, /function renderSettlementAnimation\(\)[\s\S]*maybeStartPayoutParticleStream\(\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* -0\.56\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="3"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-winner-edge-nudge\)\)/);
-  assert.match(styles, /\.holdem-seat\[data-relative-seat="5"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="6"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="7"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-winner-edge-nudge\)\)/);
+  assert.match(styles, /\.holdem-winner-result\s*\{[\s\S]*--holdem-winner-table-nudge:\s*clamp\(86px,\s*19vw,\s*122px\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="4"\] \.holdem-winner-result\s*\{[\s\S]*top:\s*calc\(var\(--holdem-seat-avatar-size\) \* \.72\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="1"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="2"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="3"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% \+ var\(--holdem-winner-table-nudge\)\)/);
+  assert.match(styles, /\.holdem-seat\[data-relative-seat="5"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="6"\] \.holdem-winner-result,[\s\S]*\.holdem-seat\[data-relative-seat="7"\] \.holdem-winner-result\s*\{[\s\S]*left:\s*calc\(50% - var\(--holdem-winner-table-nudge\)\)/);
   assert.match(styles, /\.holdem-screen\.is-settling-pot \.holdem-seat\.is-winner:not\(\.is-payout-receiving\) \.holdem-seat-avatar/);
   assert.match(controller, /var RESULT_CARDS_FIRST_MS = 900/);
   assert.match(controller, /var RESULT_FINAL_ACTION_MS = 2000/);
