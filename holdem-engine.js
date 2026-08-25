@@ -1679,7 +1679,7 @@
       var randomInt = context && typeof context.randomInt === "function" ? context.randomInt : defaultRandomInt;
       return active[integer(randomInt(active.length), 0)].seat;
     }
-    return (state.buttonSeat + 1) % MAX_SEATS;
+    return nextSeatMatching(state, state.buttonSeat, canPlayNextHand);
   }
 
   function startHand(state, now, context) {

@@ -97,6 +97,40 @@ test("heads-up uses the button as small blind and swaps pre/post-flop action", (
   assert.equal(state.actorSeat, 1, "big blind acts first after the flop");
 });
 
+test("dealer button skips empty seats between multi-player hands", () => {
+  let state = Engine.createTable({ roomId: "button-empty-skip", ownerNick: "alice" });
+  [
+    ["alice", 0],
+    ["bob", 2],
+    ["cara", 5],
+  ].forEach(([nick, seat], index) => {
+    state = apply(state, {
+      type: "join",
+      nick,
+      seat,
+      requestId: `join:${nick}:${seat}`,
+    }, index + 1);
+  });
+
+  state = apply(state, {
+    type: "start",
+    nick: "alice",
+    requestId: "start:first",
+  }, 10);
+  assert.equal(state.buttonSeat, 0);
+
+  state.phase = "hand_end";
+  state = apply(state, {
+    type: "start",
+    nick: "alice",
+    requestId: "start:second",
+  }, 20);
+
+  assert.equal(state.buttonSeat, 2);
+  assert.equal(state.smallBlindSeat, 5);
+  assert.equal(state.bigBlindSeat, 0);
+});
+
 test("any two seated players can start without a separate ready step", () => {
   const names = ["owner", "guest", "away"];
   let state = tableWithPlayers(names);
