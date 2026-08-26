@@ -230,9 +230,7 @@ function profileTopUpTestDocument() {
     "holdemgame",
     "holdem-profile-backdrop",
     "holdem-profile-nick",
-    "holdem-profile-title",
     "holdem-profile-avatar-preview",
-    "holdem-profile-avatar-remove",
     "holdem-profile-wallet-label",
     "holdem-profile-wallet-balance",
     "holdem-profile-wallet-status",
@@ -247,7 +245,6 @@ function profileTopUpTestDocument() {
     "holdem-profile-topup-amount",
     "holdem-profile-topup-remaining",
     "holdem-profile-topup-slider",
-    "holdem-profile-topup-status",
     "holdem-profile-topup-confirm",
   ];
   const elements = {};
@@ -4108,7 +4105,6 @@ test("a server-settled top-up reservation joins the player to the very next hand
   assert.equal(ui.elements["holdem-profile-topup-max"].textContent, "50,000원");
   assert.equal(ui.elements["holdem-profile-topup-remaining"].textContent, "35,000원");
   assert.equal(ui.elements["holdem-profile-topup-confirm"].textContent, "충전 예약");
-  assert.match(ui.elements["holdem-profile-topup-status"].textContent, /현재 핸드/);
 
   controller._test.setProfileTopUpValue(40000);
   assert.equal(ui.elements["holdem-profile-topup-amount"].textContent, "40,000원");
@@ -4118,7 +4114,6 @@ test("a server-settled top-up reservation joins the player to the very next hand
   assert.equal(queued.queued, true);
   assert.equal(controller._test.getProfileTopUpState().queuedAmount, 40000);
   assert.equal(ui.elements["holdem-profile-topup-confirm"].textContent, "예약 변경");
-  assert.match(ui.elements["holdem-profile-topup-status"].textContent, /충전 예약 완료/);
   assert.deepEqual(calls.map((call) => call.action), ["wallet", "reserve_rebuy"]);
   assert.equal(calls[1].payload.amount, 40000);
 

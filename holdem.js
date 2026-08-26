@@ -5707,7 +5707,6 @@ window.TexasHoldem = (function () {
     backdrop.classList.toggle("hidden", !profileDialogOpen);
     backdrop.setAttribute("aria-hidden", profileDialogOpen ? "false" : "true");
     setText("holdem-profile-nick", nick || "닉네임");
-    setText("holdem-profile-title", isMine ? "내 프로필" : "프로필");
     var preview = $("holdem-profile-avatar-preview");
     if (preview) {
       preview.innerHTML = avatar
@@ -5716,8 +5715,6 @@ window.TexasHoldem = (function () {
     }
     var actions = root() && root().querySelector(".holdem-profile-photo-actions");
     if (actions) actions.classList.toggle("hidden", !isMine);
-    var remove = $("holdem-profile-avatar-remove");
-    if (remove) remove.disabled = !isMine || !avatar;
     setText(
       "holdem-profile-wallet-label",
       isMine ? "내 총자산" : target && target.isBot ? "연습칩" : "총자산"
@@ -7731,14 +7728,6 @@ window.TexasHoldem = (function () {
       });
     } else if (id === "holdem-profile-topup-confirm") {
       submitProfileTopUp();
-    } else if (id === "holdem-profile-avatar-remove") {
-      var profileNick = text(me().nick, 40);
-      removeProfileAvatar(profileNick);
-      renderProfileDialog();
-      renderSeats();
-      persistProfileAvatar(profileNick, "").then(function (result) {
-        if (result && result.ok) refreshProfileAvatars(state, true);
-      }, function () {});
     } else if (id === "holdem-settings-close") {
       settingsOpen = false;
       renderSettings();

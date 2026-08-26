@@ -276,7 +276,8 @@ test("the eight-seat table exposes every required game control", () => {
   assert.match(controller, /function avatarNameHtml\(nick\)[\s\S]*holdem-seat-avatar-name/);
   assert.match(controller, /readProfileAvatar\(seat\.nick\)/);
   assert.match(controller, /event\.target\.closest\("\.holdem-seat:not\(\.is-empty\)"\)/);
-  assert.match(styles, /\.holdem-profile-avatar-preview\s*\{[\s\S]*width:\s*125px;[\s\S]*height:\s*125px/);
+  assert.match(styles, /\.holdem-profile-main\s*\{[\s\S]*grid-template-columns:\s*70px minmax\(0,\s*1fr\)/);
+  assert.match(styles, /\.holdem-profile-avatar-preview\s*\{[\s\S]*width:\s*70px;[\s\S]*height:\s*70px/);
   assert.match(styles, /\.holdem-seat-avatar-name\s*\{[\s\S]*-webkit-line-clamp:\s*2/);
   assert.match(styles, /\.holdem-seat\.is-folded\s*\{\s*opacity:\s*1;\s*filter:\s*none;\s*\}/);
   assert.match(styles, /\.holdem-seat\.is-folded \.holdem-seat-avatar,[\s\S]*\.holdem-seat\.is-folded \.holdem-hole-cards \.holdem-card\s*\{[\s\S]*filter:\s*grayscale\(1\)/);
@@ -287,6 +288,7 @@ test("the eight-seat table exposes every required game control", () => {
   assert.match(styles, /\.holdem-asset-record-summary\.is-plus strong/);
   assert.match(index, /class="create-holdem-wallet holdem-profile-wallet"/);
   assert.match(index, /id="holdem-profile-asset-record-btn"[^>]*>자산기록<\/button>/);
+  assert.doesNotMatch(index, /id="holdem-profile-title"|id="holdem-profile-avatar-remove"|id="holdem-profile-topup-status"|기본으로|확정하면 선택한 금액까지 바로 충전돼요/);
   assert.match(controller, /Db\.getHoldemWallet\(currentAuth\)/);
   assert.match(controller, /HoldemAssetRecords\.record\(text\(me\(\)\.nick, 40\), totalAssets\)/);
   assert.match(controller, /id === "holdem-profile-asset-record-btn"[\s\S]*HoldemAssetRecords\.open/);
@@ -743,7 +745,7 @@ test("hand results stay on the table without a popup and advance automatically",
   assert.match(controller, /function displayedBuyInTotalAssets\(\)[\s\S]*buyInWallet\.totalAssets/);
   assert.match(controller, /function displayedBuyInBalance\(bounds\)[\s\S]*var spent = buyInMode === "rebuy"[\s\S]*walletBalance - spent/);
   assert.match(controller, /function profileTopUpRemainingBalance\(bounds\)[\s\S]*bounds\.value - bounds\.currentStack[\s\S]*bounds\.walletBalance - spend/);
-  assert.match(index, /id="holdem-profile-role-action"[^>]*>관전하기</);
+  assert.match(index, /class="holdem-profile-photo-actions"[\s\S]*id="holdem-profile-role-action"[^>]*>관전하기/);
   assert.match(engine, /ready:\s*stack > 0/);
   assert.match(engine, /leavingIntent:\s*""/);
   assert.match(engine, /function normalizeLeavingIntent\(value\)/);
