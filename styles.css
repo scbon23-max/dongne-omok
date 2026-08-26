@@ -6873,6 +6873,9 @@ body.is-admin .feedback-user-compose { display: none; }
   margin-bottom: 9px;
 }
 .holdem-profile-avatar-preview {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
   width: 70px;
   height: 70px;
   display: grid;
@@ -6896,6 +6899,9 @@ body.is-admin .feedback-user-compose { display: none; }
   font-size: 13px;
 }
 .holdem-profile-nick {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
   max-width: 100%;
   color: #fff;
   font-size: 16px;
@@ -6904,9 +6910,12 @@ body.is-admin .feedback-user-compose { display: none; }
   text-align: left;
 }
 .holdem-profile-photo-actions {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 .holdem-profile-upload,
@@ -6920,6 +6929,7 @@ body.is-admin .feedback-user-compose { display: none; }
   color: #d8fff4;
   font-size: 12px;
   font-weight: 900;
+  white-space: nowrap;
 }
 .holdem-profile-upload input {
   position: absolute;
@@ -7055,7 +7065,11 @@ body.is-admin .feedback-user-compose { display: none; }
 .holdem-profile-photo-actions .holdem-profile-role-action {
   min-height: 34px;
   margin: 0;
+  border-color: rgba(125,225,196,.55);
   border-radius: 9px;
+  background: linear-gradient(180deg, #24b69a, #0f8069);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 0 14px rgba(77,225,201,.18);
+  color: #fff;
   font-size: 12px;
 }
 .holdem-action-panel {

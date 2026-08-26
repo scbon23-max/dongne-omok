@@ -277,7 +277,12 @@ test("the eight-seat table exposes every required game control", () => {
   assert.match(controller, /readProfileAvatar\(seat\.nick\)/);
   assert.match(controller, /event\.target\.closest\("\.holdem-seat:not\(\.is-empty\)"\)/);
   assert.match(styles, /\.holdem-profile-main\s*\{[\s\S]*grid-template-columns:\s*70px minmax\(0,\s*1fr\)/);
+  assert.match(styles, /\.holdem-profile-avatar-preview\s*\{[\s\S]*grid-column:\s*1;[\s\S]*grid-row:\s*1 \/ span 2/);
+  assert.match(styles, /\.holdem-profile-nick\s*\{[\s\S]*grid-column:\s*2;[\s\S]*grid-row:\s*1/);
+  assert.match(styles, /\.holdem-profile-photo-actions\s*\{[\s\S]*grid-column:\s*2;[\s\S]*grid-row:\s*2[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(styles, /\.holdem-profile-avatar-preview\s*\{[\s\S]*width:\s*70px;[\s\S]*height:\s*70px/);
+  assert.match(styles, /\.holdem-profile-upload,[\s\S]*\.holdem-profile-photo-actions button\s*\{[\s\S]*white-space:\s*nowrap/);
+  assert.match(styles, /\.holdem-profile-photo-actions \.holdem-profile-role-action\s*\{[\s\S]*border-color:\s*rgba\(125,225,196,\.55\)[\s\S]*background:\s*linear-gradient\(180deg, #24b69a, #0f8069\)/);
   assert.match(styles, /\.holdem-seat-avatar-name\s*\{[\s\S]*-webkit-line-clamp:\s*2/);
   assert.match(styles, /\.holdem-seat\.is-folded\s*\{\s*opacity:\s*1;\s*filter:\s*none;\s*\}/);
   assert.match(styles, /\.holdem-seat\.is-folded \.holdem-seat-avatar,[\s\S]*\.holdem-seat\.is-folded \.holdem-hole-cards \.holdem-card\s*\{[\s\S]*filter:\s*grayscale\(1\)/);
