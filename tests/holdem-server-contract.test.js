@@ -342,7 +342,7 @@ test("the engine gets secure randomness and only changed results reach CAS", () 
   assert.match(edge, /const resultState = anyCallEventRefill[\s\S]*restoreAnyCallEventRefillSettings\(result\.state, baseState\)[\s\S]*: result\.state/);
   assert.match(
     edge,
-    /if \(!result\.changed\) \{[\s\S]*return publicTableResponse/
+    /if \(!result\.changed\) \{[\s\S]*return await publicTableResponse/
   );
   assert.match(
     edge,

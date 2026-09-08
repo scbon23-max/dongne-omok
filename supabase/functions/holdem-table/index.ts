@@ -36,6 +36,7 @@ type HoldemEngineApi = {
       randomInt(max: number): number;
       internalBot?: boolean;
       internalRefill?: boolean;
+      topUpBalances?: Record<string, number>;
     },
   ): HoldemCommandResult;
   view(state: unknown, nick: string): unknown;
@@ -142,6 +143,7 @@ const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,100}$/;
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_STATE_BYTES = 256 * 1024;
 const MAX_SNAPSHOT_BYTES = 64 * 1024;
+const MAX_TABLE_PLAYERS = 8;
 const MAX_CAS_RETRIES = 5;
 const CHIP_UNIT = 100;
 const INITIAL_WALLET_BALANCE = 100000;
@@ -295,20 +297,31 @@ function normalizeState(value: unknown): JsonRecord {
   return normalized;
 }
 
+function boundedSnapshot(snapshot: unknown, reason: string) {
+  if (!isRecord(snapshot)) throw new Error(reason);
+  const bounded = JSON.parse(JSON.stringify(snapshot));
+  let serialized = JSON.stringify(bounded);
+  while (byteLength(serialized) > MAX_SNAPSHOT_BYTES) {
+    if (Array.isArray(bounded.handHistory) && bounded.handHistory.length) {
+      bounded.handHistory.shift();
+    } else if (Array.isArray(bounded.actionHistory) && bounded.actionHistory.length > 1) {
+      bounded.actionHistory.shift();
+    } else {
+      throw new Error(reason);
+    }
+    bounded.historyTruncated = true;
+    serialized = JSON.stringify(bounded);
+  }
+  return bounded;
+}
+
 function sanitizedSnapshot(
   engine: HoldemEngineApi,
   state: unknown,
   nick: string,
 ) {
   const snapshot = engine.view(state, nick);
-  const serialized = JSON.stringify(snapshot);
-  if (
-    serialized === undefined ||
-    byteLength(serialized) > MAX_SNAPSHOT_BYTES
-  ) {
-    throw new Error("invalid_snapshot");
-  }
-  return JSON.parse(serialized);
+  return boundedSnapshot(snapshot, "invalid_snapshot");
 }
 
 function sanitizedBotSnapshot(
@@ -319,14 +332,7 @@ function sanitizedBotSnapshot(
   // botView is the information boundary: the AI never receives the raw table
   // state, deck, burn cards, or any opponent's hidden cards.
   const snapshot = engine.botView(state, botId);
-  const serialized = JSON.stringify(snapshot);
-  if (
-    serialized === undefined ||
-    byteLength(serialized) > MAX_SNAPSHOT_BYTES
-  ) {
-    throw new Error("invalid_bot_snapshot");
-  }
-  return JSON.parse(serialized);
+  return boundedSnapshot(snapshot, "invalid_bot_snapshot");
 }
 
 function actingBot(state: unknown) {
@@ -625,51 +631,14 @@ async function profileAsset(
   targetNick = safeText(targetNick, 40);
   if (!targetNick) return null;
 
-  const [{
-    data: accountRow,
-    error: accountError,
-  }, {
-    data: walletRow,
-    error: walletError,
-  }, {
-    data: tableRows,
-    error: tableError,
-  }] = await Promise.all([
-    client
-      .from("accounts")
-      .select("nickname")
-      .eq("nickname", targetNick)
-      .maybeSingle(),
-    client
-      .from("holdem_wallets")
-      .select("balance")
-      .eq("nickname", targetNick)
-      .maybeSingle(),
-    client
-      .from("holdem_tables")
-      .select("state")
-      .limit(500),
-  ]);
-  if (accountError || walletError || tableError) {
-    throw new Error("profile_asset_lookup");
-  }
-  if (!accountRow) return null;
-
-  const balance = walletRow == null
-    ? INITIAL_WALLET_BALANCE
-    : Number(walletRow.balance);
-  if (
-    !Number.isSafeInteger(balance) ||
-    balance < 0 ||
-    balance % CHIP_UNIT !== 0
-  ) {
-    throw new Error("profile_asset_lookup");
-  }
-  const holdings = tableHoldingsByNickname(
-    Array.isArray(tableRows) ? tableRows : [],
-  );
-  const totalAssets = balance + (holdings.get(targetNick) ?? 0);
-  if (!Number.isSafeInteger(totalAssets) || totalAssets < 0) {
+  const { data, error } = await client.rpc("holdem_profile_asset", {
+    p_nickname: targetNick,
+  });
+  if (error) throw new Error("profile_asset_lookup");
+  if (data === null) return null;
+  const totalAssets = Number(data?.totalAssets);
+  if (!isRecord(data) || safeText(data.nickname, 40) !== targetNick ||
+      !Number.isSafeInteger(totalAssets) || totalAssets < 0 || totalAssets % CHIP_UNIT !== 0) {
     throw new Error("profile_asset_lookup");
   }
   return {
@@ -843,21 +812,17 @@ async function todayNetByNickname(
   if (!uniqueNicknames.length) return totals;
 
   const range = seoulTodayUtcRange();
-  const { data, error } = await client
-    .from("holdem_hand_results")
-    .select("nickname,net_amount")
-    .in("nickname", uniqueNicknames)
-    .gte("created_at", range.start)
-    .lt("created_at", range.end);
-  if (error) throw new Error("ranking_lookup");
+  const { data, error } = await client.rpc("holdem_today_net_by_nickname", {
+    p_nicknames: uniqueNicknames,
+    p_start: range.start,
+    p_end: range.end,
+  });
+  if (error || !isRecord(data)) throw new Error("ranking_lookup");
 
-  (Array.isArray(data) ? data : []).forEach((row) => {
-    const nickname = safeText(row?.nickname, 40);
+  Object.entries(data).forEach(([rawNickname, amount]) => {
+    const nickname = safeText(rawNickname, 40);
     if (!totals.has(nickname)) return;
-    totals.set(
-      nickname,
-      (totals.get(nickname) ?? 0) + rankingChipAmount(row?.net_amount, true),
-    );
+    totals.set(nickname, rankingChipAmount(amount, true));
   });
   return totals;
 }
@@ -982,7 +947,7 @@ function takeWalletAdjustments(state: JsonRecord) {
     }
     return { nickname, delta };
   });
-  if (adjustments.length > 8) throw new Error("invalid_wallet_adjustment");
+  if (adjustments.length > MAX_TABLE_PLAYERS) throw new Error("invalid_wallet_adjustment");
   delete state.walletAdjustments;
   return adjustments;
 }
@@ -1068,7 +1033,7 @@ function takeHandResults(state: JsonRecord) {
       hand_category: entry.revealed === true ? handCategory : -1,
     };
   });
-  if (results.length > 6) throw new Error("invalid_hand_result");
+  if (results.length > MAX_TABLE_PLAYERS) throw new Error("invalid_hand_result");
   delete state.handResults;
   return results;
 }
@@ -1091,6 +1056,26 @@ function isAssetBackedRingState(state: unknown) {
     isRecord(state.settings) &&
     safeText(state.settings.mode, 24) === "ring" &&
     state.settings.assetBacked === true;
+}
+
+async function reservedTopUpBalances(
+  client: ReturnType<typeof createClient>,
+  state: unknown,
+) {
+  if (!isAssetBackedRingState(state) || !isRecord(state) || !Array.isArray(state.seats)) return undefined;
+  const nicknames = state.seats.filter((seat) => isRecord(seat) && seat.isBot !== true && seat.topUpReserved === true)
+    .map((seat) => safeText(seat.nick, 40)).filter(Boolean);
+  const balances: Record<string, number> = Object.create(null);
+  if (!nicknames.length) return balances;
+  const { data, error } = await client.from("holdem_wallets")
+    .select("nickname,balance").in("nickname", nicknames);
+  if (error || !Array.isArray(data)) throw new Error("wallet_lookup");
+  for (const row of data) {
+    const balance = Number(row.balance);
+    if (!Number.isSafeInteger(balance) || balance < 0 || balance % CHIP_UNIT !== 0) throw new Error("wallet_lookup");
+    balances[safeText(row.nickname, 40)] = balance;
+  }
+  return balances;
 }
 
 function allowsAnyCallEventRefill(
@@ -1641,7 +1626,7 @@ Deno.serve(async (request) => {
 
     if (action === "snapshot") {
       return table
-        ? publicTableResponse(
+        ? await publicTableResponse(
           client,
           engine,
           table.state,
@@ -1692,7 +1677,7 @@ Deno.serve(async (request) => {
         VERSIONED_ACTIONS.has(action) &&
         expectedVersion !== baseVersion
       ) {
-        return publicTableResponse(
+        return await publicTableResponse(
           client,
           engine,
           baseState,
@@ -1711,7 +1696,7 @@ Deno.serve(async (request) => {
           expectedHandId !== String(baseState.handNo ?? "")
         )
       ) {
-        return publicTableResponse(
+        return await publicTableResponse(
           client,
           engine,
           baseState,
@@ -1730,7 +1715,7 @@ Deno.serve(async (request) => {
           expectedActionSeqValue !== Number(baseState.actionSeq)
         )
       ) {
-        return publicTableResponse(
+        return await publicTableResponse(
           client,
           engine,
           baseState,
@@ -1747,7 +1732,7 @@ Deno.serve(async (request) => {
         Number.isFinite(Number(baseState.botDueAt)) &&
         requestedAt < Number(baseState.botDueAt)
       ) {
-        return publicTableResponse(
+        return await publicTableResponse(
           client,
           engine,
           baseState,
@@ -1759,7 +1744,7 @@ Deno.serve(async (request) => {
       }
 
       if (OWNER_ACTIONS.has(action) && account.nick !== ownerNick) {
-        return publicTableResponse(
+        return await publicTableResponse(
           client,
           engine,
           baseState,
@@ -1778,7 +1763,7 @@ Deno.serve(async (request) => {
       ) {
         const profile = await walletProfile(client, account.nick);
         if (profile.totalAssets >= RING_FREE_REFILL_ASSET_LIMIT) {
-          return publicTableResponse(
+          return await publicTableResponse(
             client,
             engine,
             baseState,
@@ -1794,7 +1779,7 @@ Deno.serve(async (request) => {
         ? botCommand(engine, ai, baseState)
         : authenticatedCommand(body, action, account, requestId);
       if (!command) {
-        return publicTableResponse(
+        return await publicTableResponse(
           client,
           engine,
           baseState,
@@ -1818,7 +1803,7 @@ Deno.serve(async (request) => {
             command.buyIn ?? command.amount,
           );
           if (buyIn < bounds.minBuyIn) {
-            return publicTableResponse(
+            return await publicTableResponse(
               client,
               engine,
               baseState,
@@ -1837,7 +1822,7 @@ Deno.serve(async (request) => {
       if (freeRefillBuyIn) {
         const profile = await walletProfile(client, account.nick);
         if (profile.totalAssets >= RING_FREE_REFILL_ASSET_LIMIT) {
-          return publicTableResponse(
+          return await publicTableResponse(
             client,
             engine,
             baseState,
@@ -1851,11 +1836,15 @@ Deno.serve(async (request) => {
       const commandState = anyCallEventRefill
         ? withAnyCallEventRefillAmount(baseState)
         : baseState;
+      const topUpBalances = action === "start"
+        ? await reservedTopUpBalances(client, baseState)
+        : undefined;
       const result = engine.command(commandState, command, {
         now: requestedAt,
         randomInt: secureRandomInt,
         internalBot: action === "bot_step",
         internalRefill: action === "refill" || freeRefillBuyIn,
+        topUpBalances,
       });
       if (
         !result ||
@@ -1870,7 +1859,7 @@ Deno.serve(async (request) => {
         ? restoreAnyCallEventRefillSettings(result.state, baseState)
         : result.state;
       if (!result.ok) {
-        return publicTableResponse(
+        return await publicTableResponse(
           client,
           engine,
           resultState,
@@ -1881,7 +1870,7 @@ Deno.serve(async (request) => {
         );
       }
       if (!result.changed) {
-        return publicTableResponse(
+        return await publicTableResponse(
           client,
           engine,
           resultState,
@@ -1947,7 +1936,7 @@ Deno.serve(async (request) => {
           ownerNick,
         );
       if (cas.applied) {
-        return publicTableResponse(
+        return await publicTableResponse(
           client,
           engine,
           isRecord(cas.current_state) ? cas.current_state : nextState,
@@ -1958,7 +1947,7 @@ Deno.serve(async (request) => {
         );
       }
       if (cas.reason === "refill_limit") {
-        return publicTableResponse(
+        return await publicTableResponse(
           client,
           engine,
           cas.current_state,
@@ -1969,7 +1958,13 @@ Deno.serve(async (request) => {
         );
       }
       if (cas.reason === "wallet_insufficient") {
-        return publicTableResponse(
+        if (action === "start") {
+          // A concurrent wallet spend can race the balance read. Rebuild the
+          // hand with fresh balances so only unaffordable reservations expire.
+          table = rowFromConflict(roomId, cas);
+          continue;
+        }
+        return await publicTableResponse(
           client,
           engine,
           isRecord(cas.current_state) ? cas.current_state : baseState,
@@ -1980,7 +1975,7 @@ Deno.serve(async (request) => {
         );
       }
       if (cas.reason === "assets_remaining") {
-        return publicTableResponse(
+        return await publicTableResponse(
           client,
           engine,
           isRecord(cas.current_state) ? cas.current_state : baseState,
@@ -1996,7 +1991,7 @@ Deno.serve(async (request) => {
 
     const latest = table ?? await loadTable(client, roomId);
     return latest
-      ? publicTableResponse(
+      ? await publicTableResponse(
         client,
         engine,
         latest.state,

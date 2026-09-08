@@ -588,6 +588,15 @@ window.TexasHoldem = (function () {
       profileTopUpAttemptKey = "";
       return;
     }
+    if (hero.topUpSkippedHandNo > 0 &&
+        hero.topUpSkippedHandNo === Math.max(0, integer(state.handNumber, 0))) {
+      storeQueuedProfileTopUp(0);
+      profileTopUpValue = 0;
+      profileTopUpAttemptKey = "";
+      profileTopUpMessage = "보유 자산이 부족해 충전 예약을 취소했어요. 금액을 다시 선택해 주세요.";
+      profileTopUpMessageKind = "error";
+      return;
+    }
     if (hero.topUpAppliedHandNo > 0 &&
         hero.topUpAppliedHandNo === Math.max(0, integer(state.handNumber, 0))) {
       storeQueuedProfileTopUp(0);
@@ -1466,7 +1475,9 @@ window.TexasHoldem = (function () {
         status === "sitting_out" || status === "auto_sit_out"
       ),
       topUpReserved: !!firstDefined(entry.topUpReserved, entry.rebuyReserved, false),
+      topUpTargetAmount: Math.max(0, integer(entry.topUpTargetAmount, 0)),
       topUpAppliedHandNo: Math.max(0, integer(entry.topUpAppliedHandNo, 0)),
+      topUpSkippedHandNo: Math.max(0, integer(entry.topUpSkippedHandNo, 0)),
       inHand: bool(firstDefined(entry.inHand, entry.playing), status !== "out"),
       cardCount: clamp(integer(firstDefined(entry.cardCount, entry.holeCardCount, entry.hasCards ? 2 : 0), 0), 0, 2),
       status: status,
@@ -2856,14 +2867,15 @@ window.TexasHoldem = (function () {
       network: "서버 연결을 확인해 주세요.",
       server: "홀덤 서버에서 오류가 났어요.",
       server_config: "홀덤 서버를 준비하는 중이에요.",
-      table_full: "테이블의 여섯 자리가 모두 찼어요.",
-      full: "테이블의 여섯 자리가 모두 찼어요.",
+      table_full: "테이블의 여덟 자리가 모두 찼어요.",
+      full: "테이블의 여덟 자리가 모두 찼어요.",
       seat_taken: "이미 다른 사람이 앉은 자리예요.",
       min_players: "두 명 이상 준비해야 시작할 수 있어요.",
       not_enough_players: "두 명 이상 준비해야 시작할 수 있어요.",
       not_ready: "참가자 준비 상태를 확인해 주세요.",
       not_turn: "지금은 내 차례가 아니에요.",
       turn: "지금은 내 차례가 아니에요.",
+      turn_expired: "제한 시간이 지났어요. 다음 차례를 기다려 주세요.",
       illegal_action: "현재 선택할 수 없는 액션이에요.",
       amount: "베팅 금액을 확인해 주세요.",
       chip_unit: "베팅 금액은 100원 단위로 선택해 주세요.",
@@ -3063,7 +3075,7 @@ window.TexasHoldem = (function () {
       }
       return refreshSnapshot(result && result.ok ? "joined" : "join_retry", true).then(function (refreshResult) {
         if (result && result.ok) autoReadyAfterSeatJoin();
-        return refreshResult;
+        return Object.assign({}, result || { ok: false, reason: "invalid_response" }, { refresh: refreshResult });
       });
     });
   }
@@ -4481,7 +4493,7 @@ window.TexasHoldem = (function () {
       awayNicks: lists.away
     }, {
       key: "presence",
-      requestId: requestId("presence", key || String(Date.now())),
+      requestId: requestId("presence"),
       ui: false,
       silent: true,
       broadcast: true
@@ -5242,10 +5254,14 @@ window.TexasHoldem = (function () {
     if (!target || !hero || state.mode !== "ring") {
       return Promise.resolve({ ok: false, reason: "unavailable" });
     }
-    if (hero.stack >= target || hero.topUpReserved) {
+    if (hero.stack >= target ||
+        (hero.topUpReserved && hero.topUpTargetAmount === target)) {
       return Promise.resolve({ ok: true, queued: hero.stack < target });
     }
-    if (requests.rebuy_reserve) return requests.rebuy_reserve;
+    if (requests.rebuy_reserve) {
+      return requests.rebuy_reserve;
+    }
+    var reserveGeneration = lifecycleGeneration;
     return invoke("reserve_rebuy", {
       amount: target,
       bb: queuedProfileTopUpBb,
@@ -5257,6 +5273,10 @@ window.TexasHoldem = (function () {
       silent: true,
       ui: false
     }).then(function (result) {
+      if (active && reserveGeneration === lifecycleGeneration &&
+          queuedProfileTopUpTargetAmount() > 0 && queuedProfileTopUpTargetAmount() !== target) {
+        return reserveQueuedProfileTopUp();
+      }
       var reason = text(
         result && (result.reason || result.response && result.response.reason),
         80

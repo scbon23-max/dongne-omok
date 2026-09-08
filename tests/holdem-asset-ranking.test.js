@@ -118,10 +118,7 @@ test("authenticated profile asset lookup is independent from ranking eligibility
   assert.match(edge, /"profile_asset"/);
   assert.match(edge, /const profileAssetAction = action === "profile_asset"/);
   assert.match(edge, /const roomlessAction = walletAction \|\| profileAssetAction/);
-  assert.match(profileAssetSource, /\.from\("accounts"\)[\s\S]*\.select\("nickname"\)[\s\S]*\.eq\("nickname", targetNick\)/);
-  assert.match(profileAssetSource, /\.from\("holdem_wallets"\)[\s\S]*\.select\("balance"\)[\s\S]*\.eq\("nickname", targetNick\)/);
-  assert.match(profileAssetSource, /walletRow == null[\s\S]*INITIAL_WALLET_BALANCE/);
-  assert.match(profileAssetSource, /tableHoldingsByNickname/);
+  assert.match(profileAssetSource, /\.rpc\("holdem_profile_asset",[\s\S]*p_nickname: targetNick/);
   assert.doesNotMatch(profileAssetSource, /RANKING_MIN_HANDS|holdem_hand_results/);
   assert.match(edge, /if \(profileAssetAction\)[\s\S]*asset:\s*await profileAsset/);
 });
@@ -137,7 +134,7 @@ test("the authenticated server ranking includes live table chips but exposes onl
   assert.match(edge, /new Set\(\["preflop", "flop", "turn", "river"\]\)/);
   assert.match(edge, /includeCommittedBets \? Number\(rawSeat\.totalBet\) : 0/);
   assert.match(edge, /\.from\("holdem_wallets"\)[\s\S]*\.select\("nickname,balance,updated_at"\)/);
-  assert.match(edge, /\.from\("holdem_tables"\)[\s\S]*\.select\("state"\)/);
+  assert.match(edge, /\.from\("holdem_tables"\)\.select\("room_id,state"\)/);
   assert.match(edge, /\.from\("accounts"\)[\s\S]*\.select\("nickname,is_admin"\)[\s\S]*\.eq\("is_admin", true\)/);
   assert.match(edge, /const RANKING_MIN_HANDS = 5/);
   assert.match(edge, /const RANKING_EXCLUDED_NICKNAMES = new Set\(\["테스터"\]\)/);

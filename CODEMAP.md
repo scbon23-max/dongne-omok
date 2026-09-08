@@ -34,6 +34,8 @@
 - 경기 기록 배포 전 `supabase/migrations/202609080001_game_result_idempotency.sql` 적용 필요. `games.result_id` 고유 인덱스로 재시도 중복을 막는다. 원격 반영 권한은 `AGENTS.md`를 따른다.
 - 홀덤 순위: 서버의 `allRankingRows`가 마지막 키 다음부터 끝까지 읽어 지갑·테이블·관리자 조회 제한 누락을 막는다. 핸드 수와 개인 상세 손익은 기존 `holdem_completed_hand_counts`·`holdem_player_asset_stats` 데이터베이스 집계를 유지한다.
 - 회귀 검사: `renju-input-and-fours.test.js`, `game-result-persistence.test.js`, `holdem-ranking-pagination.test.js`, 기존 `net-transport.test.js`와 `catchmind-regression.test.js`.
+- 홀덤 추가 점검: `202609080002_holdem_audit_fixes.sql`은 정산 입력을 8명으로 맞추고 `holdem_today_net_by_nickname`, `holdem_profile_asset` 집계를 추가한다. Edge Function의 `boundedSnapshot`은 전송 기록만 줄이고 저장 기록을 유지한다. `reservedTopUpBalances` → 엔진 `settleReservedTopUps`는 부족한 충전 예약만 취소하며 CAS 충돌 시 잔액을 다시 확인한다.
+- 홀덤 회귀 검사: `tests/holdem-audit-fixes.test.js`는 7·8인 정산, 대형 기록 응답, 제한 시간, 예약 충전·요청 경합, 한글 재접속, 집계 오류, 참가 실패를 검사한다. `tests/holdem-sql-audit.cjs <PGlite 패키지 경로>`는 실제 PostgreSQL 함수로 8인 정산과 1,001개 기록·501개 방 집계를 검증한다. 서버 배포에는 `index.ts`와 `holdem-engine.js`를 함께 포함한다.
 
 ## 자주 건드리는 함수 (grep 대상)
 - 접속수/목록: `updateOnlineCounts`, `renderGameOnline`, `renderLobbyOnline`, `lobbyPeople`(로비=viewing 없는 사람), `clubOnlineCount`
