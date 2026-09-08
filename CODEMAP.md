@@ -26,6 +26,15 @@
 - `curGame` ∈ {omok, alk}(화면) · `curRoomGame` ∈ {omok, alk, alk_terr}(방 종류)
 - `netMode`(방 접속중) · `lobbyMode`(로비 접속중) · `amHost`(내가 방장) · `hostNick`
 
+## 2026-09-08 점검 후 추가된 경로
+
+- 사용자 지정 제외 범위는 `AGENTS.md`의 `User Preferences — Game Room`을 따른다.
+- 개인 제시어: `Net.sendPrivate` → 참가자의 `room-private:<room>:<clientSessionId>` 수신 경로. 자신의 수신 경로만 구독하고 전송자는 상대 경로를 구독하지 않는다. 캐치마인드는 `cm_secret_ack` 수신 확인·1초 간격 재전송을 사용한다. 공유 상태에 진행 중인 정답을 넣지 않는다.
+- 경기 기록: `game.js`의 `queueRecordedGame` → `Db.queueGameResult`. 경기별 `resultId`를 스냅샷에 포함하고 브라우저 임시 보관·자동 재시도를 적용한다. `recorded`는 성공 응답 뒤에만 켠다. `showLobby`에서 `Db.retryGameResults`로 미완료 저장을 복구한다.
+- 경기 기록 배포 전 `supabase/migrations/202609080001_game_result_idempotency.sql` 적용 필요. `games.result_id` 고유 인덱스로 재시도 중복을 막는다. 원격 반영 권한은 `AGENTS.md`를 따른다.
+- 홀덤 순위: 서버의 `allRankingRows`가 마지막 키 다음부터 끝까지 읽어 지갑·테이블·관리자 조회 제한 누락을 막는다. 핸드 수와 개인 상세 손익은 기존 `holdem_completed_hand_counts`·`holdem_player_asset_stats` 데이터베이스 집계를 유지한다.
+- 회귀 검사: `renju-input-and-fours.test.js`, `game-result-persistence.test.js`, `holdem-ranking-pagination.test.js`, 기존 `net-transport.test.js`와 `catchmind-regression.test.js`.
+
 ## 자주 건드리는 함수 (grep 대상)
 - 접속수/목록: `updateOnlineCounts`, `renderGameOnline`, `renderLobbyOnline`, `lobbyPeople`(로비=viewing 없는 사람), `clubOnlineCount`
 - 방 목록/이동: `renderRoomList`, `renderRoomStrip`, `switchRoom`, `enterRoom`, `leaveRoomToLobby`

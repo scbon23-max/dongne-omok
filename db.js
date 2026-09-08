@@ -133,6 +133,90 @@ window.Db = (function () {
     return r;
   }
   async function recordAlkGame(black, white, winner, gameType) { if (sb) return sb.from("games").insert({ black: black, white: white, winner: winner, game: gameType || "alk" }); }
+
+  var resultStores = Object.create(null);
+  function createGameResultId() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return "result-" + Date.now() + "-" + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
+  function resultStore(owner, notify) {
+    var key = "dongne_game_result_v1:" + encodeURIComponent(owner) + ":";
+    var store = resultStores[owner];
+    if (!store) {
+      var items = [];
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var storedKey = localStorage.key(i);
+          if (!storedKey || storedKey.indexOf(key) !== 0) continue;
+          var row;
+          try { row = JSON.parse(localStorage.getItem(storedKey)); } catch (e) { continue; }
+          if (row && row.owner === owner && typeof row.id === "string" && row.id.length <= 160 &&
+            ["omok", "alk", "alk_terr"].indexOf(row.game) >= 0 && row.black && row.white &&
+            ["black", "white", "draw"].indexOf(row.winner) >= 0) items.push(row);
+        }
+      } catch (e) {}
+      store = resultStores[owner] = { key: key, items: items, busy: false, timer: null, failures: 0, notified: false, notify: null };
+    }
+    if (notify) store.notify = notify;
+    return store;
+  }
+  function notifyResult(store, status, row) {
+    try { if (store.notify) store.notify(status, row); } catch (e) {}
+  }
+  function persistResults(store, savedId) {
+    try {
+      if (savedId) localStorage.removeItem(store.key + savedId);
+      else store.items.forEach(function (item) { localStorage.setItem(store.key + item.id, JSON.stringify(item)); });
+      return true;
+    }
+    catch (e) { return false; }
+  }
+  async function writeQueuedResult(item) {
+    if (!sb) throw new Error("database_unavailable");
+    var row = { result_id: item.id, game: item.game, black: item.black, white: item.white, winner: item.winner, created_at: item.createdAt };
+    if (item.game === "omok" && item.moves && item.moves.length) row.moves = item.moves;
+    var options = { onConflict: "result_id", ignoreDuplicates: true };
+    var result = await sb.from("games").upsert(row, options);
+    if (result && result.error && row.moves && /moves/i.test(result.error.message || "") &&
+        /42703|PGRST204/.test(result.error.code || "")) {
+      delete row.moves;
+      result = await sb.from("games").upsert(row, options);
+    }
+    if (!result || result.error) throw new Error(result && result.error ? result.error.message : "invalid_response");
+  }
+  function drainResults(store) {
+    if (store.busy || !store.items.length) return;
+    if (store.timer) { clearTimeout(store.timer); store.timer = null; }
+    var item = store.items[0];
+    store.busy = true;
+    writeQueuedResult(item).then(function () {
+      store.items = store.items.filter(function (row) { return row.id !== item.id; });
+      persistResults(store, item.id);
+      store.busy = false; store.failures = 0; store.notified = false;
+      notifyResult(store, "saved", item);
+      drainResults(store);
+    }).catch(function () {
+      store.busy = false;
+      if (!store.notified) { store.notified = true; notifyResult(store, "failed", item); }
+      var delay = Math.min(30000, 1000 * Math.pow(2, Math.min(store.failures++, 5)));
+      store.timer = setTimeout(function () { store.timer = null; drainResults(store); }, delay);
+    });
+  }
+  function queueGameResult(record, notify) {
+    var item = JSON.parse(JSON.stringify(record));
+    item.id = item.id || createGameResultId();
+    item.createdAt = item.createdAt || new Date().toISOString();
+    var store = resultStore(item.owner, notify);
+    if (!store.items.some(function (row) { return row.id === item.id; })) {
+      store.items.push(item);
+      if (!persistResults(store)) notifyResult(store, "storage_failed", item);
+    }
+    if (!store.timer) drainResults(store);
+    return item.id;
+  }
+  function retryGameResults(owner, notify) {
+    if (owner) drainResults(resultStore(owner, notify));
+  }
   async function galleryInvoke(action, auth, payload) {
     if (!sb || !sb.functions || !sb.functions.invoke) return { ok: false, reason: "unavailable" };
     auth = auth || {};
@@ -590,6 +674,7 @@ window.Db = (function () {
     getProfileAvatars: getProfileAvatars, saveProfileAvatar: saveProfileAvatar,
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
     recordGame: recordGame, recordAlkGame: recordAlkGame,
+    createGameResultId: createGameResultId, queueGameResult: queueGameResult, retryGameResults: retryGameResults,
     saveCatchmindDrawing: saveCatchmindDrawing, getCatchmindGallery: getCatchmindGallery, toggleCatchmindFavorite: toggleCatchmindFavorite,
     getCatchmindProfile: getCatchmindProfile, awardCatchmindXp: awardCatchmindXp,
     voteCatchmindMvp: voteCatchmindMvp, getCatchmindMvpResult: getCatchmindMvpResult,

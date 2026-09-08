@@ -23,7 +23,7 @@
     gameSeq: 0,
     history: [],
     aiLevel: null,
-    recorded: false,
+    recorded: false, resultId: null,
     started: false,
     lastPlayers: null,
     resultAt: null,
@@ -229,6 +229,12 @@
         if (netMode && Net.sendWithResult) return Net.sendWithResult(msg);
         var ctrl = activeController();
         if (ctrl && ctrl.onMessage) ctrl.onMessage(msg, null);
+        return Promise.resolve({ ok: true, status: "local" });
+      },
+      sendPrivate: function (nick, msg) {
+        if (netMode) return Net.sendPrivate(nick, msg);
+        var ctrl = activeController();
+        if (nick === me.nick && ctrl && ctrl.onMessage) ctrl.onMessage(msg);
         return Promise.resolve({ ok: true, status: "local" });
       },
       sendHostInput: function (msg) {
@@ -621,6 +627,7 @@
     if (link) link.href = chromeDownloadUrl();
   }
   function showLobby() {
+    if (window.Db && Db.retryGameResults) Db.retryGameResults(me.nick, onGameResultStatus);
     $("entry").classList.add("hidden");
     hideGameScreens();
     $("lobby").classList.remove("hidden");
@@ -647,7 +654,7 @@
   var curGame = null, curRoomGame = null, omokStarted = false, alkStarted = false;
   var A = {
     seats: { black: null, white: null }, turn: "b", started: false, over: false, winner: null,
-    seq: 0, gameSeq: 0, recorded: false, paused: false, winChatText: null,
+    seq: 0, gameSeq: 0, recorded: false, resultId: null, paused: false, winChatText: null,
     mapId: "base", mapObjects: [], mapMode: "random",
     timerSec: 5, moveDeadline: null, pausedRemainMs: null
   };
@@ -1189,9 +1196,9 @@
     clearAlkMapRoulette();
     G.board = Renju.emptyBoard(); G.turn = BLACK; G.lastMove = null; G.over = false; G.winner = 0; G.draw = false;
     G.seats = { black: null, white: null }; G.moveDeadline = null; G.rev = 0; G.gameSeq = 0; G.history = []; G.aiLevel = null;
-    G.recorded = false; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.winChatText = null; G.winningLine = null; G.winRevealUntil = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
+    G.recorded = false; G.resultId = null; G.started = false; G.lastPlayers = null; G.resultAt = null; G.resultInfo = null; G.winChatText = null; G.winningLine = null; G.winRevealUntil = null; G.manualPaused = false; G.paused = false; G.pausedRemainMs = null;
     A.seats = { black: null, white: null }; A.turn = "b"; A.started = false; A.over = false; A.winner = null;
-    A.seq = 0; A.gameSeq = 0; A.recorded = false; A.paused = false; A.winChatText = null;
+    A.seq = 0; A.gameSeq = 0; A.recorded = false; A.resultId = null; A.paused = false; A.winChatText = null;
     A.timerSec = 5; A.moveDeadline = null; A.pausedRemainMs = null;
     pendingAlkState = null;
     alkSolo = false; omokSolo = false; omokAI.on = false; aiPending = false;
@@ -2067,7 +2074,7 @@
   function alkSnapshot() {
     return {
       seats: A.seats, turn: A.turn, started: A.started, over: A.over, winner: A.winner,
-      winChatText: A.winChatText, paused: A.paused, seq: A.seq, gameSeq: A.gameSeq,
+      winChatText: A.winChatText, paused: A.paused, seq: A.seq, gameSeq: A.gameSeq, resultId: A.resultId,
       timerSec: A.timerSec, moveDeadline: A.moveDeadline,
       moveRemainMs: A.moveDeadline ? Math.max(0, A.moveDeadline - Date.now()) : null,
       pausedRemainMs: A.pausedRemainMs,
@@ -2087,6 +2094,8 @@
     A.seats = s.seats || { black: null, white: null }; A.turn = s.turn || "b";
     A.started = !!s.started; A.over = !!s.over; A.winner = s.winner || null; A.winChatText = s.winChatText || null; A.paused = !!s.paused;
     A.seq = s.seq || 0; A.gameSeq = s.gameSeq || 0;
+    if (A.resultId !== s.resultId) A.recorded = false;
+    A.resultId = typeof s.resultId === "string" ? s.resultId : null;
     A.timerSec = [0, 5, 10, 20, 30].indexOf(Number(s.timerSec)) >= 0 ? Number(s.timerSec) : 5;
     A.moveDeadline = typeof s.moveRemainMs === "number" ? Date.now() + s.moveRemainMs : (s.moveDeadline || null);
     A.pausedRemainMs = typeof s.pausedRemainMs === "number" ? s.pausedRemainMs : null;
@@ -2118,8 +2127,8 @@
     if (A.started && !A.over && (!A.seats.black || !A.seats.white)) {
       var wonColor = A.seats.black ? "b" : (A.seats.white ? "w" : null);
       if (self && wonColor && oldSeats.black && oldSeats.white && oldSeats.black !== oldSeats.white) {
-        A.over = true; A.started = false; A.winner = wonColor; A.recorded = true; A.moveDeadline = null; A.pausedRemainMs = null;
-        if (window.Db && !alkSolo) Db.recordAlkGame(oldSeats.black, oldSeats.white, wonColor === "b" ? "black" : "white", (A.mode === "territory") ? "alk_terr" : "alk");
+        A.over = true; A.started = false; A.winner = wonColor; A.moveDeadline = null; A.pausedRemainMs = null;
+        if (window.Db && !alkSolo) queueRecordedGame((A.mode === "territory") ? "alk_terr" : "alk", A, oldSeats, wonColor === "b" ? "black" : "white");
         var wn = wonColor === "b" ? oldSeats.black : oldSeats.white, ln = wonColor === "b" ? oldSeats.white : oldSeats.black;
         Net.send({ t: "chat", nick: "__sys", text: ln + "님이 나가서 " + wn + "님 승리 (기권)" });
         setTimeout(refreshScores, 800);
@@ -2160,7 +2169,7 @@
       Alkkagi.setMode("knockout"); Alkkagi.setStones(Alkkagi.layout());
     }
     clearAlkGrace();
-    A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.winChatText = null; A.recorded = false; A.paused = false;
+    A.turn = "b"; A.started = true; A.over = false; A.winner = null; A.winChatText = null; A.recorded = false; A.resultId = window.Db && Db.createGameResultId ? Db.createGameResultId() : null; A.paused = false;
     A.moveDeadline = A.timerSec ? Date.now() + A.timerSec * 1000 : null; A.pausedRemainMs = null; A.gameSeq++; A.seq++;
     beginReqCtx = null; $("begin-modal").classList.add("hidden");
     Alkkagi.setMeta("b", A.seats, true, false, null);
@@ -2252,10 +2261,9 @@
     if (!netMode || !amHost) return;
     var b = A.seats.black, w = A.seats.white;
     if (!b || !w || b === w || !A.over || !A.winner) return;
-    A.recorded = true;
     var winner = A.winner === "draw" ? "draw" : (A.winner === "b" ? "black" : "white");
     var gameType = (A.mode === "territory") ? "alk_terr" : "alk";
-    if (window.Db) Db.recordAlkGame(b, w, winner, gameType).then(function () { Net.sendLobby({ t: "scores", game: gameType }); }).catch(function () {});
+    queueRecordedGame(gameType, A, { black: b, white: w }, winner);
   }
   function clearAlkGrace() { ["black", "white"].forEach(function (c) { if (alkGrace[c]) { clearTimeout(alkGrace[c].id); alkGrace[c] = null; } }); }
   function hostReconcileAlkSeats() {
@@ -2828,7 +2836,7 @@
       board: G.board, turn: G.turn, lastMove: G.lastMove, over: G.over, winner: G.winner, draw: G.draw,
       seats: G.seats, timerSec: G.timerSec, moveDeadline: G.moveDeadline,
       moveRemainMs: G.moveDeadline ? Math.max(0, G.moveDeadline - Date.now()) : null,
-      rev: G.rev, gameSeq: G.gameSeq, history: G.history, aiLevel: G.aiLevel,
+      rev: G.rev, gameSeq: G.gameSeq, history: G.history, aiLevel: G.aiLevel, resultId: G.resultId,
       started: G.started, lastPlayers: G.lastPlayers, resultAt: G.resultAt, resultInfo: G.resultInfo, winChatText: G.winChatText,
       winningLine: G.winningLine, winRevealUntil: G.winRevealUntil, winRevealRemainMs: G.winRevealUntil ? Math.max(0, G.winRevealUntil - Date.now()) : null,
       manualPaused: G.manualPaused, paused: G.paused, pausedRemainMs: G.pausedRemainMs,
@@ -2838,6 +2846,7 @@
   function broadcastState() { if (netMode) Net.send({ t: "state", state: snapshot() }); }
   function applyState(s) {
     if (!s || (typeof s.rev === "number" && s.rev < G.rev)) return;
+    if (!Renju.isValidBoard(s.board)) return;
     G.board = s.board; G.turn = s.turn; G.lastMove = s.lastMove;
     G.over = s.over; G.winner = s.winner; G.draw = !!s.draw; G.seats = s.seats;
     var hasAiSeat = G.seats && (G.seats.black === AI_NICK || G.seats.white === AI_NICK);
@@ -2846,6 +2855,8 @@
     G.timerSec = s.timerSec;
     G.moveDeadline = (typeof s.moveRemainMs === "number") ? (Date.now() + s.moveRemainMs) : s.moveDeadline;
     G.rev = s.rev || 0; G.gameSeq = s.gameSeq || 0;
+    if (G.resultId !== s.resultId) G.recorded = false;
+    G.resultId = typeof s.resultId === "string" ? s.resultId : null;
     if (instantReplay && instantReplay.gameSeq !== G.gameSeq) discardInstantReplay();
     G.history = s.history || [];
     G.started = !!s.started; G.lastPlayers = s.lastPlayers || null; G.resultAt = s.resultAt || null; G.resultInfo = s.resultInfo || null; G.winChatText = s.winChatText || null;
@@ -3015,9 +3026,25 @@
     var b = G.seats.black, w = G.seats.white;
     if (!b || !w || b === w) return;
     if (b === AI_NICK || w === AI_NICK) return;
-    G.recorded = true;
     var winner = G.draw ? "draw" : (G.winner === BLACK ? "black" : "white");
-    if (window.Db) Db.recordGame(b, w, winner, G.history).then(function () { Net.sendLobby({ t: "scores", game: "omok" }); }).catch(function () {});
+    queueRecordedGame("omok", G, { black: b, white: w }, winner);
+  }
+
+  function queueRecordedGame(game, state, pair, winner) {
+    if (!window.Db || !Db.queueGameResult || state.recorded) return;
+    if (!state.resultId) state.resultId = Db.createGameResultId();
+    Db.queueGameResult({ id: state.resultId, owner: me.nick, game: game, black: pair.black, white: pair.white,
+      winner: winner, moves: game === "omok" ? G.history : null }, onGameResultStatus);
+  }
+  function onGameResultStatus(status, item) {
+    if (item.owner !== me.nick) return;
+    if (status === "saved") {
+      var state = item.game === "omok" ? G : A;
+      if (state.resultId === item.id) state.recorded = true;
+      Net.sendLobby({ t: "scores", game: item.game });
+      refreshScores();
+    } else if (status === "storage_failed") toast("결과 임시 보관에 실패했어요. 저장이 끝날 때까지 이 창을 유지해 주세요.");
+    else toast("대국 결과를 저장하지 못했어요. 연결이 복구되면 자동으로 다시 저장해요.");
   }
 
   // ---------- 무르기 ----------
@@ -3296,6 +3323,7 @@
     G.board = Renju.emptyBoard();
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
+    G.resultId = window.Db && Db.createGameResultId ? Db.createGameResultId() : null;
     G.drawAsk = null; G.drawAskDone = false;
     G.resultAt = null; G.resultInfo = null; G.winChatText = null; clearOmokWinReveal();
     G.started = true;
@@ -3316,6 +3344,7 @@
     G.board = Renju.emptyBoard();
     G.turn = BLACK; G.lastMove = null; G.history = [];
     G.over = false; G.winner = 0; G.draw = false; G.recorded = false;
+    G.resultId = window.Db && Db.createGameResultId ? Db.createGameResultId() : null;
     G.drawAsk = null; G.drawAskDone = false;
     G.resultAt = null; G.resultInfo = null; G.winChatText = null; clearOmokWinReveal();
     G.started = false;
@@ -3330,7 +3359,7 @@
   function forfeitGame(pair, winnerColor) {
     if (!netMode || !amHost) return;
     if (window.Db && pair.black && pair.white && pair.black !== pair.white && pair.black !== AI_NICK && pair.white !== AI_NICK) {
-      Db.recordGame(pair.black, pair.white, winnerColor === BLACK ? "black" : "white", G.history).then(function () { Net.sendLobby({ t: "scores", game: "omok" }); }).catch(function () {});
+      queueRecordedGame("omok", G, pair, winnerColor === BLACK ? "black" : "white");
     }
     var winnerNick = winnerColor === BLACK ? pair.black : pair.white;
     var loserNick = winnerColor === BLACK ? pair.white : pair.black;
@@ -5704,7 +5733,7 @@
   function buildRules() {
     var html = '<p class="rule-intro">기본은 <b>먼저 5개를 나란히</b> 놓으면 이깁니다. 흑(선공)에게만 아래 3가지 <b class="red">금수</b>(둘 수 없는 자리)가 있어요. 판에서 <span class="red">✕</span>로 표시됩니다.</p>';
     html += ruleDiagram("삼삼 (3·3) 금지", "열린 3을 두 방향으로 동시에 만드는 자리.", [[2, 1, 1], [2, 3, 1], [1, 2, 1], [3, 2, 1]], [2, 2]);
-    html += ruleDiagram("사사 (4·4) 금지", "4를 두 방향으로 동시에 만드는 자리.", [[2, 0, 1], [2, 1, 1], [2, 3, 1], [0, 2, 1], [1, 2, 1], [3, 2, 1]], [2, 2]);
+    html += ruleDiagram("사사 (4·4) 금지", "한 수로 서로 다른 4를 둘 이상 만드는 자리. 같은 줄에서 생기는 4·4도 금수예요.", [[2, 0, 1], [2, 1, 1], [2, 3, 1], [0, 2, 1], [1, 2, 1], [3, 2, 1]], [2, 2]);
     html += ruleDiagram("장목 (6목 이상) 금지", "6개 넘게 이어지면 승리가 아니라 금수. 정확히 5개여야 승리.", [[2, 0, 1], [2, 1, 1], [2, 3, 1], [2, 4, 1]], [2, 2]);
     html += '<p class="rule-foot">백은 이런 제한이 없습니다.</p>';
     if ($("rules-title")) $("rules-title").textContent = "렌주 오목 규칙";

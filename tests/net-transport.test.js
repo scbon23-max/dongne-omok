@@ -394,3 +394,79 @@ test("an unready direct input falls back once without a late queued send, then n
   assert.equal(fixture.Net.transportMetaOf({ _transport: { v: 1, seq: Infinity } }), null);
   fixture.Net.leaveRoom();
 });
+
+test("leaving a room isolates delayed room, presence and direct-input callbacks", () => {
+  const fixture = loadNet();
+  const received = [], presence = [], statuses = [];
+  fixture.Net.init("old", { nick: "A" }, {});
+  fixture.Net.syncDirectInputs(["A", "B"], "A", true);
+  const oldRoom = fixture.channels.find(c => c.topic === "room:old");
+  const oldDirect = fixture.channels.find(c => c.topic === "room-input:old:B");
+  fixture.Net.init("new", { nick: "A" }, {
+    onMessage: m => received.push(m), onPresence: p => presence.push(p), onStatus: s => statuses.push(s)
+  });
+  const statusCount = statuses.length;
+  oldRoom.emit("broadcast", "m", { payload: { t: "state", old: true } });
+  oldRoom.emit("presence", "sync");
+  oldRoom.status("CLOSED");
+  oldDirect.emit("broadcast", "m", { payload: { t: "cm_draw" } });
+  oldDirect.status("CLOSED");
+  assert.equal(received.length, 0);
+  assert.equal(presence.length, 0);
+  assert.equal(statuses.length, statusCount);
+  const current = fixture.channels.find(c => c.topic === "room:new");
+  fixture.Net.send({ t: "state" });
+  const payload = current.sent[0].payload;
+  current.emit("broadcast", "m", { payload: { ...payload, _transport: { ...payload._transport, roomId: "old" } } });
+  assert.equal(received.length, 0);
+  current.emit("broadcast", "m", { payload });
+  assert.equal(received.length, 1);
+  fixture.Net.leaveRoom();
+});
+
+test("secret delivery uses only recipients' personal inboxes and never subscribes to them", async () => {
+  const fixture = loadNet();
+  fixture.Net.init("one", { nick: "A" }, {});
+  const room = fixture.channels.find(c => c.topic === "room:one");
+  const ownInbox = fixture.channels.find(c => c.topic === "room-private:one:c-session-a");
+  assert.equal(room.meta.privateInboxReady, true);
+  room.state = {
+    drawer: [{ nick: "B", clientSessionId: "b-one", privateInboxReady: true },
+      { nick: "B", clientSessionId: "b-two", privateInboxReady: true }],
+    duplicate: [{ nick: "B", clientSessionId: "b-one", privateInboxReady: true }],
+    offline: [{ nick: "B", clientSessionId: "b-off", privateInboxReady: false }],
+    guesser: [{ nick: "C", clientSessionId: "c-one", privateInboxReady: true }]
+  };
+  assertResult(await fixture.Net.sendPrivate("B", { t: "cm_secret", word: "사과" }), true, "ok");
+  const outbound = fixture.channels.filter(c => c.sent.length);
+  assert.deepEqual(outbound.map(c => c.topic), ["room-private:one:b-one", "room-private:one:b-two"]);
+  for (const channel of outbound) {
+    assert.equal(channel.subscribeHandler, undefined);
+    assert.ok(fixture.removed.includes(channel));
+    assert.equal(channel.sent[0].payload._transport.lane, "private");
+  }
+  assert.equal(room.sent.length, 0);
+  assert.equal(ownInbox.sent.length, 0);
+  assertResult(await fixture.Net.sendPrivate("absent", { word: "사과" }), false, "recipient_unavailable");
+  fixture.Net.leaveRoom();
+  assert.ok(fixture.removed.includes(ownInbox));
+});
+
+test("personal inbox receives only matching room and recipient and closes after leaving", async () => {
+  const fixture = loadNet();
+  const received = [];
+  fixture.Net.init("one", { nick: "A" }, { onMessage: m => received.push(m) });
+  const inbox = fixture.channels.find(c => c.topic === "room-private:one:c-session-a");
+  const payload = { t: "cm_secret", to: "A", word: "사과", _transport: {
+    v: 1, sessionId: "host", seq: 1, sentAt: 1, lane: "private", roomId: "one", senderNick: "B"
+  } };
+  inbox.emit("broadcast", "m", { payload: { ...payload, to: "C" } });
+  inbox.emit("broadcast", "m", { payload: { ...payload, _transport: { ...payload._transport, roomId: "old" } } });
+  inbox.emit("broadcast", "m", { payload });
+  assert.equal(received.length, 1);
+  fixture.Net.init("two", { nick: "A" }, { onMessage: m => received.push(m) });
+  inbox.emit("broadcast", "m", { payload });
+  assert.equal(received.length, 1);
+  fixture.Net.leaveRoom();
+  assertResult(await fixture.Net.sendPrivate("A", payload), false, "unavailable");
+});

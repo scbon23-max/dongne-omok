@@ -599,6 +599,25 @@ function tableHoldingsByNickname(rows: unknown[]) {
   return holdings;
 }
 
+async function allRankingRows(
+  query: () => ReturnType<ReturnType<ReturnType<typeof createClient>["from"]>["select"]>,
+  key: string,
+) {
+  const rows: Record<string, unknown>[] = [];
+  let cursor: string | number | null = null;
+  for (;;) {
+    let page = query().order(key, { ascending: true }).limit(500);
+    if (cursor !== null) page = page.gt(key, cursor);
+    const { data, error } = await page;
+    if (error || !Array.isArray(data)) throw new Error("ranking_lookup");
+    if (!data.length) return rows;
+    const next = data[data.length - 1]?.[key];
+    if ((typeof next !== "string" && typeof next !== "number") || next === cursor) throw new Error("ranking_cursor");
+    rows.push(...data);
+    cursor = next;
+  }
+}
+
 async function profileAsset(
   client: ReturnType<typeof createClient>,
   targetNick: string,
@@ -660,34 +679,13 @@ async function profileAsset(
 }
 
 async function assetRankingRows(client: ReturnType<typeof createClient>) {
-  const [{ data: walletRows, error: walletError }, {
-    data: tableRows,
-    error: tableError,
-  }, {
-    data: accountRows,
-    error: accountError,
-  }, {
-    data: handCounts,
-    error: handError,
-  }] = await Promise.all([
-    client
-      .from("holdem_wallets")
-      .select("nickname,balance,updated_at")
-      .limit(500),
-    client
-      .from("holdem_tables")
-      .select("state")
-      .limit(500),
-    client
-      .from("accounts")
-      .select("nickname,is_admin")
-      .eq("is_admin", true)
-      .limit(500),
+  const [walletRows, tableRows, accountRows, { data: handCounts, error: handError }] = await Promise.all([
+    allRankingRows(() => client.from("holdem_wallets").select("nickname,balance,updated_at"), "nickname"),
+    allRankingRows(() => client.from("holdem_tables").select("room_id,state"), "room_id"),
+    allRankingRows(() => client.from("accounts").select("nickname,is_admin").eq("is_admin", true), "nickname"),
     client.rpc("holdem_completed_hand_counts"),
   ]);
-  if (walletError || tableError || accountError || handError) {
-    throw new Error("ranking_lookup");
-  }
+  if (handError) throw new Error("ranking_lookup");
 
   const adminNicknames = new Set(
     (Array.isArray(accountRows) ? accountRows : [])

@@ -164,7 +164,7 @@ test("the authenticated server ranking includes live table chips but exposes onl
   assert.match(edge, /const handCount = completedHands\.get\(nickname\) \?\? 0/);
   assert.match(edge, /if \(!isAdmin && handCount < RANKING_MIN_HANDS\) return null/);
   assert.match(edge, /right\.totalAssets - left\.totalAssets/);
-  assert.match(edge, /rows:\s*ranked\.slice\(0, 100\)\.map\(publicRow\)/);
+  assert.match(edge, /rows:\s*visibleRows\.map\(publicRow\)/);
   assert.match(edge, /const publicRow = \(row:[\s\S]*rank:\s*row\.rank,[\s\S]*nickname:\s*row\.nickname,[\s\S]*totalAssets:\s*row\.totalAssets,[\s\S]*handCount:\s*row\.handCount/);
   assert.match(edge, /minHands:\s*RANKING_MIN_HANDS/);
   assert.doesNotMatch(edge, /const publicRow = \(row:[\s\S]{0,300}\bbalance:\s*row\.balance/);

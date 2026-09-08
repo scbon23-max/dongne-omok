@@ -7,7 +7,20 @@
   var DIRS = [[1, 0], [0, 1], [1, 1], [1, -1]];
 
   function inBounds(r, c) {
-    return r >= 0 && r < SIZE && c >= 0 && c < SIZE;
+    return Number.isInteger(r) && Number.isInteger(c) && r >= 0 && r < SIZE && c >= 0 && c < SIZE;
+  }
+
+  function hasBoardRows(board) {
+    if (!Array.isArray(board) || board.length !== SIZE) return false;
+    for (var i = 0; i < SIZE; i++) if (!Array.isArray(board[i]) || board[i].length !== SIZE) return false;
+    return true;
+  }
+
+  function isValidBoard(board) {
+    return hasBoardRows(board) && board.every(function (row) {
+      for (var i = 0; i < SIZE; i++) if (row[i] !== 0 && row[i] !== BLACK && row[i] !== WHITE) return false;
+      return true;
+    });
   }
 
   function cellAt(board, r, c) {
@@ -71,6 +84,25 @@
     return countFiveCompletionsInDir(board, r, c, dr, dc) >= 1;
   }
 
+  function countFoursInDir(board, r, c, dr, dc) {
+    var groups = Object.create(null);
+    for (var off = -4; off <= 4; off++) {
+      var er = r + dr * off, ec = c + dc * off;
+      if (off === 0 || !inBounds(er, ec) || board[er][ec] !== 0) continue;
+      board[er][ec] = BLACK;
+      if (runLength(board, r, c, dr, dc, BLACK) === 5) {
+        var start = 0;
+        while (inBounds(r + dr * (start - 1), c + dc * (start - 1)) &&
+            board[r + dr * (start - 1)][c + dc * (start - 1)] === BLACK) start--;
+        var stones = [];
+        for (var at = start; at < start + 5; at++) if (at !== off) stones.push(at);
+        if (stones.length === 4) groups[stones.join(",")] = true;
+      }
+      board[er][ec] = 0;
+    }
+    return Object.keys(groups).length;
+  }
+
   function isOpenThreeInDir(board, r, c, dr, dc) {
     if (isFourInDir(board, r, c, dr, dc)) return false;
     for (var off = -4; off <= 4; off++) {
@@ -87,6 +119,7 @@
   }
 
   function analyzeBlack(board, r, c) {
+    if (!inBounds(r, c) || !hasBoardRows(board)) return { exactFive: false, overline: false, fours: 0, openThrees: 0 };
     var placed = board[r][c];
     board[r][c] = BLACK;
     var exactFive = false, overline = false, fours = 0, openThrees = 0;
@@ -99,7 +132,8 @@
     if (!exactFive) {
       for (var j = 0; j < DIRS.length; j++) {
         var d0 = DIRS[j][0], d1 = DIRS[j][1];
-        if (isFourInDir(board, r, c, d0, d1)) fours++;
+        var dirFours = countFoursInDir(board, r, c, d0, d1);
+        if (dirFours) fours += dirFours;
         else if (isOpenThreeInDir(board, r, c, d0, d1)) openThrees++;
       }
     }
@@ -108,6 +142,7 @@
   }
 
   function blackForbiddenReason(board, r, c) {
+    if (!inBounds(r, c) || !hasBoardRows(board)) return null;
     if (board[r][c] !== 0) return null;
     var a = analyzeBlack(board, r, c);
     if (a.exactFive) return null;
@@ -118,6 +153,9 @@
   }
 
   function checkMove(board, r, c, color) {
+    if (!inBounds(r, c) || !hasBoardRows(board) || (color !== BLACK && color !== WHITE)) {
+      return { legal: false, win: false, reason: "invalid" };
+    }
     if (!inBounds(r, c) || board[r][c] !== 0) {
       return { legal: false, win: false, reason: "occupied" };
     }
@@ -135,6 +173,7 @@
 
   function forbiddenPoints(board) {
     var pts = [];
+    if (!isValidBoard(board)) return pts;
     for (var r = 0; r < SIZE; r++) {
       for (var c = 0; c < SIZE; c++) {
         if (board[r][c] !== 0) continue;
@@ -158,6 +197,7 @@
   var Renju = {
     SIZE: SIZE, BLACK: BLACK, WHITE: WHITE,
     emptyBoard: emptyBoard,
+    isValidBoard: isValidBoard,
     checkMove: checkMove,
     forbiddenPoints: forbiddenPoints,
     blackForbiddenReason: blackForbiddenReason,

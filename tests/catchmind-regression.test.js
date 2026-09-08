@@ -39,7 +39,22 @@ function loadCatchMind(options) {
   if (options.Date) context.Date = options.Date;
   vm.createContext(context);
   vm.runInContext(source, context, { filename: "catchmind.js" });
-  return context.window.CatchMind._test;
+  const api = context.window.CatchMind._test;
+  const setApi = api.setApi;
+  // Legacy gameplay fixtures collect both outbound lanes and simulate an immediate drawer acknowledgement.
+  // Personal-delivery regressions supply an explicit sendPrivate to test each lane separately.
+  api.setApi = function (next) {
+    if (typeof next.sendPrivate !== "function") next = Object.assign({}, next, {
+      sendPrivate(to, message) {
+        if (next.send) next.send(message);
+        if (message.t === "cm_secret") api.onMessage({ t: "cm_secret_ack", from: to, to: message.from,
+          matchId: message.matchId, roundIndex: message.roundIndex, deliveryId: message.deliveryId });
+        return Promise.resolve({ ok: true });
+      }
+    });
+    setApi(next);
+  };
+  return api;
 }
 
 function fakeElement() {
@@ -2046,8 +2061,9 @@ test("away and role changes clear stale ready state", () => {
   assert.deepEqual(Array.from(api.getState().ready), []);
 });
 
-test("a match uses a five-second ready phase, previews the word to the drawer, and draws for ninety seconds", () => {
-  const api = loadCatchMind();
+test("a host drawer sees the word locally during five-second preparation and ninety-second drawing", () => {
+  const word = fakeElement();
+  const api = loadCatchMind({ elements: { "catch-word": word } });
   const sent = [];
   api.setApi({
     isHost() { return true; },
@@ -2065,9 +2081,8 @@ test("a match uses a five-second ready phase, previews the word to the drawer, a
   assert.equal(api.getState().phase, "countdown");
   assert.ok(api.getState().deadline - beforeCountdown <= api.limits.countdownMs + 100);
   assert.equal(api.limits.countdownMs, 5000);
-  const preview = sent.find(message => message.t === "cm_secret");
-  assert.ok(preview);
-  assert.equal(preview.to, "A");
+  assert.equal(word.textContent, "사과");
+  assert.equal(sent.some(message => message.t === "cm_secret"), false);
   assert.equal(Object.prototype.hasOwnProperty.call(api.snapshot(), "word"), false);
 
   const beforeDrawing = Date.now();
@@ -2075,7 +2090,8 @@ test("a match uses a five-second ready phase, previews the word to the drawer, a
   assert.equal(api.getState().phase, "drawing");
   assert.ok(api.getState().deadline - beforeDrawing >= api.limits.roundMs - 100);
   assert.ok(api.getState().deadline - beforeDrawing <= api.limits.roundMs + 100);
-  assert.equal(sent.filter(message => message.t === "cm_secret").length, 2);
+  assert.equal(word.textContent, "사과");
+  assert.equal(sent.filter(message => message.t === "cm_secret").length, 0);
 });
 
 test("the drawer gets a fifteen-second reconnect pause and resumes the same round", () => {
@@ -2600,4 +2616,88 @@ test("a match cannot start with fewer than two willing participants", () => {
   assert.equal(api.getState().phase, "idle");
   assert.deepEqual(Array.from(api.getState().queue), []);
   assert.ok(toasts.some(message => message.includes("참가자가 2명 이상")));
+});
+
+function privateRoundFixture() {
+  let now = 100000;
+  const clock = class extends Date { static now() { return now; } };
+  const api = loadCatchMind({ Date: clock }), sent = [], personal = [];
+  api.setApi({ isHost: () => true, host: () => "A", me: () => ({ nick: "A" }),
+    roster: () => [{ nick: "A" }, { nick: "B" }], send: m => sent.push(m),
+    sendPrivate(to, message) { personal.push({ to, message }); return Promise.resolve({ ok: true }); },
+    roomChanged() {}, toast() {} });
+  api.resetMatchState(["B", "A"], "private-match");
+  api.hostStartRound(0);
+  return { api, sent, personal, advance(ms) { now += ms; }, ack(message) {
+    api.onMessage({ t: "cm_secret_ack", from: "B", to: "A", matchId: message.matchId,
+      roundIndex: message.roundIndex, deliveryId: message.deliveryId });
+  } };
+}
+
+test("a remote drawer receives the word privately and drawing waits for acknowledgement", () => {
+  const f = privateRoundFixture();
+  const delivery = f.personal[0];
+  assert.equal(delivery.to, "B");
+  assert.equal(delivery.message.word, "사과");
+  assert.equal(JSON.stringify(f.sent).includes("사과"), false);
+  f.api.hostBeginDrawing();
+  assert.equal(f.api.getState().phase, "countdown");
+  f.ack({ ...delivery.message, deliveryId: "old-delivery" });
+  f.api.hostBeginDrawing();
+  assert.equal(f.api.getState().phase, "countdown");
+  f.ack(delivery.message);
+  f.api.hostBeginDrawing();
+  assert.equal(f.api.getState().phase, "drawing");
+  assert.equal(f.personal.length, 1);
+  assert.equal(JSON.stringify(f.sent).includes("사과"), false);
+});
+
+test("an unacknowledged secret retries, and a reconnected drawer gets a fresh delivery", () => {
+  const f = privateRoundFixture();
+  const first = f.personal[0].message;
+  f.api.sendSecretToDrawer();
+  assert.equal(f.personal.length, 1);
+  f.advance(1000);
+  f.api.sendSecretToDrawer();
+  assert.equal(f.personal.length, 2);
+  assert.equal(f.personal[1].message.deliveryId, first.deliveryId);
+  f.ack(first);
+  f.api.onMessage({ t: "hello", nick: "B" });
+  const renewed = f.personal[2].message;
+  assert.notEqual(renewed.deliveryId, first.deliveryId);
+  f.ack(first);
+  f.api.hostBeginDrawing();
+  assert.equal(f.api.getState().phase, "countdown");
+  f.ack(renewed);
+  f.api.hostBeginDrawing();
+  assert.equal(f.api.getState().phase, "drawing");
+});
+
+test("a permanently unreachable private inbox cannot stall the entire match", () => {
+  const f = privateRoundFixture();
+  f.advance(5000 + 15000);
+  f.api.hostBeginDrawing();
+  assert.equal(f.api.getState().phase, "reveal");
+  assert.equal(f.api.getState().revealOutcome, "skipped");
+});
+
+test("the drawer acknowledges without the word and restores a new host via personal delivery", () => {
+  const word = fakeElement(), api = loadCatchMind({ elements: { "catch-word": word } });
+  const sent = [], personal = [];
+  api.setApi({ isHost: () => false, host: () => "A", me: () => ({ nick: "B" }),
+    roster: () => [{ nick: "A" }, { nick: "B" }], send: m => sent.push(m),
+    sendPrivate(to, message) { personal.push({ to, message }); return Promise.resolve({ ok: true }); },
+    roomChanged() {}, toast() {} });
+  api.applyState(baseSnapshot({ drawer: "B", guessers: ["A"], queue: ["B", "A"] }));
+  api.onMessage({ t: "cm_secret", from: "A", to: "B", matchId: "match-a", roundIndex: 0,
+    deliveryId: "delivery-one", word: "사과" });
+  assert.equal(word.textContent, "사과");
+  assert.equal(sent.find(m => m.t === "cm_secret_ack").deliveryId, "delivery-one");
+  assert.equal(JSON.stringify(sent).includes("사과"), false);
+  api.onMessage({ t: "cm_secret_req", from: "A", to: "B", matchId: "match-a", roundIndex: 0 });
+  assert.equal(personal.length, 1);
+  assert.equal(personal[0].to, "A");
+  assert.equal(personal[0].message.t, "cm_secret_restore");
+  assert.equal(personal[0].message.word, "사과");
+  assert.equal(JSON.stringify(sent).includes("사과"), false);
 });

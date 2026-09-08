@@ -66,6 +66,7 @@ window.CatchMind = (function () {
   var api = null;
   var state = freshState();
   var secretWord = null;
+  var secretSendScope = "", secretDeliveryId = "", secretAckId = "", secretSentAt = 0, secretDeliverySeq = 0;
   var usedWords = Object.create(null);
   var previousHost = false;
   var canvas = null;
@@ -852,17 +853,29 @@ window.CatchMind = (function () {
     return true;
   }
 
-  function sendSecretToDrawer() {
+  function sendSecretToDrawer(force) {
     if (!api || !api.isHost() || (state.phase !== "countdown" && state.phase !== "drawing")
         || !secretWord || !state.drawer) return;
-    api.send({
+    if (state.drawer === me().nick) return;
+    var scope = state.matchId + ":" + state.roundIndex + ":" + state.drawer + ":" + secretWord;
+    if (scope !== secretSendScope || force) {
+      secretSendScope = scope;
+      secretDeliveryId = Date.now() + ":" + (++secretDeliverySeq);
+      secretAckId = "";
+      secretSentAt = 0;
+    }
+    if (secretAckId === secretDeliveryId || (secretSentAt && Date.now() - secretSentAt < 1000)) return;
+    secretSentAt = Date.now();
+    if (typeof api.sendPrivate !== "function") return;
+    Promise.resolve(api.sendPrivate(state.drawer, {
       t: "cm_secret",
       from: me().nick,
       to: state.drawer,
       matchId: state.matchId,
       roundIndex: state.roundIndex,
+      deliveryId: secretDeliveryId,
       word: secretWord
-    });
+    })).catch(function () {});
   }
 
   function hostBeginDrawing() {
@@ -872,6 +885,13 @@ window.CatchMind = (function () {
     state.guessers = state.guessers.filter(function (nick) { return has(live, nick); });
     if (!state.guessers.length) { hostEndRound("정답을 맞힐 사람이 없어 턴을 넘겼어요", "skipped"); return; }
     if (!secretWord) secretWord = pickWord();
+    sendSecretToDrawer();
+    if (state.drawer !== me().nick && (!secretDeliveryId || secretAckId !== secretDeliveryId)) {
+      if (state.deadline && Date.now() >= state.deadline + DRAWER_GRACE_MS) {
+        hostEndRound("제시어를 전달하지 못해 다음 차례로 넘어가요", "skipped");
+      }
+      return;
+    }
 
     state.phase = "drawing";
     state.deadline = Date.now() + ROUND_MS;
@@ -931,14 +951,15 @@ window.CatchMind = (function () {
   function answerSecretRecovery(msg) {
     if (!api || state.phase !== "drawing" || me().nick !== state.drawer || !secretWord) return;
     if (msg.from !== api.host() || msg.to !== me().nick || msg.matchId !== state.matchId || msg.roundIndex !== state.roundIndex) return;
-    api.send({
+    if (typeof api.sendPrivate !== "function") return;
+    Promise.resolve(api.sendPrivate(api.host(), {
       t: "cm_secret_restore",
       from: me().nick,
       to: api.host(),
       matchId: state.matchId,
       roundIndex: state.roundIndex,
       word: secretWord
-    });
+    })).catch(function () {});
   }
 
   function hostRestoreSecret(msg) {
@@ -1472,14 +1493,7 @@ window.CatchMind = (function () {
         broadcastState();
         if ((state.phase === "countdown" || state.phase === "drawing")
             && !state.pauseKind && secretWord && helloNick === state.drawer) {
-          api.send({
-            t: "cm_secret",
-            from: me().nick,
-            to: state.drawer,
-            matchId: state.matchId,
-            roundIndex: state.roundIndex,
-            word: secretWord
-          });
+          sendSecretToDrawer(true);
         }
       }
       return true;
@@ -1496,8 +1510,12 @@ window.CatchMind = (function () {
         var incomingWord = safeText(msg.word, 10);
         if (!/^[가-힣]{1,10}$/.test(incomingWord)) return true;
         secretWord = incomingWord;
+        api.send({ t: "cm_secret_ack", from: me().nick, to: api.host(), matchId: state.matchId, roundIndex: state.roundIndex, deliveryId: msg.deliveryId });
         render();
       }
+    } else if (msg.t === "cm_secret_ack") {
+      if (api && api.isHost() && msg.from === state.drawer && msg.to === me().nick &&
+          msg.matchId === state.matchId && msg.roundIndex === state.roundIndex && msg.deliveryId === secretDeliveryId) secretAckId = msg.deliveryId;
     } else if (msg.t === "cm_canvas_req") sendCanvasSnapshot(msg);
     else if (msg.t === "cm_canvas_state") applyCanvasSnapshot(msg);
     else if (msg.t === "cm_role_req") hostRoleRequest(msg);
@@ -1833,6 +1851,7 @@ window.CatchMind = (function () {
     tickLiveProgression(now);
     if (previewMode) return;
     if (!api.isHost()) return;
+    if ((state.phase === "countdown" || state.phase === "drawing") && !state.pauseKind) sendSecretToDrawer();
     if (state.pauseKind === "drawer") {
       if (has(activeNicks(), state.drawer)) {
         if (state.phase === "drawing" && !secretWord) hostRequestSecretRecovery();
@@ -2171,7 +2190,8 @@ window.CatchMind = (function () {
       title.textContent = state.drawer + "님의 그림 차례";
       sub.textContent = count + "";
       sub.classList.remove("hidden");
-      if (countdownCopy) countdownCopy.textContent = count === 1 ? "곧 그림이 시작돼요" : "그림을 준비해주세요";
+      if (countdownCopy) countdownCopy.textContent = state.deadline && Date.now() > state.deadline
+        ? "제시어를 전달하고 있어요" : (count === 1 ? "곧 그림이 시작돼요" : "그림을 준비해주세요");
       if (countdownSteps && countdownSteps.children) {
         var activeStep = countdownSeconds - count;
         for (var stepIndex = 0; stepIndex < countdownSteps.children.length; stepIndex++) {
@@ -3777,6 +3797,7 @@ window.CatchMind = (function () {
       allGuessersCorrect: allGuessersCorrect,
       hostStartMatch: hostStartMatch,
       hostStartRound: hostStartRound,
+      sendSecretToDrawer: sendSecretToDrawer,
       hostBeginDrawing: hostBeginDrawing,
       hostEndRound: hostEndRound,
       hostFinishMatch: hostFinishMatch,

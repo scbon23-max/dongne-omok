@@ -3,7 +3,7 @@ window.Net = (function () {
   var enabled = !!window.SB;
 
   var CLIENT_SESSION_ID = makeClientSessionId();
-  var transportSeq = { lobby: 0, room: 0, direct: 0 };
+  var transportSeq = { lobby: 0, room: 0, direct: 0, private: 0 };
 
   function makeClientSessionId() {
     var cryptoApi = window.crypto;
@@ -26,7 +26,7 @@ window.Net = (function () {
     return value.length > 96 ? value.slice(0, 96) : value;
   }
   function withClientSession(meta) {
-    return Object.assign({}, meta || {}, { clientSessionId: CLIENT_SESSION_ID });
+    return Object.assign({}, meta || {}, { clientSessionId: CLIENT_SESSION_ID, privateInboxReady: !!inboxReady });
   }
   function presenceKey(meta) {
     return String((meta && meta.nick) || "guest").slice(0, 40) + "#" + CLIENT_SESSION_ID;
@@ -54,7 +54,7 @@ window.Net = (function () {
     if (!meta || Number(meta.v) !== 1) return null;
     var sessionId = sessionIdOf(meta.sessionId);
     var seq = Number(meta.seq), sentAt = Number(meta.sentAt);
-    var lane = meta.lane === "lobby" || meta.lane === "room" || meta.lane === "direct" ? meta.lane : "";
+    var lane = meta.lane === "lobby" || meta.lane === "room" || meta.lane === "direct" || meta.lane === "private" ? meta.lane : "";
     if (!sessionId || !Number.isSafeInteger(seq) || seq < 1 || !Number.isFinite(sentAt) || sentAt < 0 || !lane) return null;
     return {
       v: 1,
@@ -159,6 +159,7 @@ window.Net = (function () {
         away: !!member.away,
         hostEligible: member.hostEligible !== false,
         clientSessionId: sessionIdOf(member.clientSessionId),
+        privateInboxReady: !!member.privateInboxReady,
         presenceSessionIds: sessions,
         presenceViewings: Array.isArray(member.presenceViewings)
           ? member.presenceViewings.map(function (value) { return String(value == null ? "" : value).slice(0, 80); }).sort()
@@ -261,7 +262,7 @@ window.Net = (function () {
     lobbyCh = window.SB.channel("lobby:" + clubId(), {
       config: { broadcast: { self: true }, presence: { key: presenceKey(lobbyMeta) } }
     });
-    lobbyCh.on("broadcast", { event: "m" }, function (p) { if (lobbyH.onMessage) lobbyH.onMessage(p.payload, transportMetaOf(p.payload)); });
+    lobbyCh.on("broadcast", { event: "m" }, function (p) { if (gen === lobbyGen && lobbyH.onMessage) lobbyH.onMessage(p.payload, transportMetaOf(p.payload)); });
     lobbyCh.on("presence", { event: "sync" }, function (payload) {
       if (gen === lobbyGen) lobbyEmit("sync", payload);
     });
@@ -338,6 +339,66 @@ window.Net = (function () {
   // ── 방 채널 (방에 들어갈 때만, 나가면 떠남) ──
   var channel = null, myMeta = null, handlers = {}, curRoom = null, roomGen = 0, roomWant = false, roomTries = 0, roomReT = null, roomReady = false, roomPending = [], roomPresenceT = null, roomPresenceFingerprint = null;
   var directChannels = Object.create(null), directWanted = Object.create(null), directTries = Object.create(null);
+  var inbox = null, inboxReady = false, inboxRetry = null, inboxTries = 0;
+
+  function inboxTopic(room, session) { return "room-private:" + room + ":" + session; }
+  function closeInbox() {
+    inboxReady = false;
+    if (inboxRetry) { clearTimeout(inboxRetry); inboxRetry = null; }
+    var previous = inbox;
+    inbox = null;
+    if (previous) { try { window.SB.removeChannel(previous); } catch (e) {} }
+  }
+  function openInbox() {
+    closeInbox();
+    if (!roomWant || !curRoom) return;
+    var gen = roomGen, room = curRoom;
+    var ch = window.SB.channel(inboxTopic(room, CLIENT_SESSION_ID), { config: { broadcast: { self: true } } });
+    inbox = ch;
+    ch.on("broadcast", { event: "m" }, function (packet) {
+      if (inbox !== ch || gen !== roomGen || room !== curRoom) return;
+      var payload = packet.payload, transport = transportMetaOf(payload);
+      if (!payload || payload.to !== myMeta.nick || !transport || transport.roomId !== room || transport.lane !== "private") return;
+      if (handlers.onMessage) handlers.onMessage(payload, transport);
+    });
+    ch.subscribe(function (status) {
+      if (inbox !== ch || gen !== roomGen) return;
+      if (status === "SUBSCRIBED") { inboxReady = true; inboxTries = 0; }
+      else if (isDead(status)) {
+        inboxReady = false;
+        if (!inboxRetry) inboxRetry = setTimeout(function () { inboxRetry = null; if (gen === roomGen && roomWant) openInbox(); }, backoff(inboxTries++));
+      }
+      myMeta = withClientSession(myMeta);
+      if (roomReady && channel) channel.track(myMeta);
+    });
+  }
+  function sendPrivate(to, message) {
+    if (!enabled || !roomReady || !channel || !roomWant) return Promise.resolve(sendOutcome("unavailable"));
+    var gen = roomGen, room = curRoom;
+    var payload = decoratePayload(Object.assign({}, message, { to: to }), "private", room, myMeta);
+    if (to === myMeta.nick) {
+      if (handlers.onMessage) handlers.onMessage(payload, transportMetaOf(payload));
+      return Promise.resolve(sendOutcome("ok"));
+    }
+    var sessions = Object.create(null), presence = channel.presenceState();
+    Object.keys(presence).forEach(function (key) {
+      (presence[key] || []).forEach(function (meta) {
+        if (meta.nick === to && meta.privateInboxReady && sessionIdOf(meta.clientSessionId)) sessions[sessionIdOf(meta.clientSessionId)] = true;
+      });
+    });
+    var recipients = Object.keys(sessions);
+    if (!recipients.length) return Promise.resolve(sendOutcome("recipient_unavailable"));
+    return Promise.all(recipients.map(function (session) {
+      if (gen !== roomGen || room !== curRoom) return sendOutcome("cancelled");
+      var outbound = window.SB.channel(inboxTopic(room, session));
+      return sendPacket(outbound, payload).then(function (result) {
+        try { window.SB.removeChannel(outbound); } catch (e) {}
+        return gen === roomGen ? result : sendOutcome("cancelled");
+      });
+    })).then(function (results) {
+      return results.every(function (result) { return result.ok; }) ? sendOutcome("ok") : sendOutcome("error");
+    });
+  }
   function init(roomId, meta, hs) {
     if (!enabled) { handlers = hs || {}; if (handlers.onStatus) handlers.onStatus("LOCAL"); return false; }
     leaveRoom();
@@ -355,10 +416,19 @@ window.Net = (function () {
     channel = window.SB.channel("room:" + curRoom, {
       config: { broadcast: { self: true }, presence: { key: presenceKey(myMeta) } }
     });
-    channel.on("broadcast", { event: "m" }, function (p) { if (handlers.onMessage) handlers.onMessage(p.payload, transportMetaOf(p.payload)); });
-    channel.on("presence", { event: "sync" }, emit);
-    channel.on("presence", { event: "join" }, emit);
-    channel.on("presence", { event: "leave" }, emit);
+    var room = curRoom;
+    channel.on("broadcast", { event: "m" }, function (p) {
+      if (gen !== roomGen || room !== curRoom) return;
+      var transport = transportMetaOf(p.payload);
+      if (transport && (transport.roomId !== room || transport.lane !== "room")) return;
+      if (handlers.onMessage) handlers.onMessage(p.payload, transport);
+    });
+    function emitCurrentRoom() { if (gen === roomGen && room === curRoom) emit(); }
+    channel.on("presence", { event: "sync" }, emitCurrentRoom);
+    channel.on("presence", { event: "join" }, emitCurrentRoom);
+    channel.on("presence", { event: "leave" }, emitCurrentRoom);
+    inboxTries = 0;
+    openInbox();
     channel.subscribe(function (status) {
       if (gen !== roomGen) return;
       if (handlers.onStatus) handlers.onStatus(status);
@@ -417,11 +487,15 @@ window.Net = (function () {
     if (!enabled || !roomWant || !curRoom || !nick) return null;
     if (directChannels[nick]) return directChannels[nick];
     var entry = { channel: null, ready: false, retry: null };
+    var room = curRoom;
     var ch = window.SB.channel(directTopic(nick), { config: { broadcast: { self: false } } });
     entry.channel = ch;
     directChannels[nick] = entry;
     ch.on("broadcast", { event: "m" }, function (packet) {
-      if (handlers.onMessage) handlers.onMessage(packet.payload, transportMetaOf(packet.payload));
+      if (directChannels[nick] !== entry || room !== curRoom || !roomWant) return;
+      var transport = transportMetaOf(packet.payload);
+      if (transport && (transport.roomId !== room || transport.lane !== "direct")) return;
+      if (handlers.onMessage) handlers.onMessage(packet.payload, transport);
     });
     ch.subscribe(function (status) {
       if (directChannels[nick] !== entry) return;
@@ -495,6 +569,7 @@ window.Net = (function () {
     roomPresenceFingerprint = null;
     stopRoomPresenceHeartbeat();
     closeAllDirectInputs();
+    closeInbox();
     if (roomReT) { clearTimeout(roomReT); roomReT = null; }
     if (channel) { try { window.SB.removeChannel(channel); } catch (e) {} }
     channel = null; curRoom = null; handlers = {};
@@ -514,6 +589,7 @@ window.Net = (function () {
     },
     resyncLobby: function () { if (enabled && lobbyWant) openLobby(); },
     init: init, send: send, sendWithResult: sendWithResult, track: track, leaveRoom: leaveRoom,
+    sendPrivate: sendPrivate,
     syncDirectInputs: syncDirectInputs, sendDirectInput: sendDirectInput, sendDirectInputWithResult: sendDirectInputWithResult
   };
 })();
