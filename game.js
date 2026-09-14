@@ -4134,65 +4134,7 @@
   // ---------- 관리자 ----------
   async function openAdmin() {
     if (!me.isAdmin) return;
-    $("admin-modal").classList.remove("hidden");
-    await renderAdminList();
-    renderAllowlist();
-  }
-  async function renderAllowlist() {
-    var box = $("allow-list"); if (!box) return;
-    var names = await Db.getAllowlist();
-    box.innerHTML = names.map(function (n) {
-      return '<div class="prow"><span class="pname">' + esc(n) + '</span><span class="passign"><button class="pbtn danger" data-alrm="' + esc(n) + '">삭제</button></span></div>';
-    }).join("") || '<p class="players-hint">명단이 비어 있어요.</p>';
-    var btns = box.querySelectorAll("[data-alrm]");
-    for (var i = 0; i < btns.length; i++) btns[i].addEventListener("click", function () { allowlistRemove(this); });
-  }
-  var alArmed = null, alTimer = null;
-  function allowlistRemove(btn) {
-    var nick = btn.getAttribute("data-alrm");
-    if (alArmed !== nick) {
-      alArmed = nick; btn.textContent = "확인?"; btn.classList.add("armed");
-      clearTimeout(alTimer); alTimer = setTimeout(function () { alArmed = null; btn.textContent = "삭제"; btn.classList.remove("armed"); }, 2500);
-      return;
-    }
-    alArmed = null; clearTimeout(alTimer);
-    Db.removeAllowed(nick).then(function () { toast(nick + " 명단에서 삭제"); renderAllowlist(); });
-  }
-  async function renderAdminList() {
-    var box = $("admin-list");
-    box.innerHTML = '<p class="players-hint">불러오는 중…</p>';
-    var accts = await Db.listAccounts();
-    var html = "";
-    accts.forEach(function (a) {
-      var tag = a.is_admin ? ' <span class="mini-host">관리자</span>' : "";
-      var pw = a.needsPw ? ' <span class="mini-reset">비번대기</span>' : "";
-      html += '<div class="prow"><span class="pname">' + esc(a.nickname) + tag + pw + '</span>';
-      if (!a.is_admin) {
-        html += '<span class="passign">';
-        html += '<button class="pbtn" data-act="reset" data-nick="' + esc(a.nickname) + '">비번 초기화</button>';
-        html += '<button class="pbtn danger" data-act="del" data-nick="' + esc(a.nickname) + '">삭제</button>';
-        html += '</span>';
-      }
-      html += '</div>';
-    });
-    box.innerHTML = html || '<p class="players-hint">아직 계정이 없어요.</p>';
-    var btns = box.querySelectorAll(".pbtn");
-    for (var i = 0; i < btns.length; i++) btns[i].addEventListener("click", function () { adminAction(this); });
-  }
-  var armed = null, armTimer = null;
-  function adminAction(btn) {
-    var nick = btn.getAttribute("data-nick"), act = btn.getAttribute("data-act");
-    var key = act + ":" + nick;
-    if (armed !== key) {
-      armed = key; btn.classList.add("armed");
-      var orig = btn.textContent; btn.textContent = "확인?";
-      clearTimeout(armTimer);
-      armTimer = setTimeout(function () { armed = null; btn.classList.remove("armed"); btn.textContent = orig; }, 2500);
-      return;
-    }
-    armed = null; clearTimeout(armTimer);
-    if (act === "reset") { Db.clearPassword(nick).then(function () { toast(nick + " 비번 초기화됨"); renderAdminList(); }); }
-    else if (act === "del") { Db.deleteAccount(nick).then(function () { toast(nick + " 삭제됨"); renderAdminList(); }); }
+    await MemberAdmin.open({ db: Db, toast: toast });
   }
 
   var activityLogs = [], activityFilter = "all";
@@ -7618,13 +7560,6 @@
       $("void-modal").classList.add("hidden");
       if (netMode && voidReqFrom) Net.send({ t: "void_res", accept: false, from: voidReqFrom });
       voidReqFrom = null;
-    });
-    $("allow-add-btn").addEventListener("click", function () {
-      var v = $("allow-input").value.trim(); if (!v) return;
-      Db.addAllowed(v).then(function (r) {
-        if (r && r.error) { toast("추가 실패(이미 있거나 오류)"); return; }
-        toast(v + " 명단 추가"); $("allow-input").value = ""; renderAllowlist();
-      });
     });
     $("undo-btn").addEventListener("click", sendUndoRequest);
     $("resign-btn").addEventListener("click", function () { openModal("resign-modal"); });

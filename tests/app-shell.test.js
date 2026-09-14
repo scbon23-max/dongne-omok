@@ -48,6 +48,7 @@ test("the app shell versions every local runtime asset from one build", () => {
     "catchmind.js",
     "relay-drawing.js",
     "territory-rush.js",
+    "admin-members.js",
     "game.js"
   ];
   for (const file of files) assert.match(index, new RegExp('\\{ src: "' + file.replace(".", "\\.") + '" \\}'));
@@ -95,7 +96,7 @@ test("the app shell loads local scripts sequentially with the same revision", ()
   assert.equal(styles[0].href, "styles.css?v=" + encodeURIComponent(version));
   assert.equal(scripts[0].src, "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.111.0");
 
-  while (scripts.length < 21) scripts[scripts.length - 1].onload();
+  while (scripts.length < 22) scripts[scripts.length - 1].onload();
   assert.equal(scripts[1].src, "config.js?v=" + encodeURIComponent(version));
   assert.equal(scripts[5].src, "pro-hint-explain.js?v=" + encodeURIComponent(version));
   assert.equal(scripts[12].src, "holdem-engine.js?v=" + encodeURIComponent(version));
@@ -104,7 +105,8 @@ test("the app shell loads local scripts sequentially with the same revision", ()
   assert.equal(scripts[16].src, "catchmind-levels.js?v=" + encodeURIComponent(version));
   assert.equal(scripts[18].src, "relay-drawing.js?v=" + encodeURIComponent(version));
   assert.equal(scripts[19].src, "territory-rush.js?v=" + encodeURIComponent(version));
-  assert.equal(scripts[20].src, "game.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[20].src, "admin-members.js?v=" + encodeURIComponent(version));
+  assert.equal(scripts[21].src, "game.js?v=" + encodeURIComponent(version));
 });
 
 test("room entry is not blocked by an HTML and JavaScript build label mismatch", () => {

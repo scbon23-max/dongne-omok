@@ -120,6 +120,57 @@ window.Db = (function () {
   }
   async function deleteAccount(nick) { if (sb) return sb.from("accounts").delete().eq("nickname", nick); }
   async function clearPassword(nick) { if (sb) return sb.from("accounts").update({ pw_hash: null }).eq("nickname", nick); }
+  async function memberRows(table, columns) {
+    if (!sb) throw new Error("데이터베이스에 연결되지 않았어요.");
+    var rows = [], pageSize = 500;
+    for (;;) {
+      var result = await sb.from(table).select(columns).order("nickname").range(rows.length, rows.length + pageSize - 1);
+      if (result.error) throw result.error;
+      if (!Array.isArray(result.data)) throw new Error("회원 목록 응답이 없어요.");
+      rows = rows.concat(result.data);
+      if (result.data.length < pageSize) return rows;
+    }
+  }
+  async function listMembers() {
+    var lists = await Promise.all([
+      memberRows("accounts", "nickname,is_admin,pw_hash,created_at"),
+      memberRows("allowlist", "nickname")
+    ]);
+    var members = new Map();
+    lists[1].forEach(function (row) {
+      members.set(row.nickname, { nickname: row.nickname, registered: false, allowed: true, is_admin: row.nickname === ADMIN, needsPw: false });
+    });
+    lists[0].forEach(function (row) {
+      members.set(row.nickname, { nickname: row.nickname, registered: true, allowed: members.has(row.nickname),
+        is_admin: !!row.is_admin || row.nickname === ADMIN, needsPw: row.pw_hash == null, created_at: row.created_at });
+    });
+    return Array.from(members.values()).sort(function (a, b) {
+      return Number(b.is_admin) - Number(a.is_admin) || a.nickname.localeCompare(b.nickname, "ko");
+    });
+  }
+  async function deleteMember(nick) {
+    var phase = "check";
+    try {
+      if (!sb) throw new Error("offline");
+      if (!nick || nick === ADMIN) return { error: true, message: "관리자 계정은 삭제할 수 없어요." };
+      var account = await sb.from("accounts").select("is_admin").eq("nickname", nick);
+      if (account.error || !Array.isArray(account.data)) throw new Error("account lookup failed");
+      if (account.data.some(function (row) { return row.is_admin; })) return { error: true, message: "관리자 계정은 삭제할 수 없어요." };
+      // Revoke signup first so removing the account never leaves an invitation behind.
+      // These requests are retryable: deleting an already absent row is successful.
+      phase = "allowlist";
+      var allowed = await sb.from("allowlist").delete().eq("nickname", nick);
+      if (allowed.error) throw allowed.error;
+      phase = "account";
+      var deleted = await sb.from("accounts").delete().eq("nickname", nick);
+      if (deleted.error) throw deleted.error;
+      return { error: null };
+    } catch (e) {
+      return { error: true, message: phase === "account"
+        ? "가입 허용은 해제됐지만 계정 삭제를 완료하지 못했어요. 아래 삭제 버튼을 다시 눌러 마무리해 주세요."
+        : "삭제를 완료하지 못했어요. 연결을 확인하고 다시 시도해 주세요." };
+    }
+  }
   // 게임 종류는 games.game 컬럼(text)으로 구분: omok / alk / alk_terr / …(미래 확장은 문자열만 추가)
   async function recordGame(black, white, winner, moves) {
     if (!sb) return;
@@ -673,6 +724,7 @@ window.Db = (function () {
     ADMIN: ADMIN, ensureAdmin: ensureAdmin, login: login, loginHash: loginHash, hashPw: sha256,
     getProfileAvatars: getProfileAvatars, saveProfileAvatar: saveProfileAvatar,
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
+    listMembers: listMembers, deleteMember: deleteMember,
     recordGame: recordGame, recordAlkGame: recordAlkGame,
     createGameResultId: createGameResultId, queueGameResult: queueGameResult, retryGameResults: retryGameResults,
     saveCatchmindDrawing: saveCatchmindDrawing, getCatchmindGallery: getCatchmindGallery, toggleCatchmindFavorite: toggleCatchmindFavorite,
