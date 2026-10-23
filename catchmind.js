@@ -2641,14 +2641,14 @@ window.CatchMind = (function () {
       }
       if (Date.now() > liveProgression.deadline + 5000) {
         notifyProgressionFailure();
-        finishLiveProgression({ status: "no_votes", bonusXp: 0, appliedXp: 0 });
+        finishLiveProgression({ status: "unavailable", bonusXp: 0, appliedXp: 0 });
       }
     }).catch(function () {
       if (token !== progressionRequestToken || liveProgression.matchId !== matchId) return;
       liveProgression.requestPending = false;
       if (Date.now() > liveProgression.deadline + 5000) {
         notifyProgressionFailure();
-        finishLiveProgression({ status: "no_votes", bonusXp: 0, appliedXp: 0 });
+        finishLiveProgression({ status: "unavailable", bonusXp: 0, appliedXp: 0 });
       }
     });
   }
@@ -2738,7 +2738,27 @@ window.CatchMind = (function () {
     }).join("");
   }
 
-  function renderXpDialog(award, beforeXp, earnedXp, phaseKey) {
+  function renderXpMvp(result) {
+    var banner = $("catch-level-xp-mvp");
+    var name = $("catch-level-xp-mvp-name");
+    var detail = $("catch-level-xp-mvp-detail");
+    if (!banner || !name || !detail) return;
+    result = result || {};
+    var winner = result.status === "finalized" ? safeNick(result.winner) : "";
+    banner.classList.toggle("has-winner", !!winner);
+    if (winner) {
+      name.textContent = winner + (winner === me().nick ? " (나)" : "");
+      var votes = safeInteger(result.votes, 0, 1000, 0);
+      detail.textContent = (votes ? votes + "표 · " : "") + "이번 게임의 MVP로 선정됐어요";
+    } else {
+      name.textContent = result.status === "no_votes" ? "선정된 MVP가 없어요" : "MVP 결과를 확인하지 못했어요";
+      detail.textContent = result.status === "no_votes"
+        ? "투표가 없어 MVP 없이 종료됐어요"
+        : "경험치 내역은 아래에서 확인할 수 있어요";
+    }
+  }
+
+  function renderXpDialog(award, beforeXp, earnedXp, phaseKey, mvpResult) {
     var Levels = window.CatchMindLevels;
     var backdrop = $("catch-level-xp-backdrop");
     if (!Levels || !backdrop) return;
@@ -2752,6 +2772,7 @@ window.CatchMind = (function () {
       mvp: false
     }, award.metrics);
     var summary = Levels.progression(beforeXp, earnedXp);
+    renderXpMvp(mvpResult);
     var progress = summary.after;
     $("catch-level-xp-level").textContent = progress.level;
     $("catch-level-xp-name").textContent = me().nick || "나";
@@ -2804,7 +2825,10 @@ window.CatchMind = (function () {
     var beforeXp = previewPhaseKey === "xp-levelup"
       ? Levels.totalXpForLevel(25) - 34
       : Levels.totalXpForLevel(18) + Math.round(Levels.xpToNext(18) * .42);
-    renderXpDialog(award, beforeXp, award.total, previewPhaseKey);
+    var other = orderedPeople().filter(function (person) { return person.nick !== me().nick; })[0];
+    renderXpDialog(award, beforeXp, award.total, previewPhaseKey, {
+      status: "finalized", winner: wonMvp ? me().nick : other ? other.nick : "그림친구", votes: 3
+    });
   }
 
   function renderLiveXp() {
@@ -2825,7 +2849,8 @@ window.CatchMind = (function () {
       displayAward,
       beforeXp,
       Math.min(100, baseApplied + mvpApplied),
-      "live-" + liveProgression.matchId
+      "live-" + liveProgression.matchId,
+      result
     );
   }
 

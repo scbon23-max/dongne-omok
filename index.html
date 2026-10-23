@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20261023-catchmind-mvp-thumbnails-v1">
+<meta name="app-build" content="20261023-catchmind-mvp-results-v2">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -1159,6 +1159,14 @@
       <button id="catch-level-xp-close" class="cm-xp-close" type="button" aria-label="경험치 결과 닫기">✕</button>
     </header>
     <div class="cm-xp-scroll">
+    <div id="catch-level-xp-mvp" class="cm-xp-mvp" role="status">
+      <span class="cm-xp-mvp-icon" aria-hidden="true">★</span>
+      <div class="cm-xp-mvp-copy">
+        <small>이번 게임 MVP</small>
+        <strong id="catch-level-xp-mvp-name"></strong>
+        <span id="catch-level-xp-mvp-detail"></span>
+      </div>
+    </div>
     <div class="cm-xp-summary">
       <div id="catch-level-seal-stage" class="cm-level-seal-stage">
         <div class="cm-level-particles" aria-hidden="true">

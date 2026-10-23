@@ -146,3 +146,68 @@ test("many candidates scroll inside the dialog on small phones and short screens
     assert.deepEqual(layout,{fits:true,buttonVisible:true,scrolls:true,noHorizontalOverflow:true},JSON.stringify(viewport));
   }
 });
+
+async function showResult(page, result, options = {}) {
+  await page.evaluate(({result, options}) => {
+    const t = CatchMind._test;
+    testApi.getCatchmindMvpResult = async () => ({ok:true, result});
+    Object.assign(t.getLiveProgression(), {
+      stage:"waiting", matchId:"mvp-game", requestPending:false,
+      deadline:options.expired ? Date.now()-6000 : Date.now()+15000,
+      award:{beforeXp:100, appliedXp:27,
+        breakdown:{completion:15, answers:12, mvp:0},
+        metrics:{answerTimesMs:[12000], answerXp:[12], mvp:false}}
+    });
+    t.pollLiveMvp();
+  }, {result, options});
+  await page.waitForFunction(() => CatchMind._test.getLiveProgression().stage === "result");
+}
+
+test("XP results name another player's MVP and keep the viewer's XP unchanged", async t => {
+  const page = await pageFor(t);
+  await showResult(page, {status:"finalized", winner:"B", votes:3, appliedXp:15});
+  assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "B");
+  assert.equal(await page.locator("#catch-level-xp-mvp-detail").textContent(), "3표 · 이번 게임의 MVP로 선정됐어요");
+  assert.equal(await page.locator("#catch-level-xp-earned").textContent(), "+27 XP");
+  assert.equal(await page.locator("#catch-level-xp-mvp.has-winner").count(), 1);
+  assert.equal(await page.locator("#catch-level-xp-backdrop").getAttribute("aria-hidden"), "false");
+});
+
+test("the MVP sees their own name and bonus in the final XP popup", async t => {
+  const page = await pageFor(t);
+  await showResult(page, {status:"finalized", winner:"A", votes:2, appliedXp:15});
+  assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "A (나)");
+  assert.equal(await page.locator("#catch-level-xp-earned").textContent(), "+42 XP");
+  assert.match(await page.locator("#catch-level-xp-breakdown").textContent(), /MVP 보너스.*\+15 XP/);
+});
+
+test("XP popup follows the server's chosen winner and distinguishes no votes from a failed lookup", async t => {
+  const page = await pageFor(t);
+  await page.evaluate(() => { CatchMind._test.getLiveProgression().selection="B"; });
+  await showResult(page, {status:"finalized", winner:"C", votes:1, appliedXp:15});
+  assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "C");
+  await showResult(page, {status:"no_votes"});
+  assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "선정된 MVP가 없어요");
+  assert.equal(await page.locator("#catch-level-xp-mvp.has-winner").count(), 0);
+  await showResult(page, {status:"error"}, {expired:true});
+  assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "MVP 결과를 확인하지 못했어요");
+  assert.ok(!(await page.locator("#catch-level-xp-mvp-detail").textContent()).includes("투표가 없어"));
+});
+
+test("MVP names stay readable and XP popup buttons remain accessible on small screens", async t => {
+  for (const viewport of [{width:320,height:568},{width:740,height:360}]) {
+    const page = await pageFor(t, viewport);
+    const winner = "아주긴닉네임".repeat(6);
+    await showResult(page, {status:"finalized", winner, votes:2, appliedXp:15});
+    assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), winner);
+    const layout = await page.evaluate(() => {
+      const dialog=document.querySelector(".cm-xp-dialog");
+      const rect=dialog.getBoundingClientRect();
+      const button=document.getElementById("catch-level-xp-confirm").getBoundingClientRect();
+      const scroll=document.querySelector(".cm-xp-scroll");
+      return {fits:rect.x>=0&&rect.y>=0&&rect.right<=innerWidth&&rect.bottom<=innerHeight,
+        buttonVisible:button.bottom<=innerHeight,noHorizontalOverflow:scroll.scrollWidth<=scroll.clientWidth+1};
+    });
+    assert.deepEqual(layout, {fits:true,buttonVisible:true,noHorizontalOverflow:true});
+  }
+});
