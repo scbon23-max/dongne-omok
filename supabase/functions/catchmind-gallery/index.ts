@@ -164,6 +164,17 @@ async function saveDrawing(client: ReturnType<typeof createClient>, nick: string
 }
 
 async function listGallery(client: ReturnType<typeof createClient>, nick: string, body: Record<string, unknown>) {
+  if (body.mode === "match") {
+    const matchId = safeText(body.matchId, 80);
+    if (!/^[a-zA-Z0-9:_-]{1,80}$/.test(matchId)) return response({ ok: false, reason: "invalid_match" });
+    const { data, error } = await client.from("catchmind_drawings")
+      .select("id,drawer,word,image_path,created_at,match_id,round_index")
+      .eq("match_id", matchId).order("round_index", { ascending: true }).limit(40);
+    if (error) return response({ ok: false, reason: "query" });
+    return response({ ok: true, rows: (data || []).map(row => ({
+      ...publicDrawing(client, row, false), matchId: row.match_id, roundIndex: row.round_index,
+    })) });
+  }
   const mode = body.mode === "favorites" ? "favorites" : "recent";
   const offset = Math.max(0, Math.floor(Number(body.offset) || 0));
   const limit = Math.max(1, Math.min(40, Math.floor(Number(body.limit) || 20)));

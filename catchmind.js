@@ -122,6 +122,12 @@ window.CatchMind = (function () {
   var galleryRequestToken = 0;
   var gallerySavedRounds = Object.create(null);
   var galleryBound = false;
+  var mvpDrawingMatchId = null;
+  var mvpDrawings = Object.create(null);
+  var mvpDrawingLoad = null;
+  var mvpDrawingLoadToken = 0;
+  var mvpDrawingLoadAttempts = 0;
+  var mvpDrawingRetryTimer = null;
 
   function freshState() {
     return {
@@ -2352,6 +2358,113 @@ window.CatchMind = (function () {
     }).map(progressionPerson);
   }
 
+  function syncMvpDrawingScope() {
+    if (mvpDrawingMatchId === state.matchId) return;
+    mvpDrawingMatchId = state.matchId;
+    mvpDrawings = Object.create(null);
+    mvpDrawingLoad = null;
+    mvpDrawingLoadToken++;
+    mvpDrawingLoadAttempts = 0;
+    if (mvpDrawingRetryTimer) clearTimeout(mvpDrawingRetryTimer);
+    mvpDrawingRetryTimer = null;
+  }
+
+  function mvpThumbnail(strokes, background) {
+    if (!document.createElement) return "";
+    try {
+      var output = document.createElement("canvas");
+      output.width = output.height = 192;
+      var outputCtx = output.getContext("2d");
+      if (!outputCtx || !output.toDataURL) return "";
+      outputCtx.fillStyle = background || CANVAS_BG;
+      outputCtx.fillRect(0, 0, 192, 192);
+      strokes.forEach(function (stroke) { drawStroke(outputCtx, 192, 192, stroke); });
+      return output.toDataURL("image/webp", 0.65);
+    } catch (_error) { return ""; }
+  }
+
+  function rememberMvpDrawing() {
+    syncMvpDrawingScope();
+    if (state.phase !== "reveal" || !state.matchId || !state.drawer ||
+        !state.revealWord || state.revealWord === "문제 취소") return;
+    var key = state.roundIndex + ":" + state.drawSeq + ":" + state.revealWord;
+    var saved = mvpDrawings[state.drawer];
+    if (saved && saved.key === key) return;
+    var strokes = sanitizeStrokes(state.strokes);
+    var background = safeColor(state.canvasBg) || CANVAS_BG;
+    mvpDrawings[state.drawer] = {
+      key: key, word: state.revealWord, empty: !strokes.length && background === CANVAS_BG,
+      imageUrl: strokes.length || background !== CANVAS_BG ? mvpThumbnail(strokes, background) : ""
+    };
+  }
+
+  function mvpDrawingMarkup(nick, preview) {
+    var drawing = mvpDrawings[nick];
+    if (preview && !drawing) {
+      drawing = { word: "고양이", imageUrl: mvpThumbnail(previewDrawing(), CANVAS_BG) };
+      mvpDrawings[nick] = drawing;
+    }
+    var image = drawing && drawing.imageUrl;
+    return '<span class="cm-mvp-drawing">' + (image
+      ? '<img class="cm-mvp-thumbnail" src="' + esc(image) + '" alt="' + esc(nick + '님이 그린 ' + drawing.word) + '" decoding="async" draggable="false">'
+      : '<span class="cm-mvp-drawing-empty">' + (drawing && drawing.empty ? "그린 그림 없음" : mvpDrawingLoad === "pending" ? "그림 불러오는 중…" : "그림을 확인할 수 없어요") + '</span>')
+      + '<span class="cm-mvp-drawing-word">' + esc(drawing ? drawing.word : "제시어 없음") + '</span></span>';
+  }
+
+  function loadMissingMvpDrawings() {
+    if (previewMode || !api || !api.loadMatchDrawings || mvpDrawingLoad ||
+        !liveMvpCandidates().some(function (person) {
+          var drawing = mvpDrawings[person.nick];
+          return !drawing || (!drawing.empty && !drawing.imageUrl);
+        })) return;
+    var matchId = state.matchId;
+    var drawingApi = api;
+    var token = ++mvpDrawingLoadToken;
+    mvpDrawingLoadAttempts++;
+    mvpDrawingLoad = "pending";
+    Promise.resolve().then(function () {
+      if (token !== mvpDrawingLoadToken || api !== drawingApi) return null;
+      return drawingApi.loadMatchDrawings(matchId);
+    }).then(function (result) {
+      if (token !== mvpDrawingLoadToken || state.matchId !== matchId || !api) return;
+      if (result && result.ok && Array.isArray(result.rows)) {
+        result.rows.slice(0, MAX_PLAYERS).forEach(function (row) {
+          if (!row || typeof row !== "object") return;
+          var nick = safeNick(row.drawer);
+          var image = typeof row.imageUrl === "string" ? row.imageUrl : "";
+          var saved = mvpDrawings[nick];
+          if (row.matchId !== matchId || !has(state.queue, nick) || (saved && (saved.empty || saved.imageUrl)) ||
+              !/^https?:\/\//i.test(image) || image.length > 2048) return;
+          mvpDrawings[nick] = { word: safeText(row.word, 40), imageUrl: image };
+        });
+      }
+      finishMvpDrawingLoad();
+    }, function () {
+      if (token !== mvpDrawingLoadToken || state.matchId !== matchId || !api) return;
+      finishMvpDrawingLoad();
+    });
+  }
+
+  function finishMvpDrawingLoad() {
+    mvpDrawingLoad = "done";
+    if (["voting", "submitting", "waiting"].indexOf(liveProgression.stage) < 0) return;
+    renderLiveMvp();
+    // The last round's gallery upload may still be finishing after reconnect.
+    if (mvpDrawingLoadAttempts >= 3 || Date.now() >= liveProgression.deadline ||
+        !liveMvpCandidates().some(function (person) {
+          var drawing = mvpDrawings[person.nick];
+          return !drawing || (!drawing.empty && !drawing.imageUrl);
+        })) return;
+    var matchId = state.matchId;
+    mvpDrawingRetryTimer = setTimeout(function () {
+      mvpDrawingRetryTimer = null;
+      if (!api || state.matchId !== matchId || Date.now() >= liveProgression.deadline ||
+          ["voting", "submitting", "waiting"].indexOf(liveProgression.stage) < 0) return;
+      mvpDrawingLoad = null;
+      renderLiveMvp();
+    }, 1200);
+  }
+
   function levelPlateMarkup(person) {
     var presentation = levelPreviewClasses(catchLevelForPerson(person));
     return '<span class="catch-score-strip level-preview cm-mvp-plate-wrap" aria-hidden="true"><span class="'
@@ -2372,12 +2485,16 @@ window.CatchMind = (function () {
     var choice = $("catch-level-mvp-choice");
     var confirm = $("catch-level-mvp-confirm");
     if (!backdrop || !list || !choice || !confirm) return;
+    syncMvpDrawingScope();
+    loadMissingMvpDrawings();
     var candidates = liveMvpCandidates();
     list.innerHTML = candidates.map(function (person) {
       var selected = person.nick === liveProgression.selection;
+      var drawingMarkup = mvpDrawingMarkup(person.nick, false);
+      var word = mvpDrawings[person.nick] && mvpDrawings[person.nick].word;
       return '<button class="cm-mvp-candidate' + (selected ? ' selected' : '') + '" type="button" data-catch-mvp-nick="'
-        + esc(person.nick) + '" aria-pressed="' + String(selected) + '" aria-label="' + esc(person.nick) + '님을 MVP로 선택">'
-        + levelPlateMarkup(person) + '<i class="cm-mvp-check">✓</i></button>';
+        + esc(person.nick) + '" aria-pressed="' + String(selected) + '" aria-label="' + esc(person.nick + '님을 MVP로 선택' + (word ? ', 제시어 ' + word : '')) + '">'
+        + drawingMarkup + levelPlateMarkup(person) + '<i class="cm-mvp-check">✓</i></button>';
     }).join("");
     if (liveProgression.stage === "submitting") choice.textContent = "투표를 확인하고 있어요";
     else if (liveProgression.submitted) choice.textContent = "투표 완료 · 결과를 모으고 있어요";
@@ -2576,6 +2693,7 @@ window.CatchMind = (function () {
     var choice = $("catch-level-mvp-choice");
     var confirm = $("catch-level-mvp-confirm");
     if (!backdrop || !list || !choice || !confirm) return;
+    syncMvpDrawingScope();
     var levels = [12, 31, 56, 81, 94, 100, 25];
     var candidates = orderedPeople().filter(function (person) {
       return person.nick !== me().nick && !has(state.spectators || [], person.nick);
@@ -2585,6 +2703,7 @@ window.CatchMind = (function () {
       var presentation = levelPreviewClasses(person.level || levels[index % levels.length]);
       return '<button class="cm-mvp-candidate' + (selected ? ' selected' : '') + '" type="button" data-catch-mvp-nick="'
         + esc(person.nick) + '" aria-pressed="' + String(selected) + '" aria-label="' + esc(person.nick) + '님을 MVP로 선택">'
+        + mvpDrawingMarkup(person.nick, true)
         + '<span class="catch-score-strip level-preview cm-mvp-plate-wrap" aria-hidden="true"><span class="'
         + presentation.classes.join(" ") + '"><span class="cm-level-name-row"><b>' + esc(person.nick)
         + '</b></span><span class="cm-level-line"><strong><small>LV</small>' + presentation.level
@@ -2764,6 +2883,7 @@ window.CatchMind = (function () {
 
   function render() {
     if (!api) return;
+    rememberMvpDrawing();
     syncAudio();
     syncReactionScope();
     syncBoardFrame();
@@ -3657,6 +3777,7 @@ window.CatchMind = (function () {
     previewMvpSelection = "";
     previewDismissedOverlay = "";
     resetLiveProgression();
+    syncMvpDrawingScope();
   }
 
   function onReady() {
@@ -3842,6 +3963,7 @@ window.CatchMind = (function () {
       syncLiveProgression: syncLiveProgression,
       tickLiveProgression: tickLiveProgression,
       requestLiveMvpVote: requestLiveMvpVote,
+      renderLiveMvp: renderLiveMvp,
       pollLiveMvp: pollLiveMvp,
       renderLobbyRoles: renderLobbyRoles,
       renderStage: renderStage,

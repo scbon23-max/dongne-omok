@@ -298,6 +298,11 @@ window.Db = (function () {
       includeDrawers: includeDrawers === true
     });
   }
+  async function getCatchmindMatchDrawings(auth, matchId) {
+    return galleryInvoke("list", auth, {
+      mode: "match", matchId: String(matchId || "").trim().slice(0, 80)
+    });
+  }
   async function toggleCatchmindFavorite(auth, drawingId, favorite) {
     return galleryInvoke("favorite", auth, {
       drawingId: Math.max(0, Math.floor(Number(drawingId) || 0)),
@@ -727,7 +732,7 @@ window.Db = (function () {
     listMembers: listMembers, deleteMember: deleteMember,
     recordGame: recordGame, recordAlkGame: recordAlkGame,
     createGameResultId: createGameResultId, queueGameResult: queueGameResult, retryGameResults: retryGameResults,
-    saveCatchmindDrawing: saveCatchmindDrawing, getCatchmindGallery: getCatchmindGallery, toggleCatchmindFavorite: toggleCatchmindFavorite,
+    saveCatchmindDrawing: saveCatchmindDrawing, getCatchmindGallery: getCatchmindGallery, getCatchmindMatchDrawings: getCatchmindMatchDrawings, toggleCatchmindFavorite: toggleCatchmindFavorite,
     getCatchmindProfile: getCatchmindProfile, awardCatchmindXp: awardCatchmindXp,
     voteCatchmindMvp: voteCatchmindMvp, getCatchmindMvpResult: getCatchmindMvpResult,
     equipCatchmindReward: equipCatchmindReward,

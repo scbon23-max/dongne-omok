@@ -309,6 +309,10 @@
           matchId
         ));
       },
+      loadMatchDrawings: function (matchId) {
+        if (!window.Db || !Db.getCatchmindMatchDrawings) return Promise.resolve({ ok: false, rows: [] });
+        return Db.getCatchmindMatchDrawings({ nick: me.nick, hash: sessionAuthHash }, matchId);
+      },
       saveDrawing: function (drawing) {
         if (!window.Db || !Db.saveCatchmindDrawing) return Promise.resolve({ ok: false, reason: "unavailable" });
         return Promise.resolve(Db.saveCatchmindDrawing({ nick: me.nick, hash: sessionAuthHash }, drawing));
