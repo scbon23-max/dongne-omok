@@ -294,12 +294,7 @@ test("CatchMind level results stay readable and scroll on short mobile screens",
   assert.match(index, /class="cm-xp-scroll"/);
   assert.match(styles, /\.cm-xp-dialog \{[^}]*grid-template-rows: auto minmax\(0, 1fr\) auto;/);
   assert.match(styles, /\.cm-xp-scroll \{[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain;/);
-  assert.match(styles, /\.cm-xp-head h2 \{[^}]*font-size: 23px;/);
-  assert.match(styles, /\.cm-xp-reason strong \{[^}]*font-size: 13px;/);
-  assert.match(styles, /\.cm-xp-reason small \{[^}]*font-size: 11px;[^}]*white-space: normal;/);
   assert.match(styles, /\.cm-mvp-candidates \{[^}]*overflow-y: auto;/);
-  assert.match(styles, /\.cm-mvp-plate-wrap > span \{[^}]*width: 100%;[^}]*max-width: none;/);
-  assert.match(catchmind, /catch-score-strip level-preview cm-mvp-plate-wrap/);
   assert.match(catchmind, /function levelPreviewClasses\(level\)/);
   assert.match(catchmindLevelMockup, /plateHtml\(\{ nick: person\.nick, level: person\.level, skin: person\.skin \}, "a"\)/);
   assert.match(styles, /\.catch-score-strip\.level-preview > span \{[^}]*min-height: 52px;[^}]*grid-template-rows: 33px 17px;/);

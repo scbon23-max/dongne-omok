@@ -2408,7 +2408,7 @@ window.CatchMind = (function () {
     return '<span class="cm-mvp-drawing">' + (image
       ? '<img class="cm-mvp-thumbnail" src="' + esc(image) + '" alt="' + esc(nick + '님이 그린 ' + drawing.word) + '" decoding="async" draggable="false">'
       : '<span class="cm-mvp-drawing-empty">' + (drawing && drawing.empty ? "그린 그림 없음" : mvpDrawingLoad === "pending" ? "그림 불러오는 중…" : "그림을 확인할 수 없어요") + '</span>')
-      + '<span class="cm-mvp-drawing-word">' + esc(drawing ? drawing.word : "제시어 없음") + '</span></span>';
+      + '</span>';
   }
 
   function loadMissingMvpDrawings() {
@@ -2465,12 +2465,8 @@ window.CatchMind = (function () {
     }, 1200);
   }
 
-  function levelPlateMarkup(person) {
-    var presentation = levelPreviewClasses(catchLevelForPerson(person));
-    return '<span class="catch-score-strip level-preview cm-mvp-plate-wrap" aria-hidden="true"><span class="'
-      + presentation.classes.join(" ") + '"><span class="cm-level-name-row"><b>' + esc(person.nick)
-      + '</b></span><span class="cm-level-line"><strong><small>LV</small>' + presentation.level
-      + '</strong></span></span></span>';
+  function mvpNameMarkup(person) {
+    return '<span class="cm-mvp-name">' + esc(person.nick) + '</span>';
   }
 
   function setMvpTimer(milliseconds) {
@@ -2494,11 +2490,11 @@ window.CatchMind = (function () {
       var word = mvpDrawings[person.nick] && mvpDrawings[person.nick].word;
       return '<button class="cm-mvp-candidate' + (selected ? ' selected' : '') + '" type="button" data-catch-mvp-nick="'
         + esc(person.nick) + '" aria-pressed="' + String(selected) + '" aria-label="' + esc(person.nick + '님을 MVP로 선택' + (word ? ', 제시어 ' + word : '')) + '">'
-        + drawingMarkup + levelPlateMarkup(person) + '<i class="cm-mvp-check">✓</i></button>';
+        + drawingMarkup + mvpNameMarkup(person) + '<i class="cm-mvp-check" aria-hidden="true">✓</i></button>';
     }).join("");
     if (liveProgression.stage === "submitting") choice.textContent = "투표를 확인하고 있어요";
     else if (liveProgression.submitted) choice.textContent = "투표 완료 · 결과를 모으고 있어요";
-    else if (liveProgression.selection) choice.textContent = liveProgression.selection + "님을 선택했어요";
+    else if (liveProgression.selection) choice.textContent = liveProgression.selection + "님 선택";
     else choice.textContent = candidates.length ? "아직 선택하지 않았어요" : "선택할 참가자가 없어요";
     confirm.textContent = liveProgression.submitted ? "투표 완료" : "선택 완료";
     confirm.disabled = liveProgression.submitted || liveProgression.stage === "submitting" || !liveProgression.selection;
@@ -2694,24 +2690,19 @@ window.CatchMind = (function () {
     var confirm = $("catch-level-mvp-confirm");
     if (!backdrop || !list || !choice || !confirm) return;
     syncMvpDrawingScope();
-    var levels = [12, 31, 56, 81, 94, 100, 25];
     var candidates = orderedPeople().filter(function (person) {
       return person.nick !== me().nick && !has(state.spectators || [], person.nick);
     });
-    list.innerHTML = candidates.map(function (person, index) {
+    list.innerHTML = candidates.map(function (person) {
       var selected = person.nick === previewMvpSelection;
-      var presentation = levelPreviewClasses(person.level || levels[index % levels.length]);
       return '<button class="cm-mvp-candidate' + (selected ? ' selected' : '') + '" type="button" data-catch-mvp-nick="'
         + esc(person.nick) + '" aria-pressed="' + String(selected) + '" aria-label="' + esc(person.nick) + '님을 MVP로 선택">'
         + mvpDrawingMarkup(person.nick, true)
-        + '<span class="catch-score-strip level-preview cm-mvp-plate-wrap" aria-hidden="true"><span class="'
-        + presentation.classes.join(" ") + '"><span class="cm-level-name-row"><b>' + esc(person.nick)
-        + '</b></span><span class="cm-level-line"><strong><small>LV</small>' + presentation.level
-        + '</strong></span></span></span>'
-        + '<i class="cm-mvp-check">✓</i></button>';
+        + mvpNameMarkup(person)
+        + '<i class="cm-mvp-check" aria-hidden="true">✓</i></button>';
     }).join("");
     choice.textContent = previewMvpSelection
-      ? previewMvpSelection + "님을 선택했어요"
+      ? previewMvpSelection + "님 선택"
       : "아직 선택하지 않았어요";
     confirm.textContent = "선택 완료";
     confirm.disabled = !previewMvpSelection;
@@ -2722,39 +2713,28 @@ window.CatchMind = (function () {
 
   function levelXpRows(award) {
     var times = award.metrics.answerTimesMs || [];
-    var values = award.metrics.answerXp || [];
-    var answerDetail = times.map(function (milliseconds, index) {
-      return Math.round(milliseconds / 1000) + "초 +" + values[index];
-    }).join(" · ");
     var rows = [
-      ["게임 완료", "끝까지 플레이한 게임", award.breakdown.completion],
-      ["정답 속도 · " + times.length + "회", answerDetail || "이번 게임에서는 정답이 없었어요", award.breakdown.answers],
-      ["MVP 보너스", award.metrics.mvp ? "이번 게임 MVP로 선정됐어요" : "MVP 선정 시 15 XP", award.breakdown.mvp]
+      ["게임 완료", award.breakdown.completion],
+      ["정답 " + times.length + "회", award.breakdown.answers],
+      ["MVP 보너스", award.breakdown.mvp]
     ];
     return rows.map(function (row) {
-      return '<li' + (row[2] ? "" : ' class="empty"') + '><span class="cm-xp-reason"><strong>'
-        + row[0] + '</strong><small>' + row[1] + '</small></span><b class="cm-xp-value">+'
-        + row[2] + ' XP</b></li>';
+      return '<li' + (row[1] ? "" : ' class="empty"') + '><span class="cm-xp-reason">'
+        + row[0] + '</span><b class="cm-xp-value">+' + row[1] + ' XP</b></li>';
     }).join("");
   }
 
   function renderXpMvp(result) {
     var banner = $("catch-level-xp-mvp");
     var name = $("catch-level-xp-mvp-name");
-    var detail = $("catch-level-xp-mvp-detail");
-    if (!banner || !name || !detail) return;
+    if (!banner || !name) return;
     result = result || {};
     var winner = result.status === "finalized" ? safeNick(result.winner) : "";
     banner.classList.toggle("has-winner", !!winner);
     if (winner) {
-      name.textContent = winner + (winner === me().nick ? " (나)" : "");
-      var votes = safeInteger(result.votes, 0, 1000, 0);
-      detail.textContent = (votes ? votes + "표 · " : "") + "이번 게임의 MVP로 선정됐어요";
+      name.textContent = winner;
     } else {
-      name.textContent = result.status === "no_votes" ? "선정된 MVP가 없어요" : "MVP 결과를 확인하지 못했어요";
-      detail.textContent = result.status === "no_votes"
-        ? "투표가 없어 MVP 없이 종료됐어요"
-        : "경험치 내역은 아래에서 확인할 수 있어요";
+      name.textContent = result.status === "no_votes" ? "없음" : "확인 불가";
     }
   }
 
@@ -2775,9 +2755,9 @@ window.CatchMind = (function () {
     renderXpMvp(mvpResult);
     var progress = summary.after;
     $("catch-level-xp-level").textContent = progress.level;
-    $("catch-level-xp-name").textContent = me().nick || "나";
-    $("catch-level-xp-tier").textContent = progress.tier.label + " 등급";
-    $("catch-level-xp-earned").textContent = "+" + summary.appliedXp + " XP";
+    var nextLevel = $("catch-level-xp-next-level");
+    if (nextLevel) nextLevel.textContent = progress.isMax ? "MAX" : "Lv." + (progress.level + 1);
+    $("catch-level-xp-earned").textContent = "+" + summary.appliedXp;
     $("catch-level-xp-current").textContent = progress.isMax
       ? Levels.formatXp(Levels.MAX_TOTAL_XP) + " XP"
       : Levels.formatXp(progress.currentXp) + " / " + Levels.formatXp(progress.neededXp) + " XP";
@@ -2802,7 +2782,6 @@ window.CatchMind = (function () {
       $("catch-level-reward-name").textContent = unlockedNames.length
         ? unlockedNames.join(" · ")
         : "레벨 " + progress.level + " 달성";
-      void seal.offsetWidth;
       seal.classList.add("celebrate");
     }
     setLevelPreviewBackdrop("catch-level-mvp-backdrop", false);
@@ -3670,19 +3649,8 @@ window.CatchMind = (function () {
       }
       hideLevelPreviewOverlays();
     }
-    var xpClose = $("catch-level-xp-close");
     var xpConfirm = $("catch-level-xp-confirm");
-    var xpReplay = $("catch-level-xp-replay");
-    if (xpClose) xpClose.addEventListener("click", dismissLevelPreview);
     if (xpConfirm) xpConfirm.addEventListener("click", dismissLevelPreview);
-    if (xpReplay) xpReplay.addEventListener("click", function () {
-      var backdrop = $("catch-level-xp-backdrop");
-      if (backdrop) backdrop.removeAttribute("data-preview-phase");
-      if (previewMode) {
-        previewDismissedOverlay = "";
-        renderXpPreview();
-      } else if (liveProgression.stage === "result") renderLiveXp();
-    });
     $("catch-chat-input").addEventListener("keydown", function (event) {
       if (event.key === "Enter" && !event.isComposing) sendInput();
     });

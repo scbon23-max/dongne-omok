@@ -49,7 +49,7 @@ async function pageFor(t, viewport = {width:393,height:851}) {
   return page;
 }
 
-test("MVP shows each participant's actual drawing and word; clicking a thumbnail votes", async t => {
+test("MVP shows each participant's drawing and name; clicking a thumbnail votes", async t => {
   const page = await pageFor(t);
   await page.evaluate(() => {
     const t=CatchMind._test;
@@ -59,7 +59,8 @@ test("MVP shows each participant's actual drawing and word; clicking a thumbnail
   });
   assert.equal(await page.locator(".cm-mvp-candidate").count(),2);
   assert.equal(await page.locator('[data-catch-mvp-nick="A"]').count(),0);
-  assert.deepEqual(await page.locator(".cm-mvp-drawing-word").allTextContents(),["사과","바다"]);
+  assert.deepEqual(await page.locator(".cm-mvp-name").allTextContents(),["B","C"]);
+  assert.equal(await page.locator(".cm-mvp-drawing-word, .cm-mvp-plate-wrap").count(),0);
   const pixels = await page.locator(".cm-mvp-thumbnail").evaluateAll(async images => Promise.all(images.map(async img => {
     await img.decode();const c=document.createElement("canvas");c.width=c.height=192;
     const ctx=c.getContext("2d");ctx.drawImage(img,0,0);return [...ctx.getImageData(96,96,1,1).data];
@@ -89,7 +90,7 @@ test("reconnected voters load only this match and reject unrelated or unsafe ima
   });
   await page.waitForFunction(() => document.querySelector('[data-catch-mvp-nick="B"] img'));
   assert.equal(await page.locator('[data-catch-mvp-nick="B"] img').getAttribute("src"),"https://images.invalid/current.webp");
-  assert.equal(await page.locator('[data-catch-mvp-nick="B"] .cm-mvp-drawing-word').textContent(),"이번 그림");
+  assert.equal(await page.locator('[data-catch-mvp-nick="B"] img').getAttribute("alt"),"B님이 그린 이번 그림");
   assert.equal(await page.locator('[data-catch-mvp-nick="C"] img').count(),0);
   await page.evaluate(() => { CatchMind._test.getLiveProgression().selection="C";CatchMind._test.renderLiveMvp(); });
   assert.equal(await page.evaluate(() => loads),1,"selection must not repeat the fetch");
@@ -111,11 +112,11 @@ test("late image responses cannot fill the next match with old drawings", async 
   assert.ok(!(await page.locator("#catch-level-mvp-candidates").textContent()).includes("옛 그림"));
 });
 
-test("a blank drawing is explicit and keeps its revealed word", async t => {
+test("a blank drawing is explicit and keeps its participant's name", async t => {
   const page = await pageFor(t);
   await page.evaluate(() => { CatchMind._test.applyState(round("B",0,"눈사람",null),true);showVote(); });
   assert.equal(await page.locator('[data-catch-mvp-nick="B"] .cm-mvp-drawing-empty').textContent(),"그린 그림 없음");
-  assert.equal(await page.locator('[data-catch-mvp-nick="B"] .cm-mvp-drawing-word').textContent(),"눈사람");
+  assert.equal(await page.locator('[data-catch-mvp-nick="B"] .cm-mvp-name').textContent(),"B");
 });
 
 test("reconnected voters retry while the last round's gallery upload finishes", async t => {
@@ -128,7 +129,7 @@ test("reconnected voters retry while the last round's gallery upload finishes", 
   });
   await page.waitForFunction(() => document.querySelector('[data-catch-mvp-nick="B"] img'));
   assert.equal(await page.evaluate(() => loads),2);
-  assert.equal(await page.locator(".cm-mvp-drawing-word").textContent(),"늦게 저장된 그림");
+  assert.equal(await page.locator(".cm-mvp-thumbnail").getAttribute("alt"),"B님이 그린 늦게 저장된 그림");
 });
 
 test("many candidates scroll inside the dialog on small phones and short screens", async t => {
@@ -154,7 +155,7 @@ async function showResult(page, result, options = {}) {
     Object.assign(t.getLiveProgression(), {
       stage:"waiting", matchId:"mvp-game", requestPending:false,
       deadline:options.expired ? Date.now()-6000 : Date.now()+15000,
-      award:{beforeXp:100, appliedXp:27,
+      award:{beforeXp:options.beforeXp === undefined ? 100 : options.beforeXp, appliedXp:27,
         breakdown:{completion:15, answers:12, mvp:0},
         metrics:{answerTimesMs:[12000], answerXp:[12], mvp:false}}
     });
@@ -167,8 +168,8 @@ test("XP results name another player's MVP and keep the viewer's XP unchanged", 
   const page = await pageFor(t);
   await showResult(page, {status:"finalized", winner:"B", votes:3, appliedXp:15});
   assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "B");
-  assert.equal(await page.locator("#catch-level-xp-mvp-detail").textContent(), "3표 · 이번 게임의 MVP로 선정됐어요");
-  assert.equal(await page.locator("#catch-level-xp-earned").textContent(), "+27 XP");
+  assert.equal(await page.locator("#catch-level-xp-mvp-detail").count(), 0);
+  assert.equal(await page.locator("#catch-level-xp-earned").textContent(), "+27");
   assert.equal(await page.locator("#catch-level-xp-mvp.has-winner").count(), 1);
   assert.equal(await page.locator("#catch-level-xp-backdrop").getAttribute("aria-hidden"), "false");
 });
@@ -176,8 +177,8 @@ test("XP results name another player's MVP and keep the viewer's XP unchanged", 
 test("the MVP sees their own name and bonus in the final XP popup", async t => {
   const page = await pageFor(t);
   await showResult(page, {status:"finalized", winner:"A", votes:2, appliedXp:15});
-  assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "A (나)");
-  assert.equal(await page.locator("#catch-level-xp-earned").textContent(), "+42 XP");
+  assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "A");
+  assert.equal(await page.locator("#catch-level-xp-earned").textContent(), "+42");
   assert.match(await page.locator("#catch-level-xp-breakdown").textContent(), /MVP 보너스.*\+15 XP/);
 });
 
@@ -187,11 +188,10 @@ test("XP popup follows the server's chosen winner and distinguishes no votes fro
   await showResult(page, {status:"finalized", winner:"C", votes:1, appliedXp:15});
   assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "C");
   await showResult(page, {status:"no_votes"});
-  assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "선정된 MVP가 없어요");
+  assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "없음");
   assert.equal(await page.locator("#catch-level-xp-mvp.has-winner").count(), 0);
   await showResult(page, {status:"error"}, {expired:true});
-  assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "MVP 결과를 확인하지 못했어요");
-  assert.ok(!(await page.locator("#catch-level-xp-mvp-detail").textContent()).includes("투표가 없어"));
+  assert.equal(await page.locator("#catch-level-xp-mvp-name").textContent(), "확인 불가");
 });
 
 test("MVP names stay readable and XP popup buttons remain accessible on small screens", async t => {
@@ -210,4 +210,23 @@ test("MVP names stay readable and XP popup buttons remain accessible on small sc
     });
     assert.deepEqual(layout, {fits:true,buttonVisible:true,noHorizontalOverflow:true});
   }
+});
+
+test("simple XP results retain level-up rewards, the level cap, and confirmation", async t => {
+  const page = await pageFor(t, {width:320,height:568});
+  const threshold = await page.evaluate(() => CatchMindLevels.totalXpForLevel(25));
+  await showResult(page, {status:"no_votes"}, {beforeXp:threshold-10});
+  assert.equal(await page.locator("#catch-level-xp-level").textContent(), "25");
+  assert.equal(await page.locator("#catch-level-up-tag").isVisible(), true);
+  assert.equal(await page.locator("#catch-level-reward").isVisible(), true);
+  assert.ok((await page.locator("#catch-level-reward-name").textContent()).length>0);
+  const maxXp = await page.evaluate(() => CatchMindLevels.MAX_TOTAL_XP);
+  await showResult(page, {status:"no_votes"}, {beforeXp:maxXp});
+  assert.equal(await page.locator("#catch-level-xp-earned").textContent(), "+0");
+  assert.equal(await page.locator("#catch-level-xp-next-level").textContent(), "MAX");
+  assert.equal(await page.locator("#catch-level-xp-meter").getAttribute("aria-valuenow"), "100");
+  assert.equal(await page.locator("#catch-level-reward").isVisible(), false);
+  await page.locator("#catch-level-xp-confirm").click();
+  assert.equal(await page.locator("#catch-level-xp-backdrop").isVisible(), false);
+  assert.equal(await page.evaluate(() => CatchMind._test.getLiveProgression().stage), "done");
 });

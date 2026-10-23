@@ -1341,8 +1341,7 @@ test("a completed live match awards XP once, accepts MVP, and opens the XP resul
   assert.equal(api.getLiveProgression().stage, "voting");
   assert.equal(calls.filter((call) => call.type === "award").length, 1);
   assert.deepEqual(calls[0].result.answerTimesMs, [12000]);
-  assert.match(elements["catch-level-mvp-candidates"].innerHTML, /<b>B<\/b>/);
-  assert.match(elements["catch-level-mvp-candidates"].innerHTML, /<small>LV<\/small>31/);
+  assert.match(elements["catch-level-mvp-candidates"].innerHTML, /class="cm-mvp-name">B<\/span>/);
 
   api.getLiveProgression().selection = "B";
   api.getLiveProgression().stage = "submitting";
@@ -1353,7 +1352,7 @@ test("a completed live match awards XP once, accepts MVP, and opens the XP resul
   api.pollLiveMvp();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(api.getLiveProgression().stage, "result");
-  assert.equal(elements["catch-level-xp-earned"].textContent, "+42 XP");
+  assert.equal(elements["catch-level-xp-earned"].textContent, "+42");
   assert.equal(elements["catch-level-xp-backdrop"].classList.contains("hidden"), false);
 
   api.syncLiveProgression();
