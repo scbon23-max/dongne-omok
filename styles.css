@@ -8580,7 +8580,7 @@ body.is-admin .feedback-user-compose { display: none; }
   .territory-screen.is-playing .territory-swipe-hint { opacity: 0; }
 }
 
-@font-face{font-family:DongnePoster;src:url('assets/CookieRun-Black.otf') format('opentype');font-weight:900;font-style:normal;font-display:swap}
+@font-face{font-family:DongnePoster;src:url('assets/CookieRun-Black.woff2') format('woff2'),url('assets/CookieRun-Black.otf') format('opentype');font-weight:900;font-style:normal;font-display:swap}
 /* Shared community branding only touches entry, lobby and room creation. */
 .community-game-shell{width:min(1080px,calc(100% - 64px));margin:auto}
 .community-game-brand{width:100%;flex-shrink:0;background:#0e2a3a;color:white;border-bottom:1px solid #39515f}
