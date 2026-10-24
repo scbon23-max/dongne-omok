@@ -68,11 +68,11 @@ async function verifyAccount(client: ReturnType<typeof createClient>, auth: Reco
   if (!nick || !/^[0-9a-f]{64}$/.test(hash)) return null;
   const { data, error } = await client
     .from("accounts")
-    .select("nickname")
+    .select("nickname,member_departed")
     .eq("nickname", nick)
     .eq("pw_hash", hash)
     .maybeSingle();
-  if (error || !data) return null;
+  if (error || !data || data.member_departed === true) return null;
   return nick;
 }
 

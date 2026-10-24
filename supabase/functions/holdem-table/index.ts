@@ -1276,11 +1276,11 @@ async function verifyAccount(
 
   const { data, error } = await client
     .from("accounts")
-    .select("nickname,is_admin")
+    .select("nickname,is_admin,member_departed")
     .eq("nickname", nick)
     .eq("pw_hash", hash)
     .maybeSingle();
-  if (error || !data) return null;
+  if (error || !data || data.member_departed === true) return null;
   const verifiedNick = safeText(data.nickname, 40);
   return verifiedNick
     ? { nick: verifiedNick, isAdmin: data.is_admin === true }

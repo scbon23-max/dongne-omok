@@ -31,7 +31,8 @@ test("room leases atomically limit each account to one owned room", () => {
   assert.match(edge, /body\.action === "claim"/);
   assert.match(edge, /body\.action === "renew"/);
   assert.match(edge, /body\.action === "release"/);
-  assert.match(edge, /\.select\("nickname,is_admin"\)/);
+  assert.match(edge, /\.select\("nickname,is_admin,member_departed"\)/);
+  assert.match(edge, /data\.member_departed === true/);
   assert.doesNotMatch(edge, /TERRITORY_ADMIN/);
   assert.doesNotMatch(edge, /game === "territory"/);
   assert.doesNotMatch(edge, /HOLDEM_TOURNAMENT_GAMES/);

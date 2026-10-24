@@ -41,8 +41,10 @@ window.Db = (function () {
       return { ok: true, created: true, account: { nickname: nick, is_admin: isAdmin } };
     }
     var acc = r.data[0];
+    if (acc.member_departed === true) return { ok: false, reason: "departed" };
     if (acc.pw_hash == null) {
-      await sb.from("accounts").update({ pw_hash: hash }).eq("nickname", nick);
+      var updated = await sb.from("accounts").update({ pw_hash: hash }).eq("nickname", nick);
+      if (updated.error) return { ok: false, reason: "error", msg: "비밀번호를 저장하지 못했어요. 다시 시도해 주세요." };
       return { ok: true, reset: true, account: { nickname: nick, is_admin: acc.is_admin } };
     }
     if (acc.pw_hash === hash) return { ok: true, account: { nickname: nick, is_admin: acc.is_admin } };
@@ -55,6 +57,7 @@ window.Db = (function () {
     if (r.error) return { ok: false, reason: "error", msg: r.error.message };
     if (!r.data || !r.data.length) return { ok: false, reason: "noaccount" };
     var acc = r.data[0];
+    if (acc.member_departed === true) return { ok: false, reason: "departed" };
     if (acc.pw_hash && acc.pw_hash === hash) return { ok: true, account: { nickname: nick, is_admin: acc.is_admin } };
     return { ok: false, reason: "badpw" };
   }
@@ -113,8 +116,8 @@ window.Db = (function () {
 
   async function listAccounts() {
     if (!sb) return [];
-    var r = await sb.from("accounts").select("nickname,is_admin,pw_hash,created_at").order("created_at");
-    return (r.data || []).map(function (a) {
+    var r = await sb.from("accounts").select("nickname,is_admin,pw_hash,created_at,member_departed").order("created_at");
+    return (r.data || []).filter(function (a) { return a.member_departed !== true; }).map(function (a) {
       return { nickname: a.nickname, is_admin: a.is_admin, needsPw: a.pw_hash == null, created_at: a.created_at };
     });
   }
@@ -133,7 +136,7 @@ window.Db = (function () {
   }
   async function listMembers() {
     var lists = await Promise.all([
-      memberRows("accounts", "nickname,is_admin,pw_hash,created_at"),
+      memberRows("accounts", "nickname,is_admin,pw_hash,created_at,member_departed"),
       memberRows("allowlist", "nickname")
     ]);
     var members = new Map();
@@ -141,6 +144,7 @@ window.Db = (function () {
       members.set(row.nickname, { nickname: row.nickname, registered: false, allowed: true, is_admin: row.nickname === ADMIN, needsPw: false });
     });
     lists[0].forEach(function (row) {
+      if (row.member_departed === true) { members.delete(row.nickname); return; }
       members.set(row.nickname, { nickname: row.nickname, registered: true, allowed: members.has(row.nickname),
         is_admin: !!row.is_admin || row.nickname === ADMIN, needsPw: row.pw_hash == null, created_at: row.created_at });
     });
@@ -727,6 +731,12 @@ window.Db = (function () {
 
   return {
     ADMIN: ADMIN, ensureAdmin: ensureAdmin, login: login, loginHash: loginHash, hashPw: sha256,
+    getMemberAccess: async function (nick) {
+      if (!sb) return { known: false };
+      var result = await sb.from("accounts").select("member_departed").eq("nickname", nick);
+      if (result.error || !Array.isArray(result.data) || result.data.length !== 1) return { known: false };
+      return { known: true, departed: result.data[0].member_departed === true };
+    },
     getProfileAvatars: getProfileAvatars, saveProfileAvatar: saveProfileAvatar,
     listAccounts: listAccounts, deleteAccount: deleteAccount, clearPassword: clearPassword,
     listMembers: listMembers, deleteMember: deleteMember,

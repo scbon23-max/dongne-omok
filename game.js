@@ -375,6 +375,7 @@
   }
   async function logoutAndReload() {
     if (activityLogoutLogged) return;
+    if (window.MemberAccessWatch) MemberAccessWatch.stop();
     activityLogoutLogged = true;
     var button = $("logout-btn");
     if (button) button.disabled = true;
@@ -405,6 +406,7 @@
         if (!res.ok) {
           setLoginMsg(
             res.reason === "badpw" ? "비밀번호가 틀렸어요." :
+            res.reason === "departed" ? "회원관리에서 탈퇴 처리된 계정이에요. 운영자에게 확인해 주세요." :
             res.reason === "not_allowed" ? "모임 명단에 없는 닉네임이에요. 철자를 확인하거나 관리자에게 요청하세요." :
             ("오류: " + (res.msg || res.reason))
           );
@@ -563,6 +565,9 @@
     };
   }
   function appConnect() {
+    if (window.MemberAccessWatch && window.Db && Db.getMemberAccess) {
+      MemberAccessWatch.start(me.nick, Db.getMemberAccess, logoutAndReload);
+    }
     joinedAt = Date.now();
     firstPresenceAt = 0;
     myJoinTs = Date.now();

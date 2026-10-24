@@ -54,6 +54,16 @@ test("member list loads every page instead of silently truncating large lists", 
   assert.equal((await db.listMembers()).length, 1006);
 });
 
+test("member-management departures are hidden without deleting retained accounts", async () => {
+  const { db, state } = fixture([
+    { nickname: "활동", pw_hash: "keep" }, { nickname: "탈퇴", member_departed: true, pw_hash: "retained" }
+  ], [{ nickname: "활동" }, { nickname: "탈퇴" }]);
+  const rows = await db.listMembers();
+  assert.deepEqual(Array.from(rows, row => row.nickname), ["활동"]);
+  assert.equal(state.accounts.length, 2);
+  assert.equal(state.accounts[1].pw_hash, "retained");
+});
+
 test("either list failing rejects the combined list rather than mislabeling members", async () => {
   for (const table of ["accounts", "allowlist"]) {
     const { db, state } = fixture([{ nickname: "가람" }], [{ nickname: "가람" }]);
