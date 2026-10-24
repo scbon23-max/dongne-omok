@@ -8580,7 +8580,7 @@ body.is-admin .feedback-user-compose { display: none; }
   .territory-screen.is-playing .territory-swipe-hint { opacity: 0; }
 }
 
-@font-face{font-family:DongnePoster;src:url('assets/CookieRun-Black.otf') format('opentype');font-weight:900;font-style:normal;font-display:swap}
+@font-face{font-family:DongnePoster;src:url('assets/CookieRun-Black.woff2') format('woff2'),url('assets/CookieRun-Black.otf') format('opentype');font-weight:900;font-style:normal;font-display:swap}
 /* Shared community branding only touches entry, lobby and room creation. */
 .community-game-shell{width:min(1080px,calc(100% - 64px));margin:auto}
 .community-game-brand{width:100%;flex-shrink:0;background:#0e2a3a;color:white;border-bottom:1px solid #39515f}
@@ -8623,14 +8623,14 @@ body.is-admin .feedback-user-compose { display: none; }
 .lobby-screen .room-meta{flex-wrap:wrap;gap:5px;font-size:11px;line-height:1.6;color:#65747c}.lobby-screen .room-status.waiting{color:#a34824}.lobby-screen .room-status.playing{color:#526875}.lobby-screen .room-who{flex:1;min-width:30px}.lobby-screen .room-dot{color:#8d9fa8}
 .lobby-screen .room-enter{flex-shrink:0;padding:9px 12px;border:1px solid #e8c7ad;border-radius:7px;background:#fff0df;color:#98451f;font-family:DongnePoster,'Malgun Gothic',sans-serif;font-size:13px;line-height:1.4}
 .lobby-screen .room-empty{border:1px dashed #afc1c9;color:#65747c;background:#f6f9f9;font-size:13px;min-height:150px;line-height:1.8;padding:20px}
-.lobby-screen .lobby-bottom{display:flex;flex-direction:column;width:100%;max-width:none;gap:0;background:white;border:1px solid #c8d5db;border-radius:13px;overflow:hidden;min-width:0;margin:0;align-self:start}
-.lobby-screen .lobby-bottom .chat-panel,.lobby-screen .lobby-bottom .online-panel{width:100%;max-width:none;min-width:0;flex:none;border:0;border-radius:0;background:white;box-shadow:none}
-.community-chat-heading{font-family:DongnePoster,'Malgun Gothic',sans-serif;font-size:18px;font-weight:900;line-height:1.5;color:#0e2a3a;padding:15px 17px;margin:0;border-bottom:1px solid #dce2e4}
-.lobby-screen .lobby-bottom .chat-log{height:210px;max-height:none;min-height:0;background:white;color:#0e2a3a;padding:15px 17px;border:0;overflow-y:auto;flex:none}
-.lobby-screen .lobby-bottom .chat-line{font-size:12px;line-height:1.8;margin-bottom:9px;color:#0e2a3a}.lobby-screen .lobby-bottom .chat-line.sys{font-size:11px;color:#65747c;font-style:normal}
-.lobby-screen .lobby-bottom .chat-input-row{padding:12px;background:white;border-top:1px solid #dce2e4;margin:0}.lobby-screen .lobby-bottom .chat-input{font-size:16px;background:#fcfcfb;border:1px solid #c8d2d7;border-radius:7px;color:#0e2a3a;padding:10px;width:100%;min-width:0;height:43px}.lobby-screen .lobby-bottom .chat-input::placeholder{font-size:12px;color:#65747c}
-.lobby-screen .lobby-feedback-btn{min-height:37px;padding:8px 10px;margin:0;border-radius:0;box-shadow:none;border-top:1px solid #dce2e4;background:#fff6ed;color:#994b26;font-size:11px;font-weight:600}
-.lobby-screen .online-panel{border-top:1px solid #dce2e4!important}.lobby-screen .online-panel .community-chat-heading{border:0;padding-bottom:5px;font-size:16px}.lobby-screen .online-list{padding:8px 17px 16px;color:#526875;max-height:190px;overflow-y:auto}.lobby-screen .online-item{font-size:11px;color:#0e2a3a}.lobby-screen .online-item .online-name{color:#0e2a3a}
+.lobby-screen .lobby-bottom{display:flex;flex-direction:column;width:100%;max-width:none;gap:0;background:#16384a;border:1px solid #39586a;border-radius:13px;overflow:hidden;min-width:0;margin:0;align-self:start}
+.lobby-screen .lobby-bottom .chat-panel,.lobby-screen .lobby-bottom .online-panel{width:100%;max-width:none;min-width:0;flex:none;border:0;border-radius:0;background:#16384a;color:#f3f7fa;box-shadow:none}
+.community-chat-heading{font-family:DongnePoster,'Malgun Gothic',sans-serif;font-size:18px;font-weight:900;line-height:1.5;color:#fff;padding:15px 17px;margin:0;border-bottom:1px solid #39586a}
+.lobby-screen .lobby-bottom .chat-log{height:210px;max-height:none;min-height:0;background:#16384a;color:#f3f7fa;padding:15px 17px;border:0;overflow-y:auto;flex:none}
+.lobby-screen .lobby-bottom .chat-line{font-size:12px;line-height:1.8;margin-bottom:9px;color:#f3f7fa}.lobby-screen .lobby-bottom .chat-line.sys{font-size:11px;color:#b5cbd6;font-style:normal}
+.lobby-screen .lobby-bottom .chat-input-row{padding:12px;background:#16384a;border-top:1px solid #39586a;margin:0}.lobby-screen .lobby-bottom .chat-input{font-size:16px;background:#0e2a3a;border:1px solid #527183;border-radius:7px;color:#fff;padding:10px;width:100%;min-width:0;height:43px}.lobby-screen .lobby-bottom .chat-input::placeholder{font-size:12px;color:#afc5d1}
+.lobby-screen .lobby-feedback-btn{min-height:37px;padding:8px 10px;margin:0;border-radius:0;box-shadow:none;border-top:1px solid #39586a;background:#1e4358;color:#f3f7fa;font-size:11px;font-weight:600}
+.lobby-screen .online-panel{border-top:1px solid #39586a!important}.lobby-screen .online-panel .community-chat-heading{border:0;padding-bottom:5px;font-size:16px}.lobby-screen .online-list{padding:8px 17px 16px;color:#b5cbd6;max-height:190px;overflow-y:auto}.lobby-screen .online-item{font-size:11px;color:#f3f7fa}.lobby-screen .online-item .online-name{color:#f3f7fa}.lobby-screen .online-panel :is(.online-empty,.online-sync-state){color:#b5cbd6}
 #create-modal .create-room-dialog{background:#fff8ef;color:#0e2a3a;border:2px solid #0e2a3a;border-radius:17px;box-shadow:6px 6px 0 #0e2a3a}
 #create-modal .modal-head h2,#create-modal .create-confirm{font-family:DongnePoster,'Malgun Gothic',sans-serif;font-weight:900}
 #create-modal .modal-head h2{color:#0e2a3a;font-size:25px}
@@ -8657,3 +8657,13 @@ body.is-admin .feedback-user-compose { display: none; }
 @media(max-width:540px){#create-modal .create-head h2{font-size:23px}#create-modal .create-game-option{gap:7px;padding:10px}#create-modal .create-game-option.active{padding:9px}#create-modal .create-game-icon{width:34px;height:34px}#create-modal .create-game-name{font-size:13px}}
 
 @media(max-width:360px){#create-modal .create-game-icon{width:28px;height:28px}#create-modal .create-game-name{font-size:12px;white-space:nowrap}#create-modal .create-game-option{gap:5px}}
+
+/* The same source is copied to the static home and game shell when publishing. */
+:root{--dongne-logo-width:132px;--dongne-header-height:68px;--dongne-header-gutter:32px}
+header.dongne-site-header:has(.dongne-logo){width:100%;height:var(--dongne-header-height);min-height:var(--dongne-header-height);max-height:var(--dongne-header-height);margin:0;padding:0;border:0;background:#0e2a3a;box-sizing:border-box;flex-shrink:0}
+header.dongne-site-header>div.dongne-header-inner{width:min(1080px,calc(100% - var(--dongne-header-gutter)*2));max-width:none;height:var(--dongne-header-height);min-height:var(--dongne-header-height);max-height:var(--dongne-header-height);margin:0 auto;padding:0;display:flex;align-items:center;justify-content:space-between;gap:22px;box-sizing:border-box}
+header.dongne-site-header a.dongne-logo-link{display:inline-flex;align-items:center;flex:0 0 var(--dongne-logo-width);width:var(--dongne-logo-width);max-width:none;height:auto;min-height:0;max-height:none;margin:0;padding:0;transform:none;line-height:0}
+header.dongne-site-header a.dongne-logo-link img.dongne-logo{display:block;flex:none;width:var(--dongne-logo-width);min-width:var(--dongne-logo-width);max-width:none;height:auto;min-height:0;max-height:none;aspect-ratio:61/14;object-fit:contain;margin:0;padding:0;border:0;transform:none}
+@media(max-width:850px){:root{--dongne-header-gutter:22px}}
+@media(max-width:540px){:root{--dongne-logo-width:116px;--dongne-header-height:62px;--dongne-header-gutter:18px}header.dongne-site-header>div.dongne-header-inner{gap:12px}}
+@media(max-width:360px){:root{--dongne-logo-width:110px;--dongne-header-gutter:15px}}
