@@ -34,7 +34,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="app-build" content="20261023-catchmind-simple-results-v3">
+<meta name="app-build" content="20261024-community-brand-v1">
 <title>동네 운동회 게임방</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="동네 운동회 게임방">
@@ -107,9 +107,12 @@
 
 <!-- 입장 화면 -->
 <section id="entry" class="screen entry-screen">
+<header class="community-game-brand"><div class="community-game-shell"><a href="https://dongne-suggestion-box.scbon.chatgpt.site/home" aria-label="동네운동회 메인"><img src="assets/dongne-logo.png" width="132" height="31" alt="동네운동회"></a><a class="community-game-home" href="https://dongne-suggestion-box.scbon.chatgpt.site/home">← 메인으로</a></div></header>
+<div class="community-entry-intro"><p>우리끼리 모여 노는 곳</p><h1>동네운동회<br><span>게임방</span></h1><p>오늘도 같이 한 판 해요!</p></div>
   <div class="entry-box">
-    <img src="assets/login-title.png" alt="동네운동회 게임방" class="entry-logo">
+<label class="community-entry-label" for="nick">닉네임</label>
     <input id="nick" class="nick-input" type="text" maxlength="12" placeholder="동네운동회 닉네임" autocomplete="off">
+    <label class="community-entry-label" for="pw">비밀번호</label>
     <input id="pw" class="nick-input" type="password" maxlength="20" placeholder="비밀번호" autocomplete="off">
     <label class="remember-row"><input id="remember-me" type="checkbox" checked><span>로그인 유지</span></label>
     <button id="enter-btn" class="btn-primary">입장하기</button>
@@ -119,12 +122,12 @@
       처음이면 닉네임+비번으로 <b>가입</b>, 다음부턴 같은 걸로 로그인.
     </p>
   </div>
-  <img class="entry-people" src="assets/people.png" alt="">
 </section>
 
 <!-- 로비 -->
 <section id="lobby" class="screen lobby-screen hidden">
-  <h1 class="lobby-page-title">로비화면</h1>
+<header class="community-game-brand"><div class="community-game-shell"><a href="https://dongne-suggestion-box.scbon.chatgpt.site/home" aria-label="동네운동회 메인"><img src="assets/dongne-logo.png" width="132" height="31" alt="동네운동회"></a><a class="community-game-home" href="https://dongne-suggestion-box.scbon.chatgpt.site/home">← 메인으로</a></div></header>
+<section class="community-lobby-welcome"><div class="community-game-shell"><div><p class="community-game-eyebrow">동네운동회 게임방</p><h1 class="lobby-page-title">운동 끝나고, 한 판?</h1><p>함께 놀 방을 고르거나 새로운 방을 만들어 보세요.</p></div><button id="create-room-btn" class="btn-primary lobby-create">+ 방 만들기</button></div></section>
   <aside id="lobby-chrome-warning" class="lobby-chrome-warning hidden" aria-live="polite">
     <strong>⚠ Chrome 브라우저 권장</strong>
     <p>현재 브라우저에서는 게임 화면, 사운드, 채팅 입력, 버튼 위치가 불안정할 수 있습니다.<br>원활한 플레이를 위해 반드시 Chrome 브라우저에서 접속해 주세요.</p>
@@ -133,25 +136,7 @@
       <button id="lobby-copy-link" type="button">현재 링크 복사</button>
     </div>
   </aside>
-  <div class="bottom-row lobby-bottom">
-    <div class="chat-panel">
-      <div class="chat-log" id="lobby-chat-log"></div>
-      <div class="chat-input-row">
-        <input id="lobby-chat-input" class="chat-input" type="text" placeholder="전체 채팅…" autocomplete="off">
-      </div>
-      <button id="lobby-feedback-btn" class="lobby-feedback-btn" type="button">
-        <span class="lobby-feedback-icon" aria-hidden="true">💬</span>
-        <span id="lobby-feedback-label">버그·좋은 의견 보내기</span>
-        <span id="feedback-badge" class="feedback-badge admin-only hidden" aria-label="미완료 접수 0건">0</span>
-      </button>
-    </div>
-    <div class="online-panel">
-      <div class="online-list" id="lobby-online-list"></div>
-    </div>
-  </div>
-
-  <div id="room-list" class="room-list lobby-roomlist"></div>
-
+<div class="community-game-shell community-lobby-main">
   <header class="game-header lobby-headbar">
     <div class="online-info">
       <span id="lobby-conn-dot" class="conn-dot" title="연결 상태"></span>
@@ -164,9 +149,26 @@
       <button id="lobby-menu-btn" class="hdr-btn menu-dots">⋯</button>
     </div>
   </header>
+<div class="community-lobby-columns"><section class="community-room-section" aria-labelledby="community-rooms-title"><h2 id="community-rooms-title">함께하는 게임</h2><div id="room-list" class="room-list lobby-roomlist"></div></section>
+  <div class="bottom-row lobby-bottom">
+    <div class="chat-panel"><h2 class="community-chat-heading">우리끼리 수다</h2>
+      <div class="chat-log" id="lobby-chat-log"></div>
+      <div class="chat-input-row">
+        <input id="lobby-chat-input" class="chat-input" type="text" placeholder="전체 채팅…" autocomplete="off">
+      </div>
+      <button id="lobby-feedback-btn" class="lobby-feedback-btn" type="button">
+        <span class="lobby-feedback-icon" aria-hidden="true">💬</span>
+        <span id="lobby-feedback-label">버그·좋은 의견 보내기</span>
+        <span id="feedback-badge" class="feedback-badge admin-only hidden" aria-label="미완료 접수 0건">0</span>
+      </button>
+    </div>
+    <div class="online-panel"><h2 class="community-chat-heading">함께 접속 중</h2>
+      <div class="online-list" id="lobby-online-list"></div>
+    </div>
+  </div>
 
-  <button id="create-room-btn" class="btn-primary lobby-create">+ 방 만들기</button>
-</section>
+
+</div></div></section>
 
 <!-- 게임 화면 -->
 <section id="game" class="screen game-screen hidden">

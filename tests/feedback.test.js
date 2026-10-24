@@ -132,7 +132,7 @@ test("feedback completion notifications include the original request for the req
 });
 
 test("the lobby exposes feedback composition while the admin gets an expandable inbox", () => {
-  assert.match(indexSource, /class="lobby-page-title">로비화면<\/h1>/);
+  assert.match(indexSource, /class="lobby-page-title">운동 끝나고, 한 판\?<\/h1>/);
   assert.doesNotMatch(indexSource, /오류·이상이 생기면/);
   assert.match(indexSource, /id="lobby-feedback-btn"/);
   assert.match(indexSource, /class="lobby-feedback-icon" aria-hidden="true">💬<\/span>/);

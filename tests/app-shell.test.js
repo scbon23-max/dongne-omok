@@ -426,7 +426,7 @@ test("room creation keeps Hold'em public and joinable from the list", () => {
   assert.doesNotMatch(styles, /\.create-game-icon\.holdem::before/);
   assert.match(styles, /\.create-mode-card\s*\{[^}]*border:\s*0/);
   assert.match(styles, /\.create-name-input\s*\{[^}]*border:\s*0/);
-  assert.doesNotMatch(styles, /\.create-room-dialog\s*\{[^}]*border:/);
+  assert.match(styles, /#create-modal \.create-room-dialog\s*\{[^}]*border:2px solid #0e2a3a/);
   assert.doesNotMatch(index, /알까기-일반|알까기-점령전/);
 
   [
