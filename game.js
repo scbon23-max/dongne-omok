@@ -1137,7 +1137,9 @@
       var who = r.summary ? esc(r.summary) : (seats.length ? seats.map(esc).join(" vs ") : "빈 자리");
       var playing = r.status === "게임중";
       var act = playing ? "관전" : "입장";
+      var icon = ({ omok: 'omok', alk: 'alk', alk_terr: 'territory', territory: 'territory', catchmind: 'catchmind', relay: 'catchmind', holdem: 'holdem', holdem_ring: 'holdem', holdem_tournament: 'holdem', holdem_turbo: 'holdem' })[r.game] || 'omok';
       return '<div class="room-card" data-id="' + esc(r.id) + '">'
+        + '<img class="community-room-icon" src="assets/create-room-icons/' + icon + '.webp" alt="" width="64" height="64" loading="lazy">'
         + '<div class="room-info">'
         + '<div class="room-title"><span class="room-badge ' + r.game + '">' + gname + '</span>'
         + '<span class="room-name">' + esc(r.name || "방") + '</span></div>'
