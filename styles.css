@@ -8657,3 +8657,13 @@ body.is-admin .feedback-user-compose { display: none; }
 @media(max-width:540px){#create-modal .create-head h2{font-size:23px}#create-modal .create-game-option{gap:7px;padding:10px}#create-modal .create-game-option.active{padding:9px}#create-modal .create-game-icon{width:34px;height:34px}#create-modal .create-game-name{font-size:13px}}
 
 @media(max-width:360px){#create-modal .create-game-icon{width:28px;height:28px}#create-modal .create-game-name{font-size:12px;white-space:nowrap}#create-modal .create-game-option{gap:5px}}
+
+/* The same source is copied to the static home and game shell when publishing. */
+:root{--dongne-logo-width:132px;--dongne-header-height:68px;--dongne-header-gutter:32px}
+header.dongne-site-header:has(.dongne-logo){width:100%;height:var(--dongne-header-height);min-height:var(--dongne-header-height);max-height:var(--dongne-header-height);margin:0;padding:0;border:0;background:#0e2a3a;box-sizing:border-box;flex-shrink:0}
+header.dongne-site-header>div.dongne-header-inner{width:min(1080px,calc(100% - var(--dongne-header-gutter)*2));max-width:none;height:var(--dongne-header-height);min-height:var(--dongne-header-height);max-height:var(--dongne-header-height);margin:0 auto;padding:0;display:flex;align-items:center;justify-content:space-between;gap:22px;box-sizing:border-box}
+header.dongne-site-header a.dongne-logo-link{display:inline-flex;align-items:center;flex:0 0 var(--dongne-logo-width);width:var(--dongne-logo-width);max-width:none;height:auto;min-height:0;max-height:none;margin:0;padding:0;transform:none;line-height:0}
+header.dongne-site-header a.dongne-logo-link img.dongne-logo{display:block;flex:none;width:var(--dongne-logo-width);min-width:var(--dongne-logo-width);max-width:none;height:auto;min-height:0;max-height:none;aspect-ratio:61/14;object-fit:contain;margin:0;padding:0;border:0;transform:none}
+@media(max-width:850px){:root{--dongne-header-gutter:22px}}
+@media(max-width:540px){:root{--dongne-logo-width:116px;--dongne-header-height:62px;--dongne-header-gutter:18px}header.dongne-site-header>div.dongne-header-inner{gap:12px}}
+@media(max-width:360px){:root{--dongne-logo-width:110px;--dongne-header-gutter:15px}}
