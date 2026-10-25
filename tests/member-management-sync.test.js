@@ -18,13 +18,20 @@ test('existing account password stays unchanged and reactivated login works',asy
 });
 test('first password for a synced new account must actually save before login succeeds',async()=>{
   const {db,writes}=dbFixture({nickname:'신규',member_departed:false,pw_hash:null});
-  assert.equal((await db.login('신규','chosen-password')).ok,true);assert.equal(writes.length,1);
+  const signedUp=await db.login('신규','chosen-password');
+  assert.equal(signedUp.ok,true);assert.equal(signedUp.created,true);assert.equal(signedUp.reset,false);assert.equal(writes.length,1);
   assert.match(writes[0].pw_hash,/^[a-f0-9]{64}$/);
   let updating=false;
   const query={select(){return this;},update(){updating=true;return this;},eq(){return Promise.resolve(updating?{error:{message:'private server error'}}:{data:[{pw_hash:null}],error:null});}};
   const ctx={window:{SB:{from:()=>query}},crypto:require('node:crypto').webcrypto,TextEncoder};vm.runInNewContext(dbSource,ctx);
   const failed=await ctx.window.Db.login('신규','chosen-password');assert.equal(failed.ok,false);assert.equal(failed.reason,'error');
   assert.doesNotMatch(failed.msg,/private server error/);
+});
+
+test('registered member setting a reset password is not a new signup',async()=>{
+  const {db}=dbFixture({nickname:'기존',member_departed:false,pw_hash:null,registration_completed:true});
+  const result=await db.login('기존','replacement');
+  assert.equal(result.ok,true);assert.equal(result.created,false);assert.equal(result.reset,true);
 });
 test('membership read distinguishes known departure from missing data',async()=>{
   assert.equal((await dbFixture({member_departed:true}).db.getMemberAccess('a')).departed,true);
@@ -74,6 +81,8 @@ test('database migration runs real join departure rejoin duplicate and rollback 
     await db.exec("create role anon;create role authenticated;create role service_role;create table accounts(nickname text primary key,pw_hash text,is_admin boolean default false,profile_avatar text);create table allowlist(nickname text primary key);create table games(id int primary key,nickname text references accounts(nickname),score int);insert into accounts values('기존','original-hash',false,'original-avatar'),('구나','admin-hash',true,null),('별도','separate-hash',false,null);insert into games values(1,'기존',90);");
     const migration=fs.readFileSync(path.join(root,'supabase','migrations','202610230001_member_management_sync.sql'),'utf8');
     await db.exec(migration);await db.exec(migration);
+    const registration=fs.readFileSync(path.join(root,'supabase','migrations','202610250001_account_registration_status.sql'),'utf8');
+    await db.exec(registration);await db.exec(registration);
     const source='13LPdYRKTdwX0sxRAHCJh6Y3Gc7slG2DKi6SHuz6sxlc';let revision=Date.now()-100;
     const member=(member_id,nickname,status='active')=>({member_id,nickname,status});
     async function sync(members,rev=++revision,src=source){return (await db.query('select sync_member_management($1,$2,$3::jsonb) as r',[src,rev,JSON.stringify(members)])).rows[0].r;}
@@ -84,6 +93,10 @@ test('database migration runs real join departure rejoin duplicate and rollback 
     assert.equal((await sync(roster)).created,0);
     const original=(await rows("select * from accounts where nickname='기존'"))[0];assert.equal(original.pw_hash,'original-hash');assert.equal(original.profile_avatar,'original-avatar');
     assert.equal((await rows("select * from accounts where nickname='신규'"))[0].pw_hash,null);
+    assert.equal((await rows("select registration_completed from accounts where nickname='신규'"))[0].registration_completed,false);
+    assert.equal((await rows("select registration_completed from accounts where nickname='기존'"))[0].registration_completed,true);
+    await db.exec("update accounts set pw_hash='chosen-hash' where nickname='신규';update accounts set pw_hash=null,registration_completed=false where nickname='신규';");
+    assert.equal((await rows("select registration_completed from accounts where nickname='신규'"))[0].registration_completed,true);
     r=await sync([member('old','기존','departed')]);assert.equal(r.departed,1);
     assert.equal((await rows("select member_departed from accounts where nickname='기존'"))[0].member_departed,true);
     assert.equal((await rows("select * from allowlist where nickname='기존'")).length,0);

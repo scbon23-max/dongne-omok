@@ -36,7 +36,7 @@ function fixture(accounts = [], allowlist = []) {
 
 test("member list merges duplicates and retains account-only and invitation-only members", async () => {
   const { db } = fixture([
-    { nickname: "가람", pw_hash: "hash" }, { nickname: "다솔", pw_hash: null }, { nickname: "구나", is_admin: true }
+    { nickname: "가람", pw_hash: "hash" }, { nickname: "다솔", pw_hash: null, registration_completed: true }, { nickname: "구나", is_admin: true }
   ], [{ nickname: "가람" }, { nickname: "나래" }]);
   const rows = await db.listMembers();
   assert.equal(rows.length, 4);
@@ -52,6 +52,22 @@ test("member list loads every page instead of silently truncating large lists", 
   const rows = Array.from({ length: 1005 }, (_, i) => ({ nickname: "회원" + i }));
   const { db } = fixture(rows, rows.concat({ nickname: "가입전" }));
   assert.equal((await db.listMembers()).length, 1006);
+});
+
+test("preprovisioned accounts stay pending until password setup, while password reset retains registration", async () => {
+  const accounts = [
+    { nickname: "가입전", pw_hash: null, registration_completed: false },
+    { nickname: "가입완료", pw_hash: "hash", registration_completed: true },
+    { nickname: "초기화", pw_hash: null, registration_completed: true }
+  ];
+  const { db } = fixture(accounts, accounts.map(row => ({ nickname: row.nickname })));
+  const rows = await db.listMembers();
+  assert.equal(rows.find(row => row.nickname === "가입전").registered, false);
+  assert.equal(rows.find(row => row.nickname === "가입전").allowed, true);
+  assert.equal(rows.find(row => row.nickname === "가입완료").registered, true);
+  assert.equal(rows.find(row => row.nickname === "초기화").registered, true);
+  assert.equal(rows.find(row => row.nickname === "초기화").needsPw, true);
+  assert.equal(rows.filter(row => row.registered).length, 2);
 });
 
 test("member-management departures are hidden without deleting retained accounts", async () => {

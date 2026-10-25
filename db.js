@@ -45,7 +45,8 @@ window.Db = (function () {
     if (acc.pw_hash == null) {
       var updated = await sb.from("accounts").update({ pw_hash: hash }).eq("nickname", nick);
       if (updated.error) return { ok: false, reason: "error", msg: "비밀번호를 저장하지 못했어요. 다시 시도해 주세요." };
-      return { ok: true, reset: true, account: { nickname: nick, is_admin: acc.is_admin } };
+      return { ok: true, created: acc.registration_completed !== true, reset: acc.registration_completed === true,
+        account: { nickname: nick, is_admin: acc.is_admin } };
     }
     if (acc.pw_hash === hash) return { ok: true, account: { nickname: nick, is_admin: acc.is_admin } };
     return { ok: false, reason: "badpw" };
@@ -136,7 +137,7 @@ window.Db = (function () {
   }
   async function listMembers() {
     var lists = await Promise.all([
-      memberRows("accounts", "nickname,is_admin,pw_hash,created_at,member_departed"),
+      memberRows("accounts", "nickname,is_admin,pw_hash,created_at,member_departed,registration_completed"),
       memberRows("allowlist", "nickname")
     ]);
     var members = new Map();
@@ -145,7 +146,8 @@ window.Db = (function () {
     });
     lists[0].forEach(function (row) {
       if (row.member_departed === true) { members.delete(row.nickname); return; }
-      members.set(row.nickname, { nickname: row.nickname, registered: true, allowed: members.has(row.nickname),
+      members.set(row.nickname, { nickname: row.nickname, registered: row.registration_completed === true || !!row.pw_hash,
+        allowed: members.has(row.nickname),
         is_admin: !!row.is_admin || row.nickname === ADMIN, needsPw: row.pw_hash == null, created_at: row.created_at });
     });
     return Array.from(members.values()).sort(function (a, b) {
